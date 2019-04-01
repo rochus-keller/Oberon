@@ -1,0 +1,237 @@
+// Source: The Programming Language Oberon, Revision 1.10.2013 / 3.5.2016, Niklaus Wirth
+// Download: https://www.inf.ethz.ch/personal/wirth/Oberon/Oberon07.Report.pdf
+// Adapted and modified 2019 by Rochus Keller <mailto:me@rochus-keller.ch>
+
+// Modification Steps:
+// - manually copied all productions from PDF to EbnfStudio and adapted syntax
+// - added top
+// - disabled/designated lexer productions
+// - removed LL(1) first/first and first/follow ambiguities
+// - renamed case to Case because of C++ keyword
+// - modified selector and removed ActualParams so parser needs no type info 
+// - added variableOrFunctionCall to remind that factor can include ActualParams
+// - allow FieldListSequence to have trailing ';' as seen in the ProjectOberon source 
+// - added ReturnStatement to support older Oberon versions if need be
+// - added LengthList for easier array parsing
+
+// Top
+
+Oberon ::= { module }
+
+// 3. Vocabulary
+
+// letter ::= 'A' | 'B' | ... | 'Z' | 'a' | 'b' | ... | 'z'
+
+// digit ::=  '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+
+// hexDigit ::= digit | 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
+
+ident ::= // letter {letter | digit}
+
+integer ::= // digit {digit} | digit {hexDigit} 'H'
+
+real ::= // digit {digit} '.' {digit} [ScaleFactor]
+
+ScaleFactor- ::= // 'E' ['+' | '-'] digit {digit}
+
+number ::= integer | real
+
+string ::= // '"' {character} '"' | digit {hexDigit} 'X', also multiline hex strings $ ... $ seen in PO source
+
+comment- ::= '(*' '*)' 
+
+// 4. Declarations and scope rules
+
+qualident ::= [ \LL:2\ ident '.' ] ident  // works even though EbnfStudio disagrees
+
+identdef ::= ident ['*']
+
+// 5. Constant declarations
+
+ConstDeclaration ::= identdef '=' ConstExpression
+
+ConstExpression* ::= expression
+
+// 6. Type declarations
+
+TypeDeclaration ::= identdef '=' type
+
+type ::= qualident | ArrayType | RecordType | PointerType | ProcedureType
+
+// 6.1. Basic types
+
+// 6.2. Array types
+
+ArrayType ::= ARRAY LengthList OF type
+
+LengthList ::= length {',' length}
+
+length* ::= ConstExpression
+
+// 6.3. Record types
+
+RecordType ::= RECORD ['(' BaseType ')'] [FieldListSequence]  END 
+
+BaseType ::= qualident
+
+FieldListSequence ::= FieldList {';' [FieldList]} // added support for empty ';' due to PO code
+
+FieldList ::= IdentList ':' type
+
+IdentList ::= identdef {',' identdef}
+
+// 6.4. Pointer types
+
+PointerType ::= POINTER TO type
+
+// 6.5. Procedure types
+
+ProcedureType ::= PROCEDURE [FormalParameters]
+
+// 7. Variable declarations
+
+VariableDeclaration ::= IdentList ':' type
+
+// 8. Expressions
+
+// 8.1. Operands
+
+designator ::= qualident {selector}
+
+selector ::= '.' ident | '[' ExpList ']' | '^'  
+	| '(' [ ExpList ] ')' // substitute for (qualident) and ActualParameters
+	// original: | '(' qualident ')'  // typeguard, nur unterscheidbar von ActualParams wenn qualident ein Type ist
+	// Man also Oberon in der Originalsyntax ohne Typeninformation nicht parsen!
+
+ExpList ::= expression {',' expression}
+
+// 8.2. Operators
+
+expression ::= SimpleExpression [ relation SimpleExpression ]
+
+relation ::= '=' | '#' | '<' | '<=' | '>' | '>=' | IN | IS
+
+SimpleExpression ::= ['+' | '-'] term { AddOperator term }
+
+AddOperator ::= '+' | '-' | OR
+
+term ::= factor {MulOperator factor}
+
+MulOperator ::= '*' | '/' | DIV | MOD | '&'
+
+factor ::= number | string | NIL | TRUE | FALSE |
+	set 
+	| variableOrFunctionCall
+	| '(' expression ')' | '~' factor
+	
+variableOrFunctionCall ::= designator // designator enthält neu auch: [ ActualParameters ] 
+	
+set ::= '{' [ element {',' element} ] '}'
+
+element ::= expression ['..' expression]
+
+ActualParameters- ::= '(' [ ExpList ] ')' 
+
+// 9. Statements
+
+statement ::= [ 
+	assignmentOrProcedureCall
+	| IfStatement | CaseStatement |
+	WhileStatement | RepeatStatement | ForStatement ]
+	
+// 9.1. Assignments
+// 9.2. Procedure calls
+
+// merge of assignment and ProcedureCall
+assignmentOrProcedureCall ::=
+	designator 
+	[
+		':=' expression // assignment
+		// designator enthält neu auch Params: | [ ActualParameters ] // ProcedureCall
+	]
+	
+assignment- ::= designator ':=' expression
+
+ProcedureCall- ::= designator [ ActualParameters ]
+
+// 9.3. Statement sequences
+
+StatementSequence ::= statement { ';' statement }
+
+// 9.4. If statements
+
+IfStatement ::= IF expression THEN StatementSequence
+	{ ELSIF expression THEN StatementSequence }
+	[ ELSE StatementSequence ] END
+
+// 9.5. Case statements
+
+CaseStatement ::= CASE expression OF Case { '|' Case } END
+
+Case ::= [ CaseLabelList ':' StatementSequence ]
+
+CaseLabelList ::= LabelRange { ',' LabelRange }
+
+LabelRange ::= label [ '..' label ]
+
+label ::= integer | string | qualident
+
+// 9.6. While statements
+
+WhileStatement ::= WHILE expression DO StatementSequence
+	{ELSIF expression DO StatementSequence} END
+	
+// 9.7. Repeat Statements
+
+RepeatStatement ::= REPEAT StatementSequence UNTIL expression
+
+// 9.8. For statements
+
+ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
+	DO StatementSequence END
+
+// 10. Procedure declarations
+ProcedureDeclaration ::= ProcedureHeading ';' ProcedureBody ident
+
+ProcedureHeading ::= PROCEDURE identdef [ FormalParameters ]
+
+ProcedureBody ::= DeclarationSequence 
+	[ BEGIN StatementSequence ]
+	[ ReturnStatement ] END
+	
+DeclarationSequence ::= 
+	[ CONST { ConstDeclaration ';' } ]
+	[ TYPE { TypeDeclaration ';' } ]
+	[ VAR { VariableDeclaration ';' } ]
+	{ ProcedureDeclaration ';' }
+	
+ReturnStatement ::= RETURN expression 
+	
+// 10.1. Formal parameters
+
+FormalParameters ::= '(' [ FPSection { ';' FPSection } ] ')' [ ':' qualident ]
+
+FPSection ::= [ VAR ] ident { ',' ident } ':' FormalType
+
+FormalType ::= { ARRAY OF } qualident
+
+// 10.2. Predefined procedures
+
+// 11. Modules
+
+module ::= MODULE ident ';' [ ImportList ] DeclarationSequence
+	[ BEGIN StatementSequence ] END ident '.' 
+	
+ImportList ::= IMPORT import { ',' import } ';'
+
+import ::= ident [ ':=' ident ]
+
+// 11.1 The Module SYSTEM
+
+// Helper Tokens
+Comment ::=
+
+// Pragmas
+%module ::= 'Oberon'
+%namespace ::= 'Ob'
+%suppress ::= ';' ',' '.' ':'

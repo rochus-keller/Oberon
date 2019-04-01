@@ -1,0 +1,10 @@
+../../Coco/Coco ./Oberon.atg -trace FP -o . -namespace Ob > ./coco_out.txt
+
+mv ./Parser.h ../ObParser.h
+mv ./Parser.cpp ../ObParser.cpp
+
+mv ./ObSynTree.h ..
+mv ./ObSynTree.cpp ..
+
+mv ./ObTokenType.h ..
+mv ./ObTokenType.cpp ..
