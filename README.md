@@ -6,7 +6,7 @@ The goal of this project is to build tools to better understand the Lola-2 compi
 
 ### Parser and code model features
 
-- Implements Oberon-07; successfully reads the Oberon System (see http://www.projectoberon.com/) and the Lola-2 compiler (see https://www.inf.ethz.ch/personal/wirth/Lola) source code
+- Implements Oberon-07; successfully reads the Oberon System including the applications (see http://www.projectoberon.com/) and the Lola-2 compiler (see https://www.inf.ethz.ch/personal/wirth/Lola) source code (the syntax errors in Graphics.Mod line 670 and Net.Mod line 190 have to be fixed though)
 - Syntax and semantics validation, error reporting
 - Infers and synthesizes missing modules
 

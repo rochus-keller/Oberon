@@ -63,6 +63,7 @@ namespace Ob
         EntriesByFile getErrors() const;
         EntryList getWarnings(const QString& file) const;
         EntriesByFile getWarnings() const;
+        quint32 getSyntaxErrCount() const { return d_numOfSyntaxErrs; }
 
         void clear();
         void clearFile( const QString& file );
@@ -75,6 +76,7 @@ namespace Ob
     private:
         mutable QReadWriteLock d_lock;
         quint32 d_numOfErrs;
+        quint32 d_numOfSyntaxErrs;
         quint32 d_numOfWrns;
         EntriesByFile d_errs;
         EntriesByFile d_wrns;

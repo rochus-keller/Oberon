@@ -116,6 +116,12 @@ bool CodeModel::parseFiles(const QStringList& files)
         parseFile(path);
     }
 
+    if( d_errs->getSyntaxErrCount() != 0 )
+    {
+        qCritical() << "terminating because of syntax errors";
+        return false;
+    }
+
     qDebug() << "checking dependencies...";
     checkModuleDependencies();
 
@@ -1012,7 +1018,9 @@ const CodeModel::NamedThing*CodeModel::derefQualident(CodeModel::DeclarationSequ
 CodeModel::Quali CodeModel::derefQualident(CodeModel::DeclarationSequence* ds, SynTree* t, bool report, bool synthesize)
 {
     Q_ASSERT( t->d_tok.d_type == SynTree::R_qualident );
-    Q_ASSERT( !t->d_children.isEmpty() && t->d_children.first()->d_tok.d_type == Tok_ident );
+    if( t->d_children.isEmpty() )
+        return Quali();
+    Q_ASSERT( t->d_children.first()->d_tok.d_type == Tok_ident );
 
     SynTree* id1 = 0;
     SynTree* id2 = 0;
@@ -1079,7 +1087,7 @@ CodeModel::Quali CodeModel::derefQualident(CodeModel::DeclarationSequence* ds, S
                            tr("local ident '%1' not found").arg(id2->d_tok.d_val.data()) );
         }
         Q_ASSERT( m == 0 && id1 == 0 && id2 != 0 );
-        if( report )
+        if( report && nt != 0 )
             index(id2,nt);
         return Quali(qMakePair(m,id1),qMakePair(nt,id2));
     }

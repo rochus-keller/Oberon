@@ -69,14 +69,15 @@ void Highlighter::highlightBlock(const QString& text)
 
 
     int start = 0;
-    if( lexerState == 1 )
+    if( lexerState > 0 )
     {
         // wir sind in einem Multi Line Comment
         // suche das Ende
         QTextCharFormat f = formatForCategory(C_Cmt);
         f.setProperty( TokenProp, int(Tok_Comment) );
-        int pos = text.indexOf("*)");
-        if( pos == -1 )
+        int pos = 0;
+        Lexer::parseComment( text.toLatin1(), pos, lexerState );
+        if( lexerState > 0 )
         {
             // the whole block ist part of the comment
             setFormat( start, text.size(), f );
@@ -85,7 +86,6 @@ void Highlighter::highlightBlock(const QString& text)
         }else
         {
             // End of Comment found
-            pos += 2;
             setFormat( start, pos , f );
             lexerState = 0;
             braceDepth--;
@@ -98,10 +98,11 @@ void Highlighter::highlightBlock(const QString& text)
     lex.setIgnoreComments(false);
     lex.setPackComments(false);
 
-    const QList<Token> tokens =  lex.tokens(text.mid(start));
+    QList<Token> tokens =  lex.tokens(text.mid(start));
     for( int i = 0; i < tokens.size(); ++i )
     {
-        const Token &t = tokens.at(i);
+        Token &t = tokens[i];
+        t.d_colNr += start;
 
         QTextCharFormat f;
         if( t.d_type == Tok_Comment )

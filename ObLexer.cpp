@@ -226,7 +226,7 @@ Token Lexer::token(TokenType tt, int len, const QByteArray& val)
     d_colNr += len;
     t.d_sourcePath = d_sourcePath;
     if( tt == Tok_Invalid && d_err != 0 )
-        d_err->error(Errors::Lexer, t.d_sourcePath, t.d_lineNr, t.d_colNr, t.d_val );
+        d_err->error(Errors::Syntax, t.d_sourcePath, t.d_lineNr, t.d_colNr, t.d_val );
     return t;
 }
 
@@ -341,42 +341,75 @@ Token Lexer::number()
         return token( Tok_integer, off, str );
 }
 
+void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
+{
+    enum State { Idle, Lb, Star } state = Idle;
+    while( pos < str.size() )
+    {
+        const char c = str[pos++];
+        switch( state )
+        {
+        case Idle:
+            if( c == '(')
+                state = Lb;
+            else if( c == '*' )
+                state = Star;
+            break;
+        case Lb:
+            if( c == '*' )
+                level++;
+            state = Idle;
+            break;
+        case Star:
+            if( c == ')')
+                level--;
+            state = Idle;
+            if( level <= 0 )
+                return;
+            break;
+        }
+    }
+}
+
 Token Lexer::comment()
 {
     const int startLine = d_lineNr;
     const int startCol = d_colNr;
 
-    d_colNr += 2;
-    int pos = d_line.indexOf( "*)", d_colNr );
-    QByteArray str;
-    while( pos == -1 && !d_in->atEnd() )
+
+    int level = 0;
+    int pos = d_colNr;
+    parseComment( d_line, pos, level );
+    QByteArray str = d_line.mid(d_colNr,pos-d_colNr);
+    while( level > 0 && !d_in->atEnd() )
     {
+        nextLine();
+        pos = 0;
+        parseComment( d_line, pos, level );
         if( !str.isEmpty() )
             str += '\n';
-        str += d_line.mid( d_colNr );
-        nextLine();
-        pos = d_line.indexOf( "*)" );
+        str += d_line.mid(d_colNr,pos-d_colNr);
     }
-    if( d_packComments && pos == -1 && d_in->atEnd() )
+    if( d_packComments && level > 0 && d_in->atEnd() )
     {
         d_colNr = d_line.size();
         Token t( Tok_Invalid, startLine, startCol + 1, str.size(), tr("non-terminated comment").toLatin1() );
         if( d_err )
-            d_err->error(Errors::Lexer, t.d_sourcePath, t.d_lineNr, t.d_colNr, t.d_val );
+            d_err->error(Errors::Syntax, t.d_sourcePath, t.d_lineNr, t.d_colNr, t.d_val );
         return t;
     }
-    if( !str.isEmpty() )
-        str += '\n';
-    str += d_line.mid( d_colNr, pos - d_colNr );
-    Token t( ( d_packComments ? Tok_Comment : Tok_Latt ), startLine, startCol + 1, str.size() + 2, str );
+    // Col + 1 weil wir immer bei Spalte 1 beginnen, nicht bei Spalte 0
+    Token t( ( d_packComments ? Tok_Comment : Tok_Latt ), startLine, startCol + 1, str.size(), str );
     t.d_sourcePath = d_sourcePath;
     d_lastToken = t;
-    if( d_packComments )
+    d_colNr = pos;
+    if( !d_packComments && level == 0 )
     {
-        t.d_len += 2;
-        d_colNr = pos + 2; // konsumiere */
-    }else
-        d_colNr = pos; // lasse */ dem nächsten call von nextToken
+        Token t(Tok_Ratt,d_lineNr, pos - 2 + 1, 2 );
+        t.d_sourcePath = d_sourcePath;
+        d_lastToken = t;
+        d_buffer.append( t );
+    }
     return t;
 }
 

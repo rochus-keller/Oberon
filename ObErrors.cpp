@@ -25,7 +25,7 @@ using namespace Ob;
 Errors::Errors(QObject *parent, bool threadExclusive) :
     QObject(parent),
     d_numOfErrs(0),d_numOfWrns(0),d_showWarnings(true),d_threadExclusive(threadExclusive),
-    d_reportToConsole(false),d_record(false)
+    d_reportToConsole(false),d_record(false),d_numOfSyntaxErrs(0)
 {
 
 }
@@ -49,8 +49,13 @@ void Errors::error(Errors::Source s, const QString& file, int line, int col, con
     }
     if( d_reportToConsole && inserted )
         log(e,true);
-    if( inserted )
+    if( inserted || !d_reportToConsole )
+    {
+
         d_numOfErrs++;
+        if( s == Syntax )
+            d_numOfSyntaxErrs++;
+    }
     if( !d_threadExclusive ) d_lock.unlock();
 }
 
@@ -183,6 +188,7 @@ void Errors::clear()
     if( !d_threadExclusive ) d_lock.lockForWrite();
     d_numOfErrs = 0;
     d_numOfWrns = 0;
+    d_numOfSyntaxErrs = 0;
     d_errs.clear();
     d_wrns.clear();
     if( !d_threadExclusive ) d_lock.unlock();
@@ -192,6 +198,7 @@ void Errors::clearFile(const QString& file)
 {
     if( !d_threadExclusive ) d_lock.lockForWrite();
     d_numOfErrs -= d_errs[file].size();
+    d_numOfSyntaxErrs = 0;
     d_errs.remove(file);
     d_numOfWrns -= d_wrns[file].size();
     d_wrns.remove(file);
@@ -221,6 +228,7 @@ void Errors::update(const Errors& rhs, bool overwrite)
     {
         d_errs = rhs.d_errs;
         d_wrns = rhs.d_wrns;
+        d_numOfSyntaxErrs = rhs.d_numOfSyntaxErrs;
         d_numOfErrs = rhs.d_numOfErrs;
         d_numOfWrns = rhs.d_numOfWrns;
     }else
@@ -232,6 +240,7 @@ void Errors::update(const Errors& rhs, bool overwrite)
             if( doLog ) foreach( const Entry& e, i.value() ) log(e,true);
         }
         d_numOfErrs = 0;
+        d_numOfSyntaxErrs = 0;
         for( i = d_errs.begin(); i != d_errs.end(); ++i )
             d_numOfErrs += i.value().size();
         for( i = rhs.d_wrns.begin(); i != rhs.d_wrns.end(); ++i )
