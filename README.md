@@ -2,7 +2,7 @@
 
 This is an Oberon-07 parser and code model written in C++ and Qt. See http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf for more information about the language. The syntax was modified for Coco/R compatibility using https://github.com/rochus-keller/EbnfStudio. 
 
-The goal of this project is to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries and with no dependencies to the Oberon System.
+The goal of this project is to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries and with no dependencies to the Oberon System. The C++ based Lola-2 compiler will be integrated in https://github.com/rochus-keller/LolaCreator.
 
 ### Parser and code model features
 
@@ -30,9 +30,9 @@ Just download, unpack and run it; no installer is needed. The ZIP includes the n
 
 Follow these steps if you want to build OberonViewer yourself:
 
-1. Create a directory; let's call it BUILD_DIR
-1. Download the Oberon source code from https://github.com/rochus-keller/Oberon/archive/master.zip and unpack it to the BUILD_DIR; rename the subdirectory to "Oberon".
-1. Goto the BUILD_DIR/Oberon subdirectory and execute `QTDIR/bin/qmake OberonViewer.pro` (see the Qt documentation concerning QTDIR).
+1. Make sure a Qt 5.x (libraries and headers) version compatible with your C++ compiler is installed on your system.
+1. Download the Oberon source code from https://github.com/rochus-keller/Oberon/archive/master.zip and unpack it.
+1. Goto the unpacked directory and execute `QTDIR/bin/qmake OberonViewer.pro` (see the Qt documentation concerning QTDIR).
 1. Run make; after a couple of seconds you will find the executable in the build directory.
 
 Alternatively you can open OberonViewer.pro using QtCreator and build it there.
