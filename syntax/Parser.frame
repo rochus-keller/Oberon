@@ -64,6 +64,7 @@ public:
 
 	Ob::Token d_cur;
 	Ob::Token d_next;
+	QList<Ob::Token> d_comments;
 	struct TokDummy
 	{
 		int kind;
@@ -153,7 +154,7 @@ void Parser::Get() {
             // else errors already handeled in lexer
             break;
         case Ob::Tok_Comment:
-            // ignorieren
+            d_comments.append(d_next);
             break;
         default:
             deliverToParser = true;

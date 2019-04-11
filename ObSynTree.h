@@ -20,6 +20,8 @@ namespace Ob {
 			R_CaseStatement,
 			R_ConstDeclaration,
 			R_DeclarationSequence,
+			R_ElseStatement,
+			R_ElsifStatement,
 			R_ExpList,
 			R_FPSection,
 			R_FieldList,

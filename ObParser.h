@@ -86,9 +86,11 @@ private:
 		_T_integer=66,
 		_T_real=67,
 		_T_string=68,
-		_T_Comment=69,
-		_T_Eof=70,
-		_T_MaxToken_=71
+		_T_hexchar=69,
+		_T_hexstring=70,
+		_T_Comment=71,
+		_T_Eof=72,
+		_T_MaxToken_=73
 	};
 	int maxT;
 
@@ -109,6 +111,7 @@ public:
 
 	Ob::Token d_cur;
 	Ob::Token d_next;
+	QList<Ob::Token> d_comments;
 	struct TokDummy
 	{
 		int kind;
@@ -181,6 +184,8 @@ Ob::SynTree d_root;
 	void RepeatStatement();
 	void ForStatement();
 	void StatementSequence();
+	void ElsifStatement();
+	void ElseStatement();
 	void Case();
 	void CaseLabelList();
 	void LabelRange();

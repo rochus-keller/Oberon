@@ -27,6 +27,8 @@
 
 namespace Ob
 {
+    class SynTree;
+
     class Errors : public QObject
     {
         // class is thread-safe
@@ -47,7 +49,9 @@ namespace Ob
 
         explicit Errors(QObject *parent = 0, bool threadExclusive = false );
 
+        void error( Source, const SynTree*, const QString& msg );
         void error( Source, const QString& file, int line, int col, const QString& msg );
+        void warning( Source, const SynTree*, const QString& msg );
         void warning( Source, const QString& file, int line, int col, const QString& msg );
 
         bool showWarnings() const;

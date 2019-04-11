@@ -79,6 +79,8 @@ namespace Ob {
 		Tok_integer,
 		Tok_real,
 		Tok_string,
+		Tok_hexchar,
+		Tok_hexstring,
 		Tok_Comment,
 		Tok_Eof,
 

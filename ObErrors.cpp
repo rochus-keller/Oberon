@@ -18,6 +18,7 @@
 */
 
 #include "ObErrors.h"
+#include "ObSynTree.h"
 #include <QtDebug>
 #include <QFileInfo>
 using namespace Ob;
@@ -28,6 +29,12 @@ Errors::Errors(QObject *parent, bool threadExclusive) :
     d_reportToConsole(false),d_record(false),d_numOfSyntaxErrs(0)
 {
 
+}
+
+void Errors::error(Errors::Source s, const SynTree* st, const QString& msg)
+{
+    Q_ASSERT( st != 0 );
+    error( s, st->d_tok.d_sourcePath, st->d_tok.d_lineNr, st->d_tok.d_colNr, msg );
 }
 
 void Errors::error(Errors::Source s, const QString& file, int line, int col, const QString& msg)
@@ -57,6 +64,12 @@ void Errors::error(Errors::Source s, const QString& file, int line, int col, con
             d_numOfSyntaxErrs++;
     }
     if( !d_threadExclusive ) d_lock.unlock();
+}
+
+void Errors::warning(Errors::Source s, const SynTree* st, const QString& msg)
+{
+    Q_ASSERT( st != 0 );
+    warning( s, st->d_tok.d_sourcePath, st->d_tok.d_lineNr, st->d_tok.d_colNr, msg );
 }
 
 void Errors::warning(Errors::Source s, const QString& file, int line, int col, const QString& msg)

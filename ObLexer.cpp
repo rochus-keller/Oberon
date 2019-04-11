@@ -334,7 +334,7 @@ Token Lexer::number()
         return token( Tok_Invalid, off, "invalid hexadecimal string" );
 
     if( isChar )
-        return token( Tok_string, off, str );
+        return token( Tok_hexchar, off, str );
     else if( isReal)
         return token( Tok_real, off, str );
     else
@@ -466,7 +466,7 @@ Token Lexer::hexstring()
         if( !isHexDigit( str[i] ) && !::isspace(str[i]) )
             ok = false;
     }
-    Token t( Tok_string, startLine, startCol, str.size(), str );
+    Token t( Tok_hexstring, startLine, startCol, str.size(), str );
     if( !ok )
     {
         t.d_type = Tok_Invalid;

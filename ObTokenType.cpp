@@ -70,6 +70,8 @@ namespace Ob {
 			case Tok_integer: return "integer";
 			case Tok_real: return "real";
 			case Tok_string: return "string";
+			case Tok_hexchar: return "hexchar";
+			case Tok_hexstring: return "hexstring";
 			case Tok_Comment: return "Comment";
 			case Tok_Eof: return "<eof>";
 			default: return "";
@@ -143,6 +145,8 @@ namespace Ob {
 			case Tok_integer: return "Tok_integer";
 			case Tok_real: return "Tok_real";
 			case Tok_string: return "Tok_string";
+			case Tok_hexchar: return "Tok_hexchar";
+			case Tok_hexstring: return "Tok_hexstring";
 			case Tok_Comment: return "Tok_Comment";
 			case Tok_Eof: return "Tok_Eof";
 			default: return "";

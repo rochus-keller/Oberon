@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("OberonViewer");
-    a.setApplicationVersion("0.5");
+    a.setApplicationVersion("0.5.3");
     a.setStyle("Fusion");
 
     QStringList dirOrFilePaths;
@@ -53,7 +53,8 @@ int main(int argc, char *argv[])
         if( info.isDir() )
             files += Ob::OberonViewer::collectFiles( info.absoluteFilePath() );
         else
-            files << path;
+            // files << path;
+            files += Ob::OberonViewer::collectFiles( info.absoluteDir() );
     }
 
     if( !files.isEmpty() )

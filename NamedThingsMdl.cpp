@@ -72,11 +72,12 @@ QVariant NamedThingsMdl::data(const QModelIndex& index, int role) const
         {
         case Slot::Symbol:
         default:
-            if( const CodeModel::StubVal* v = dynamic_cast<const CodeModel::StubVal*>(s->d_sym) )
+            if( const CodeModel::Element* v = dynamic_cast<const CodeModel::Element*>(s->d_sym) )
             {
-                return s->d_sym->d_name + " (" + CodeModel::StubVal::s_kindName[v->d_kind] + ")";
-            }else
-                return s->d_sym->d_name + ( s->d_sym->d_public ? "*" : "" );
+                if( v->isStub() )
+                    return s->d_sym->d_name + " (" + CodeModel::Element::s_kindName[v->d_kind] + ")";
+            }// else
+            return s->d_sym->d_name + ( s->d_sym->d_public ? "*" : "" );
         case Slot::Consts:
             return "CONST";
         case Slot::Vars:
@@ -209,29 +210,28 @@ void NamedThingsMdl::fillSection( Slot* super, const Sorter& sorter, quint8 kind
         super->d_children.append( s );
         if( const CodeModel::Procedure* p = dynamic_cast<const CodeModel::Procedure*>(j.value()) )
             fill(s, p );
-        else if( const CodeModel::RecordType* r = dynamic_cast<const CodeModel::RecordType*>(j.value()) )
+        else if( const CodeModel::Type* r = dynamic_cast<const CodeModel::Type*>(j.value()) )
         {
+            if( r->d_kind != CodeModel::Type::Record )
+                continue;
             Sorter s2;
-            foreach( const CodeModel::Variable* v, r->d_fields )
+            foreach( const CodeModel::Element* v, r->d_vals )
                 s2.insert( v->d_name.toLower(), v );
             fillSection( s, s2, Slot::Symbol );
-        }else if( const CodeModel::StubType* t = dynamic_cast<const CodeModel::StubType*>(j.value() ) )
+        }else if( const CodeModel::Element* t = dynamic_cast<const CodeModel::Element*>(j.value() ) )
         {
-            Sorter s2;
-            foreach( const CodeModel::StubVal* v, t->d_fields )
-                s2.insert( v->d_name.toLower(), v );
-            fillSection( s, s2, Slot::Symbol );
-        }else if( const CodeModel::StubVal* t = dynamic_cast<const CodeModel::StubVal*>(j.value() ) )
-        {
-            Sorter s2;
-            foreach( const CodeModel::StubVal* v, t->d_params )
-                s2.insert( v->d_name.toLower(), v );
-            fillSection( s, s2, Slot::Symbol );
+            if( t->isStub() )
+            {
+                Sorter s2;
+                foreach( const CodeModel::Element* v, t->d_vals )
+                    s2.insert( v->d_name.toLower(), v );
+                fillSection( s, s2, Slot::Symbol );
+            }
         }
     }
 }
 
-void NamedThingsMdl::fill(Slot* super, const CodeModel::DeclarationSequence* ds )
+void NamedThingsMdl::fill(Slot* super, const CodeModel::Unit* ds )
 {
     if( ds == 0 )
         return;
@@ -240,14 +240,14 @@ void NamedThingsMdl::fill(Slot* super, const CodeModel::DeclarationSequence* ds 
 
     if( const CodeModel::Procedure* p = dynamic_cast<const CodeModel::Procedure*>(ds) )
     {
-        foreach( const CodeModel::FormalParam* x, p->d_params )
+        foreach( const CodeModel::Element* x, p->d_vals )
             if( !x->d_name.isEmpty() )
                 sorter.insert( x->d_name.toLower(), x );
         fillSection( super, sorter, Slot::Params );
     }
 
     sorter.clear();
-    foreach( const CodeModel::Constant* x, ds->d_consts )
+    foreach( const CodeModel::Element* x, ds->getConsts() )
         if( !x->d_name.isEmpty() )
             sorter.insert( x->d_name.toLower(), x );
     fillSection( super, sorter, Slot::Consts );
@@ -259,13 +259,16 @@ void NamedThingsMdl::fill(Slot* super, const CodeModel::DeclarationSequence* ds 
     fillSection( super, sorter, Slot::Types );
 
     sorter.clear();
-    foreach( const CodeModel::Variable* x, ds->d_vars )
+    foreach( const CodeModel::Element* x, ds->getVars() )
         if( !x->d_name.isEmpty() )
             sorter.insert( x->d_name.toLower(), x );
     fillSection( super, sorter, Slot::Vars );
 
     sorter.clear();
-    foreach( const CodeModel::StubVal* x, ds->d_stubs )
+    foreach( const CodeModel::Element* x, ds->getUnknowns() )
+        if( !x->d_name.isEmpty() )
+            sorter.insert( x->d_name.toLower(), x );
+    foreach( const CodeModel::Element* x, ds->getStubProcs() )
         if( !x->d_name.isEmpty() )
             sorter.insert( x->d_name.toLower(), x );
     fillSection( super, sorter, Slot::Stubs );

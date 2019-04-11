@@ -19,6 +19,8 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_CaseStatement: return "CaseStatement";
 		case R_ConstDeclaration: return "ConstDeclaration";
 		case R_DeclarationSequence: return "DeclarationSequence";
+		case R_ElseStatement: return "ElseStatement";
+		case R_ElsifStatement: return "ElsifStatement";
 		case R_ExpList: return "ExpList";
 		case R_FPSection: return "FPSection";
 		case R_FieldList: return "FieldList";

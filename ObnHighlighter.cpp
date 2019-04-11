@@ -117,7 +117,7 @@ void Highlighter::highlightBlock(const QString& text)
             braceDepth--;
             f = formatForCategory(C_Cmt);
             lexerState = 0;
-        }else if( t.d_type == Tok_string )
+        }else if( t.d_type == Tok_string || t.d_type == Tok_hexchar || t.d_type == Tok_hexstring )
             f = formatForCategory(C_Str);
         else if( t.d_type == Tok_real || t.d_type == Tok_integer )
             f = formatForCategory(C_Num);

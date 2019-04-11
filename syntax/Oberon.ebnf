@@ -13,6 +13,8 @@
 // - allow FieldListSequence to have trailing ';' as seen in the ProjectOberon source 
 // - added ReturnStatement to support older Oberon versions if need be
 // - added LengthList for easier array parsing
+// - added hexchar and hexstring
+// - added Elsif/ElseStatement for easier traversal
 
 // Top
 
@@ -37,6 +39,8 @@ ScaleFactor- ::= // 'E' ['+' | '-'] digit {digit}
 number ::= integer | real
 
 string ::= // '"' {character} '"' | digit {hexDigit} 'X', also multiline hex strings $ ... $ seen in PO source
+hexchar ::=
+hexstring ::=
 
 comment- ::= '(*' '*)' 
 
@@ -119,7 +123,7 @@ term ::= factor {MulOperator factor}
 
 MulOperator ::= '*' | '/' | DIV | MOD | '&'
 
-factor ::= number | string | NIL | TRUE | FALSE |
+factor ::= number | string | hexstring | hexchar | NIL | TRUE | FALSE |
 	set 
 	| variableOrFunctionCall
 	| '(' expression ')' | '~' factor
@@ -161,8 +165,10 @@ StatementSequence ::= statement { ';' statement }
 // 9.4. If statements
 
 IfStatement ::= IF expression THEN StatementSequence
-	{ ELSIF expression THEN StatementSequence }
-	[ ELSE StatementSequence ] END
+	{ ElsifStatement }
+	[ ElseStatement ] END
+ElsifStatement ::= ELSIF expression THEN StatementSequence 
+ElseStatement ::= ELSE StatementSequence
 
 // 9.5. Case statements
 
@@ -174,12 +180,12 @@ CaseLabelList ::= LabelRange { ',' LabelRange }
 
 LabelRange ::= label [ '..' label ]
 
-label ::= integer | string | qualident
+label ::= integer | string | hexchar | hexstring | qualident
 
 // 9.6. While statements
 
 WhileStatement ::= WHILE expression DO StatementSequence
-	{ELSIF expression DO StatementSequence} END
+	{ElsifStatement} END
 	
 // 9.7. Repeat Statements
 

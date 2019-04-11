@@ -58,7 +58,7 @@ namespace Ob
         };
         typedef QMap<QByteArray,const CodeModel::NamedThing*> Sorter;
         void fillSection( Slot* super, const Sorter& sorter, quint8 kind );
-        void fill(Slot* super, const CodeModel::DeclarationSequence* sym);
+        void fill(Slot* super, const CodeModel::Unit* sym);
         void fillTop();
         QModelIndex findSymbol(Slot*, const CodeModel::NamedThing* nt) const;
         Slot d_root;
