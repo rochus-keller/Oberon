@@ -18,6 +18,7 @@
 */
 
 #include "NamedThingsMdl.h"
+#include "ObCppGen.h"
 #include "OberonViewer.h"
 #include "ObnHighlighter.h"
 #include <QDockWidget>
@@ -37,6 +38,8 @@
 #include <QFileDialog>
 #include <QDate>
 #include <algorithm>
+#include <QFormLayout>
+#include <QDialogButtonBox>
 using namespace Ob;
 
 Q_DECLARE_METATYPE(Ob::CodeModel::Module*)
@@ -365,6 +368,7 @@ OberonViewer::OberonViewer(QWidget *parent) : QMainWindow(parent),d_pushBackLock
     new QShortcut(tr("F3"),this,SLOT(onFindAgain()) );
     new QShortcut(tr("F2"),this,SLOT(onGotoDefinition()) );
     new QShortcut(tr("CTRL+O"),this,SLOT(onOpen()) );
+    new QShortcut(tr("CTRL+T"),this,SLOT(onTranslate()) );
 
 #if QT_VERSION > 0x050000
 	s_oldHandler = qInstallMessageHandler(messageHander);
@@ -383,6 +387,7 @@ OberonViewer::OberonViewer(QWidget *parent) : QMainWindow(parent),d_pushBackLock
     logMessage(tr("CTRL+L to go to a specific line in the source code file") );
     logMessage(tr("CTRL+F to find a string in the current file") );
     logMessage(tr("CTRL+G or F3 to find another match in the current file") );
+    logMessage(tr("CTRL+T to translate the Oberon files to C++") );
     logMessage(tr("ALT+LEFT to move backwards in the navigation history") );
     logMessage(tr("ALT+RIGHT to move forward in the navigation history") );
     logMessage(tr("ESC to close Message Log") );
@@ -704,5 +709,50 @@ void OberonViewer::onOpen()
     QStringList files = collectFiles(path);
     QDir::setCurrent(path);
     showFiles(files);
+}
+
+void OberonViewer::onTranslate()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("Translate to C++"));
+    QVBoxLayout* vbox = new QVBoxLayout(&dlg);
+    QFormLayout* form = new QFormLayout();
+    QLabel* intro = new QLabel(&dlg);
+    intro->setText(tr("Convert all loaded Oberon files to C++. Note that currently only the\n"
+                      "subset of Oberon-07 used by the Lola-2 compiler is supported\n"
+                      "and that no garbage collector code is currently generated.\n"
+                      "Check for errors or warnings in the log. For stubs only headers are generated.\n\n"
+                      "WARNING: existing C++ files are overwritten without warning!") );
+    vbox->addWidget(intro);
+    vbox->addLayout(form);
+    QSettings  s;
+    QLineEdit* package = new QLineEdit(&dlg);
+    QLineEdit* ns = new QLineEdit(&dlg);
+    QLineEdit* path = new QLineEdit(&dlg);
+    package->setText(s.value("PackageName",tr("Lolac")).toString());
+    ns->setText(s.value("Namespace",tr("Ll")).toString());
+    path->setText(s.value("GenerateTo",QDir::currentPath()).toString());
+    form->addRow(tr("Package name:"), package );
+    form->addRow(tr("Namespace:"), ns );
+    form->addRow(tr("Generate to:"), path );
+    QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg );
+    vbox->addWidget(bb);
+    connect(bb, SIGNAL(accepted()), &dlg, SLOT(accept()));
+    connect(bb, SIGNAL(rejected()), &dlg, SLOT(reject()));
+    if( dlg.exec() != QDialog::Accepted )
+        return;
+    QString p = package->text().simplified();
+    p.replace(' ',"");
+    s.setValue( "PackageName",p );
+    QString n = ns->text().simplified();
+    n.replace(' ',"");
+    s.setValue( "Namespace",n );
+    s.setValue("GenerateTo", path->text() );
+
+    d_msgLog->clear();
+    qDebug() << "generating C++ files...";
+    Ob::CppGen g(d_mdl);
+    g.emitModules(path->text(),n,p);
+    qDebug() << "finished";
 }
 

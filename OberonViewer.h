@@ -65,6 +65,7 @@ namespace Ob
         void onFindAgain();
         void onGotoDefinition();
         void onOpen();
+        void onTranslate();
 
     private:
         class Viewer;

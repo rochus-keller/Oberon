@@ -1,7 +1,7 @@
 #/*
 #* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
 #*
-#* This file is part of the Oberon Viewer application.
+#* This file is part of the Oberon parser/code model library.
 #*
 #* The following is the license that applies to this copy of the
 #* library. For a license to use the library under conditions
@@ -17,22 +17,23 @@
 #* http://www.gnu.org/copyleft/gpl.html.
 #*/
 
-QT       += core gui
+QT       += core
+QT       -= gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-TARGET = OberonViewer
+TARGET = OberonTest
 TEMPLATE = app
 
 INCLUDEPATH +=  ..
 
-SOURCES += \ 
-    ObnViewerMain.cpp \
-    OberonViewer.cpp \
-    ObnHighlighter.cpp \
-    NamedThingsMdl.cpp \
-    CppKeywordDetector.cpp \
-    ObCppGen.cpp
+SOURCES += \
+    ObnCppMain.cpp \
+    ObCppGen.cpp \
+    CppKeywordDetector.cpp
+
+HEADERS += \
+    ObCppGen.h
 
 include( Oberon.pri )
 
@@ -40,15 +41,8 @@ CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
 }
 
-!win32{
 QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
-}
 
-HEADERS += \ 
-    OberonViewer.h \
-    ObnHighlighter.h \
-    NamedThingsMdl.h \
-    ObCppGen.h
 
 
 

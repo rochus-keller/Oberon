@@ -1,6 +1,6 @@
-## Welcome to the Oberon-07 C++ parser and code model/browser
+## Welcome to the Oberon-07 C++ parser and code model/browser/generator
 
-This is an Oberon-07 parser and code model written in C++ and Qt. See http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf for more information about the language. The syntax was modified for Coco/R compatibility using https://github.com/rochus-keller/EbnfStudio. 
+This is an Oberon-07 parser, code model and generator written in C++ and Qt. See http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf for more information about the language. The syntax was modified for Coco/R compatibility using https://github.com/rochus-keller/EbnfStudio. 
 
 The goal of this project is to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries and with no dependencies to the Oberon System. The C++ based Lola-2 compiler will be integrated in https://github.com/rochus-keller/LolaCreator.
 
@@ -9,6 +9,18 @@ The goal of this project is to build tools to better understand the Lola-2 compi
 - Implements Oberon-07; successfully reads the Oberon System including the applications (see http://www.projectoberon.com/) and the Lola-2 compiler (see https://www.inf.ethz.ch/personal/wirth/Lola) source code (the syntax errors in Graphics.Mod line 670 and Net.Mod line 190 have to be fixed though)
 - Syntax and semantics validation, error reporting
 - Infers and synthesizes missing modules
+
+### C++ Code generator features
+
+- Generates C++03 compatible code with no other dependencies than the standard libraries
+- Generates stub headers for the synthesized (missing) modules to ease implementing the missing parts
+- Arrays including strings are implemented by C++ template classes
+- Modules are dynamically created to maintain the correct initialization dependencies
+- Comments of the original files are also translated
+- Oberon idents conflicting with C++ keywords are postfixed by underscore
+- The generated code is well readable and maintainable
+- Currently only the subset of Oberon-07 used by the Lola-2 compiler is supported; see https://github.com/rochus-keller/Lolac for an example of the generated code
+- There is no garbage collector code generated yet, but an arena based collector can easily be implemented outside of the generator by customizing the _Root class; future versions will generate a regular mark & sweep collector.
 
 ### Code browser features
 
@@ -20,6 +32,7 @@ The goal of this project is to build tools to better understand the Lola-2 compi
 
 
 ![OberonViewer Screenshot](http://software.rochus-keller.info/oberonviewer_screenshot_1.png)
+
 
 ### Binary version
 
