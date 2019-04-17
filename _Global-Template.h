@@ -53,6 +53,9 @@ namespace Obn
             return res;
         }
         virtual const char* typeName() const { return "_Root"; }
+        static int MOD(int a, int b) { return ( a % b + b ) % b; }
+        static int DIV(int a, int b) { return ( a - MOD(a, b) ) / b; }
+		static int ASR(int a, int b) { return ((int64_t)(a)>>(b)); }
     };
 
     template<typename T>
