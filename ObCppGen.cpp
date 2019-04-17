@@ -1092,22 +1092,48 @@ QByteArray CppGen::escape(const QByteArray& id)
 void CppGen::emitTerm(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level )
 {
     Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_term && !st->d_children.isEmpty() );
-    int i = 0;
-    emitFactor(ds,st->d_children[i++],out,level);
-    while( i < st->d_children.size() )
+    if( st->d_children.size() == 1 )
+        emitFactor(ds,st->d_children.first(),out,level);
+    else
+        emitTerm( ds, st->d_children, st->d_children.size() - 1, out, level );
+}
+
+void CppGen::emitTerm(const CodeModel::Unit* ds, const QList<SynTree*> st, int i, QTextStream& out, int level)
+{
+    if( i < 0 )
+        return;
+    if( i == 0 )
     {
-        SynTree* op = CodeModel::flatten( st->d_children[i++] );
+        emitFactor(ds,st[i],out,level);
+        return;
+    }
+    Q_ASSERT( i >= 2 && i < st.size() );
+
+    // a * b * c * d
+    // ( ( ( a * b ) * c ) * d )
+
+    SynTree* op = CodeModel::flatten( st[i-1] );
+
+    if( op->d_tok.d_type == Tok_DIV || op->d_tok.d_type == Tok_MOD )
+    {
+        if( op->d_tok.d_type == Tok_DIV )
+            out << "DIV(";
+        else
+            out << "MOD(";
+        emitTerm(ds, st, i - 2, out, level );
+        out << ",";
+        emitFactor(ds,st[i],out,level);
+        out << ")";
+    }else
+    {
+        emitTerm(ds, st, i - 2, out, level );
         switch( op->d_tok.d_type )
         {
         case Tok_Star:
             out << " * ";
             break;
         case Tok_Slash:
-        case Tok_DIV:
             out << " / ";
-            break;
-        case Tok_MOD:
-            out << " % ";
             break;
         case Tok_Amp:
             out << " && ";
@@ -1116,8 +1142,7 @@ void CppGen::emitTerm(const CodeModel::Unit* ds,const SynTree* st, QTextStream& 
             out << " ?? ";
             break;
         }
-        Q_ASSERT( i < st->d_children.size() );
-        emitFactor(ds,st->d_children[i++],out,level);
+        emitFactor(ds,st[i],out,level);
     }
 }
 

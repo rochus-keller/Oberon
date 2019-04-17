@@ -47,6 +47,7 @@ namespace Ob
         void emitExpression( const CodeModel::Unit*, const SynTree*, QTextStream&, int level );
         void emitSimpleExpression(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level);
         void emitTerm(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level );
+        void emitTerm(const CodeModel::Unit* ds,const QList<SynTree*> st, int i, QTextStream& out, int level );
         void emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level );
         bool emitDesig(const CodeModel::Unit*,const SynTree* st, bool procCall, QTextStream&, int level);
         void emitTypeDecl(const CodeModel::Unit*,const CodeModel::Type* , QTextStream&, int level);
