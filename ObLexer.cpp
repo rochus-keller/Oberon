@@ -23,6 +23,7 @@
 #include <QBuffer>
 #include <QFile>
 #include <QIODevice>
+#include <ctype.h>
 using namespace Ob;
 
 QHash<QByteArray,QByteArray> Lexer::d_symbols;

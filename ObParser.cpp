@@ -11,7 +11,11 @@ namespace Ob {
 
 static QString coco_string_create( const wchar_t* str )
 {
-    return QString::fromStdWString(str);
+#if QT_VERSION >= 0x050000
+	return QString::fromStdWString(str);
+#else
+	return QString::fromWCharArray(str);
+#endif
 }
 
 int Parser::peek( quint8 la )

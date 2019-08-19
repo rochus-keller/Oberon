@@ -89,10 +89,14 @@ namespace Ob
         bool d_reportToConsole;
         bool d_record;
     };
-
-    inline uint qHash(const Errors::Entry & e, uint seed = 0) {
+#if QT_VERSION >= 0x050000
+	inline uint qHash(const Errors::Entry & e, uint seed) {
         return ::qHash(e.d_msg,seed) ^ ::qHash(e.d_line,seed) ^ ::qHash(e.d_col,seed) ^ ::qHash(e.d_source,seed);
     }
+#endif
+	inline uint qHash(const Errors::Entry & e) {
+		return ::qHash(e.d_msg) ^ ::qHash(e.d_line) ^ ::qHash(e.d_col) ^ ::qHash(e.d_source);
+	}
 }
 
 #endif // OBERRORS_H

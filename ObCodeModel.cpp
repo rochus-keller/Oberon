@@ -644,6 +644,7 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
 {
     if( st == 0 )
         return;
+
     if( st->d_tok.d_type == SynTree::R_expression )
     {
         if( st->d_children.size() == 1 )
@@ -651,11 +652,26 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
         else
         {
             Q_ASSERT( st->d_children.size() > 1 );
-            checkNames(ds, st->d_children.first(), 0 );
             if( st->d_children[1]->d_tok.d_type == Tok_IN )
+            {
+                checkNames(ds, st->d_children.first(), 0 );
                 checkNames(ds, st->d_children.last(), d_scope.d_setType );
-            else
+            }else
+            {
+                checkNames(ds, st->d_children.first(), 0 );
                 checkNames(ds, st->d_children.last(), 0 );
+                /* TODO: noch nicht optimal
+                const Type* t = typeOfExpression( ds, st->d_children.first() );
+                if( t )
+                    checkNames(ds, st->d_children.last(), t );
+                else
+                {
+                    t = typeOfExpression( ds, st->d_children.last() );
+                    if( t )
+                        checkNames(ds, st->d_children.first(), t );
+                }
+                */
+            }
         }
         // TODO analog mit SimpleExpression, term und factor
     }else if( st->d_tok.d_type == SynTree::R_assignmentOrProcedureCall )
@@ -1265,14 +1281,33 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                 }
             }else if( dop.d_op == IdentOp )
             {
-                if( v->d_kind != Element::StubProc && v->d_kind != Element::Unknown )
+                if( v->d_kind != Element::Variable && v->d_kind != Element::Unknown )
                     qWarning() << "stubed member" << v->d_name << "of module" << v->d_scope->d_name <<
                                   "first seen as" << Element::s_kindName[v->d_kind] <<
                                   "redeclaring to" << Element::s_kindName[Element::Variable];
+                v->d_kind = Element::Variable;
                 if( vc->d_type == 0 )
                 {
                     Type* st = new Type();
                     st->d_kind = Type::Record;
+                    st->d_scope = v->d_scope;
+                    v->d_type = st;
+                    Unit* m = dynamic_cast<Unit*>(v->d_scope);
+                    Q_ASSERT( m != 0 );
+                    m->d_types.append(st);
+                }
+                res = applyDesigOp( ds, v->d_type, dop, &err, synthesize, expected );
+            }else if( dop.d_op == ArrayOp )
+            {
+                if( v->d_kind != Element::Variable && v->d_kind != Element::Unknown )
+                    qWarning() << "stubed member" << v->d_name << "of module" << v->d_scope->d_name <<
+                                  "first seen as" << Element::s_kindName[v->d_kind] <<
+                                  "redeclaring to" << Element::s_kindName[Element::Variable];
+                v->d_kind = Element::Variable;
+                if( vc->d_type == 0 )
+                {
+                    Type* st = new Type();
+                    st->d_kind = Type::Array;
                     st->d_scope = v->d_scope;
                     v->d_type = st;
                     Unit* m = dynamic_cast<Unit*>(v->d_scope);
@@ -1342,7 +1377,16 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                 }
                 if( res == 0 )
                     err = NotFound;
-            }else
+            }else if( dop.d_op == ArrayOp )
+            {
+                if( t->d_type == 0 && synthesize )
+                {
+                    Type* t2 = const_cast<Type*>(t);
+                    t2->d_type = expected;
+                }
+                res = t->d_type; // don't deref
+            }
+            else
                 err = InvalidOperation;
         }else if( t->isBasicType() )
             err = InvalidOperation;

@@ -21,6 +21,7 @@
 #include "ObSynTree.h"
 #include <QtDebug>
 #include <QFileInfo>
+#include <QStringList>
 using namespace Ob;
 
 Errors::Errors(QObject *parent, bool threadExclusive) :

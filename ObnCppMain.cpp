@@ -22,7 +22,6 @@
 #include <QtDebug>
 #include <QFileInfo>
 #include <QDir>
-#include <QElapsedTimer>
 #include <QThread>
 #include "ObCodeModel.h"
 #include "ObCppGen.h"

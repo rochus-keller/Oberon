@@ -271,20 +271,25 @@ void CppGen::emitType(const CodeModel::Unit* ds,const CodeModel::Type* t, QTextS
             }
         }else if( t->d_kind == CodeModel::Type::Array )
         {
-            Q_ASSERT( t->d_type->d_name.isEmpty() );
-            if( t && ( t->d_type->d_kind == CodeModel::Type::TypeRef || t->d_type->d_kind == CodeModel::Type::Array ) )
+            if( t->d_type != 0 )
             {
-                out << "_FxArray<";
-                emitType(ds, t->d_type, out, level );
-            }else
-            {
-                qDebug() << "Array Type" << SynTree::rToStr(t->d_type->d_def->d_tok.d_type);
-                // Erzeuge Namen und füge Type Decl ein
-                const QByteArray name = "_Type" + QByteArray::number(d_nameNr++);
-                out << "_FxArray<";
-                out << name;
+                Q_ASSERT( t->d_type->d_name.isEmpty() );
+                if( t && ( t->d_type->d_kind == CodeModel::Type::TypeRef || t->d_type->d_kind == CodeModel::Type::Array ) )
+                {
+                    out << "_FxArray<";
+                    emitType(ds, t->d_type, out, level );
+                }else
+                {
+                    // qDebug() << "Array Type" << SynTree::rToStr(t->d_type->d_def->d_tok.d_type);
+                    // Erzeuge Namen und füge Type Decl ein
+                    const QByteArray name = "_Type" + QByteArray::number(d_nameNr++);
+                    out << "_FxArray<";
+                    out << name;
 
-            }
+                }
+            }else
+                out << "_FxArray<Unknown";
+
             if( t->d_st )
             {
                 out << ",";

@@ -40,9 +40,7 @@ namespace Ob
         class Procedure;
         class Element;
         class Type;
-        class Variable;
         class Module;
-        class Variable;
         class Scope;
 
         typedef QPair<const SynTree*,const NamedThing*> IdentUse; // idUse -> decl
