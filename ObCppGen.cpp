@@ -771,9 +771,9 @@ void CppGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
         case SynTree::R_RepeatStatement:
             emitRepeatStatement(ds,s,out,level);
             break;
-//        case SynTree::R_ForStatement:
-//            out << ws(level) << "; // for statement" << endl; // TODO
-//            break;
+        case SynTree::R_ForStatement:
+            emitForStatement(ds,s,out,level);
+            break;
         case SynTree::R_ReturnStatement:
             out << ws(level) << "return ";
             Q_ASSERT( s->d_children.size() == 2 && s->d_children.last()->d_tok.d_type == SynTree::R_expression );
@@ -1017,6 +1017,45 @@ void CppGen::emitRepeatStatement(const CodeModel::Unit* ds, const SynTree* st, Q
     out << ws(level) << "} while( !( ";
     emitExpression(ds,st->d_children[3],out,level);
     out << " ) );" << endl;
+}
+
+void CppGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
+{
+    Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_ForStatement && st->d_children.size() >= 9 &&
+            st->d_children[1]->d_tok.d_type == Tok_ident );
+    out << ws(level) << "for( " << st->d_children[1]->d_tok.d_val << " = ";
+    emitExpression(ds,st->d_children[3],out,level);
+    out << "; ";
+    if( st->d_children[6]->d_tok.d_type == Tok_BY )
+    {
+        // support for both inc > 0 and inc < 0
+        emitExpression(ds,st->d_children[7],out,level);
+        out << " > 0 ? ";
+        out << st->d_children[1]->d_tok.d_val << " <= ";
+        emitExpression(ds,st->d_children[5],out,level);
+        out << " : ";
+        out << st->d_children[1]->d_tok.d_val << " >= ";
+        emitExpression(ds,st->d_children[5],out,level);
+   }else
+    {
+        out << st->d_children[1]->d_tok.d_val << " <= ";
+        emitExpression(ds,st->d_children[5],out,level);
+    }
+    out << "; " << st->d_children[1]->d_tok.d_val;
+    if( st->d_children[6]->d_tok.d_type == Tok_BY )
+    {
+        out << " += ";
+        emitExpression(ds,st->d_children[7],out,level);
+    }else
+        out << "++";
+    out << " )" << endl;
+    SynTree* stat = CodeModel::findFirstChild( st, SynTree::R_StatementSequence, 6 );
+    Q_ASSERT( stat != 0 );
+    if( stat->d_children.size() > 1 )
+        out << ws(level) << "{" << endl;
+    emitStatementSeq(ds, stat->d_children, out, level + 1);
+    if( stat->d_children.size() > 1 )
+        out << ws(level) << "}" << endl;
 }
 
 void CppGen::emitSet(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
