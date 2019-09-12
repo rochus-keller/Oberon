@@ -30,7 +30,7 @@ QHash<QByteArray,QByteArray> Lexer::d_symbols;
 
 Lexer::Lexer(QObject *parent) : QObject(parent),
     d_lastToken(Tok_Invalid),d_lineNr(0),d_colNr(0),d_in(0),d_err(0),d_fcache(0),
-    d_ignoreComments(true), d_packComments(true)
+    d_ignoreComments(true), d_packComments(true),d_lowerCaseKeywords(false), d_underscoreIdents(false)
 {
 
 }
@@ -167,7 +167,7 @@ Token Lexer::nextTokenImp()
             return string();
         else if( ch == '$')
             return hexstring();
-        else if( ::isalpha(ch) )
+        else if( ::isalpha(ch) || ( d_underscoreIdents && ch == '_' ) )
             return ident();
         else if( ::isdigit(ch) )
             return number();
@@ -231,13 +231,24 @@ Token Lexer::token(TokenType tt, int len, const QByteArray& val)
     return t;
 }
 
+static inline bool isAllLowerCase( const QByteArray& str )
+{
+    for( int i = 0; i < str.size(); i++ )
+    {
+        if( !::islower(str[i] ) )
+                return false;
+    }
+    return true;
+}
+
 Token Lexer::ident()
 {
     int off = 1;
     while( true )
     {
         const char c = lookAhead(off);
-        if( !QChar(c).isLetterOrNumber() ) // QChar wegen möglichen Umlauten
+        if( !QChar(c).isLetterOrNumber() // QChar wegen möglichen Umlauten
+                && ( !d_underscoreIdents || c != '_' ) )
             break;
         else
             off++;
@@ -245,8 +256,11 @@ Token Lexer::ident()
     const QByteArray str = d_line.mid(d_colNr, off );
     Q_ASSERT( !str.isEmpty() );
     int pos = 0;
-    TokenType t = tokenTypeFromString( str, &pos );
-    if( t != Tok_Invalid && pos != str.size() )
+    QByteArray keyword = str;
+    if( d_lowerCaseKeywords && isAllLowerCase(keyword) )
+        keyword = keyword.toUpper();
+    TokenType t = tokenTypeFromString( keyword, &pos );
+    if( t != Tok_Invalid && pos != keyword.size() )
         t = Tok_Invalid;
     if( t != Tok_Invalid )
         return token( t, off );

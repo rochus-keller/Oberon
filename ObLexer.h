@@ -42,6 +42,8 @@ namespace Ob
         void setCache(FileCache* p) { d_fcache = p; }
         void setIgnoreComments( bool b ) { d_ignoreComments = b; }
         void setPackComments( bool b ) { d_packComments = b; }
+        void setLowerCaseKeywords( bool b ) { d_lowerCaseKeywords = b; }
+        void setUnderscoreIdents( bool b ) { d_underscoreIdents = b; }
 
         Token nextToken();
         Token peekToken(quint8 lookAhead = 1);
@@ -72,7 +74,9 @@ namespace Ob
         static QHash<QByteArray,QByteArray> d_symbols;
         Token d_lastToken;
         bool d_ignoreComments;  // don't deliver comment tokens
-        bool d_packComments;    // Only deliver one Tok_Comment for /**/ instead of Tok_Lcmt and Tok_Rcmt
+        bool d_packComments;    // Only deliver one Tok_Comment for (*...*) instead of Tok_Latt and Tok_Ratt
+        bool d_lowerCaseKeywords; // Allow for both uppercase and lowercase keywords
+        bool d_underscoreIdents; // Allow for idents with underscores as in C
     };
 }
 

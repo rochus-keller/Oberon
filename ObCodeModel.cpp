@@ -255,7 +255,7 @@ void CodeModel::parseFile(const QString& path)
         if( st->d_tok.d_type == SynTree::R_module )
         {
             SynTree* id = findFirstChild(st,Tok_ident);
-            if( !checkNameNotInScope(&d_scope,id) )
+            if( id == 0 || !checkNameNotInScope(&d_scope,id) )
             {
                 toDelete << st;
             }else
