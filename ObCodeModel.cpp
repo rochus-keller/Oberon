@@ -32,7 +32,8 @@ static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
     return ( t != 0 ? t->deref() : 0 );
 }
 
-CodeModel::CodeModel(QObject *parent) : QObject(parent),d_synthesize(false),d_trackIds(false)
+CodeModel::CodeModel(QObject *parent) : QObject(parent),d_synthesize(false),d_trackIds(false),
+    d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false)
 {
     d_errs = new Errors(this);
     d_errs->setReportToConsole(true);
@@ -69,7 +70,7 @@ void CodeModel::clear()
     d_scope.d_types.append( new Type( Type::NIL ) );
     d_scope.d_nilType = d_scope.d_types.back();
 
-    // Add Basic Types
+    // Add global procs
     d_scope.d_procs.append( new Element( Element::ABS ) );
     d_scope.d_procs.append( new Element( Element::ODD ) );
     d_scope.d_procs.append( new Element( Element::LEN ) );
@@ -91,6 +92,14 @@ void CodeModel::clear()
     d_scope.d_procs.append( new Element( Element::LED ) );
     foreach( Element* t, d_scope.d_procs )
         d_scope.addToScope( t );
+
+    if( d_lowerCaseBuiltins )
+    {
+        Scope::Names names = d_scope.d_names;
+        Scope::Names::const_iterator i;
+        for( i = names.begin(); i != names.end(); ++i )
+            d_scope.d_names.insert( Lexer::getSymbol( i.key() ).toLower(), i.value() );
+    }
 }
 
 static bool IdenUseLessThan( const CodeModel::IdentUse& lhs, const CodeModel::IdentUse& rhs )
@@ -246,6 +255,8 @@ void CodeModel::parseFile(const QString& path)
     lex.setErrors(d_errs);
     lex.setIgnoreComments(false);
     lex.setPackComments(true);
+    lex.setLowerCaseKeywords(d_lowerCaseKeywords);
+    lex.setUnderscoreIdents(d_underscoreIdents);
     Ob::Parser p(&lex,d_errs);
     p.RunParser();
 
@@ -1773,22 +1784,12 @@ CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0)
     switch( k )
     {
     case BOOLEAN:
-        d_name = Lexer::getSymbol("BOOLEAN");
-        break;
     case CHAR:
-        d_name = Lexer::getSymbol("CHAR");
-        break;
     case INTEGER:
-        d_name = Lexer::getSymbol("INTEGER");
-        break;
     case REAL:
-        d_name = Lexer::getSymbol("REAL");
-        break;
     case BYTE:
-        d_name = Lexer::getSymbol("BYTE");
-        break;
     case SET:
-        d_name = Lexer::getSymbol("SET");
+        d_name = Lexer::getSymbol( s_kindName[k] );
         break;
     default:
         break;

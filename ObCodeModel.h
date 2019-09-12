@@ -222,6 +222,9 @@ namespace Ob
         void setSynthesize(bool on) { d_synthesize = on; }
         void setTrackIds(bool on) { d_trackIds = on; }
         Errors* getErrs() const { return d_errs; }
+        void setLowerCaseKeywords( bool b ) { d_lowerCaseKeywords = b; }
+        void setLowerCaseBuiltins( bool b ) { d_lowerCaseBuiltins = b; }
+        void setUnderscoreIdents( bool b ) { d_underscoreIdents = b; }
 
         bool parseFiles( const QStringList& );
         const GlobalScope& getGlobalScope() const { return d_scope; }
@@ -280,6 +283,9 @@ namespace Ob
         RevIndex d_revDir;
         bool d_synthesize; // create stubs if needed
         bool d_trackIds;
+        bool d_lowerCaseKeywords; // Allow for both uppercase and lowercase keywords
+        bool d_lowerCaseBuiltins; // Basic types and global procs accessible by lower case name too
+        bool d_underscoreIdents; // Allow for idents with underscores as in C
     };
 }
 
