@@ -32,6 +32,7 @@ class QTextStream;
 namespace Ob
 {
     class Errors;
+    class FileCache;
 
     class CodeModel : public QObject
     {
@@ -222,6 +223,7 @@ namespace Ob
         void setSynthesize(bool on) { d_synthesize = on; }
         void setTrackIds(bool on) { d_trackIds = on; }
         Errors* getErrs() const { return d_errs; }
+        FileCache* getFc() const { return d_fc; }
         void setLowerCaseKeywords( bool b ) { d_lowerCaseKeywords = b; }
         void setLowerCaseBuiltins( bool b ) { d_lowerCaseBuiltins = b; }
         void setUnderscoreIdents( bool b ) { d_underscoreIdents = b; }
@@ -280,6 +282,7 @@ namespace Ob
         GlobalScope d_scope;
         QHash<QString,QList<Token> > d_comments;
         Errors* d_errs;
+        FileCache* d_fc;
         IdentUseDir d_dir;
         RevIndex d_revDir;
         bool d_synthesize; // create stubs if needed
