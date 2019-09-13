@@ -240,6 +240,7 @@ namespace Ob
         QList<Token> getComments( QString file ) const;
 
         static SynTree* findFirstChild(const SynTree*, int type , int startWith = 0);
+        static QByteArrayList getBuitinIdents();
 
     protected:
         void parseFile( const QString& );

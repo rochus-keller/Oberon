@@ -102,6 +102,16 @@ void CodeModel::clear()
     }
 }
 
+QByteArrayList CodeModel::getBuitinIdents()
+{
+    QByteArrayList res;
+    for( int i = Element::ABS; i <= Element::LED; i++ )
+        res << Element::s_kindName[i];
+    for( int i = Type::BOOLEAN; i <= Type::SET; i++ )
+        res << Type::s_kindName[i];
+    return res;
+}
+
 static bool IdenUseLessThan( const CodeModel::IdentUse& lhs, const CodeModel::IdentUse& rhs )
 {
     return lhs.first->d_tok.d_lineNr < rhs.first->d_tok.d_lineNr ||
@@ -1781,19 +1791,8 @@ const char* CodeModel::Type::s_kindName[] =
 
 CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0)
 {
-    switch( k )
-    {
-    case BOOLEAN:
-    case CHAR:
-    case INTEGER:
-    case REAL:
-    case BYTE:
-    case SET:
+    if( k >= BOOLEAN && k <= SET )
         d_name = Lexer::getSymbol( s_kindName[k] );
-        break;
-    default:
-        break;
-    }
 }
 
 CodeModel::Type::~Type()
@@ -1862,68 +1861,8 @@ const char* CodeModel::Element::s_kindName[] =
 
 CodeModel::Element::Element(CodeModel::Element::Kind k):d_kind(k),d_st(0),d_type(0)
 {
-    switch(k)
-    {
-    case ABS:
-        d_name = Lexer::getSymbol("ABS");
-        break;
-    case ODD:
-        d_name = Lexer::getSymbol("ODD");
-        break;
-    case LEN:
-        d_name = Lexer::getSymbol("LEN");
-        break;
-    case LSL:
-        d_name = Lexer::getSymbol("LSL");
-        break;
-    case ASR:
-        d_name = Lexer::getSymbol("ASR");
-        break;
-    case ROR:
-        d_name = Lexer::getSymbol("ROR");
-        break;
-    case FLOOR:
-        d_name = Lexer::getSymbol("FLOOR");
-        break;
-    case FLT:
-        d_name = Lexer::getSymbol("FLT");
-        break;
-    case ORD:
-        d_name = Lexer::getSymbol("ORD");
-        break;
-    case CHR:
-        d_name = Lexer::getSymbol("CHR");
-        break;
-    case INC:
-        d_name = Lexer::getSymbol("INC");
-        break;
-    case DEC:
-        d_name = Lexer::getSymbol("DEC");
-        break;
-    case INCL:
-        d_name = Lexer::getSymbol("INCL");
-        break;
-    case EXCL:
-        d_name = Lexer::getSymbol("EXCL");
-        break;
-    case NEW:
-        d_name = Lexer::getSymbol("NEW");
-        break;
-    case ASSERT:
-        d_name = Lexer::getSymbol("ASSERT");
-        break;
-    case PACK:
-        d_name = Lexer::getSymbol("PACK");
-        break;
-    case UNPK:
-        d_name = Lexer::getSymbol("UNPK");
-        break;
-    case LED:
-        d_name = Lexer::getSymbol("LED");
-        break;
-    default:
-        break;
-    }
+    if( k > Unknown && k <= LED )
+        d_name = Lexer::getSymbol(s_kindName[k]);
 }
 
 CodeModel::Element::~Element()

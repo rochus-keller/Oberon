@@ -32,9 +32,11 @@ namespace Ob
         explicit Highlighter(QTextDocument *parent = 0);
         void setLowerCaseKeywords( bool b ) { d_lowerCaseKeywords = b; }
         void setUnderscoreIdents( bool b ) { d_underscoreIdents = b; }
+        void setLowerCaseBuiltins( bool b );
 
     protected:
         QTextCharFormat formatForCategory(int) const;
+        static QSet<QByteArray> createBuiltins(bool withLowercase = false);
 
         // overrides
         void highlightBlock(const QString &text);
@@ -42,8 +44,9 @@ namespace Ob
     private:
         enum Category { C_Num, C_Str, C_Kw, C_Type, C_Ident, C_Op, C_Pp, C_Cmt, C_Section, C_Brack, C_Max };
         QTextCharFormat d_format[C_Max];
-        QSet<QByteArray> d_types;
+        QSet<QByteArray> d_builtins;
         bool d_lowerCaseKeywords; // Allow for both uppercase and lowercase keywords
+        bool d_lowerCaseBuiltins;
         bool d_underscoreIdents; // Allow for idents with underscores as in C
     };
 

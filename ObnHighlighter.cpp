@@ -19,11 +19,12 @@
 
 #include "ObnHighlighter.h"
 #include "ObLexer.h"
+#include "ObCodeModel.h"
 #include <QBuffer>
 using namespace Ob;
 
 Highlighter::Highlighter(QTextDocument* parent) :
-    QSyntaxHighlighter(parent),d_lowerCaseKeywords(false),d_underscoreIdents(false)
+    QSyntaxHighlighter(parent),d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false)
 {
     for( int i = 0; i < C_Max; i++ )
     {
@@ -46,14 +47,31 @@ Highlighter::Highlighter(QTextDocument* parent) :
     d_format[C_Section].setForeground(QColor(0, 128, 0));
     d_format[C_Section].setBackground(QColor(230, 255, 230));
 
-    d_types << "BOOLEAN" << "CHAR" << "INTEGER" << "REAL" << "BYTE" << "SET" << "LONGINT" << "LONGREAL"
-            << "ABS" << "ODD" << "LEN" << "LSL" << "ASR" << "ROR" << "FLOOR" << "FLT" << "ORD" << "CHR"
-            << "INC" << "DEC" << "INCL" << "EXCL" << "NEW" << "ASSERT" << "PACK" << "UNPK" << "LED";
+    d_builtins = createBuiltins();
+}
+
+void Highlighter::setLowerCaseBuiltins(bool b)
+{
+     d_lowerCaseBuiltins = b;
+     d_builtins = createBuiltins(d_lowerCaseBuiltins);
 }
 
 QTextCharFormat Highlighter::formatForCategory(int c) const
 {
     return d_format[c];
+}
+
+QSet<QByteArray> Highlighter::createBuiltins(bool withLowercase)
+{
+    QSet<QByteArray> res = CodeModel::getBuitinIdents().toSet();
+    if( withLowercase )
+    {
+        QSet<QByteArray> tmp = res;
+        QSet<QByteArray>::const_iterator i;
+        for( i = tmp.begin(); i != tmp.end(); ++i )
+            res.insert( (*i).toLower() );
+    }
+    return res;
 }
 
 void Highlighter::highlightBlock(const QString& text)
@@ -131,7 +149,7 @@ void Highlighter::highlightBlock(const QString& text)
             f = formatForCategory(C_Kw);
         }else if( t.d_type == Tok_ident )
         {
-            if( d_types.contains(t.d_val) )
+            if( d_builtins.contains(t.d_val) )
                 f = formatForCategory(C_Type);
             else
                 f = formatForCategory(C_Ident);
