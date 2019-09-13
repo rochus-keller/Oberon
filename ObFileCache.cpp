@@ -25,8 +25,6 @@ using namespace Ob;
 
 FileCache::FileCache(QObject *parent) : QObject(parent)
 {
-    d_svSuffix << ".sv";
-    d_supportSvExt = false;
 }
 
 // TODO: brauchen wir hier canonicalPaths? Löst PpLexer::processInclude hinreichend gut auf?
@@ -79,58 +77,6 @@ QByteArray FileCache::getFile(const QString& path, bool* found) const
 
     d_lock.unlock();
 
-    return res;
-}
-
-void FileCache::setSupportSvExt(bool b)
-{
-    d_lock.lockForWrite();
-    d_supportSvExt = b;
-    d_lock.unlock();
-}
-
-bool FileCache::supportSvExt() const
-{
-    d_lock.lockForRead();
-    const bool res = d_supportSvExt;
-    d_lock.unlock();
-    return res;
-}
-
-static inline bool endsWith( const QStringList& suff, const QString& filePath )
-{
-    foreach( const QString& s, suff )
-    {
-        if( filePath.endsWith( s ) )
-            return true;
-    }
-    return false;
-}
-
-bool FileCache::supportSvExt(const QString& path) const
-{
-    d_lock.lockForRead();
-    const bool flag = d_supportSvExt;
-    const QStringList suff = d_svSuffix;
-    d_lock.unlock();
-    if( flag )
-        return true;
-    else
-        return endsWith( suff, path );
-}
-
-void FileCache::setSvSuffix(const QStringList& s)
-{
-    d_lock.lockForWrite();
-    d_svSuffix = s;
-    d_lock.unlock();
-}
-
-QStringList FileCache::svSuffix() const
-{
-    d_lock.lockForRead();
-    const QStringList res = d_svSuffix;
-    d_lock.unlock();
     return res;
 }
 

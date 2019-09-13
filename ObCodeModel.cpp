@@ -263,6 +263,7 @@ void CodeModel::parseFile(const QString& path)
     Ob::Lexer lex;
     lex.setStream( &in, path );
     lex.setErrors(d_errs);
+    lex.setCache(d_fc);
     lex.setIgnoreComments(false);
     lex.setPackComments(true);
     lex.setLowerCaseKeywords(d_lowerCaseKeywords);

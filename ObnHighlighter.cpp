@@ -115,8 +115,8 @@ void Highlighter::highlightBlock(const QString& text)
     Ob::Lexer lex;
     lex.setIgnoreComments(false);
     lex.setPackComments(false);
-    lex.setLowerCaseKeywords(true);
-    lex.setUnderscoreIdents(true);
+    lex.setLowerCaseKeywords(d_lowerCaseKeywords);
+    lex.setUnderscoreIdents(d_underscoreIdents);
 
     QList<Token> tokens =  lex.tokens(text.mid(start));
     for( int i = 0; i < tokens.size(); ++i )
