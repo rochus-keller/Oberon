@@ -33,7 +33,7 @@ static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
 }
 
 CodeModel::CodeModel(QObject *parent) : QObject(parent),d_synthesize(false),d_trackIds(false),
-    d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false)
+    d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false),d_fc(0)
 {
     d_errs = new Errors(this);
     d_errs->setReportToConsole(true);
