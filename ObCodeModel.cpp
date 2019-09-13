@@ -261,13 +261,13 @@ void CodeModel::parseFile(const QString& path)
         return;
     }
     Ob::Lexer lex;
-    lex.setStream( &in, path );
     lex.setErrors(d_errs);
     lex.setCache(d_fc);
     lex.setIgnoreComments(false);
     lex.setPackComments(true);
     lex.setLowerCaseKeywords(d_lowerCaseKeywords);
     lex.setUnderscoreIdents(d_underscoreIdents);
+    lex.setStream( &in, path );
     Ob::Parser p(&lex,d_errs);
     p.RunParser();
 
