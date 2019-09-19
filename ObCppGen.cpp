@@ -307,7 +307,7 @@ void CppGen::emitType(const CodeModel::Unit* ds,const CodeModel::Type* t, QTextS
             out << "*";
         }
         else if( t->d_kind == CodeModel::Type::ProcRef )
-            Q_ASSERT_X(false,"generateTypeDecl","ProcType not supported here");
+            out << "/* ProcType not supported here */";
         else
             out << "int /* unknown type */";
     }else

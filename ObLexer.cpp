@@ -41,6 +41,8 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         setStream( sourcePath );
     else
     {
+        if( d_in != 0 && d_in->parent() == this )
+            d_in->deleteLater();
         d_in = in;
         d_lineNr = 0;
         d_colNr = 0;

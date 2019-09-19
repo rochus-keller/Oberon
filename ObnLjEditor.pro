@@ -35,7 +35,8 @@ SOURCES += ObnLjEditor.cpp \
     ../LjTools/BcViewer.cpp \
     ../LjTools/LuaJitEngine.cpp \
     ../LjTools/LuaJitComposer.cpp \
-    ObnHighlighter.cpp
+    ObnHighlighter.cpp \
+    ObLjbcGen.cpp
 
 HEADERS  += ObnLjEditor.h \
     ../GuiTools/CodeEditor.h \
@@ -46,7 +47,8 @@ HEADERS  += ObnLjEditor.h \
     ../LjTools/BcViewer.h \
     ../LjTools/LuaJitEngine.h \
     ../LjTools/LuaJitComposer.h \
-    ObnHighlighter.h
+    ObnHighlighter.h \
+    ObLjbcGen.h
 
 include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
     LIBS += -ldl

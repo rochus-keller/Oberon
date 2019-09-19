@@ -26,6 +26,8 @@
 #include <QStringList>
 #include <QVector>
 #include <QHash>
+#include <bitset>
+#include <QVariant>
 
 class QTextStream;
 
@@ -48,6 +50,7 @@ namespace Ob
         typedef QList<IdentUse> IdentUseList;
         typedef QHash<QString,IdentUseList> IdentUseDir; // sourcePath -> ids
         typedef QMultiHash<const NamedThing*,const SynTree*> RevIndex;
+        typedef std::bitset<32> Set;
 
         enum DesigOpCode { UnknownOp, IdentOp, PointerOp, TypeOp, ProcedureOp, ArrayOp };
         struct DesigOp
@@ -101,6 +104,7 @@ namespace Ob
             SynTree* d_st; // not owned; Const: expr;
             const Type* d_type; // not owned; Variable: type
             QList<Element*> d_vals; // owned, StubProc
+            QVariant d_const; // value in case of Constant
 
             bool isPredefProc() const { return d_kind >= ABS && d_kind <= LED; }
             QByteArray typeName() const;
@@ -231,8 +235,9 @@ namespace Ob
         bool parseFiles( const QStringList& );
         const GlobalScope& getGlobalScope() const { return d_scope; }
         const Type* typeOfExpression( const Unit*, SynTree* ) const;
+        QVariant evalExpression(const Unit*, SynTree* expr) const; // returns longlong, double, Set, bytearray, bool or invalid
         static SynTree* flatten( SynTree*, int stopAt = 0 );
-        DesigOpList derefDesignator( const Unit*,const SynTree*);
+        DesigOpList derefDesignator( const Unit*,const SynTree*) const;
         Quali derefQualident(const Unit*,const SynTree*);
 
         static void dump( QTextStream&, const SynTree*, int level = 0 );
@@ -274,6 +279,9 @@ namespace Ob
         const NamedThing* applyDesigOp(Unit* ds, const NamedThing* input, const DesigOp& dop, DesigOpErr* errOut ,
                                        bool synthesize = true, const Type* expected = 0);
         const Type* typeOfExpression( Unit*, Element::Kind, SynTree* args ) const;
+        QVariant evalSimpleExpression(const Unit*, SynTree* expr) const;
+        QVariant evalTerm(const Unit*, SynTree* expr) const;
+        QVariant evalFactor(const Unit*, SynTree* expr) const;
         void index( const SynTree* idUse, const NamedThing* decl );
 
         static QPair<SynTree*,bool> getIdentFromIdentDef(SynTree*);
@@ -292,5 +300,7 @@ namespace Ob
         bool d_underscoreIdents; // Allow for idents with underscores as in C
     };
 }
+
+Q_DECLARE_METATYPE( Ob::CodeModel::Set )
 
 #endif // OBCODEMODEL_H

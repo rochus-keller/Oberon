@@ -34,6 +34,7 @@ class JitEngine;
 
 namespace Ob
 {
+    class CodeModel;
 
     class LjEditor : public QMainWindow
     {
@@ -52,6 +53,7 @@ namespace Ob
         void createMenu();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
+        void compile();
 
     protected slots:
         void onDump();
@@ -74,6 +76,7 @@ namespace Ob
         Lua::BcViewer* d_bcv;
         Lua::Terminal2* d_term;
         Lua::JitEngine* d_eng;
+        CodeModel* d_mdl;
         bool d_lock;
     };
 }

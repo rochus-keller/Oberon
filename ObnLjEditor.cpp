@@ -19,6 +19,9 @@
 
 #include "ObnLjEditor.h"
 #include "ObnHighlighter.h"
+#include "ObCodeModel.h"
+#include "ObFileCache.h"
+#include "ObLjbcGen.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer.h>
@@ -34,6 +37,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QBuffer>
 #include <GuiTools/AutoMenu.h>
 #include <GuiTools/CodeEditor.h>
 #include <GuiTools/AutoShortcut.h>
@@ -73,6 +77,13 @@ LjEditor::LjEditor(QWidget *parent)
 {
     s_this = this;
 
+    d_mdl = new CodeModel(this);
+    d_mdl->setLowerCaseBuiltins(true);
+    d_mdl->setLowerCaseKeywords(true);
+    d_mdl->setUnderscoreIdents(true);
+    d_mdl->setSynthesize(false);
+    d_mdl->setTrackIds(false);
+
     d_lua = new Engine2(this);
     d_lua->addStdLibs();
     d_lua->addLibrary(Engine2::PACKAGE);
@@ -86,7 +97,9 @@ LjEditor::LjEditor(QWidget *parent)
     d_eng = new JitEngine(this);
 
     d_edit = new CodeEditor(this);
-    new Highlighter( d_edit->document() );
+    Highlighter* hl = new Highlighter( d_edit->document() );
+    hl->setLowerCaseKeywords(true);
+    hl->setUnderscoreIdents(true);
     d_edit->updateTabWidth();
 
     setDockNestingEnabled(true);
@@ -227,11 +240,8 @@ void LjEditor::createMenu()
 void LjEditor::onDump()
 {
     ENABLED_IF(true);
-    QDir dir( QStandardPaths::writableLocation(QStandardPaths::TempLocation) );
-    const QString path = dir.absoluteFilePath(QDateTime::currentDateTime().toString("yyMMddhhmmsszzz")+".bc");
-    d_lua->saveBinary(d_edit->toPlainText().toUtf8(), d_edit->getPath().toUtf8(),path.toUtf8());
-    d_bcv->loadFrom(path);
-    dir.remove(path);
+    compile();
+    // d_bcv->loadFrom(path);
 }
 
 void LjEditor::onRun()
@@ -428,6 +438,33 @@ bool LjEditor::checkSaved(const QString& title)
         }
     }
     return true;
+}
+
+void LjEditor::compile()
+{
+    QString path = d_edit->getPath();
+
+    if( path.isEmpty() )
+        path = "<unnamed>";
+    d_mdl->getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
+    if( d_mdl->parseFiles( QStringList() << path ) )
+    {
+        Q_ASSERT( d_mdl->getGlobalScope().d_mods.size() == 1 );
+        QFile dump( "dump.txt");
+        if( !dump.open(QIODevice::WriteOnly) )
+            qDebug() << "error: cannot open dump file for writing" << dump.fileName();
+        QTextStream ts(&dump);
+        Ob::CodeModel::dump(ts,d_mdl->getGlobalScope().d_mods.first()->d_def);
+
+        LjbcGen gen(d_mdl);
+        QByteArray bc = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
+        if( !bc.isEmpty() )
+        {
+            QBuffer buf(&bc);
+            buf.open(QIODevice::ReadOnly);
+            d_bcv->loadFrom(&buf,path);
+        }
+    }
 }
 
 int main(int argc, char *argv[])

@@ -134,7 +134,7 @@ set ::= '{' [ element {',' element} ] '}'
 
 element ::= expression ['..' expression]
 
-ActualParameters- ::= '(' [ ExpList ] ')' 
+// ActualParameters- ::= '(' [ ExpList ] ')' 
 
 // 9. Statements
 
@@ -154,9 +154,9 @@ assignmentOrProcedureCall ::=
 		// designator enthält neu auch Params: | [ ActualParameters ] // ProcedureCall
 	]
 	
-assignment- ::= designator ':=' expression
+// assignment- ::= designator ':=' expression
 
-ProcedureCall- ::= designator [ ActualParameters ]
+// ProcedureCall- ::= designator [ ActualParameters ]
 
 // 9.3. Statement sequences
 
