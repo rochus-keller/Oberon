@@ -53,10 +53,11 @@ namespace Ob
         void createMenu();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
-        void compile();
+        void compile(bool asSource);
 
     protected slots:
-        void onDump();
+        void onDumpBin();
+        void onDumpSrc();
         void onRun();
         void onRun2();
         void onNew();
@@ -77,6 +78,7 @@ namespace Ob
         Lua::Terminal2* d_term;
         Lua::JitEngine* d_eng;
         CodeModel* d_mdl;
+        QByteArray d_luaCode;
         bool d_lock;
     };
 }

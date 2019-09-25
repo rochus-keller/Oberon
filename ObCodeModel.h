@@ -210,6 +210,7 @@ namespace Ob
             const Type* d_type; // not owned; Record: base; ProcRef: return; TypeRef, Array, Pointer: type
             SynTree* d_st; // not owned; Array: dim expression; Ref: quali
             Vals d_vals; // owned; Record: fields; ProcRef: Params
+            quint32 d_len; // Array: len
         };
 
         class TypeAlias : public NamedThing // wird nur temporär auf dem Stack verwendet

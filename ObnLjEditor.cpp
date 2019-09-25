@@ -22,6 +22,7 @@
 #include "ObCodeModel.h"
 #include "ObFileCache.h"
 #include "ObLjbcGen.h"
+#include "ObLuaGen.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer.h>
@@ -100,6 +101,7 @@ LjEditor::LjEditor(QWidget *parent)
     Highlighter* hl = new Highlighter( d_edit->document() );
     hl->setLowerCaseKeywords(true);
     hl->setUnderscoreIdents(true);
+    hl->setLowerCaseBuiltins(true);
     d_edit->updateTabWidth();
 
     setDockNestingEnabled(true);
@@ -146,7 +148,7 @@ void LjEditor::loadFile(const QString& path)
     onCaption();
 
     // TEST
-    onDump();
+    onDumpSrc();
     d_bcv->saveTo(path + ".ljasm");
 }
 
@@ -194,7 +196,7 @@ void LjEditor::createMenu()
     pop->addSeparator();
     pop->addCommand( "Execute LuaJIT", this, SLOT(onRun()), tr("CTRL+E"), false );
     pop->addCommand( "Execute test VM", this, SLOT(onRun2()), tr("CTRL+SHIFT+E"), false );
-    pop->addCommand( "Dump", this, SLOT(onDump()), tr("CTRL+D"), false );
+    pop->addCommand( "Dump", this, SLOT(onDumpBin()), tr("CTRL+D"), false );
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export assembler...", this, SLOT(onExportAsm()) );
     pop->addSeparator();
@@ -234,33 +236,39 @@ void LjEditor::createMenu()
     new Gui::AutoShortcut( tr("CTRL+S"), this, this, SLOT(onSave()) );
     new Gui::AutoShortcut( tr("CTRL+E"), this, this, SLOT(onRun()) );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+E"), this, this, SLOT(onRun2()) );
-    new Gui::AutoShortcut( tr("CTRL+D"), this, this, SLOT(onDump()) );
+    new Gui::AutoShortcut( tr("CTRL+SHIFT+D"), this, this, SLOT(onDumpBin()) );
+    new Gui::AutoShortcut( tr("CTRL+D"), this, this, SLOT(onDumpSrc()) );
 }
 
-void LjEditor::onDump()
+void LjEditor::onDumpBin()
 {
     ENABLED_IF(true);
-    compile();
-    // d_bcv->loadFrom(path);
+    compile(false);
+}
+
+void LjEditor::onDumpSrc()
+{
+    ENABLED_IF(true);
+    compile(true);
 }
 
 void LjEditor::onRun()
 {
     ENABLED_IF(true);
-    d_lua->executeCmd( d_edit->toPlainText().toUtf8(), d_edit->getPath().toUtf8() );
+    compile(true);
+    d_lua->executeCmd( d_luaCode, d_edit->getPath().toUtf8() );
 }
 
 void LjEditor::onRun2()
 {
     ENABLED_IF(true);
+    compile(true);
     QDir dir( QStandardPaths::writableLocation(QStandardPaths::TempLocation) );
     const QString path = dir.absoluteFilePath(QDateTime::currentDateTime().toString("yyMMddhhmmsszzz")+".bc");
-    d_lua->saveBinary(d_edit->toPlainText().toUtf8(), d_edit->getPath().toUtf8(),path.toUtf8());
+    d_lua->saveBinary(d_luaCode, d_edit->getPath().toUtf8(),path.toUtf8());
     JitBytecode bc;
     if( bc.parse(path) )
-    {
         d_eng->run( &bc );
-    }
     dir.remove(path);
 }
 
@@ -393,7 +401,7 @@ void LjEditor::onExportAsm()
     ENABLED_IF(true);
 
     if( d_bcv->topLevelItemCount() == 0 )
-        onDump();
+        onDumpBin();
     if( d_bcv->topLevelItemCount() == 0 )
         return;
 
@@ -440,7 +448,7 @@ bool LjEditor::checkSaved(const QString& title)
     return true;
 }
 
-void LjEditor::compile()
+void LjEditor::compile(bool asSource)
 {
     QString path = d_edit->getPath();
 
@@ -456,13 +464,35 @@ void LjEditor::compile()
         QTextStream ts(&dump);
         Ob::CodeModel::dump(ts,d_mdl->getGlobalScope().d_mods.first()->d_def);
 
-        LjbcGen gen(d_mdl);
-        QByteArray bc = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
-        if( !bc.isEmpty() )
+        if( asSource )
         {
-            QBuffer buf(&bc);
-            buf.open(QIODevice::ReadOnly);
-            d_bcv->loadFrom(&buf,path);
+            LuaGen gen(d_mdl);
+            d_luaCode = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
+            if( !d_luaCode.isEmpty() )
+            {
+                QFile dump( "dump.lua");
+                if( !dump.open(QIODevice::WriteOnly) )
+                    qDebug() << "error: cannot open dump file for writing" << dump.fileName();
+                dump.write(d_luaCode);
+                if( d_lua->pushFunction(d_luaCode) )
+                {
+                    QByteArray code = Engine2::getBinaryFromFunc( d_lua->getCtx() );
+                    d_lua->pop();
+                    QBuffer buf(&code);
+                    buf.open(QIODevice::ReadOnly);
+                    d_bcv->loadFrom(&buf,path);
+                }
+            }
+        }else
+        {
+            LjbcGen gen(d_mdl);
+            QByteArray bc = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
+            if( !bc.isEmpty() )
+            {
+                QBuffer buf(&bc);
+                buf.open(QIODevice::ReadOnly);
+                d_bcv->loadFrom(&buf,path);
+            }
         }
     }
 }

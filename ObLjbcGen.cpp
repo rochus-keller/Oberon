@@ -4,6 +4,13 @@
 #include <QtDebug>
 #include <LjTools/LuaJitComposer.h>
 using namespace Ob;
+using namespace Lua;
+
+// register allocation
+// Luajit lj_parse.c line 368
+// https://github.com/deplinenoise/deluxe68
+// https://gist.github.com/leegao/1372243
+// ev. https://www.geeksforgeeks.org/register-allocations-in-code-generation/
 
 LjbcGen::LjbcGen(CodeModel* mdl) : d_mdl(mdl),d_errs(0)
 {
@@ -35,11 +42,19 @@ bool LjbcGen::emitModules(const QString& outdir)
 QByteArray LjbcGen::emitModule(CodeModel::Module* m)
 {
     Q_ASSERT( m && m->d_def );
+
+    d_curMod = m;
+
     Lua::JitComposer jc;
     jc.openFunction(0,m->d_def->d_tok.d_sourcePath.toUtf8(),
                     m->d_def->d_tok.d_lineNr, m->d_def->d_children.last()->d_tok.d_lineNr );
 
+    jc.addOp( JitBytecode::OP_TNEW, 0, 0, m->d_def->d_tok.d_lineNr );
+    jc.addOp( JitBytecode::OP_GSET, 0, jc.getConstSlot( m->d_def->d_tok.d_val ), m->d_def->d_tok.d_lineNr );
+
     // TODO: handle imports
+    // imports are either the global module tables or members of this module table pointing to the other module table
+    // under a separate name
 
     // DeclarationSequence
     emitDecls( m, jc );
@@ -56,26 +71,20 @@ QByteArray LjbcGen::emitModule(CodeModel::Module* m)
 
 void LjbcGen::emitDecls(const CodeModel::Unit* ds, Lua::JitComposer& out)
 {
-    // A ConstExpression is an expression containing constants only. More precisely, its evaluation must
-    // be possible by a mere textual scan without execution of the program
-    QList<CodeModel::Element*> consts = ds->getConsts();
-    foreach( const CodeModel::Element* c, consts )
-    {
-        qDebug() << SynTree::rToStr(c->d_st->d_tok.d_type);
-        Q_ASSERT( c->d_st != 0 && c->d_st->d_tok.d_type == SynTree::R_expression );
-        const QVariant val = d_mdl->evalExpression( ds, c->d_st );
-        const int slot = out.getLocalSlot(c->d_name);
-        if( val.canConvert<CodeModel::Set>() )
-            qDebug() << "const Set" << c->d_name << val.value<CodeModel::Set>().to_string().c_str();
-        else
-            qDebug() << "const" << c->d_name << val;
-    }
+    // constants don't need a special treatment here; out.getConstSlot is called wherever the constant is required
 
+    // variables could be slots of the top function (chunk) or entries in the module table or both
+    // no initialization required
+
+    // named record types should be a member of the module table to be used as meta and enable typeof tests
 }
 
 void LjbcGen::emitProc(const CodeModel::Unit* ds, Lua::JitComposer& out)
 {
-
+    // module level procs have to be members of the module table to be referencible from outside
+    // pass by reference: http://lua-users.org/lists/lua-l/2004-06/msg00258.html
+    // we cannot use upvals for VAR because in constrast to PUC Lua you cannot select the upval references with FNEW,
+    // but they are predefined in the function; to use different variables as VAR param you need versions of the function.
 }
 
 void LjbcGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& seq, Lua::JitComposer& out)

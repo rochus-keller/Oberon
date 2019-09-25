@@ -459,6 +459,9 @@ void CodeModel::processConstDeclaration(Unit* m, SynTree* d)
         c->d_def = d;
         c->d_id = id.first;
         c->d_st = d->d_children.last();
+        // A ConstExpression is an expression containing constants only. More precisely, its evaluation must
+        // be possible by a mere textual scan without execution of the program
+        // Wirt's compiler seems not even to support name resolution for constants
         c->d_const = evalExpression(m,c->d_st);
         m->d_elems.append(c);
         m->addToScope( c );
@@ -767,6 +770,15 @@ void CodeModel::checkAssig(CodeModel::Unit* ds, const CodeModel::DesigOpList& lh
         return;
     }
 
+    for( int i = 0; i < lhs.size(); i++ )
+    {
+        if( lhs[i].d_op == ProcedureOp )
+        {
+            d_errs->error(Errors::Semantics, lhs[i].d_arg, tr("procedure call cannot be left of assignment" ) );
+            return;
+        }
+    }
+
     if( lhs.last().d_sym->isStub() )
     {
         // lhs type maybe not known
@@ -823,7 +835,10 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
     if( id->d_tok.d_type == Tok_ident )
         var = ds->findByName( id->d_tok.d_val ) ;
     if( var == 0 )
+    {
+        d_errs->error(Errors::Semantics,st,tr("only simple type case variables supported"));
         goto NormalCaseStatement;
+    }
     for( int i = 3; i < st->d_children.size(); i++ )
     {
         SynTree* c = st->d_children[i];
@@ -842,6 +857,7 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
                 goto NormalCaseStatement;
         }
     }
+    // qDebug() << "typecase at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
     for( int i = 0; i < cases.size(); i++ )
     {
         checkNames(ds,cases[i].first.second);
@@ -965,6 +981,10 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
     res->d_def = t;
     res->d_type = tp;
     res->d_st = ll->d_children.first();
+    bool ok;
+    res->d_len = evalExpression( ds, res->d_st ).toUInt(&ok);
+    if( !ok || res->d_len == 0 )
+        d_errs->error(Errors::Semantics, res->d_st, tr("invalid array size") );
     ds->d_types.append(res);
     Type* last = res;
     for( int i = 1; i < ll->d_children.size(); i++ )
@@ -976,6 +996,9 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
         cur->d_def = t;
         cur->d_type = tp;
         cur->d_st = ll->d_children[i];
+        cur->d_len = evalExpression( ds, cur->d_st ).toUInt(&ok);
+        if( !ok || cur->d_len == 0 )
+            d_errs->error(Errors::Semantics, cur->d_st, tr("invalid array size") );
         ds->d_types.append(cur);
         last = cur;
     }
@@ -1221,8 +1244,23 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
                 index(desig[i].d_arg,desig[i].d_sym);
         }
     }
-//    if( report && synthesize )
-//        qDebug() << "DESIG:" << toString(desig);
+
+    if( report )
+    {
+        // ProcedureOp darf nur einmal im DesigOpList vorkommen und nur ganz am Schluss
+        int n = 0;
+        int hit = -1;
+        for( int i = 0; i < desig.size(); i++ )
+        {
+            if( desig[i].d_op == ProcedureOp )
+            {
+                n++;
+                hit = i;
+            }
+        }
+        if( n > 1 || ( n > 0 && hit != ( desig.size() -1 ) ) )
+            d_errs->error( Errors::Semantics, t, tr("invalid procedure call embedded in designator" ) );
+    }
     return desig;
 }
 
@@ -2179,7 +2217,7 @@ const char* CodeModel::Type::s_kindName[] =
     "ProcRef",
 };
 
-CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0)
+CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0),d_len(0)
 {
     if( k >= BOOLEAN && k <= SET )
         d_name = Lexer::getSymbol( s_kindName[k] );

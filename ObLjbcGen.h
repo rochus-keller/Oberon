@@ -25,6 +25,7 @@ namespace Ob
     private:
         CodeModel* d_mdl;
         Errors* d_errs;
+        CodeModel::Module* d_curMod;
     };
 }
 
