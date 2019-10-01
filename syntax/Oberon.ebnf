@@ -134,7 +134,7 @@ set ::= '{' [ element {',' element} ] '}'
 
 element ::= expression ['..' expression]
 
-// replaced: ActualParameters- ::= '(' [ ExpList ] ')' 
+ActualParameters ::= '(' [ ExpList ] ')'  
 
 /// 9. Statements
 
@@ -155,9 +155,9 @@ assignmentOrProcedureCall ::=
 		// designator enthält neu auch Params: | [ ActualParameters ] // ProcedureCall
 	]
 	
-// replaced: assignment- ::= designator ':=' expression
+assignment ::= designator ':=' expression
 
-// replaced: ProcedureCall- ::= designator [ ActualParameters ]
+ProcedureCall ::= designator [ ActualParameters ]
 
 /// 9.3. Statement sequences
 
@@ -186,8 +186,9 @@ label ::= integer | string | hexchar | hexstring | qualident
 /// 9.6. While statements
 
 WhileStatement ::= WHILE expression DO StatementSequence
-	{ElsifStatement} END
-	
+	{ElsifStatement2} END
+ElsifStatement2 ::= ELSIF expression DO StatementSequence 
+
 /// 9.7. Repeat Statements
 
 RepeatStatement ::= REPEAT StatementSequence UNTIL expression

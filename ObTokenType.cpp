@@ -69,6 +69,7 @@ namespace Ob {
 			case Tok_ident: return "ident";
 			case Tok_integer: return "integer";
 			case Tok_real: return "real";
+			case Tok_ScaleFactor_: return "ScaleFactor-";
 			case Tok_string: return "string";
 			case Tok_hexchar: return "hexchar";
 			case Tok_hexstring: return "hexstring";
@@ -144,6 +145,7 @@ namespace Ob {
 			case Tok_ident: return "Tok_ident";
 			case Tok_integer: return "Tok_integer";
 			case Tok_real: return "Tok_real";
+			case Tok_ScaleFactor_: return "Tok_ScaleFactor_";
 			case Tok_string: return "Tok_string";
 			case Tok_hexchar: return "Tok_hexchar";
 			case Tok_hexstring: return "Tok_hexstring";

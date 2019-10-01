@@ -1,10 +1,10 @@
 /*
 * Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the JuaJIT BC Viewer application.
+* This file is part of the Oberon parser/compiler library.
 *
 * The following is the license that applies to this copy of the
-* application. For a license to use the application under conditions
+* library. For a license to use the library under conditions
 * other than those described here, please email to me@rochus-keller.ch.
 *
 * GNU General Public License Usage
@@ -23,6 +23,7 @@
 #include "ObFileCache.h"
 #include "ObLjbcGen.h"
 #include "ObLuaGen.h"
+#include "ObLjLib.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer.h>
@@ -93,6 +94,7 @@ LjEditor::LjEditor(QWidget *parent)
     d_lua->addLibrary(Engine2::BIT);
     d_lua->addLibrary(Engine2::JIT);
     d_lua->addLibrary(Engine2::OS);
+    LjLib::install(d_lua->getCtx());
     Engine2::setInst(d_lua);
 
     d_eng = new JitEngine(this);
@@ -149,7 +151,7 @@ void LjEditor::loadFile(const QString& path)
 
     // TEST
     onDumpSrc();
-    d_bcv->saveTo(path + ".ljasm");
+    // d_bcv->saveTo(path + ".ljasm");
 }
 
 void LjEditor::logMessage(const QString& str, bool err)

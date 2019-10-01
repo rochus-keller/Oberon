@@ -36,7 +36,9 @@ static bool isLuaKeyword( const QByteArray& str )
         s_lkw << "and" <<       "break" <<     "do" <<        "else" <<      "elseif"
               << "end" <<       "false" <<     "for" <<       "function" <<  "if"
               << "in" <<        "local" <<     "nil" <<       "not" <<       "or"
-              << "repeat" <<    "return" <<    "then" <<      "true" <<      "until" <<     "while";
+              << "repeat" <<    "return" <<    "then" <<      "true" <<      "until" <<     "while"
+                 // built-in LuaJIT libraries
+              << "math" << "bit" << "table" << "_obnlj";
     return s_lkw.contains(str);
 }
 
@@ -54,7 +56,7 @@ static QByteArray quali( const SynTree* st )
         return st->d_children.first()->d_tok.d_val + "." + st->d_children.last()->d_tok.d_val;
 }
 
-LuaGen::LuaGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_curMod(0)
+LuaGen::LuaGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_curMod(0),d_suppressVar(false)
 {
     Q_ASSERT( mdl != 0 );
     d_errs = mdl->getErrs();
@@ -139,7 +141,7 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
         out << ws(l) << "-- BEGIN" << endl;
     emitStatementSeq(m, m->d_body, out,l);
     if( !m->d_body.isEmpty() )
-        out << ws(l) << "-- END" << endl;
+        out << ws(l) << "-- END" << endl << endl;
 
     out << "return " << escape(m->d_name) << endl;
     out.flush();
@@ -201,7 +203,7 @@ void LuaGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
         out << "\"" << first->d_tok.d_val << "\"";
         break;
     case SynTree::R_variableOrFunctionCall:
-        emitDesig(ds,first->d_children.first(), false, out,level);
+        emitDesigList(ds,d_mdl->derefDesignator( ds, first->d_children.first() ), false, out,level);
         break;
     default:
         Q_ASSERT( false );
@@ -209,72 +211,27 @@ void LuaGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
     }
 }
 
-bool LuaGen::emitDesig(const CodeModel::Unit* ds, const SynTree* st, bool procCall, QTextStream& out, int level)
+bool LuaGen::emitDesigList(const CodeModel::Unit* ds, const CodeModel::DesigOpList& dopl,
+                                             bool procCall, QTextStream& out, int level)
 {
-    Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_designator );
-    CodeModel::DesigOpList dopl = d_mdl->derefDesignator(ds,st);
+    const CodeModel::Element* e = 0; ;
+    if( dopl.size() == 2 && ( e = dynamic_cast<const CodeModel::Element*>( dopl.first().d_sym ) ) && e->isPredefProc() )
+    {
+        if( emitPredefProc( ds, dopl, out, level ) )
+            return false;
+    }
 
     bool printedSomething = false;
     for( int i = 0; i < dopl.size(); i++ )
     {
-        switch( dopl[i].d_op )
+        if( printedSomething && dopl[i].d_op == CodeModel::IdentOp )
+            out << ".";
+        if( emitDesig(ds, i != 0 ? dopl[i-1].d_sym : 0, dopl[i], out, level ) )
         {
-        case CodeModel::IdentOp:
-            Q_ASSERT( dopl[i].d_sym );
-            if( i == 0 && dynamic_cast<const CodeModel::Module*>(dopl[i].d_sym) )
-            {
-                out << escape(dopl[i].d_sym->d_name) + ".";
-                printedSomething = true;
-            }else
-            {
-                const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>( dopl[i].d_sym );
-                if( e && e->isPredefProc() )
-                {
-                    if( emitPredefProc( ds, dopl, out, level ) )
-                        return true;
-                    else
-                        out << escape(dopl[i].d_sym->d_name);
-                }else
-                {
-                    if( i != 0 )
-                        out << ".";
+            if( !d_suppressVar && dopl[i].d_sym != 0 && dopl[i].d_sym->d_var  )
+                out << "()";
 
-                    out << escape(dopl[i].d_sym->d_name);
-                    if( e && e->d_kind == CodeModel::Element::Variable )
-                        const CodeModel::Type* t = derefed(e->d_type);
-                }
-            }
-            break;
-        case CodeModel::PointerOp:
-            break;
-        case CodeModel::TypeOp:
-            break;
-        case CodeModel::ProcedureOp:
-            out << "(";
-            if( dopl[i].d_arg )
-            {
-                // TODO: VAR params
-                Q_ASSERT( dopl[i].d_arg->d_tok.d_type == SynTree::R_ExpList );
-                for( int j = 0; j < dopl[i].d_arg->d_children.size(); j++ )
-                {
-                    if( j != 0 )
-                        out << ", ";
-                    emitExpression(ds, dopl[i].d_arg->d_children[j], out, 0 );
-                }
-            }
-            out << ")";
-            break;
-        case CodeModel::ArrayOp:
-            Q_ASSERT( dopl[i].d_arg->d_tok.d_type == SynTree::R_ExpList );
-            for( int j = 0; j < dopl[i].d_arg->d_children.size(); j++ )
-            {
-                out << "[";
-                emitExpression(ds, dopl[i].d_arg->d_children[j], out, 0 );
-                out << " +1]"; // Lua is one-based, Oberon zero-based
-            }
-            break;
-        default:
-            break;
+            printedSomething = true;
         }
     }
     if( procCall && !dopl.isEmpty() && dopl.last().d_op != CodeModel::ProcedureOp )
@@ -289,9 +246,135 @@ bool LuaGen::emitDesig(const CodeModel::Unit* ds, const SynTree* st, bool procCa
         else if( const CodeModel::Type* t = dynamic_cast<const CodeModel::Type*>(dopl.last().d_sym) )
             isCallWithoutParams = t->d_kind == CodeModel::Type::ProcRef;
         if( isCallWithoutParams )
+        {
             out << "()";
+            printedSomething = true;
+        }
     }
 
+    return printedSomething;
+}
+
+static int countPrintable( const CodeModel::DesigOpList& dopl )
+{
+    int res = 0;
+    for( int i = 0; i < dopl.size(); i++ )
+    {
+        switch( dopl[i].d_op )
+        {
+        case CodeModel::IdentOp:
+        case CodeModel::ProcedureOp:
+        case CodeModel::ArrayOp:
+            res++;
+            break;
+        }
+    }
+    return res;
+}
+
+void LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
+{
+    emitAssig( ds, st->d_children.first(), st->d_children.last(), out, level );
+#if 0
+    out << ws(level);
+    CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, st->d_children.first() );
+    const int prints = countPrintable(dopl);
+    d_suppressVar = prints == 1;
+    emitDesigList(ds, dopl, false, out, level);
+    d_suppressVar = false;
+    // TODO: echte Kopie von val-types, {table.unpack(org)}
+    if( prints == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var )
+    {
+        out << "( true, ";
+        emitExpression(ds,st->d_children.last(), out, level );
+        out << " )";
+    }else
+    {
+        out << " = ";
+        emitExpression(ds,st->d_children.last(), out, level );
+    }
+    out << endl;
+#endif
+}
+
+bool LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynTree* rhs, QTextStream& out, int level)
+{
+    out << ws(level);
+    CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, lhs );
+    const int prints = countPrintable(dopl);
+    d_suppressVar = prints == 1;
+    emitDesigList(ds, dopl, false, out, level);
+    d_suppressVar = false;
+    // TODO: echte Kopie von val-types, {table.unpack(org)}
+    bool thunk = false;
+    if( prints == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var )
+    {
+        thunk = true;
+        out << "( true, ";
+        if( rhs )
+        {
+            emitExpression(ds,rhs, out, level );
+            out << " )";
+        }
+    }else
+    {
+        out << " = ";
+        if( rhs )
+            emitExpression(ds,rhs, out, level );
+    }
+    if( rhs )
+        out << endl;
+    return thunk;
+}
+
+bool LuaGen::emitDesig(const CodeModel::Unit* ds, const CodeModel::NamedThing* prev,
+                       const CodeModel::DesigOp& dop, QTextStream& out, int level)
+{
+    bool printedSomething = false;
+    switch( dop.d_op )
+    {
+    case CodeModel::IdentOp:
+        Q_ASSERT( dop.d_sym );
+        out << escape(dop.d_sym->d_name);
+        printedSomething = true;
+        break;
+    case CodeModel::PointerOp:
+        break;
+    case CodeModel::TypeOp:
+        break;
+    case CodeModel::ProcedureOp:
+        {
+            Q_ASSERT( prev != 0 );
+            const QList<CodeModel::Element*> params = prev->getParams();
+            if( dop.d_arg && dop.d_arg->d_children.size() != params.size() )
+            {
+                d_errs->error(Errors::Semantics, dop.d_arg, tr("missmatch between formal and actual params") );
+                break;
+            }
+            out << "(";
+            if( dop.d_arg )
+            {
+                Q_ASSERT( dop.d_arg->d_tok.d_type == SynTree::R_ExpList );
+
+                for( int j = 0; j < dop.d_arg->d_children.size(); j++ )
+                {
+                    if( j != 0 )
+                        out << ", ";
+                    emitActualParam(ds,dop.d_arg->d_children[j], params[j]->d_var, out, level );
+                }
+            }else if( !params.isEmpty() )
+                d_errs->error(Errors::Semantics, params.first()->d_def, tr("missmatch between formal and actual params") );
+            out << ")";
+            printedSomething = true;
+        }
+        break;
+    case CodeModel::ArrayOp:
+        emitArrayOp( ds, dop.d_arg, out, level );
+        printedSomething = true;
+        break;
+    default:
+        break;
+    }
     return printedSomething;
 }
 
@@ -317,45 +400,120 @@ void LuaGen::emitTypeDecl(const CodeModel::Unit* ds, const CodeModel::Type* t, Q
     // else: es gibt keine Typendeklarationen für alle übrigen typen
 }
 
-void LuaGen::initMatrix( QTextStream& out, const QList<const CodeModel::Type*>& mat, const QByteArray& name, int level, int i )
+void LuaGen::initMatrix( QTextStream& out, const QList<const CodeModel::Type*>& mat,
+                         const QByteArray& name, int level, int i, const CodeModel::Type* rec )
 {
     if( i >= ( mat.size() - 1 ) )
+    {
+        if( rec )
+        {
+            out << ws(level+i) << "for __" << i << "=1," << mat[i]->d_len << " do" << endl;
+            out << ws(level+i+1) << "local ";
+            initRecord(out, rec, "rec", level+i+1 );
+            out << ws(level+i+1) << name;
+            for( int j = 0; j <= i; j++ )
+                out << "[__" << j << "]";
+            out << " = rec" << endl;
+            out << ws(level+i) << "end" << endl;
+        }
         return;
+    }
     out << ws(level+i) << "for __" << i << "=1," << mat[i]->d_len << " do" << endl;
     out << ws(level+i+1) << name;
     for( int j = 0; j <= i; j++ )
         out << "[__" << j << "]";
     out << " = {}" << endl;
-    initMatrix(out,mat,name,level, i+1 );
+    initMatrix(out,mat,name,level, i+1, rec );
     out << ws(level+i) << "end" << endl;
+}
+
+void LuaGen::initRecord(QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, int level)
+{
+    if( rec && rec->d_kind == CodeModel::Type::TypeRef )
+    {
+        // Named Type
+        Q_ASSERT( rec->d_st && rec->d_st->d_tok.d_type == SynTree::R_qualident );
+        out << name << " = _obnlj.instance(" << quali( rec->d_st ) << ")" << endl;
+    }else
+    {
+        Q_ASSERT( rec->d_kind == CodeModel::Type::Record );
+        // anonymous type
+        out << name << " = {}" << endl;
+    }
+    rec = derefed( rec );
+
+    CodeModel::Type::Vals::const_iterator i;
+    for( i = rec->d_vals.begin(); i != rec->d_vals.end(); ++i )
+    {
+        const CodeModel::Type* t = i.value()->d_type;
+        const CodeModel::Type* td = derefed( t );
+        const QByteArray field = name + "." + i.key();
+        if( td && td->d_kind == CodeModel::Type::Record )
+        {
+            out << ws(level);
+            initRecord( out, t, field, level );
+        }else if( td && td->d_kind == CodeModel::Type::Array )
+        {
+            out << ws(level);
+            initArray( out, t, field, level );
+        }
+    }
+
+}
+
+void LuaGen::initArray(QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level)
+{
+    const CodeModel::Type* t = arr;
+    const CodeModel::Type* td = derefed(arr);
+    out << name << " = {}" << endl;
+    QList<const CodeModel::Type*> dims;
+    while( td && td->d_kind == CodeModel::Type::Array )
+    {
+        dims << td;
+        t = td->d_type;
+        td = derefed( td->d_type );
+    }
+    const CodeModel::Type* r = 0;
+    if( td && td->d_kind == CodeModel::Type::Record )
+        r = t;
+    initMatrix( out, dims, name, level, 0, r );
+}
+
+LuaGen::RecRef LuaGen::getRecRefFrom(const CodeModel::Unit* ds, SynTree* st)
+{
+    const CodeModel::Type* ptrRef = d_mdl->typeOfExpression(ds,st);
+    const CodeModel::Type* ptr = 0;
+    if( ptrRef )
+        ptr = derefed(ptrRef);
+    if( ptr == ptrRef )
+        ptrRef = 0;
+    if( ptrRef && ptrRef->d_kind == CodeModel::Type::Record )
+        return qMakePair(ptrRef,ptr);
+    const CodeModel::Type* rec = 0;
+    const CodeModel::Type* recRef = 0;
+    if( ptr )
+        recRef = ptr->d_type;
+    if( recRef )
+        rec = derefed(recRef);
+    if( recRef == rec )
+        recRef = 0;
+    return qMakePair( recRef, rec );
 }
 
 void LuaGen::emitVarDecl(const CodeModel::Unit* ds, const CodeModel::Element* v, QTextStream& out, int level)
 {
-    const CodeModel::Type* td = derefed(v->d_type);
+    const CodeModel::Type* t = v->d_type;
+    const CodeModel::Type* td = derefed(t);
     const QByteArray name = escape(v->d_name);
-    out << ws(level) << "local " << name << " = ";
+    out << ws(level) << "local ";
     if( td && td->d_kind == CodeModel::Type::Record )
     {
-        if( td->d_type )
-        {
-            Q_ASSERT( td->d_st && td->d_st->d_tok.d_type == SynTree::R_qualident );
-            out << "_obnlj.instance(" << quali( td->d_st ) << ")" << endl;
-        }else
-            out << " {}" << endl;
-
+        initRecord( out, t, name, level );
     }else if( td && td->d_kind == CodeModel::Type::Array )
     {
-        out << "{}" << endl;
-        QList<const CodeModel::Type*> dims;
-        while( td && td->d_kind == CodeModel::Type::Array )
-        {
-            dims << td;
-            td = derefed( td->d_type );
-        }
-        initMatrix( out, dims, name, level, 0 );
+        initArray( out, t, name, level );
     }else
-        out << "nil" << endl;
+        out << name << endl;
 }
 
 void LuaGen::emitProc(const CodeModel::Procedure* p, QTextStream& out, int level)
@@ -379,13 +537,21 @@ void LuaGen::emitProc(const CodeModel::Procedure* p, QTextStream& out, int level
 
     emitDecls(p,out,level+1);
 
+    if( !p->d_procs.isEmpty() )
+        out << ws(level+1) << "----- PROC -----" << endl;
+    foreach( const CodeModel::Procedure* v, p->d_procs )
+    {
+        emitProc(v,out,level+1);
+    }
+    if( !m->d_procs.isEmpty() )
+        out << endl;
+
+    out << ws(level+1) << "_obnlj.TRACE(\"" << escape(p->d_name) << "\"," << p->d_def->d_tok.d_lineNr << ")" << endl;
     if( !p->d_body.isEmpty() )
     {
         out << ws(level+1) << "-- BEGIN" << endl;
     }
     emitStatementSeq(p,p->d_body,out,level+1);
-    if( !p->d_body.isEmpty() )
-        out << ws(level+1) << "-- END" << endl;
 
     out << ws(level) << "end" << endl << endl;
 }
@@ -398,7 +564,7 @@ void LuaGen::emitDecls(const CodeModel::Unit* ds, QTextStream& out, int l)
     foreach( const CodeModel::Element* c, consts )
     {
         emitComment( c->d_def, out,l );
-        out << "local " + escape(c->d_name) << " = ";
+        out << ws(l) << "local " + escape(c->d_name) << " = ";
 
         if( c->d_const.canConvert<CodeModel::Set>() )
             out << QString("0x%1").arg( c->d_const.value<CodeModel::Set>().to_ulong(), 16 );
@@ -453,17 +619,11 @@ void LuaGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             Q_ASSERT( false ); // wurde bereits vorher korrigiert
             break;
         case SynTree::R_assignment:
-            // TODO: VAR params
-            out << ws(level);
-            emitDesig(ds, s->d_children.first(), false, out, level);
-            out << " = ";
-            emitExpression(ds,s->d_children.last(), out, level );
-            out << endl;
+            emitAssig(ds, s, out, level );
             break;
         case SynTree::R_ProcedureCall:
             out << ws(level);
-            // TODO: VAR params with return values
-            emitDesig(ds, s->d_children.first(), true, out, level);
+            emitDesigList(ds, d_mdl->derefDesignator( ds, s->d_children.first() ), true, out, level);
             out << endl;
             break;
         case SynTree::R_IfStatement:
@@ -482,7 +642,7 @@ void LuaGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             emitForStatement(ds,s,out,level);
             break;
         case SynTree::R_ReturnStatement:
-            // TODO: VAR params
+            // TODO: Kopie bei val-type {table.unpack(org)}
             out << ws(level) << "return ";
             Q_ASSERT( s->d_children.size() == 2 && s->d_children.last()->d_tok.d_type == SynTree::R_expression );
             emitExpression(ds, s->d_children.last(), out, level );
@@ -518,92 +678,90 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     switch( pp->d_kind )
     {
     case CodeModel::Element::NEW:
+        if( args.size() == 1 )
         {
-            const SynTree* desig = ( args.isEmpty() ? 0 : CodeModel::flatten(args.first(), SynTree::R_designator ) );
-            if( args.size() != 1 || desig == 0 )
-            {
-                d_errs->error( Errors::Semantics, dopl.last().d_arg, tr("invalid arguments of 'NEW()'") );
-                return false;
-            }
-            CodeModel::DesigOpList arg = d_mdl->derefDesignator( ds, desig );
-            const CodeModel::Element* id = 0;
-            const CodeModel::Type* ptr = 0;
-            const CodeModel::Type* rec = 0;
-            if( arg.isEmpty() || arg.last().d_op != CodeModel::IdentOp ||
-                    ( id = arg.last().d_sym->to<CodeModel::Element>() ) == 0 ||
-                    ( ptr = derefed( id->d_type ) ) == 0 || ptr->d_kind != CodeModel::Type::Pointer ||
-                    ( rec = derefed( ptr->d_type ) ) == 0 || rec->d_kind != CodeModel::Type::Record )
+            RecRef rr = getRecRefFrom(ds,args.first());
+            if( rr.second == 0 )
             {
                 d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'NEW()' expects a POINTER to RECORD") );
                 return false;
             }
-            emitDesig(ds, desig, false, out, level );
-            out << " = _obnlj.instance( ";
-
-            if( rec->d_scope != ds )
-                out << escape(rec->d_scope->d_name) << ".";
-            out << escape(rec->d_name);
-
-            out << " )";
+            d_suppressVar = true;
+            emitExpression(ds, args.first(), out, level );
+            d_suppressVar = false;
+            if( rr.first )
+                out << " = _obnlj.instance( " << quali(rr.first->d_st) << " )";
+            else
+                out << " = {}";
             return true;
-        }
+        }else
+            d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'NEW()' expects one argument") );
         break;
     case CodeModel::Element::INC:
         if( args.size() == 1 )
         {
-            emitExpression( ds, args.first(), out , level );
-            out << " = ";
-            emitExpression( ds, args.first(), out , level );
-            out << " + 1";
-            return true;
+            const SynTree* d = CodeModel::flatten( args.first(), SynTree::R_designator );
+            if( d )
+            {
+                const bool thunk = emitAssig(ds, d, 0, out, level );
+                emitExpression( ds, args.first(), out , level );
+                out << " + 1";
+                if( thunk )
+                    out << ")";
+                return true;
+            }
         }else if( args.size() == 2 )
         {
-            emitExpression( ds, args.first(), out , level );
-            out << " = ";
-            emitExpression( ds, args.first(), out , level );
-            out << " + ";
-            emitExpression( ds, args.last(), out , level );
-            return true;
+            const SynTree* d = CodeModel::flatten( args.first(), SynTree::R_designator );
+            if( d )
+            {
+                const bool thunk = emitAssig(ds, d, 0, out, level );
+                emitExpression( ds, args.first(), out , level );
+                out << " + ";
+                emitExpression( ds, args.last(), out , level );
+                if( thunk )
+                    out << ")";
+                return true;
+            }
         }
         d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'INC()' with invalid arguments") );
         break;
     case CodeModel::Element::DEC:
         if( args.size() == 1 )
         {
-            emitExpression( ds, args.first(), out , level );
-            out << " = ";
-            emitExpression( ds, args.first(), out , level );
-            out << " - 1";
-            return true;
+            const SynTree* d = CodeModel::flatten( args.first(), SynTree::R_designator );
+            if( d )
+            {
+                const bool thunk = emitAssig(ds, d, 0, out, level );
+                emitExpression( ds, args.first(), out , level );
+                out << " - 1";
+                if( thunk )
+                    out << ")";
+                return true;
+            }
         }else if( args.size() == 2 )
         {
-            emitExpression( ds, args.first(), out , level );
-            out << " = ";
-            emitExpression( ds, args.first(), out , level );
-            out << " - ";
-            emitExpression( ds, args.last(), out , level );
-            return true;
+            const SynTree* d = CodeModel::flatten( args.first(), SynTree::R_designator );
+            if( d )
+            {
+                const bool thunk = emitAssig(ds, d, 0, out, level );
+                emitExpression( ds, args.first(), out , level );
+                out << " - ";
+                emitExpression( ds, args.last(), out , level );
+                if( thunk )
+                    out << ")";
+                return true;
+            }
         }
         d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'DEC()' with invalid arguments") );
         break;
     case CodeModel::Element::ORD:
         if( args.size() == 1 )
         {
-            // TODO
-            const CodeModel::Type* t = d_mdl->typeOfExpression(ds, args.first() );
-            if( t == d_mdl->getGlobalScope().d_setType )
-            {
-                out << "( ";
-                emitExpression(ds, args.first(), out, level );
-                out << " ).to_ulong()";
-                return true;
-            }else
-            {
-                out << "int( ";
-                emitExpression(ds, args.first(), out, level );
-                out << " )";
-                return true;
-            }
+            out << "_obnlj.ORD( ";
+            emitExpression(ds, args.first(), out, level );
+            out << " )";
+            return true;
         }
         d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ORD()' with invalid arguments") );
         break;
@@ -621,33 +779,89 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::ODD:
         if( args.size() == 1 )
         {
+            d_suppressVar = true;
             emitExpression(ds, args.first(), out, level );
             out << " % 2 == 1";
+            d_suppressVar = false;
             return true;
         }
         d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ODD()' with invalid arguments") );
         break;
+    case CodeModel::Element::ASSERT:
+        if( args.size() == 1 )
+        {
+            out << "_obnlj.ASSERT(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",\"" << args.first()->d_tok.d_sourcePath << "\"," << args.first()->d_tok.d_lineNr << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ASSERT()' with invalid arguments") );
+        break;
+    case CodeModel::Element::ABS:
+        if( args.size() == 1 )
+        {
+            out << "math.abs( ";
+            emitExpression(ds, args.first(), out, level );
+            out << " )";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ABS()' with invalid arguments") );
+        break;
+    case CodeModel::Element::INCL:
+        if( args.size() == 2 )
+        {
+            out << "_obnlj.INCL(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",";
+            emitExpression(ds, args.last(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'INCL()' with invalid arguments") );
+        break;
+    case CodeModel::Element::EXCL:
+        if( args.size() == 2 )
+        {
+            out << "_obnlj.EXCL(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",";
+            emitExpression(ds, args.last(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
+        break;
+    case CodeModel::Element::PACK:
+        if( args.size() == 2 )
+        {
+            out << "_obnlj.PACK( ";
+            emitActualParam( ds, args.first(), true, out, level );
+            out << ", ";
+            emitExpression(ds, args.last(), out, level );
+            out << " )";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
+        break;
+    case CodeModel::Element::UNPK:
+        if( args.size() == 2 )
+        {
+            out << "_obnlj.UNPK( ";
+            emitActualParam( ds, args.first(), true, out, level );
+            out << ", ";
+            emitActualParam( ds, args.last(), true, out, level );
+            out << " )";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
+        break;
     default:
+        // TODO: add remaining predef procs
         d_mdl->getErrs()->warning( Errors::Generator, dopl.last().d_arg,
                                    tr("built-in '%1()' not yet supported").arg(pp->d_name.data()) );
         break;
     }
     return false;
-}
-
-static inline bool ifNeedsBlock( SynTree* stats )
-{
-    Q_ASSERT( stats->d_tok.d_type == SynTree::R_StatementSequence );
-    if( stats->d_children.isEmpty() )
-        return false;
-    SynTree* stat = stats->d_children.first();
-    Q_ASSERT( stat->d_tok.d_type == SynTree::R_statement );
-    if( stat->d_children.isEmpty() )
-        return false;
-    if( stat->d_children.first()->d_tok.d_type == SynTree::R_IfStatement )
-        return true;
-    else
-        return stats->d_children.size() > 1;
 }
 
 void LuaGen::emitIfStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
@@ -668,7 +882,7 @@ void LuaGen::emitIfStatement(const CodeModel::Unit* ds, const SynTree* st, QText
             SynTree* elif = st->d_children[i];
             Q_ASSERT( elif->d_children.size() == 4 && elif->d_children[1]->d_tok.d_type == SynTree::R_expression &&
                       elif->d_children[3]->d_tok.d_type == SynTree::R_StatementSequence );
-            out << "elseif ";
+            out << ws(level) << "elseif ";
             emitExpression(ds,elif->d_children[1],out,level);
             out << " then" << endl;
             SynTree* stats = elif->d_children[3];
@@ -677,12 +891,12 @@ void LuaGen::emitIfStatement(const CodeModel::Unit* ds, const SynTree* st, QText
         {
             SynTree* els = st->d_children[i];
             Q_ASSERT( els->d_children.size() == 2 && els->d_children[1]->d_tok.d_type == SynTree::R_StatementSequence );
-            out << "else" << endl;
+            out << ws(level) << "else" << endl;
             SynTree* stats = els->d_children[1];
             emitStatementSeq(ds, stats->d_children, out, level + 1);
         }
     }
-    out << "end" << endl;
+    out << ws(level) << "end" << endl;
 }
 
 void LuaGen::emitWhileStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
@@ -691,11 +905,27 @@ void LuaGen::emitWhileStatement(const CodeModel::Unit* ds, const SynTree* st, QT
             st->d_children[1]->d_tok.d_type == SynTree::R_expression &&
               st->d_children[3]->d_tok.d_type == SynTree::R_StatementSequence );
 
-    out << ws(level) << "while ";
+    out << ws(level) << "while true do" << endl;
+    out << ws(level+1) << "if ";
     emitExpression(ds,st->d_children[1],out,level);
-    out << " do" << endl;
-    SynTree* stats = st->d_children[3];
-    emitStatementSeq(ds, stats->d_children, out, level + 1);
+    out << " then" << endl;
+    emitStatementSeq(ds, st->d_children[3]->d_children, out, level + 2);
+    for( int i = 4; i < st->d_children.size(); i++ )
+    {
+        if( st->d_children[i]->d_tok.d_type == SynTree::R_ElsifStatement2 )
+        {
+            Q_ASSERT( st->d_children[i]->d_children.size() == 4 &&
+                      st->d_children[i]->d_children[1]->d_tok.d_type == SynTree::R_expression &&
+                    st->d_children[i]->d_children[3]->d_tok.d_type == SynTree::R_StatementSequence );
+            out << ws(level+1) << "elseif ";
+            emitExpression(ds,st->d_children[i]->d_children[1],out,level+1);
+            out << " then" << endl;
+            emitStatementSeq(ds, st->d_children[i]->d_children[3]->d_children, out, level + 2);
+        }
+    }
+    out << ws(level+1) << "else" << endl;
+    out << ws(level+2) << "break" << endl;
+    out << ws(level+1) << "end" << endl;
     out << ws(level) << "end" << endl;
     if( CodeModel::findFirstChild( st, SynTree::R_ElsifStatement ) != 0 )
         d_errs->warning(Errors::Generator, st, tr("ELSIF statement in WHILE statement not supported") );
@@ -739,18 +969,28 @@ void LuaGen::emitCaseStatement(const CodeModel::Unit* ds, const SynTree* st, QTe
                 continue;
             }
             out << ws(level) << ( n == 0 ? "if " : "elseif ");
-            out << "_obnjs.is_a( ";
+            out << "_obnlj.is_a( ";
             emitExpression(ds,st->d_children[1],out, level);
-            out << ", " << quali(q) << " ) then" << endl;
-
+            out << ", ";
             CodeModel::Quali qq = d_mdl->derefQualident(ds,q);
             const CodeModel::Type* newType = dynamic_cast<const CodeModel::Type*>( qq.second.first );
+            if( newType->d_kind == CodeModel::Type::Pointer )
+            {
+                newType = newType->d_type;
+                Q_ASSERT( newType->d_kind == CodeModel::Type::TypeRef );
+                out << quali(newType->d_st);
+            }else
+                out << quali(q);
+
+            out << " ) then" << endl;
+
             CodeModel::Unit scope;
             scope.d_outer = const_cast<CodeModel::Unit*>(ds);
             CodeModel::TypeAlias alias;
             alias.d_name = id->d_tok.d_val;
             alias.d_newType = newType;
             alias.d_alias = const_cast<CodeModel::NamedThing*>(var);
+            alias.d_var = var->d_var;
             scope.addToScope(&alias);
 
             emitStatementSeq(&scope,c->d_children.last()->d_children,out,level+1);
@@ -761,10 +1001,46 @@ void LuaGen::emitCaseStatement(const CodeModel::Unit* ds, const SynTree* st, QTe
     }else
     {
         // normal case
-
-        // TODO
+        int n = 0;
+        for( int i = 0; i < cases.size(); i++ )
+        {
+            const SynTree* c = cases[i];
+            if( c->d_children.isEmpty() )
+                continue;
+            Q_ASSERT( c->d_children.size() == 2 && c->d_children.first()->d_tok.d_type ==
+                      SynTree::R_CaseLabelList && c->d_children.last()->d_tok.d_type == SynTree::R_StatementSequence );
+            out << ws(level) << ( n == 0 ? "if " : "elseif ");
+            SynTree* cll = c->d_children.first();
+            for( int j = 0; j < cll->d_children.size(); j++ )
+            {
+                Q_ASSERT( cll->d_children[j]->d_tok.d_type == SynTree::R_LabelRange );
+                SynTree* lr = cll->d_children[j];
+                if( j != 0 )
+                    out << " or ";
+                if( lr->d_children.size() == 1 )
+                {
+                    emitExpression(ds,st->d_children[1],out, level);
+                    out << " == ";
+                    emitLabel( lr->d_children.first(), out );
+                }else if( lr->d_children.size() == 3 )
+                {
+                    emitExpression(ds,st->d_children[1],out, level);
+                    out << " >= ";
+                    emitLabel( lr->d_children.first(), out );
+                    out << " and ";
+                    emitExpression(ds,st->d_children[1],out, level);
+                    out << " <= ";
+                    emitLabel( lr->d_children.last(), out );
+                }else
+                    Q_ASSERT( false );
+            }
+            out << " then" << endl;
+            emitStatementSeq(ds,c->d_children.last()->d_children,out,level+1);
+            n++;
+        }
+        if( n )
+            out << ws(level) << "end" << endl;
     }
-
 }
 
 void LuaGen::emitRepeatStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
@@ -785,6 +1061,7 @@ void LuaGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
 {
     Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_ForStatement && st->d_children.size() >= 9 &&
             st->d_children[1]->d_tok.d_type == Tok_ident );
+#if 0
     out << ws(level) << "for " << st->d_children[1]->d_tok.d_val << " = ";
     emitExpression(ds,st->d_children[3],out,level);
     out << ", ";
@@ -799,38 +1076,64 @@ void LuaGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
     Q_ASSERT( stat != 0 );
     emitStatementSeq(ds, stat->d_children, out, level + 1);
     out << ws(level) << "end" << endl;
+#endif
+    // the same as while because in Lua the TO expression is only executed once
+    out << ws(level) << st->d_children[1]->d_tok.d_val << " = ";
+    emitExpression(ds,st->d_children[3],out,level);
+    out << endl;
+
+    int inc = 1;
+    if( st->d_children[6]->d_tok.d_type == Tok_BY )
+    {
+        bool ok;
+        int res = d_mdl->evalExpression(ds,st->d_children[7]).toInt(&ok);
+        if( ok )
+            inc = res;
+    }
+    out << ws(level) << "while " << st->d_children[1]->d_tok.d_val;
+    if( inc > 0 )
+        out << " <= ";
+    else
+        out << " >= ";
+    emitExpression(ds,st->d_children[5],out,level);
+    out << " do" << endl;
+    SynTree* stat = CodeModel::findFirstChild( st, SynTree::R_StatementSequence, 6 );
+    Q_ASSERT( stat != 0 );
+    emitStatementSeq(ds, stat->d_children, out, level + 1);
+    out << ws(level+1) << st->d_children[1]->d_tok.d_val << " = " <<
+           st->d_children[1]->d_tok.d_val << " + " << inc << endl;
+    out << ws(level) << "end" << endl;
 }
 
 void LuaGen::emitSet(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
 {
-    // TODO
     Q_ASSERT( st->d_tok.d_type == SynTree::R_set && st->d_children.size() >= 2 );
-    out << "( _Set() ";
+    out << "_obnlj.SET(";
 
-    for( int i = 1; i < st->d_children.size() - 2; i++ )
+    for( int i = 1; i < st->d_children.size() - 1; i++ )
     {
         SynTree* el = st->d_children[i];
         Q_ASSERT( el->d_tok.d_type == SynTree::R_element && !el->d_children.isEmpty() );
-        out << "+ ";
-        if( el->d_children.size() == 1 )
+        if( i != 1 )
+            out << ",";
+        if( el->d_children.size() == 1 ) // expr
         {
-            out << "(";
             emitExpression(ds, el->d_children.first(), out, level );
-            out << ") ";
-        }else
+            out << ",-1";
+        }else if( el->d_children.size() == 3 ) // expr .. expr
         {
-            out << "_Set( ";
             emitExpression(ds, el->d_children.first(), out, level );
-            out << ", ";
+            out << ",";
             emitExpression(ds, el->d_children.last(), out, level );
-            out << ") ";
-        }
+        }else
+            Q_ASSERT( false );
     }
     out << ")";
 }
 
 void LuaGen::emitComment(const SynTree* st, QTextStream& out, int level )
 {
+#if 0
     if( st == 0 )
         return;
 
@@ -838,6 +1141,144 @@ void LuaGen::emitComment(const SynTree* st, QTextStream& out, int level )
     {
         const QByteArray str = d_cmts[d_nextCmt++].d_val;
         out << ws(level) << "--[[ " << str.mid(2,str.size()-4) << " ]]--" << endl;
+    }
+#endif
+}
+
+void LuaGen::emitLabel(const SynTree* st, QTextStream& out)
+{
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_label && !st->d_children.isEmpty() );
+
+    SynTree* first = st->d_children.first();
+    switch( first->d_tok.d_type )
+    {
+    case Tok_integer:
+        out << first->d_tok.d_val;
+        break;
+    case Tok_string:
+        if( first->d_tok.d_val.size() == 3 )
+            out << "'" << ( first->d_tok.d_val[1] == '\'' ? "\\" : "" ) << first->d_tok.d_val[1] << "'"; // CHAR
+        else
+            out << first->d_tok.d_val;
+        break;
+    case Tok_hexchar:
+        out << "0x" << first->d_tok.d_val.left(first->d_tok.d_val.size() - 1 );
+        break;
+    case Tok_hexstring:
+        out << "\"" << first->d_tok.d_val << "\"";
+        break;
+    case SynTree::R_qualident:
+        out << quali(first);
+        break;
+    default:
+        qWarning() << "unexpected" << SynTree::rToStr(first->d_tok.d_type) <<
+                      first->d_tok.d_sourcePath << first->d_tok.d_lineNr;
+        Q_ASSERT( false );
+        break;
+    }
+}
+
+void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool isVarParam, QTextStream& out, int level )
+{
+    // TODO: kopiere table wenn val-type, {table.unpack(org)}
+    if( !isVarParam )
+    {
+        emitExpression(ds, st, out, level );
+        return;
+    }
+    // else
+
+    const SynTree* d = CodeModel::flatten(const_cast<SynTree*>(st), SynTree::R_designator);
+    if( d == 0 )
+    {
+        d_mdl->getErrs()->error( Errors::Semantics, st, tr("expecting designator as actual var argument") );
+        return;
+    }
+    CodeModel::DesigOpList dopl = d_mdl->derefDesignator(ds,d);
+    const int prints = countPrintable(dopl);
+
+    // Es gibt in ObLuaGen nur local Variablen. Es muss aber unterschieden werden, ob der designator auf
+    // einen Skalar oder eine Table zeigt. Der Skalar wird via Upvalue-Thunk implementiert, die Table via Table Thunk.
+
+    Q_ASSERT( !dopl.isEmpty() );
+    Q_ASSERT( dopl.last().d_op != CodeModel::ProcedureOp );
+
+    const CodeModel::Module* m = dynamic_cast<const CodeModel::Module*>(dopl.first().d_sym);
+    const CodeModel::Element* e = 0;
+    if( prints == 1 && m == 0 )
+        e = dynamic_cast<const CodeModel::Element*>(dopl[0].d_sym);
+    if( prints > 1 )
+        e = dynamic_cast<const CodeModel::Element*>(dopl[1].d_sym);
+    if( ( prints == 1 && e != 0 && e->d_kind == CodeModel::Element::Variable ) ||
+            ( prints == 2 && m != 0 && e != 0 && e->d_kind == CodeModel::Element::Variable ) )
+    {
+        // use upvalue thunk
+        out << "function(__0,__1) if __0 then ";
+        emitExpression(ds, st, out, level );
+        out << " = __1 else return ";
+        emitExpression(ds, st, out, level );
+        out << " end end";
+        return;
+    }
+    // else
+    out << "_obnlj.thunk( ";
+
+    // table
+    for( int i = 0; i < dopl.size() - 1; i++ )
+    {
+        const CodeModel::DesigOp& dop = dopl[i];
+        switch( dop.d_op )
+        {
+        case CodeModel::IdentOp:
+            Q_ASSERT( dop.d_sym );
+            if( i != 0 )
+                out << ".";
+            out << escape(dop.d_sym->d_name);
+            break;
+        case CodeModel::ProcedureOp:
+            Q_ASSERT( false );
+            break;
+        case CodeModel::ArrayOp:
+            emitArrayOp( ds, dop.d_arg, out, level );
+            break;
+        default:
+            break;
+        }
+    }
+
+    // index
+    switch( dopl.last().d_op )
+    {
+    case CodeModel::IdentOp:
+        Q_ASSERT( dopl.last().d_sym );
+        out << ", \"" << escape(dopl.last().d_sym->d_name) << "\"";
+        break;
+    case CodeModel::ArrayOp:
+        emitArrayOp( ds, dopl.last().d_arg, out, level, true );
+        out << ", ";
+        emitExpression(ds, dopl.last().d_arg->d_children.last(), out, level );
+        out << " + 1";
+        break;
+    case CodeModel::PointerOp:
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
+    }
+
+    out << " )";
+}
+
+void LuaGen::emitArrayOp(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level, bool omitLast )
+{
+    Q_ASSERT( st && st->d_tok.d_type == SynTree::R_ExpList );
+    const int off = omitLast ? 1 : 0;
+    for( int j = 0; j < ( st->d_children.size() - off ); j++ )
+    {
+        // Oberon [x] or [x,y,z]
+        out << "[";
+        emitExpression(ds, st->d_children[j], out, level );
+        out << " +1]"; // Lua is one-based, Oberon zero-based
     }
 }
 
@@ -951,16 +1392,21 @@ void LuaGen::emitExpression(const CodeModel::Unit* ds,const SynTree* st, QTextSt
     if( op && op->d_tok.d_type == Tok_IS )
     {
         Q_ASSERT( st->d_children.size() == 3 );
-        SynTree* q = d_mdl->flatten(st->d_children[2],SynTree::R_qualident);
+        RecRef rr = getRecRefFrom(ds,st->d_children.last());
         out << "_obnlj.is_a( ";
         emitSimpleExpression(ds,st->d_children.first(),out,level);
-        out << ", " << quali(q) << " )" << endl;
+        out << ", ";
+        if( rr.first )
+            out << quali(rr.first->d_st);
+        else
+            out << rr.second->d_name;
+        out << " ) ";
     }else if( op && op->d_tok.d_type == Tok_IN )
     {
-        // TODO
         Q_ASSERT( st->d_children.size() == 3 );
+        out << "_obnlj.IN( ";
         emitSimpleExpression(ds,st->d_children.last(),out,level);
-        out << ".contains( "; // TODO
+        out << ", ";
         emitSimpleExpression(ds,st->d_children.first(),out,level);
         out << " )";
     }else

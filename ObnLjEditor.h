@@ -4,10 +4,10 @@
 /*
 * Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the JuaJIT BC Viewer application.
+* This file is part of the Oberon parser/compiler library.
 *
 * The following is the license that applies to this copy of the
-* application. For a license to use the application under conditions
+* library. For a license to use the library under conditions
 * other than those described here, please email to me@rochus-keller.ch.
 *
 * GNU General Public License Usage

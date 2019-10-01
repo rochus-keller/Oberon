@@ -85,12 +85,13 @@ private:
 		_T_ident=65,
 		_T_integer=66,
 		_T_real=67,
-		_T_string=68,
-		_T_hexchar=69,
-		_T_hexstring=70,
-		_T_Comment=71,
-		_T_Eof=72,
-		_T_MaxToken_=73
+		_T_ScaleFactor_=68,
+		_T_string=69,
+		_T_hexchar=70,
+		_T_hexstring=71,
+		_T_Comment=72,
+		_T_Eof=73,
+		_T_MaxToken_=74
 	};
 	int maxT;
 
@@ -190,6 +191,7 @@ Ob::SynTree d_root;
 	void CaseLabelList();
 	void LabelRange();
 	void label();
+	void ElsifStatement2();
 	void ProcedureDeclaration();
 	void ProcedureHeading();
 	void ProcedureBody();

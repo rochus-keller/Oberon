@@ -1,0 +1,93 @@
+--[[
+* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+*
+* This file is part of the Oberon parser/compiler library.
+*
+* The following is the license that applies to this copy of the
+* library. For a license to use the library under conditions
+* other than those described here, please email to me@rochus-keller.ch.
+*
+* GNU General Public License Usage
+* This file may be used under the terms of the GNU General Public
+* License (GPL) versions 2.0 or 3.0 as published by the Free Software
+* Foundation and appearing in the file LICENSE.GPL included in
+* the packaging of this file. Please review the following information
+* to ensure GNU General Public Licensing requirements will be met:
+* http://www.fsf.org/licensing/licenses/info/GPLv2.html and
+* http://www.gnu.org/copyleft/gpl.html.
+]]--
+
+local _lib = require '_obnljlib'
+
+local module = {}
+
+
+function module.instance( class )
+	local obj = {}
+	if class == nil then
+		error("expecting class not nil")
+	end
+	setmetatable(obj,class)
+	return obj
+end
+
+function module.is_a( obj, class )
+	local meta = getmetatable(obj)
+	while meta and class and meta ~= class do
+		meta = getmetatable(meta)
+	end
+	return meta == class
+end
+
+function module.DIV( a, b )
+	-- source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+	if a < 0 then
+		return (a - b + 1) / b;
+	else
+		return a / b;
+	end
+end
+
+function module.MOD( a, b )
+	-- source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+	if a < 0 then
+		return (b - 1) + ((a - b + 1)) % b;
+	else
+		return a % b;
+	end
+end
+
+local function runThunk( table, set, val )
+	if set then
+		table.table[table.index] = val
+	else
+		return table.table[table.index]
+	end
+end
+
+function module.thunk( table, index )
+	t = { table = table, index = index, __call = runThunk }
+	setmetatable( t, t )
+	return t
+end
+
+function module.PACK( x, n )
+	x( true, _lib.PACK( x(), n ) )
+end
+
+function module.UNPK( x, n )
+	local _x, _n = _lib.UNPK( x(), n() )
+	x( true, _x )
+	n( true, _n )
+end
+
+module.SET = _lib.SET
+module.IN = _lib.IN
+module.ORD = _lib.ORD
+module.ASSERT = _lib.ASSERT
+module.TRACE = _lib.TRACE
+module.INCL = _lib.INCL
+module.EXCL = _lib.EXCL
+
+
+return module

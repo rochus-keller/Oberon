@@ -21,6 +21,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_DeclarationSequence: return "DeclarationSequence";
 		case R_ElseStatement: return "ElseStatement";
 		case R_ElsifStatement: return "ElsifStatement";
+		case R_ElsifStatement2: return "ElsifStatement2";
 		case R_ExpList: return "ExpList";
 		case R_FPSection: return "FPSection";
 		case R_FieldList: return "FieldList";
@@ -51,7 +52,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_WhileStatement: return "WhileStatement";
 		case R_assignment: return "assignment";
 		case R_assignmentOrProcedureCall: return "assignmentOrProcedureCall";
-		case R_comment: return "comment";
+		case R_comment_: return "comment-";
 		case R_designator: return "designator";
 		case R_element: return "element";
 		case R_expression: return "expression";

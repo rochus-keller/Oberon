@@ -78,6 +78,7 @@ namespace Ob {
 		Tok_ident,
 		Tok_integer,
 		Tok_real,
+		Tok_ScaleFactor_,
 		Tok_string,
 		Tok_hexchar,
 		Tok_hexstring,

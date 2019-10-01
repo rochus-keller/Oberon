@@ -829,49 +829,53 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_CaseStatement && st->d_children.size() >= 4 );
 
-    QList< QPair< QPair<const Type*, SynTree*>,SynTree*> > cases;
-    const NamedThing* var = 0;
-    SynTree* id = flatten(st->d_children[1]);
-    if( id->d_tok.d_type == Tok_ident )
-        var = ds->findByName( id->d_tok.d_val ) ;
-    if( var == 0 )
+    const CodeModel::Type* t = derefed(typeOfExpression(ds, st->d_children[1]));
+    if( t->d_kind == CodeModel::Type::Pointer || t->d_kind == CodeModel::Type::Record )
     {
-        d_errs->error(Errors::Semantics,st,tr("only simple type case variables supported"));
-        goto NormalCaseStatement;
-    }
-    for( int i = 3; i < st->d_children.size(); i++ )
-    {
-        SynTree* c = st->d_children[i];
-        if( c->d_tok.d_type == SynTree::R_Case && !c->d_children.isEmpty() )
+        QList< QPair< QPair<const Type*, SynTree*>,SynTree*> > cases;
+        const NamedThing* var = 0;
+        SynTree* id = flatten(st->d_children[1]);
+        if( id->d_tok.d_type == Tok_ident )
+            var = ds->findByName( id->d_tok.d_val ) ;
+        if( var == 0 )
         {
-            Q_ASSERT( c->d_children.first()->d_tok.d_type == SynTree::R_CaseLabelList );
-            SynTree* q = flatten(c->d_children.first(),SynTree::R_qualident);
-            if( q->d_tok.d_type != SynTree::R_qualident )
-                goto NormalCaseStatement;
-            Quali quali = derefQualident(ds,q,false,false);
-            if( const Type* t = dynamic_cast<const Type*>( quali.second.first ) )
-            {
-                Q_ASSERT( c->d_children.last()->d_tok.d_type == SynTree::R_StatementSequence );
-                cases << qMakePair( qMakePair( t, c->d_children.first()), c->d_children.last() );
-            }else
-                goto NormalCaseStatement;
+            d_errs->error(Errors::Semantics,st,tr("only simple type case variables supported"));
+            goto NormalCaseStatement;
         }
+        for( int i = 3; i < st->d_children.size(); i++ )
+        {
+            SynTree* c = st->d_children[i];
+            if( c->d_tok.d_type == SynTree::R_Case && !c->d_children.isEmpty() )
+            {
+                Q_ASSERT( c->d_children.first()->d_tok.d_type == SynTree::R_CaseLabelList );
+                SynTree* q = flatten(c->d_children.first(),SynTree::R_qualident);
+                if( q->d_tok.d_type != SynTree::R_qualident )
+                    goto NormalCaseStatement;
+                Quali quali = derefQualident(ds,q,false,false);
+                if( const Type* t = dynamic_cast<const Type*>( quali.second.first ) )
+                {
+                    Q_ASSERT( c->d_children.last()->d_tok.d_type == SynTree::R_StatementSequence );
+                    cases << qMakePair( qMakePair( t, c->d_children.first()), c->d_children.last() );
+                }else
+                    goto NormalCaseStatement;
+            }
+        }
+        // qDebug() << "typecase at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
+        for( int i = 0; i < cases.size(); i++ )
+        {
+            checkNames(ds,cases[i].first.second);
+            Unit scope;
+            scope.d_outer = ds;
+            TypeAlias alias;
+            alias.d_name = id->d_tok.d_val;
+            alias.d_newType = cases[i].first.first;
+            alias.d_alias = const_cast<NamedThing*>(var);
+            scope.addToScope(&alias);
+            checkNames( &scope, cases[i].second );
+        }
+        checkNames(ds,st->d_children[1]);
+        return;
     }
-    // qDebug() << "typecase at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
-    for( int i = 0; i < cases.size(); i++ )
-    {
-        checkNames(ds,cases[i].first.second);
-        Unit scope;
-        scope.d_outer = ds;
-        TypeAlias alias;
-        alias.d_name = id->d_tok.d_val;
-        alias.d_newType = cases[i].first.first;
-        alias.d_alias = const_cast<NamedThing*>(var);
-        scope.addToScope(&alias);
-        checkNames( &scope, cases[i].second );
-    }
-    checkNames(ds,st->d_children[1]);
-    return;
 NormalCaseStatement:
     foreach( SynTree* sub, st->d_children )
         checkNames(ds,sub);
@@ -1016,7 +1020,7 @@ CodeModel::Type*CodeModel::parseProcType(CodeModel::Unit* ds, SynTree* t)
     QList<Element*> params;
     res->d_type = parseFormalParams(ds,fp,params);
     for( int i = 0; i < params.size(); i++ )
-        res->d_vals.insert( "_" + QByteArray::number(i), params[i] );
+        res->d_vals.insert( QString("_%1").arg(i,2,10,QChar('0')).toUtf8(), params[i] );
 
     return res;
 }
@@ -1175,7 +1179,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
 {
     DesigOpList desig; // flattended designator
 
-    Q_ASSERT( t->d_tok.d_type == SynTree::R_designator && !t->d_children.isEmpty() &&
+    Q_ASSERT( t != 0 && t->d_tok.d_type == SynTree::R_designator && !t->d_children.isEmpty() &&
               t->d_children.first()->d_tok.d_type == SynTree::R_qualident );
 
     for( int i = 0; i < t->d_children.first()->d_children.size(); i++ )
@@ -1719,6 +1723,8 @@ QVariant CodeModel::evalSimpleExpression(const CodeModel::Unit* u, SynTree* expr
             lhs = lhs.toLongLong() * ( op == Tok_Plus ? 1 : -1 );
         else if( lhs.type() == QVariant::Double )
             lhs = lhs.toDouble() * ( op == Tok_Plus ? 1.0 : -1.0 );
+        else if( lhs.canConvert<Set>() )
+            lhs = QVariant::fromValue( ~lhs.value<Set>());
         else
             d_errs->error(Errors::Semantics, expr, tr("invalid sign for expression type"));
     }
@@ -2188,6 +2194,15 @@ const CodeModel::Element* CodeModel::Type::findByName(const QByteArray& n) const
             res = parent->findByName(n);
     }
 
+    return res;
+}
+
+QList<CodeModel::Element*> CodeModel::Type::getParams() const
+{
+    QList<Element*> res;
+    Vals::const_iterator i;
+    for( i = d_vals.begin(); i != d_vals.end(); ++i )
+        res << i.value();
     return res;
 }
 

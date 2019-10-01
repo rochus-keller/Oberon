@@ -85,6 +85,7 @@ namespace Ob
             virtual SynTree* getExpr() const { return 0; }
             virtual const Type* getType() const { return 0; }
             virtual QByteArray typeName() const { return ""; }
+            virtual QList<Element*> getParams() const { return QList<Element*>(); }
         };
 
         class Element : public NamedThing
@@ -109,6 +110,7 @@ namespace Ob
             bool isPredefProc() const { return d_kind >= ABS && d_kind <= LED; }
             QByteArray typeName() const;
             virtual const Type* getType() const { return d_type; }
+            virtual QList<Element*> getParams() const { return d_vals; }
         };
 
         class Scope : public NamedThing
@@ -184,6 +186,7 @@ namespace Ob
             Type* d_type; // not owned; return type
             const Type* getType() const { return d_type; }
             QByteArray typeName() const { return "Procedure"; }
+            virtual QList<Element*> getParams() const { return d_vals; }
         };
 
         class Type : public NamedThing
@@ -205,6 +208,7 @@ namespace Ob
             QByteArray typeName() const;
             const Element* findByName( const QByteArray& ) const;
             virtual const Type* getType() const { return this; }
+            virtual QList<Element*> getParams() const;
 
             Kind d_kind;
             const Type* d_type; // not owned; Record: base; ProcRef: return; TypeRef, Array, Pointer: type
