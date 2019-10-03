@@ -240,6 +240,7 @@ namespace Ob
         bool parseFiles( const QStringList& );
         const GlobalScope& getGlobalScope() const { return d_scope; }
         const Type* typeOfExpression( const Unit*, SynTree* ) const;
+        bool isArrayOfChar( const NamedThing* ) const;
         QVariant evalExpression(const Unit*, SynTree* expr) const; // returns longlong, double, Set, bytearray, bool or invalid
         static SynTree* flatten( SynTree*, int stopAt = 0 );
         DesigOpList derefDesignator( const Unit*,const SynTree*) const;

@@ -38,8 +38,22 @@ static bool isLuaKeyword( const QByteArray& str )
               << "in" <<        "local" <<     "nil" <<       "not" <<       "or"
               << "repeat" <<    "return" <<    "then" <<      "true" <<      "until" <<     "while"
                  // built-in LuaJIT libraries
-              << "math" << "bit" << "table" << "_obnlj";
+              << "math" << "bit" << "obnlj";
     return s_lkw.contains(str);
+}
+
+static QByteArray luaStringEscape( QByteArray str )
+{
+    str.replace('\\', "\\\\");
+    str.replace('"',"\\\"");
+    str.replace('\n', "\\n");
+    str.replace('\t', "\\t");
+    str.replace('\a', "\\a");
+    str.replace('\b', "\\b");
+    str.replace('\f', "\\f");
+    str.replace('\v', "\\v");
+    str.replace( char(0), "\\0");
+    return str;
 }
 
 static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
@@ -114,7 +128,7 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
         if( CodeModel::Module* m = dynamic_cast<CodeModel::Module*>( i.value() ) )
             imps << m;
     }
-    out << "local _obnlj = require '_obnlj'" << endl << endl;
+    out << "local obnlj = require 'obnlj'" << endl << endl;
     if( !imps.isEmpty() )
     {
         out << "----- IMPORT -----" << endl;
@@ -153,6 +167,32 @@ QString LuaGen::ws(int level)
     return QString(level,QChar('\t'));
 }
 
+static void renderString( QTextStream& out, const SynTree* st )
+{
+    switch( st->d_tok.d_type )
+    {
+    case Tok_string:
+        // we need obnlj.Str here because Lua __eq only works of lhs and rhs same type
+        out << "obnlj.Str(\"" << luaStringEscape( st->d_tok.d_val.mid(1, st->d_tok.d_val.size() - 2 ) ) << "\")";
+        break;
+    case Tok_hexchar:
+        //out << "obnlj.Str(\"" << luaStringEscape(
+        //           QByteArray::fromHex( first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ) ) << "\")";
+        out << "obnlj.Str(\"" << QString("\\%1").arg(
+                   st->d_tok.d_val.left( st->d_tok.d_val.size() - 1 ).toUInt(0,16),3,10,QChar('0')
+                   ).toUtf8() << "\")";
+        break;
+    case Tok_hexstring:
+        // TODO: convert to \xxx form?
+        out << "obnlj.Str(\"" << luaStringEscape(
+                   QByteArray::fromHex(st->d_tok.d_val.mid(1, st->d_tok.d_val.size() - 2)) ) << "\")";
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
+    }
+}
+
 void LuaGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level )
 {
     Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_factor && !st->d_children.isEmpty() );
@@ -186,21 +226,15 @@ void LuaGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
         out << ")";
         break;
     case Tok_Tilde:
-        out << "not ";
+        out << "not (";
         Q_ASSERT(st->d_children.size() == 2 );
         emitFactor(ds,st->d_children[1], out, level );
+        out << ")";
         break;
     case Tok_string:
-        if( first->d_tok.d_val.size() == 3 )
-            out << "'" << ( first->d_tok.d_val[1] == '\'' ? "\\" : "" ) << first->d_tok.d_val[1] << "'"; // CHAR
-        else
-            out << first->d_tok.d_val;
-        break;
     case Tok_hexchar:
-        out << "0x" << first->d_tok.d_val.left(first->d_tok.d_val.size() - 1 );
-        break;
     case Tok_hexstring:
-        out << "\"" << first->d_tok.d_val << "\"";
+        renderString(out, first );
         break;
     case SynTree::R_variableOrFunctionCall:
         emitDesigList(ds,d_mdl->derefDesignator( ds, first->d_children.first() ), false, out,level);
@@ -274,32 +308,14 @@ static int countPrintable( const CodeModel::DesigOpList& dopl )
 
 void LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
 {
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_assignment && st->d_children.size() == 3 );
     emitAssig( ds, st->d_children.first(), st->d_children.last(), out, level );
-#if 0
-    out << ws(level);
-    CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, st->d_children.first() );
-    const int prints = countPrintable(dopl);
-    d_suppressVar = prints == 1;
-    emitDesigList(ds, dopl, false, out, level);
-    d_suppressVar = false;
-    // TODO: echte Kopie von val-types, {table.unpack(org)}
-    if( prints == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var )
-    {
-        out << "( true, ";
-        emitExpression(ds,st->d_children.last(), out, level );
-        out << " )";
-    }else
-    {
-        out << " = ";
-        emitExpression(ds,st->d_children.last(), out, level );
-    }
-    out << endl;
-#endif
 }
 
 bool LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynTree* rhs, QTextStream& out, int level)
 {
-    out << ws(level);
+    if( rhs )
+        out << ws(level);
     CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, lhs );
     const int prints = countPrintable(dopl);
     d_suppressVar = prints == 1;
@@ -307,10 +323,14 @@ bool LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynT
     d_suppressVar = false;
     // TODO: echte Kopie von val-types, {table.unpack(org)}
     bool thunk = false;
+    const bool arrayOfChar = d_mdl->isArrayOfChar( dopl.last().d_sym );
     if( prints == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var )
     {
         thunk = true;
-        out << "( true, ";
+        if( arrayOfChar )
+            out << "():assig( "; // ASSIG
+        else
+            out << "( true, ";
         if( rhs )
         {
             emitExpression(ds,rhs, out, level );
@@ -318,9 +338,19 @@ bool LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynT
         }
     }else
     {
-        out << " = ";
+        if( arrayOfChar )
+        {
+            out << ":assig( "; // ASSIG
+            if( rhs == 0 )
+                thunk = true; // so that caller closes rpar
+        }else
+            out << " = "; // ASSIG
         if( rhs )
+        {
             emitExpression(ds,rhs, out, level );
+            if( arrayOfChar )
+                out << " )";
+        }
     }
     if( rhs )
         out << endl;
@@ -385,87 +415,117 @@ void LuaGen::emitTypeDecl(const CodeModel::Unit* ds, const CodeModel::Type* t, Q
     if( t->d_kind == CodeModel::Type::Record )
     {
         const QByteArray name = escape(t->d_name);
-        out << ws(level) << "local " << name << " = ";
+        out << ws(level) << "local " << name << " = "; // ASSIG
         if( t->d_type )
         {
             Q_ASSERT( t->d_type->d_kind == CodeModel::Type::TypeRef );
-            out << "_obnlj.instance( " << quali( t->d_type->d_st ) << " )" << endl;
+            out << "obnlj.instance( " << quali( t->d_type->d_st ) << " )" << endl;
         }else
             out << "{}" << endl;
 
     }else if( t->d_kind == CodeModel::Type::TypeRef && td && td->d_kind == CodeModel::Type::Record )
     {
-        out << ws(level) << "local " << t->d_name << " = " << quali(t->d_st) << endl;
+        out << ws(level) << "local " << t->d_name << " = " << quali(t->d_st) << endl; // ASSIG
     }
     // else: es gibt keine Typendeklarationen für alle übrigen typen
 }
 
-void LuaGen::initMatrix( QTextStream& out, const QList<const CodeModel::Type*>& mat,
+void LuaGen::initMatrix( const CodeModel::Unit* ds, QTextStream& out, const QList<const CodeModel::Type*>& dims,
                          const QByteArray& name, int level, int i, const CodeModel::Type* rec )
 {
-    if( i >= ( mat.size() - 1 ) )
+    if( i >= ( dims.size() - 1 ) )
     {
         if( rec )
         {
-            out << ws(level+i) << "for __" << i << "=1," << mat[i]->d_len << " do" << endl;
+            out << ws(level+i) << "for __" << i << "=1," << dims[i]->d_len << " do" << endl;
             out << ws(level+i+1) << "local ";
-            initRecord(out, rec, "rec", level+i+1 );
+            initRecord(ds, out, rec, "rec", level+i+1 );
             out << ws(level+i+1) << name;
             for( int j = 0; j <= i; j++ )
                 out << "[__" << j << "]";
-            out << " = rec" << endl;
+            out << " = rec" << endl; // ASSIG
             out << ws(level+i) << "end" << endl;
         }
         return;
     }
-    out << ws(level+i) << "for __" << i << "=1," << mat[i]->d_len << " do" << endl;
+    out << ws(level+i) << "for __" << i << "=1," << dims[i]->d_len << " do" << endl;
     out << ws(level+i+1) << name;
     for( int j = 0; j <= i; j++ )
         out << "[__" << j << "]";
-    out << " = {}" << endl;
-    initMatrix(out,mat,name,level, i+1, rec );
+
+    if( derefed(dims[i+1]->d_type) == d_mdl->getGlobalScope().d_charType )
+        out << " = obnlj.Str("; // ASSIG
+    else
+        out << " = obnlj.Arr("; // ASSIG
+    out << dims[i+1]->d_len << ")" << endl;
+
+    initMatrix(ds, out,dims,name,level, i+1, rec );
     out << ws(level+i) << "end" << endl;
 }
 
-void LuaGen::initRecord(QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, int level)
+void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, int level)
 {
     if( rec && rec->d_kind == CodeModel::Type::TypeRef )
     {
         // Named Type
         Q_ASSERT( rec->d_st && rec->d_st->d_tok.d_type == SynTree::R_qualident );
-        out << name << " = _obnlj.instance(" << quali( rec->d_st ) << ")" << endl;
+        out << name << " = obnlj.instance(" << quali( rec->d_st ) << ")" << endl; // ASSIG
     }else
     {
         Q_ASSERT( rec->d_kind == CodeModel::Type::Record );
         // anonymous type
-        out << name << " = {}" << endl;
+        out << name << " = {}" << endl; // ASSIG
     }
     rec = derefed( rec );
 
-    CodeModel::Type::Vals::const_iterator i;
-    for( i = rec->d_vals.begin(); i != rec->d_vals.end(); ++i )
+    Q_ASSERT( rec->d_kind == CodeModel::Type::Record );
+
+    QList<const CodeModel::Type*> super;
+    super << rec;
+
+    while( true )
     {
-        const CodeModel::Type* t = i.value()->d_type;
-        const CodeModel::Type* td = derefed( t );
-        const QByteArray field = name + "." + i.key();
-        if( td && td->d_kind == CodeModel::Type::Record )
+        rec = rec->d_type;
+        if( rec )
         {
-            out << ws(level);
-            initRecord( out, t, field, level );
-        }else if( td && td->d_kind == CodeModel::Type::Array )
-        {
-            out << ws(level);
-            initArray( out, t, field, level );
-        }
+            Q_ASSERT( rec->d_kind == CodeModel::Type::TypeRef );
+            CodeModel::Quali qq = d_mdl->derefQualident(ds, rec->d_st );
+            rec = derefed(dynamic_cast<const CodeModel::Type*>( qq.second.first ) );
+            if( rec->d_kind == CodeModel::Type::Record )
+                super.prepend(rec);
+            else
+                break;
+        }else
+            break;
     }
 
+    for( int j = 0; j < super.size(); j++ )
+    {
+        // gehe von oben nach unten durch die Vererbungshierarchie und initialisiere die Members
+        rec = super[j];
+        CodeModel::Type::Vals::const_iterator i;
+        for( i = rec->d_vals.begin(); i != rec->d_vals.end(); ++i )
+        {
+            const CodeModel::Type* t = i.value()->d_type;
+            const CodeModel::Type* td = derefed( t );
+            const QByteArray field = name + "." + i.key();
+            if( td && td->d_kind == CodeModel::Type::Record )
+            {
+                out << ws(level);
+                initRecord( ds, out, t, field, level );
+            }else if( td && td->d_kind == CodeModel::Type::Array )
+            {
+                out << ws(level);
+                initArray(ds, out, t, field, level );
+            }
+        }
+    }
 }
 
-void LuaGen::initArray(QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level)
+void LuaGen::initArray(const CodeModel::Unit* ds, QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level)
 {
     const CodeModel::Type* t = arr;
     const CodeModel::Type* td = derefed(arr);
-    out << name << " = {}" << endl;
     QList<const CodeModel::Type*> dims;
     while( td && td->d_kind == CodeModel::Type::Array )
     {
@@ -476,7 +536,12 @@ void LuaGen::initArray(QTextStream& out, const CodeModel::Type* arr, const QByte
     const CodeModel::Type* r = 0;
     if( td && td->d_kind == CodeModel::Type::Record )
         r = t;
-    initMatrix( out, dims, name, level, 0, r );
+    if( derefed(dims[0]->d_type) == d_mdl->getGlobalScope().d_charType )
+        out << name << " = obnlj.Str("; // ASSIG
+    else
+        out << name << " = obnlj.Arr("; // ASSIG
+    out  << dims[0]->d_len << ")" << endl;
+    initMatrix( ds, out, dims, name, level, 0, r );
 }
 
 LuaGen::RecRef LuaGen::getRecRefFrom(const CodeModel::Unit* ds, SynTree* st)
@@ -487,7 +552,7 @@ LuaGen::RecRef LuaGen::getRecRefFrom(const CodeModel::Unit* ds, SynTree* st)
         ptr = derefed(ptrRef);
     if( ptr == ptrRef )
         ptrRef = 0;
-    if( ptrRef && ptrRef->d_kind == CodeModel::Type::Record )
+    if( ptr && ptr->d_kind == CodeModel::Type::Record )
         return qMakePair(ptrRef,ptr);
     const CodeModel::Type* rec = 0;
     const CodeModel::Type* recRef = 0;
@@ -508,10 +573,10 @@ void LuaGen::emitVarDecl(const CodeModel::Unit* ds, const CodeModel::Element* v,
     out << ws(level) << "local ";
     if( td && td->d_kind == CodeModel::Type::Record )
     {
-        initRecord( out, t, name, level );
+        initRecord( ds, out, t, name, level );
     }else if( td && td->d_kind == CodeModel::Type::Array )
     {
-        initArray( out, t, name, level );
+        initArray( ds, out, t, name, level );
     }else
         out << name << endl;
 }
@@ -546,7 +611,7 @@ void LuaGen::emitProc(const CodeModel::Procedure* p, QTextStream& out, int level
     if( !m->d_procs.isEmpty() )
         out << endl;
 
-    out << ws(level+1) << "_obnlj.TRACE(\"" << escape(p->d_name) << "\"," << p->d_def->d_tok.d_lineNr << ")" << endl;
+    out << ws(level+1) << "obnlj.TRACE(\"" << escape(p->d_name) << "\"," << p->d_def->d_tok.d_lineNr << ")" << endl;
     if( !p->d_body.isEmpty() )
     {
         out << ws(level+1) << "-- BEGIN" << endl;
@@ -564,12 +629,14 @@ void LuaGen::emitDecls(const CodeModel::Unit* ds, QTextStream& out, int l)
     foreach( const CodeModel::Element* c, consts )
     {
         emitComment( c->d_def, out,l );
-        out << ws(l) << "local " + escape(c->d_name) << " = ";
+        out << ws(l) << "local " + escape(c->d_name) << " = "; // ASSIG
 
         if( c->d_const.canConvert<CodeModel::Set>() )
-            out << QString("0x%1").arg( c->d_const.value<CodeModel::Set>().to_ulong(), 16 );
+            out << "0x" << QByteArray::number( quint32(c->d_const.value<CodeModel::Set>().to_ulong()), 16 );
+        else if( c->d_const.type() == QVariant::ByteArray )
+            out << "obnlj.Str(\"" << luaStringEscape(c->d_const.toByteArray() ) << "\")";
         else
-            out << c->d_const.toString();
+            out << c->d_const.toByteArray();
         out << endl;
     }
     if( !consts.isEmpty() )
@@ -643,7 +710,7 @@ void LuaGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             break;
         case SynTree::R_ReturnStatement:
             // TODO: Kopie bei val-type {table.unpack(org)}
-            out << ws(level) << "return ";
+            out << ws(level) << "return "; // kein assig, da wir hier lhs nicht kontrollieren; nur rhs
             Q_ASSERT( s->d_children.size() == 2 && s->d_children.last()->d_tok.d_type == SynTree::R_expression );
             emitExpression(ds, s->d_children.last(), out, level );
             out << endl;
@@ -686,13 +753,19 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                 d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'NEW()' expects a POINTER to RECORD") );
                 return false;
             }
-            d_suppressVar = true;
-            emitExpression(ds, args.first(), out, level );
-            d_suppressVar = false;
+            QByteArray name;
+            {
+                d_suppressVar = true;
+                QTextStream out2( &name, QIODevice::WriteOnly);
+                emitExpression(ds, args.first(), out2, level );
+                d_suppressVar = false;
+            }
             if( rr.first )
-                out << " = _obnlj.instance( " << quali(rr.first->d_st) << " )";
+                initRecord( ds, out, rr.first, name, level );
+            else if( rr.second )
+                initRecord( ds, out, rr.second, name, level );
             else
-                out << " = {}";
+                out << name << " = {}"; // ASSIG
             return true;
         }else
             d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'NEW()' expects one argument") );
@@ -758,7 +831,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::ORD:
         if( args.size() == 1 )
         {
-            out << "_obnlj.ORD( ";
+            out << "obnlj.ORD( ";
             emitExpression(ds, args.first(), out, level );
             out << " )";
             return true;
@@ -768,8 +841,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::CHR:
         if( args.size() == 1 )
         {
-            // TODO
-            out << "char( ";
+            out << "obnlj.Char( ";
             emitExpression(ds, args.first(), out, level );
             out << " )";
             return true;
@@ -790,7 +862,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::ASSERT:
         if( args.size() == 1 )
         {
-            out << "_obnlj.ASSERT(";
+            out << "obnlj.ASSERT(";
             emitExpression(ds, args.first(), out, level );
             out << ",\"" << args.first()->d_tok.d_sourcePath << "\"," << args.first()->d_tok.d_lineNr << ")";
             return true;
@@ -810,7 +882,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::INCL:
         if( args.size() == 2 )
         {
-            out << "_obnlj.INCL(";
+            out << "obnlj.INCL(";
             emitExpression(ds, args.first(), out, level );
             out << ",";
             emitExpression(ds, args.last(), out, level );
@@ -822,7 +894,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::EXCL:
         if( args.size() == 2 )
         {
-            out << "_obnlj.EXCL(";
+            out << "obnlj.EXCL(";
             emitExpression(ds, args.first(), out, level );
             out << ",";
             emitExpression(ds, args.last(), out, level );
@@ -834,7 +906,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::PACK:
         if( args.size() == 2 )
         {
-            out << "_obnlj.PACK( ";
+            out << "obnlj.PACK( ";
             emitActualParam( ds, args.first(), true, out, level );
             out << ", ";
             emitExpression(ds, args.last(), out, level );
@@ -846,7 +918,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     case CodeModel::Element::UNPK:
         if( args.size() == 2 )
         {
-            out << "_obnlj.UNPK( ";
+            out << "obnlj.UNPK( ";
             emitActualParam( ds, args.first(), true, out, level );
             out << ", ";
             emitActualParam( ds, args.last(), true, out, level );
@@ -855,8 +927,70 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
         }
         d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
         break;
+    case CodeModel::Element::LEN:
+        if( args.size() == 1 )
+        {
+            emitExpression(ds, args.first(), out, level );
+            out << ".n ";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'LEN()' with invalid arguments") );
+        break;
+    case CodeModel::Element::LSL:
+        if( args.size() == 2 )
+        {
+            out << "bit.lshift(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",";
+            emitExpression(ds, args.last(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'LSL()' with invalid arguments") );
+        break;
+    case CodeModel::Element::ASR:
+        if( args.size() == 2 )
+        {
+            out << "bit.arshift(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",";
+            emitExpression(ds, args.last(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ASR()' with invalid arguments") );
+        break;
+    case CodeModel::Element::ROR:
+        if( args.size() == 2 )
+        {
+            out << "bit.ror(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",";
+            emitExpression(ds, args.last(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ROR()' with invalid arguments") );
+        break;
+    case CodeModel::Element::FLOOR:
+        if( args.size() == 1 )
+        {
+            out << "math.floor(";
+            emitExpression(ds, args.first(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'FLOOR()' with invalid arguments") );
+        break;
+    case CodeModel::Element::FLT:
+        if( args.size() == 1 )
+        {
+            emitExpression(ds, args.first(), out, level );
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'FLT()' with invalid arguments") );
+        break;
     default:
-        // TODO: add remaining predef procs
         d_mdl->getErrs()->warning( Errors::Generator, dopl.last().d_arg,
                                    tr("built-in '%1()' not yet supported").arg(pp->d_name.data()) );
         break;
@@ -969,7 +1103,7 @@ void LuaGen::emitCaseStatement(const CodeModel::Unit* ds, const SynTree* st, QTe
                 continue;
             }
             out << ws(level) << ( n == 0 ? "if " : "elseif ");
-            out << "_obnlj.is_a( ";
+            out << "obnlj.is_a( ";
             emitExpression(ds,st->d_children[1],out, level);
             out << ", ";
             CodeModel::Quali qq = d_mdl->derefQualident(ds,q);
@@ -1078,7 +1212,7 @@ void LuaGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
     out << ws(level) << "end" << endl;
 #endif
     // the same as while because in Lua the TO expression is only executed once
-    out << ws(level) << st->d_children[1]->d_tok.d_val << " = ";
+    out << ws(level) << st->d_children[1]->d_tok.d_val << " = "; // ASSIG
     emitExpression(ds,st->d_children[3],out,level);
     out << endl;
 
@@ -1100,7 +1234,7 @@ void LuaGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
     SynTree* stat = CodeModel::findFirstChild( st, SynTree::R_StatementSequence, 6 );
     Q_ASSERT( stat != 0 );
     emitStatementSeq(ds, stat->d_children, out, level + 1);
-    out << ws(level+1) << st->d_children[1]->d_tok.d_val << " = " <<
+    out << ws(level+1) << st->d_children[1]->d_tok.d_val << " = " << // ASSIG
            st->d_children[1]->d_tok.d_val << " + " << inc << endl;
     out << ws(level) << "end" << endl;
 }
@@ -1108,7 +1242,7 @@ void LuaGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
 void LuaGen::emitSet(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_set && st->d_children.size() >= 2 );
-    out << "_obnlj.SET(";
+    out << "obnlj.SET(";
 
     for( int i = 1; i < st->d_children.size() - 1; i++ )
     {
@@ -1156,16 +1290,9 @@ void LuaGen::emitLabel(const SynTree* st, QTextStream& out)
         out << first->d_tok.d_val;
         break;
     case Tok_string:
-        if( first->d_tok.d_val.size() == 3 )
-            out << "'" << ( first->d_tok.d_val[1] == '\'' ? "\\" : "" ) << first->d_tok.d_val[1] << "'"; // CHAR
-        else
-            out << first->d_tok.d_val;
-        break;
     case Tok_hexchar:
-        out << "0x" << first->d_tok.d_val.left(first->d_tok.d_val.size() - 1 );
-        break;
     case Tok_hexstring:
-        out << "\"" << first->d_tok.d_val << "\"";
+        renderString(out, first );
         break;
     case SynTree::R_qualident:
         out << quali(first);
@@ -1214,14 +1341,17 @@ void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool 
     {
         // use upvalue thunk
         out << "function(__0,__1) if __0 then ";
-        emitExpression(ds, st, out, level );
-        out << " = __1 else return ";
+        const bool thunk = emitAssig(ds,d,0,out,level);
+        out << " __1";
+        if( thunk )
+            out << ")";
+        out << " else return ";
         emitExpression(ds, st, out, level );
         out << " end end";
         return;
     }
     // else
-    out << "_obnlj.thunk( ";
+    out << "obnlj.thunk( ";
 
     // table
     for( int i = 0; i < dopl.size() - 1; i++ )
@@ -1318,9 +1448,9 @@ void LuaGen::emitTerm(const CodeModel::Unit* ds, const QList<SynTree*> st, int i
     if( op->d_tok.d_type == Tok_DIV || op->d_tok.d_type == Tok_MOD )
     {
         if( op->d_tok.d_type == Tok_DIV )
-            out << "_obnlj.DIV(";
+            out << "obnlj.DIV(";
         else
-            out << "_obnlj.MOD(";
+            out << "obnlj.MOD(";
         emitTerm(ds, st, i - 2, out, level );
         out << ",";
         emitFactor(ds,st[i],out,level);
@@ -1353,7 +1483,8 @@ void LuaGen::emitSimpleExpression(const CodeModel::Unit* ds,const SynTree* st, Q
     int i = 0;
     if( st->d_children[i]->d_tok.d_type == Tok_Plus || st->d_children[i]->d_tok.d_type == Tok_Minus )
     {
-        out << tokenTypeString(st->d_children[i]->d_tok.d_type);
+        if( st->d_children[i]->d_tok.d_type == Tok_Minus ) // Lua has no + prefix
+            out << tokenTypeString(st->d_children[i]->d_tok.d_type);
         i++;
     }
     emitTerm(ds,st->d_children[i++],out,level);
@@ -1393,21 +1524,23 @@ void LuaGen::emitExpression(const CodeModel::Unit* ds,const SynTree* st, QTextSt
     {
         Q_ASSERT( st->d_children.size() == 3 );
         RecRef rr = getRecRefFrom(ds,st->d_children.last());
-        out << "_obnlj.is_a( ";
+        out << "obnlj.is_a( ";
         emitSimpleExpression(ds,st->d_children.first(),out,level);
         out << ", ";
         if( rr.first )
             out << quali(rr.first->d_st);
-        else
+        else if( rr.second )
             out << rr.second->d_name;
+        else
+            emitSimpleExpression(ds,st->d_children.last(),out,level); // TODO
         out << " ) ";
     }else if( op && op->d_tok.d_type == Tok_IN )
     {
         Q_ASSERT( st->d_children.size() == 3 );
-        out << "_obnlj.IN( ";
-        emitSimpleExpression(ds,st->d_children.last(),out,level);
-        out << ", ";
+        out << "obnlj.IN( ";
         emitSimpleExpression(ds,st->d_children.first(),out,level);
+        out << ", ";
+        emitSimpleExpression(ds,st->d_children.last(),out,level);
         out << " )";
     }else
     {

@@ -95,6 +95,10 @@ LjEditor::LjEditor(QWidget *parent)
     d_lua->addLibrary(Engine2::JIT);
     d_lua->addLibrary(Engine2::OS);
     LjLib::install(d_lua->getCtx());
+    QFile obnlj( ":/scripts/obnlj.lua" );
+    obnlj.open(QIODevice::ReadOnly);
+    if( !d_lua->addSourceLib( obnlj.readAll(), "obnlj" ) )
+        qCritical() << "compiling obnlj:" << d_lua->getLastError();
     Engine2::setInst(d_lua);
 
     d_eng = new JitEngine(this);
@@ -293,7 +297,7 @@ void LjEditor::onOpen()
         return;
 
     const QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"),QString(),
-                                                          tr("*.Mod") );
+                                                          tr("Oberon Files (*.Mod *.obn)") );
     if (fileName.isEmpty())
         return;
 
@@ -319,14 +323,14 @@ void LjEditor::onSaveAs()
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save File"),
                                                           QFileInfo(d_edit->getPath()).absolutePath(),
-                                                          tr("*.Mod") );
+                                                          tr("Oberon Files (*.Mod *.obn)") );
 
     if (fileName.isEmpty())
         return;
 
     QDir::setCurrent(QFileInfo(fileName).absolutePath());
 
-    if( !fileName.endsWith(".Mod",Qt::CaseInsensitive ) )
+    if( !fileName.endsWith(".Mod",Qt::CaseInsensitive ) && !fileName.endsWith(".obn",Qt::CaseInsensitive ) )
         fileName += ".Mod";
 
     d_edit->saveToFile(fileName);
@@ -434,7 +438,7 @@ bool LjEditor::checkSaved(const QString& title)
                 return d_edit->saveToFile(d_edit->getPath());
             else
             {
-                const QString path = QFileDialog::getSaveFileName( this, title, QString(), "*.Mod" );
+                const QString path = QFileDialog::getSaveFileName( this, title, QString(), "Oberon Files (*.Mod *.obn)" );
                 if( path.isEmpty() )
                     return false;
                 QDir::setCurrent(QFileInfo(path).absolutePath());

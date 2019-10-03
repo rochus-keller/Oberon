@@ -22,29 +22,69 @@
 #include <bitset>
 #include <stdio.h>
 #include <math.h>
+#include <vector>
 using namespace Ob;
 
-#define LIBNAME		"_obnljlib"
-#define METANAME "ObnSet"
+#define LIBNAME		"obnljlib"
+#define SET_METANAME "ObnSet"
+#define STRING_METANAME "ObnString"
 
 struct _Set
 {
     std::bitset<32> bits;
 };
 
-static _Set* check(lua_State *L, int narg = 1 )
+static _Set* setCheck(lua_State *L, int narg = 1, bool justPeek = false )
 {
-    return static_cast<_Set*>( luaL_checkudata( L, narg, METANAME ) );
+    if( !justPeek )
+        return static_cast<_Set*>( luaL_checkudata( L, narg, SET_METANAME ) );
+    // else
+    luaL_getmetatable( L, SET_METANAME );
+    if( !lua_istable(L, -1 ) )
+        luaL_error( L, "internal error: no meta table for '%s'", SET_METANAME );
+    if( lua_getmetatable( L, narg ) == 0 )
+    {
+        lua_pop(L,1);
+        return 0;
+    }
+    // else
+    _Set* res = 0;
+    if( lua_rawequal( L, -1, -2 ) )
+        res = static_cast<_Set*>( lua_touserdata(L,narg) );
+    lua_pop(L,2);
+    return res;
 }
 
-static _Set* create(lua_State* L)
+static _Set* setCreate(lua_State* L)
 {
-    void* buf = static_cast<_Set*>( lua_newuserdata( L, sizeof(_Set) ) );
+    void* buf = lua_newuserdata( L, sizeof(_Set) );
     _Set* s = ::new( buf ) _Set();
 
-    luaL_getmetatable( L, METANAME );
+    luaL_getmetatable( L, SET_METANAME );
     if( !lua_istable(L, -1 ) )
-        luaL_error( L, "internal error: no meta table for '%s'", METANAME );
+        luaL_error( L, "internal error: no meta table for '%s'", SET_METANAME );
+    lua_setmetatable( L, -2 );
+    return s;
+}
+
+struct _String
+{
+    std::string string;
+};
+
+static _String* strCheck(lua_State *L, int narg = 1 )
+{
+    return static_cast<_String*>( luaL_checkudata( L, narg, STRING_METANAME ) );
+}
+
+static _String* strCreate(lua_State* L)
+{
+    void* buf = lua_newuserdata( L, sizeof(_String) );
+    _String* s = ::new( buf ) _String();
+
+    luaL_getmetatable( L, STRING_METANAME );
+    if( !lua_istable(L, -1 ) )
+        luaL_error( L, "internal error: no meta table for '%s'", STRING_METANAME );
     lua_setmetatable( L, -2 );
     return s;
 }
@@ -64,27 +104,17 @@ static const luaL_Reg Reg[] =
     { "EXCL", LjLib::EXCL },
     { "PACK", LjLib::PACK },
     { "UNPK", LjLib::UNPK },
-    { NULL,		NULL	}
+    { "Str", LjLib::Str },
+    { "Char", LjLib::Char },
+   { NULL,		NULL	}
 };
 
-int LjLib::install(lua_State* L)
+void LjLib::installSet(lua_State* L)
 {
-    luaL_register( L, LIBNAME, Reg );
-
-    if( luaL_newmetatable( L, METANAME ) == 0 )
-        luaL_error( L, "metatable '%s' already registered", METANAME );
+    if( luaL_newmetatable( L, SET_METANAME ) == 0 )
+        luaL_error( L, "metatable '%s' already registered", SET_METANAME );
 
     const int metaTable = lua_gettop(L);
-
-    lua_newtable(L);
-    const int methodTable = lua_gettop(L);
-
-    // setze Attribut __metatable von meta. Dies ist der Wert, der
-    // von getmetatable( obj ) zurückgegeben wird. Trick, um echten Metatable zu verstecken.
-    // Wirkt nicht, wenn debug.getmetatable aufgerufen wird.
-    lua_pushliteral(L, "__metatable");
-    lua_pushvalue(L, methodTable );
-    lua_settable(L, metaTable);
 
     lua_pushliteral(L, "__add");
     lua_pushcfunction(L, setAdd );
@@ -103,7 +133,7 @@ int LjLib::install(lua_State* L)
     lua_rawset(L, metaTable);
 
     lua_pushliteral(L, "__unm");
-    lua_pushcfunction(L, setDiv );
+    lua_pushcfunction(L, setUnm );
     lua_rawset(L, metaTable);
 
     lua_pushliteral(L, "__eq");
@@ -115,8 +145,14 @@ int LjLib::install(lua_State* L)
     lua_rawset(L, metaTable);
 
     lua_pop(L, 1);  // drop metaTable
-    lua_pop(L, 1);  // drop method table
+}
 
+int LjLib::install(lua_State* L)
+{
+    luaL_register( L, LIBNAME, Reg );
+
+    installSet(L);
+    installString(L);
     return 1;
 }
 
@@ -185,7 +221,7 @@ int LjLib::MOD(lua_State* L)
         luaL_argerror(L,1,"may not be zero");
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     if (a < 0)
-        lua_pushinteger( L, (b - 1) + ((a - b + 1)) % b );
+        lua_pushinteger( L, (b - 1) + (a - b + 1) % b );
     else
         lua_pushinteger( L, a % b );
     return 1;
@@ -194,7 +230,7 @@ int LjLib::MOD(lua_State* L)
 int LjLib::SET(lua_State* L)
 {
     const int max = lua_gettop(L);
-    _Set* s = create(L);
+    _Set* s = setCreate(L);
     for( int i = 1; i <= max; i += 2 )
     {
         const lua_Integer a = lua_tointeger(L,i);
@@ -205,11 +241,12 @@ int LjLib::SET(lua_State* L)
             {
                 for( int j = a; j <= b; j++ )
                     s->bits.set(j);
-            }else
+            }/*else
             {
+                // anscheinend nicht möglich in Oberon, siehe obnc T4Expressions.obn
                 for( int j = b; j <= a; j++ )
                     s->bits.set(j);
-            }
+            }*/
         }else if( a >= 0 && a < s->bits.size() )
         {
             s->bits.set(a);
@@ -222,27 +259,36 @@ int LjLib::SET(lua_State* L)
 int LjLib::IN(lua_State* L)
 {
     const lua_Integer a = lua_tointeger(L,1);
-    _Set* s = check(L,2);
+    _Set* s = setCheck(L,2);
     lua_pushboolean(L, s->bits.test(a) );
     return 1;
 }
 
 int LjLib::ORD(lua_State* L)
 {
-    if( lua_isstring(L,1) )
+    if( lua_type(L,1) == LUA_TSTRING )
     {
         const char* str = lua_tostring(L,1);
         lua_pushinteger(L, *str );
-    }else if( lua_isboolean(L,1) )
+    }else if( lua_type(L,1) == LUA_TBOOLEAN )
     {
         lua_pushinteger(L,lua_toboolean(L,1));
-    }else if( lua_isnumber(L,1) )
+    }else if( lua_type(L,1) == LUA_TNUMBER )
     {
         lua_pushnumber(L, lua_tonumber(L,1) );
     }else
     {
-        _Set* a = check(L,1);
-        lua_pushinteger(L, a->bits.to_ulong());
+        _Set* a = setCheck(L,1,true);
+        if( a )
+            lua_pushinteger(L, a->bits.to_ulong());
+        else
+        {
+            _String* s = strCheck(L,1);
+            if( s->string.size()>0 )
+                lua_pushinteger(L,(unsigned char)s->string[0]);
+            else
+                lua_pushinteger(L,0);
+        }
     }
 
     return 1;
@@ -276,7 +322,7 @@ int LjLib::TRACE(lua_State* L)
 
 int LjLib::INCL(lua_State* L)
 {
-    _Set* v = check(L,1);
+    _Set* v = setCheck(L,1);
     const lua_Integer x = lua_tointeger(L,2);
     if( x >= 0 && x < v->bits.size() )
         v->bits.set(x);
@@ -287,7 +333,7 @@ int LjLib::INCL(lua_State* L)
 
 int LjLib::EXCL(lua_State* L)
 {
-    _Set* v = check(L,1);
+    _Set* v = setCheck(L,1);
     const lua_Integer x = lua_tointeger(L,2);
     if( x >= 0 && x < v->bits.size() )
         v->bits.set(x, false);
@@ -317,63 +363,278 @@ int LjLib::UNPK(lua_State* L)
     return 2;
 }
 
+int LjLib::Str(lua_State* L)
+{
+    _String* s = 0;
+    if( lua_type(L,1) == LUA_TSTRING )
+    {
+        s = strCreate(L);
+        const char* rhs = lua_tostring(L,1);
+        const int len = lua_objlen(L,1);
+        s->string.resize(len);
+        for( int i = 0; i < len; i++ )
+            s->string[i] = rhs[i];
+    }else
+    {
+        const int len = luaL_checkinteger(L,1);
+        if( len <= 0 )
+            luaL_argerror(L,2,"argument must be greater than zero");
+        s = strCreate(L);
+        s->string.resize(len);
+    }
+    return 1;
+}
+
+int LjLib::Char(lua_State* L)
+{
+    const int c = luaL_checkinteger(L,1);
+    if( c < 0 || c > 255 )
+        luaL_argerror(L,2,"char out of range");
+    _String* s = strCreate(L);
+    s->string.resize(1);
+    s->string[0] = c;
+    return 1;
+}
+
 int LjLib::setAdd(lua_State* L)
 {
-    _Set* a = check(L,1);
-    _Set* b = check(L,2);
-    _Set* s = create(L);
+    _Set* a = setCheck(L,1);
+    _Set* b = setCheck(L,2);
+    _Set* s = setCreate(L);
     s->bits = a->bits | b->bits;
     return 1;
 }
 
 int LjLib::setSub(lua_State* L)
 {
-    _Set* a = check(L,1);
-    _Set* b = check(L,2);
-    _Set* s = create(L);
-    for( int j = 0; j < a->bits.size(); j++ )
-        s->bits.set( a->bits.test(j) && !b->bits.test(j) );
+    _Set* a = setCheck(L,1);
+    _Set* b = setCheck(L,2);
+    _Set* s = setCreate(L);
+    s->bits =  a->bits & ~b->bits;
     return 1;
 }
 
 int LjLib::setMul(lua_State* L)
 {
-    _Set* a = check(L,1);
-    _Set* b = check(L,2);
-    _Set* s = create(L);
+    _Set* a = setCheck(L,1);
+    _Set* b = setCheck(L,2);
+    _Set* s = setCreate(L);
     s->bits = a->bits & b->bits;
     return 1;
 }
 
 int LjLib::setDiv(lua_State* L)
 {
-    _Set* a = check(L,1);
-    _Set* b = check(L,2);
-    _Set* s = create(L);
-    for( int j = 0; j < a->bits.size(); j++ )
-        s->bits.set( a->bits.test(j) || b->bits.test(j) && !( a->bits.test(j) && b->bits.test(j) ) );
+    _Set* a = setCheck(L,1);
+    _Set* b = setCheck(L,2);
+    _Set* s = setCreate(L);
+    s->bits = ( a->bits | b->bits ) & ~( a->bits & b->bits );
     return 1;
 }
 
 int LjLib::setEq(lua_State* L)
 {
-    _Set* a = check(L,1);
-    _Set* b = check(L,2);
+    _Set* a = setCheck(L,1);
+    _Set* b = setCheck(L,2);
     lua_pushboolean(L,a->bits == b->bits);
     return 1;
 }
 
 int LjLib::setUnm(lua_State* L)
 {
-    _Set* a = check(L,1);
-    _Set* s = create(L);
+    _Set* a = setCheck(L,1);
+    _Set* s = setCreate(L);
     s->bits = ~a->bits;
     return 1;
 }
 
 int LjLib::setToString(lua_State* L)
 {
-    _Set* a = check(L,1);
+    _Set* a = setCheck(L,1);
     lua_pushstring(L,a->bits.to_string().c_str());
+    return 1;
+}
+
+void LjLib::installString(lua_State* L)
+{
+    if( luaL_newmetatable( L, STRING_METANAME ) == 0 )
+        luaL_error( L, "metatable '%s' already registered", STRING_METANAME );
+
+    const int metaTable = lua_gettop(L);
+
+    lua_pushliteral(L, "__index");
+    lua_pushcfunction(L, strIndex );
+    lua_rawset(L, metaTable );
+
+    lua_pushliteral(L, "__newindex");
+    lua_pushcfunction(L, strNewindex );
+    lua_rawset(L, metaTable );
+
+    lua_pushliteral(L, "__tostring");
+    lua_pushcfunction(L, strToString );
+    lua_rawset(L, metaTable);
+
+    lua_pushliteral(L, "__gc");
+    lua_pushcfunction(L , strGc );
+    lua_rawset(L, metaTable);
+
+    lua_pushliteral(L, "__eq");
+    lua_pushcfunction(L , strEq );
+    lua_rawset(L, metaTable);
+
+    lua_pushliteral(L, "__lt");
+    lua_pushcfunction(L , strLt );
+    lua_rawset(L, metaTable);
+
+    lua_pushliteral(L, "__le");
+    lua_pushcfunction(L , strLe );
+    lua_rawset(L, metaTable);
+
+    lua_pushliteral(L, "__lt");
+    lua_pushcfunction(L , strLt );
+    lua_rawset(L, metaTable);
+
+    lua_pushliteral(L, "__len");
+    lua_pushcfunction(L , strLen );
+    lua_rawset(L, metaTable);
+
+    lua_pop(L, 1);  // drop metaTable
+}
+
+int LjLib::strToString(lua_State* L)
+{
+    _String* s = strCheck(L,1);
+    lua_pushstring(L,s->string.c_str());
+    return 1;
+}
+
+int LjLib::strGc(lua_State* L)
+{
+    _String* s = strCheck(L,1);
+    s->~_String();  // call destructor
+    return 0;
+}
+
+int LjLib::strIndex(lua_State* L)
+{
+    _String* s = strCheck(L,1);
+    if( lua_type(L,2) == LUA_TSTRING )
+    {
+        if( strcmp(lua_tostring(L,2),"assig") == 0 )
+            lua_pushcfunction(L,strAssig);
+        else if( strcmp(lua_tostring(L,2),"n") == 0 )
+            lua_pushinteger(L,s->string.size());
+        else
+            luaL_argerror(L,2,"invalid index");
+    }else
+    {
+        const int i = luaL_checkinteger(L, 2) - 1;
+        if( i < 0 || i >= s->string.size() )
+            luaL_argerror(L,2,"index out of range");
+#if 0
+        char buf[2];
+        buf[0] = s->string[i];
+        buf[1] = 0;
+        lua_pushstring(L, buf);
+#endif
+        // TODO: inefficient but necessary because Lua __eq only works if lhs and rhs same type
+        _String* s2 = strCreate(L);
+        s2->string.resize(2);
+        s2->string[0] = s->string[i];
+    }
+    return 1;
+}
+
+int LjLib::strNewindex(lua_State* L)
+{
+    _String* s = strCheck(L,1);
+    const int i = luaL_checkinteger(L, 2) - 1;
+    if( i < 0 || i >= s->string.size() )
+        luaL_argerror(L,2,"index out of range");
+    if( lua_type(L,3) == LUA_TNUMBER )
+    {
+        const int rhs = luaL_checkinteger(L, 3);
+        if( rhs < 0 || rhs > 255 )
+            luaL_argerror(L,2,"char out of range");
+        s->string[i] = rhs;
+    }else if( lua_type(L,3) == LUA_TSTRING )
+    {
+        const char* rhs = lua_tostring(L,3);
+        if( lua_objlen(L,3) > 1 )
+            luaL_argerror(L,2,"expecting single char");
+        s->string[i] = *rhs;
+    }else
+    {
+        _String* rhs = strCheck(L,3);
+        if( rhs->string.size() > 1 )
+            luaL_argerror(L,2,"expecting single char");
+        s->string[i] = rhs->string[0];
+    }
+    return 0;
+}
+
+int LjLib::strLen(lua_State* L)
+{
+    _String* s = strCheck(L,1);
+    lua_pushinteger(L, s->string.size() );
+    return 1;
+}
+
+int LjLib::strAssig(lua_State* L)
+{
+    _String* lhs = strCheck(L,1);
+    if( lua_isstring(L,2) )
+    {
+        const char* rhs = lua_tostring(L,2);
+        const int len = lua_objlen(L,2) + 1;
+        if( len > lhs->string.size() )
+            luaL_argerror(L,2,"rhs is longer than lhs");
+        for( int i = 0; i < len; i++ )
+            lhs->string[i] = rhs[i];
+    }else if( lua_isnumber(L,2) )
+    {
+        // char
+        const int rhs = lua_tointeger(L,2);
+        if( rhs < 0 || rhs > 255 )
+            luaL_argerror(L,2,"char out of range");
+        if( lhs->string.size() < 2 )
+            luaL_argerror(L,2,"rhs is longer than lhs");
+        lhs->string[0] = rhs;
+        lhs->string[1] = 0;
+    }else
+    {
+        _String* rhs = strCheck(L,2);
+        const char* raw = rhs->string.c_str();
+        const int len = ::strlen(raw) + 1;
+        if( len > lhs->string.size() )
+            luaL_argerror(L,2,"rhs is longer than lhs");
+        for( int i = 0; i < len; i++ )
+            lhs->string[i] = raw[i];
+    }
+    return 0;
+}
+
+int LjLib::strEq(lua_State* L)
+{
+    // Lua requires that lhs and rhs same type!
+    _String* lhs = strCheck(L,1);
+    _String* rhs = strCheck(L,2);
+    lua_pushboolean(L, ::strcmp(lhs->string.c_str(),rhs->string.c_str()) == 0 );
+    return 1;
+}
+
+int LjLib::strLt(lua_State* L)
+{
+    _String* lhs = strCheck(L,1);
+    _String* rhs = strCheck(L,2);
+    lua_pushboolean(L, ::strcmp(lhs->string.c_str(),rhs->string.c_str()) < 0 );
+    return 1;
+}
+
+int LjLib::strLe(lua_State* L)
+{
+    _String* lhs = strCheck(L,1);
+    _String* rhs = strCheck(L,2);
+    lua_pushboolean(L, ::strcmp(lhs->string.c_str(),rhs->string.c_str()) <= 0 );
     return 1;
 }

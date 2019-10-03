@@ -17,7 +17,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 ]]--
 
-local _lib = require '_obnljlib'
+local _lib = require 'obnljlib'
 
 local module = {}
 
@@ -41,6 +41,7 @@ end
 
 function module.DIV( a, b )
 	-- source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+        -- doesn't work for negative numbers yet
 	if a < 0 then
 		return (a - b + 1) / b;
 	else
@@ -50,8 +51,9 @@ end
 
 function module.MOD( a, b )
 	-- source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+        -- works
 	if a < 0 then
-		return (b - 1) + ((a - b + 1)) % b;
+                return (b - 1) + (a - b + 1) % b;
 	else
 		return a % b;
 	end
@@ -81,6 +83,12 @@ function module.UNPK( x, n )
 	n( true, _n )
 end
 
+function module.Arr(n)
+    local t = {}
+    t.n = n
+    return t
+end
+
 module.SET = _lib.SET
 module.IN = _lib.IN
 module.ORD = _lib.ORD
@@ -88,6 +96,9 @@ module.ASSERT = _lib.ASSERT
 module.TRACE = _lib.TRACE
 module.INCL = _lib.INCL
 module.EXCL = _lib.EXCL
-
+module.DIV = _lib.DIV
+module.MOD = _lib.MOD
+module.Str = _lib.Str
+module.Char = _lib.Char
 
 return module

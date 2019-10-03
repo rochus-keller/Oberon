@@ -42,6 +42,10 @@ namespace Ob
         static int EXCL(lua_State *L);
         static int PACK(lua_State *L);
         static int UNPK(lua_State *L);
+        static int Str(lua_State *L);
+        static int Char(lua_State *L);
+    protected:
+        static void installSet(lua_State* L);
         static int setAdd(lua_State *L);
         static int setSub(lua_State *L);
         static int setMul(lua_State *L);
@@ -49,7 +53,18 @@ namespace Ob
         static int setEq(lua_State *L);
         static int setUnm(lua_State *L);
         static int setToString(lua_State *L);
-    private:
+
+        static void installString(lua_State* L);
+        static int strToString(lua_State *L);
+        static int strGc(lua_State *L);
+        static int strIndex(lua_State *L);
+        static int strNewindex(lua_State *L);
+        static int strLen(lua_State *L);
+        static int strAssig(lua_State *L);
+        static int strEq(lua_State *L);
+        static int strLt(lua_State *L);
+        static int strLe(lua_State *L);
+   private:
         LjLib();
     };
 }

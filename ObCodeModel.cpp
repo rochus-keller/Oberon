@@ -1103,7 +1103,7 @@ void CodeModel::resolveTypeRefs(CodeModel::Unit* ds)
 
 CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool report, bool synthesize)
 {
-    Q_ASSERT( t->d_tok.d_type == SynTree::R_qualident );
+    Q_ASSERT( t && t->d_tok.d_type == SynTree::R_qualident );
     if( t->d_children.isEmpty() )
         return Quali();
     Q_ASSERT( t->d_children.first()->d_tok.d_type == Tok_ident );
@@ -1675,6 +1675,25 @@ const CodeModel::Type*CodeModel::typeOfExpression( const Unit* ds, SynTree* st) 
     return 0;
 }
 
+bool CodeModel::isArrayOfChar(const NamedThing* nt) const
+{
+    if( nt == 0 )
+        return false;
+    const Type* t = 0;
+    if( const Element* e = dynamic_cast<const Element*>(nt) )
+    {
+        if( e->d_kind == Element::Variable )
+            t = e->d_type;
+    }else
+        t = dynamic_cast<const Type*>(nt);
+    if( t && t->d_kind == Type::Array )
+    {
+        t = derefed(t->d_type);
+        return t == d_scope.d_charType;
+    }
+    return false;
+}
+
 const CodeModel::Type*CodeModel::typeOfExpression(Unit* ds, Element::Kind m, SynTree* args) const
 {
     switch( m )
@@ -1949,7 +1968,10 @@ QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
             if( dopl.isEmpty() || dopl.size() > 2 || dopl[0].d_op != CodeModel::IdentOp ||
                     ( dopl.size() == 2 && dopl[1].d_op != CodeModel::IdentOp ) )
             {
-                d_errs->error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
+                if( dopl.size() == 2 && dopl[1].d_op == CodeModel::ProcedureOp )
+                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("procedure calls not supported in const") );
+                else
+                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
                 break;
             }
             const CodeModel::Element* e;
