@@ -439,7 +439,7 @@ void LuaGen::initMatrix( const CodeModel::Unit* ds, QTextStream& out, const QLis
         {
             out << ws(level+i) << "for __" << i << "=1," << dims[i]->d_len << " do" << endl;
             out << ws(level+i+1) << "local ";
-            initRecord(ds, out, rec, "rec", level+i+1 );
+            initRecord(ds, out, rec, "rec", false, level+i+1 );
             out << ws(level+i+1) << name;
             for( int j = 0; j <= i; j++ )
                 out << "[__" << j << "]";
@@ -463,19 +463,29 @@ void LuaGen::initMatrix( const CodeModel::Unit* ds, QTextStream& out, const QLis
     out << ws(level+i) << "end" << endl;
 }
 
-void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, int level)
+void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, bool var, int level)
 {
+    out << name;
+    if( var )
+        out << "( true, ";
+    else
+        out << " = ";
     if( rec && rec->d_kind == CodeModel::Type::TypeRef )
     {
         // Named Type
         Q_ASSERT( rec->d_st && rec->d_st->d_tok.d_type == SynTree::R_qualident );
-        out << name << " = obnlj.instance(" << quali( rec->d_st ) << ")" << endl; // ASSIG
+        out << "obnlj.instance(" << quali( rec->d_st ) << ")"; // ASSIG
     }else
     {
         Q_ASSERT( rec->d_kind == CodeModel::Type::Record );
         // anonymous type
-        out << name << " = {}" << endl; // ASSIG
+        out << "{}"; // ASSIG
     }
+    if( var )
+        out << ")";
+    out  << endl;
+    if( rec == 0 )
+        return;
     rec = derefed( rec );
 
     Q_ASSERT( rec->d_kind == CodeModel::Type::Record );
@@ -485,6 +495,7 @@ void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeM
 
     while( true )
     {
+        // eval inheritance hierarchy
         rec = rec->d_type;
         if( rec )
         {
@@ -512,7 +523,7 @@ void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeM
             if( td && td->d_kind == CodeModel::Type::Record )
             {
                 out << ws(level);
-                initRecord( ds, out, t, field, level );
+                initRecord( ds, out, t, field, false, level );
             }else if( td && td->d_kind == CodeModel::Type::Array )
             {
                 out << ws(level);
@@ -573,7 +584,7 @@ void LuaGen::emitVarDecl(const CodeModel::Unit* ds, const CodeModel::Element* v,
     out << ws(level) << "local ";
     if( td && td->d_kind == CodeModel::Type::Record )
     {
-        initRecord( ds, out, t, name, level );
+        initRecord( ds, out, t, name, false, level );
     }else if( td && td->d_kind == CodeModel::Type::Array )
     {
         initArray( ds, out, t, name, level );
@@ -760,12 +771,20 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                 emitExpression(ds, args.first(), out2, level );
                 d_suppressVar = false;
             }
+            const SynTree* d = CodeModel::flatten(const_cast<SynTree*>(args.first()), SynTree::R_designator);
+            if( d == 0 )
+            {
+                d_mdl->getErrs()->error( Errors::Semantics, args.first(), tr("expecting designator as actual argument") );
+                return false;
+            }
+            CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, d );
+            const bool var = countPrintable(dopl) == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var;
             if( rr.first )
-                initRecord( ds, out, rr.first, name, level );
+                initRecord( ds, out, rr.first, name, var, level );
             else if( rr.second )
-                initRecord( ds, out, rr.second, name, level );
+                initRecord( ds, out, rr.second, name, var, level );
             else
-                out << name << " = {}"; // ASSIG
+                initRecord( ds, out, 0, name, var, level );
             return true;
         }else
             d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'NEW()' expects one argument") );

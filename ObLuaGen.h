@@ -60,7 +60,7 @@ namespace Ob
         void emitActualParam( const CodeModel::Unit*, const SynTree*, bool isVarParam, QTextStream& out, int level );
         void emitArrayOp(const CodeModel::Unit*, const SynTree*, QTextStream& out, int level , bool omitLast = false);
         void initMatrix(const CodeModel::Unit*, QTextStream& out, const QList<const CodeModel::Type*>& mat, const QByteArray& name, int level , int i, const CodeModel::Type* rec);
-        void initRecord(const CodeModel::Unit*,QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, int level );
+        void initRecord(const CodeModel::Unit*,QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, bool var, int level );
         void initArray(const CodeModel::Unit*,QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level );
         typedef QPair<const CodeModel::Type*,const CodeModel::Type*> RecRef; // ref -> rec
         RecRef getRecRefFrom( const CodeModel::Unit* ds, SynTree* );
