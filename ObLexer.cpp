@@ -330,7 +330,10 @@ Token Lexer::number()
             off++;
             char o = lookAhead(off);
             if( o == '+' || o == '-' )
+            {
                 off++;
+                o = lookAhead(off);
+            }
             if( !::isdigit(o) )
                 return token( Tok_Invalid, off, "invalid real" );
             while( true )
@@ -343,7 +346,7 @@ Token Lexer::number()
             }
         }
     }
-    const QByteArray str = d_line.mid(d_colNr, off );
+    QByteArray str = d_line.mid(d_colNr, off );
     Q_ASSERT( !str.isEmpty() );
     if( isHex && !checkHexNumber(str) )
         return token( Tok_Invalid, off, "invalid hexadecimal integer" );
@@ -351,7 +354,16 @@ Token Lexer::number()
         return token( Tok_Invalid, off, "invalid hexadecimal string" );
 
     if( isChar )
+    {
+        if( str.size() == 4 )
+        {
+            if( str[0] != '0' )
+                return token( Tok_Invalid, off, "invalid hex char" );
+            str = str.mid(1);
+        }else if( str.size() > 4 )
+            return token( Tok_Invalid, off, "invalid hex char" );
         return token( Tok_hexchar, off, str );
+    }
     else if( isReal)
         return token( Tok_real, off, str );
     else

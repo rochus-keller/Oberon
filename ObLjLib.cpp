@@ -23,6 +23,8 @@
 #include <stdio.h>
 #include <math.h>
 #include <vector>
+#include <stdlib.h>
+#include <string.h>
 using namespace Ob;
 
 #define LIBNAME		"obnljlib"
@@ -231,27 +233,34 @@ int LjLib::SET(lua_State* L)
 {
     const int max = lua_gettop(L);
     _Set* s = setCreate(L);
-    for( int i = 1; i <= max; i += 2 )
+    if( max == 1 )
     {
-        const lua_Integer a = lua_tointeger(L,i);
-        const lua_Integer b = lua_tointeger(L,i+1);
-        if( a >= 0 && b >= 0 )
+        const lua_Integer a = lua_tointeger(L,1);
+        s->bits = std::bitset<32>(a);
+    }else
+    {
+        for( int i = 1; i <= max; i += 2 )
         {
-            if( a <= b )
+            const lua_Integer a = lua_tointeger(L,i);
+            const lua_Integer b = lua_tointeger(L,i+1);
+            if( a >= 0 && b >= 0 )
             {
-                for( int j = a; j <= b; j++ )
-                    s->bits.set(j);
-            }/*else
+                if( a <= b )
+                {
+                    for( int j = a; j <= b; j++ )
+                        s->bits.set(j);
+                }/*else
+                {
+                    // anscheinend nicht möglich in Oberon, siehe obnc T4Expressions.obn
+                    for( int j = b; j <= a; j++ )
+                        s->bits.set(j);
+                }*/
+            }else if( a >= 0 && a < s->bits.size() )
             {
-                // anscheinend nicht möglich in Oberon, siehe obnc T4Expressions.obn
-                for( int j = b; j <= a; j++ )
-                    s->bits.set(j);
-            }*/
-        }else if( a >= 0 && a < s->bits.size() )
-        {
-            s->bits.set(a);
-        }else
-            luaL_argerror(L,i,"argument must be between 0 and 31");
+                s->bits.set(a);
+            }else
+                luaL_argerror(L,i,"argument must be between 0 and 31");
+        }
     }
     return 1;
 }
@@ -294,29 +303,33 @@ int LjLib::ORD(lua_State* L)
     return 1;
 }
 
-#include <QtDebug>
 int LjLib::ASSERT(lua_State* L)
 {
     const bool ok = lua_toboolean(L,1);
     if( !ok )
     {
-        qCritical() << "failed at line" << lua_tointeger(L,3);
+        //qCritical() << "failed at line" << lua_tointeger(L,3);
         luaL_error(L,"assert fail at %s %d", lua_tostring(L,2), lua_tointeger(L,3) );
-    }else
-        qDebug() << "passed line" << lua_tointeger(L,3);
+    }
+#ifdef _DEBUG
+    else
+        printf( "passed line %d\n", lua_tointeger(L,3) );
+#endif
     return 0;
 }
 
 int LjLib::TRACE(lua_State* L)
 {
-    QByteArray str;
+#ifdef _DEBUG
+    std::string str;
     for( int i = 1; i <= lua_gettop(L); i++ )
     {
         if( i != 0 )
             str += "\t";
         str += lua_tostring(L,i);
     }
-    qDebug() << "TRACE" << str.constData();
+    printf( "TRACE: %s\n", str.c_str() );
+#endif
     return 0;
 }
 

@@ -21,7 +21,6 @@
 #include "ObnHighlighter.h"
 #include "ObCodeModel.h"
 #include "ObFileCache.h"
-#include "ObLjbcGen.h"
 #include "ObLuaGen.h"
 #include "ObLjLib.h"
 #include <LjTools/Engine2.h>
@@ -491,6 +490,7 @@ void LjEditor::compile(bool asSource)
             }
         }else
         {
+#ifdef _GEN_BYTECODE_
             LjbcGen gen(d_mdl);
             QByteArray bc = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
             if( !bc.isEmpty() )
@@ -499,6 +499,7 @@ void LjEditor::compile(bool asSource)
                 buf.open(QIODevice::ReadOnly);
                 d_bcv->loadFrom(&buf,path);
             }
+#endif
         }
     }
 }

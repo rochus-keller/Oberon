@@ -104,13 +104,13 @@ namespace Ob
             Kind d_kind;
             SynTree* d_st; // not owned; Const: expr;
             const Type* d_type; // not owned; Variable: type
-            QList<Element*> d_vals; // owned, StubProc
+            QList<Element*> d_vals; // owned, only StubProc
             QVariant d_const; // value in case of Constant
 
             bool isPredefProc() const { return d_kind >= ABS && d_kind <= LED; }
             QByteArray typeName() const;
             virtual const Type* getType() const { return d_type; }
-            virtual QList<Element*> getParams() const { return d_vals; }
+            virtual QList<Element*> getParams() const;
         };
 
         class Scope : public NamedThing

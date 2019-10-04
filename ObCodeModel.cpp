@@ -2352,3 +2352,16 @@ QByteArray CodeModel::Element::typeName() const
         return QByteArray();
     }
 }
+
+QList<CodeModel::Element*> CodeModel::Element::getParams() const
+{
+     if( d_type && d_type->d_kind == Type::ProcRef && d_kind != StubProc )
+     {
+         QList<Element*> res;
+         Type::Vals::const_iterator i;
+         for( i = d_type->d_vals.begin(); i != d_type->d_vals.end(); ++i )
+             res << i.value();
+         return res;
+     }else
+         return d_vals;
+}

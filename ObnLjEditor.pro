@@ -1,7 +1,7 @@
 #/*
 #* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
 #*
-#* This file is part of the LuaJIT BC Viewer application.
+#* This file is part of the Oberon LuaJIT Viewer application.
 #*
 #* The following is the license that applies to this copy of the
 #* application. For a license to use the application under conditions
@@ -36,7 +36,6 @@ SOURCES += ObnLjEditor.cpp \
     ../LjTools/LuaJitEngine.cpp \
     ../LjTools/LuaJitComposer.cpp \
     ObnHighlighter.cpp \
-    ObLjbcGen.cpp \
     ObLuaGen.cpp \
     ObLjLib.cpp
 
@@ -50,7 +49,6 @@ HEADERS  += ObnLjEditor.h \
     ../LjTools/LuaJitEngine.h \
     ../LjTools/LuaJitComposer.h \
     ObnHighlighter.h \
-    ObLjbcGen.h \
     ObLuaGen.h \
     ObLjLib.h
 

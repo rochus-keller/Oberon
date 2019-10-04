@@ -1,10 +1,10 @@
 #/*
 #* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
 #*
-#* This file is part of the Oberon parser/code model library.
+#* This file is part of the Oberon to Lua compiler.
 #*
 #* The following is the license that applies to this copy of the
-#* library. For a license to use the library under conditions
+#* application. For a license to use the application under conditions
 #* other than those described here, please email to me@rochus-keller.ch.
 #*
 #* GNU General Public License Usage
@@ -18,33 +18,53 @@
 #*/
 
 QT       += core
+
 QT       -= gui
 
-TARGET = OBNLJC
+TARGET = OBNLC
+CONFIG   += console
+CONFIG   -= app_bundle
+
 TEMPLATE = app
 
-INCLUDEPATH +=  .. ../LjTools/luajit-2.0
 
 SOURCES += \
-    ObnLjcMain.cpp \
-    ObLjbcGen.cpp \
-    ../LjTools/LuaJitBytecode.cpp
-
-HEADERS += \ 
-    ObLjbcGen.h \
-    ../LjTools/LuaJitBytecode.h
+    ObnlcMain.cpp \
+    ObLuaGen.cpp
 
 include( Oberon.pri )
+
+HEADERS += \
+    ObLuaGen.h
+
+!win32 {
+    QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
+}
 
 CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
 }
 
-!win{
-QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
+CONFIG   += HAVE_LUAJIT
+HAVE_LUAJIT {
+    message( Using LuaJIT )
+
+    INCLUDEPATH += .. ../LjTools/luajit-2.0
+    DEFINES += OBNLC_USING_LUAJIT
+
+    include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
+        LIBS += -ldl
+    } else {
+        LIBS += -lluajit
+    }
+    SOURCES += \
+        ../LjTools/Engine2.cpp \
+        ObLjLib.cpp
+
+    HEADERS  += \
+        ../LjTools/Engine2.h \
+        ObLjLib.h
+
+    RESOURCES += \
+        ObnLjEditor.qrc
 }
-
-
-
-
-

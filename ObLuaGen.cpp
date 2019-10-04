@@ -24,6 +24,7 @@
 #include <QDateTime>
 #include <memory>
 #include <typeinfo>
+#include <stdio.h>
 using namespace Ob;
 
 // TODO compare output with http://oberon.wikidot.com/obenchmarks
@@ -38,22 +39,64 @@ static bool isLuaKeyword( const QByteArray& str )
               << "in" <<        "local" <<     "nil" <<       "not" <<       "or"
               << "repeat" <<    "return" <<    "then" <<      "true" <<      "until" <<     "while"
                  // built-in LuaJIT libraries
-              << "math" << "bit" << "obnlj";
+              << "math" << "bit" << "obnlj" << "module";
     return s_lkw.contains(str);
 }
 
 static QByteArray luaStringEscape( QByteArray str )
 {
-    str.replace('\\', "\\\\");
-    str.replace('"',"\\\"");
-    str.replace('\n', "\\n");
-    str.replace('\t', "\\t");
-    str.replace('\a', "\\a");
-    str.replace('\b', "\\b");
-    str.replace('\f', "\\f");
-    str.replace('\v', "\\v");
-    str.replace( char(0), "\\0");
-    return str;
+    QByteArray out;
+    out.reserve(str.size()*2);
+    char buf[10];
+    for( int i = 0; i < str.size(); i++ )
+    {
+        const quint8 c = quint8(str[i]);
+        if( QChar::fromLatin1(str[i]).isPrint() && c != 255 )
+        {
+            switch( quint8(str[i]))
+            {
+            case '\\':
+                out += "\\\\";
+                break;
+            case '"':
+                out += "\\\"";
+                break;
+            default:
+                out += str[i];
+                break;
+            }
+        }else
+        {
+            switch( c )
+            {
+            case '\n':
+                out += "\\n";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            case '\a':
+                out += "\\a";
+                break;
+            case '\b':
+                out += "\\b";
+            case '\f':
+                out += "\\f";
+                break;
+            case '\v':
+                out += "\\v";
+                break;
+            case 0:
+                out += "\\0";
+                break;
+            default:
+                ::sprintf(buf,"\\%03d", c );
+                out += buf;
+                break;
+            }
+        }
+    }
+    return out;
 }
 
 static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
@@ -76,23 +119,29 @@ LuaGen::LuaGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_curMod(0),d_suppressVar(fa
     d_errs = mdl->getErrs();
 }
 
-bool LuaGen::emitModules(const QString& outdir)
+bool Ob::LuaGen::emitModules(const QString& outdir, const QString& mod)
 {
     QDir dir(outdir);
+    if( !mod.isEmpty() )
+    {
+        dir.mkpath( mod );
+        dir.cd( mod );
+    }
 
     const int precount = d_errs->getErrCount();
     foreach( CodeModel::Module* m, d_mdl->getGlobalScope().d_mods )
     {
+        if( m->d_def == 0 )
+            continue;
         qDebug() << "translating module" << m->d_name;
-        const QByteArray code = emitModule(m);
-        if( !code.isEmpty() )
+        const QByteArray lua = emitModule(m);
+        if( !lua.isEmpty() )
         {
-            QFile out( dir.absoluteFilePath( m->d_name + ".lua" ) );
+            QFile out( dir.absoluteFilePath( escape(m->d_name) + ".lua" ) );
             if( !out.open(QIODevice::WriteOnly) )
-                d_errs->error(Errors::Generator,m->d_name, 0,0,
-                              QString("cannot open file '%1' for writing").arg(out.fileName()) );
+                d_errs->error(Errors::Generator,m->d_name, 0,0,QString("cannot open file '%1' for writing").arg(out.fileName()) );
             else
-                out.write(code);
+                out.write(lua);
         }
     }
     return precount == int(d_errs->getErrCount());
@@ -117,25 +166,25 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
         d_cmts = d_mdl->getComments(m->d_def->d_tok.d_sourcePath);
     d_nextCmt = 0;
 
-    out << "---------- MODULE ----------" << endl;
-    out << "local " << escape(m->d_name) << " = {}" << endl << endl;
+    out << "---------- MODULE " << m->d_name << " ----------" << endl;
+    out << "local module = {}" << endl << endl;
     emitComment(m->d_def,out,l);
 
-    QList<const CodeModel::Module*> imps;
+    CodeModel::Scope::Names imps;
     CodeModel::Scope::Names::const_iterator i;
     for( i = m->d_names.begin(); i != m->d_names.end(); ++i )
     {
         if( CodeModel::Module* m = dynamic_cast<CodeModel::Module*>( i.value() ) )
-            imps << m;
+            imps.insert(i.key(),i.value());
     }
     out << "local obnlj = require 'obnlj'" << endl << endl;
     if( !imps.isEmpty() )
     {
         out << "----- IMPORT -----" << endl;
-        foreach( const CodeModel::Module* m, imps )
+        for( i = imps.begin(); i != imps.end(); ++i )
         {
-            emitComment(m->d_def,out,l);
-            out << "local " << escape(i.key()) << " = require '" << escape(m->d_name) << "'" << endl;
+            emitComment(i.value()->d_def,out,l);
+            out << "local " << escape(i.key()) << " = require '" << escape(i.value()->d_name) << "'" << endl;
         }
         out << endl;
     }
@@ -146,7 +195,7 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
         out << ws(l) << "----- PROC -----" << endl;
     foreach( const CodeModel::Procedure* v, m->d_procs )
     {
-        emitProc(v,out,l);
+        emitProc(m,v,out,l);
     }
     if( !m->d_procs.isEmpty() )
         out << endl;
@@ -154,10 +203,11 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
     if( !m->d_body.isEmpty() )
         out << ws(l) << "-- BEGIN" << endl;
     emitStatementSeq(m, m->d_body, out,l);
-    if( !m->d_body.isEmpty() )
-        out << ws(l) << "-- END" << endl << endl;
+//    if( !m->d_body.isEmpty() )
+//        out << ws(l) << "-- END" << endl << endl;
 
-    out << "return " << escape(m->d_name) << endl;
+    out << "return module" << endl;
+    out << "---------- END MODULE " << m->d_name << " ----------" << endl;
     out.flush();
     return code;
 }
@@ -262,7 +312,10 @@ bool LuaGen::emitDesigList(const CodeModel::Unit* ds, const CodeModel::DesigOpLi
             out << ".";
         if( emitDesig(ds, i != 0 ? dopl[i-1].d_sym : 0, dopl[i], out, level ) )
         {
-            if( !d_suppressVar && dopl[i].d_sym != 0 && dopl[i].d_sym->d_var  )
+            const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>(dopl[i].d_sym);
+            if( ( !d_suppressVar && dopl[i].d_sym != 0 && dopl[i].d_sym->d_var ) || // VAR param
+                   ( i == 1 && e != 0 && e->d_kind == CodeModel::Element::Variable &&
+                     dynamic_cast<const CodeModel::Module*>(dopl[i-1].d_sym) ) ) // extern variable
                 out << "()";
 
             printedSomething = true;
@@ -300,6 +353,8 @@ static int countPrintable( const CodeModel::DesigOpList& dopl )
         case CodeModel::ProcedureOp:
         case CodeModel::ArrayOp:
             res++;
+            break;
+        default:
             break;
         }
     }
@@ -365,7 +420,9 @@ bool LuaGen::emitDesig(const CodeModel::Unit* ds, const CodeModel::NamedThing* p
     {
     case CodeModel::IdentOp:
         Q_ASSERT( dop.d_sym );
-        out << escape(dop.d_sym->d_name);
+        Q_ASSERT( dop.d_arg->d_tok.d_type == Tok_ident );
+        //out << escape(dop.d_sym->d_name);
+        out << escape(dop.d_arg->d_tok.d_val); // sonst wird bei importierten Modulen deren Name statt der lokale name verwendet!
         printedSomething = true;
         break;
     case CodeModel::PointerOp:
@@ -422,10 +479,14 @@ void LuaGen::emitTypeDecl(const CodeModel::Unit* ds, const CodeModel::Type* t, Q
             out << "obnlj.instance( " << quali( t->d_type->d_st ) << " )" << endl;
         }else
             out << "{}" << endl;
+        if( ds == d_curMod && t->d_public )
+            out << "module" << "." << escape(t->d_name) << " = " << escape(t->d_name) << endl;
 
     }else if( t->d_kind == CodeModel::Type::TypeRef && td && td->d_kind == CodeModel::Type::Record )
     {
-        out << ws(level) << "local " << t->d_name << " = " << quali(t->d_st) << endl; // ASSIG
+        out << ws(level) << "local " << escape(t->d_name) << " = " << quali(t->d_st) << endl; // ASSIG
+        if( ds == d_curMod && t->d_public )
+            out << "module" << "." << escape(t->d_name) << " = " << escape(t->d_name) << endl;
     }
     // else: es gibt keine Typendeklarationen für alle übrigen typen
 }
@@ -439,7 +500,7 @@ void LuaGen::initMatrix( const CodeModel::Unit* ds, QTextStream& out, const QLis
         {
             out << ws(level+i) << "for __" << i << "=1," << dims[i]->d_len << " do" << endl;
             out << ws(level+i+1) << "local ";
-            initRecord(ds, out, rec, "rec", false, level+i+1 );
+            initRecord(ds, out, rec, "rec", false, level+i+1, false );
             out << ws(level+i+1) << name;
             for( int j = 0; j <= i; j++ )
                 out << "[__" << j << "]";
@@ -463,7 +524,8 @@ void LuaGen::initMatrix( const CodeModel::Unit* ds, QTextStream& out, const QLis
     out << ws(level+i) << "end" << endl;
 }
 
-void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, bool var, int level)
+void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out,
+                        const CodeModel::Type* rec, const QByteArray& name, bool var, int level, bool label)
 {
     out << name;
     if( var )
@@ -483,6 +545,8 @@ void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeM
     }
     if( var )
         out << ")";
+    if( label )
+        out << " -- init RECORD " << name;
     out  << endl;
     if( rec == 0 )
         return;
@@ -502,7 +566,7 @@ void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeM
             Q_ASSERT( rec->d_kind == CodeModel::Type::TypeRef );
             CodeModel::Quali qq = d_mdl->derefQualident(ds, rec->d_st );
             rec = derefed(dynamic_cast<const CodeModel::Type*>( qq.second.first ) );
-            if( rec->d_kind == CodeModel::Type::Record )
+            if( rec && rec->d_kind == CodeModel::Type::Record )
                 super.prepend(rec);
             else
                 break;
@@ -523,17 +587,18 @@ void LuaGen::initRecord(const CodeModel::Unit* ds, QTextStream& out, const CodeM
             if( td && td->d_kind == CodeModel::Type::Record )
             {
                 out << ws(level);
-                initRecord( ds, out, t, field, false, level );
+                initRecord( ds, out, t, field, false, level, false );
             }else if( td && td->d_kind == CodeModel::Type::Array )
             {
                 out << ws(level);
-                initArray(ds, out, t, field, level );
+                initArray(ds, out, t, field, level, false);
             }
         }
     }
 }
 
-void LuaGen::initArray(const CodeModel::Unit* ds, QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level)
+void LuaGen::initArray(const CodeModel::Unit* ds, QTextStream& out,
+                       const CodeModel::Type* arr, const QByteArray& name, int level, bool label )
 {
     const CodeModel::Type* t = arr;
     const CodeModel::Type* td = derefed(arr);
@@ -551,7 +616,10 @@ void LuaGen::initArray(const CodeModel::Unit* ds, QTextStream& out, const CodeMo
         out << name << " = obnlj.Str("; // ASSIG
     else
         out << name << " = obnlj.Arr("; // ASSIG
-    out  << dims[0]->d_len << ")" << endl;
+    out  << dims[0]->d_len << ")";
+    if( label )
+        out << " -- init ARRAY " << name;
+    out << endl;
     initMatrix( ds, out, dims, name, level, 0, r );
 }
 
@@ -584,15 +652,18 @@ void LuaGen::emitVarDecl(const CodeModel::Unit* ds, const CodeModel::Element* v,
     out << ws(level) << "local ";
     if( td && td->d_kind == CodeModel::Type::Record )
     {
-        initRecord( ds, out, t, name, false, level );
+        initRecord( ds, out, t, name, false, level+1, true );
     }else if( td && td->d_kind == CodeModel::Type::Array )
     {
-        initArray( ds, out, t, name, level );
+        initArray( ds, out, t, name, level+1, true );
     }else
         out << name << endl;
+
+    if( ds == d_curMod && v->d_public )
+        out << "module" << "." << name << " = function() return " << name << " end" << endl;
 }
 
-void LuaGen::emitProc(const CodeModel::Procedure* p, QTextStream& out, int level)
+void LuaGen::emitProc(const CodeModel::Unit* ds, const CodeModel::Procedure* p, QTextStream& out, int level)
 {
     const CodeModel::Module* m = p->getModule();
     Q_ASSERT( m != 0 );
@@ -617,19 +688,21 @@ void LuaGen::emitProc(const CodeModel::Procedure* p, QTextStream& out, int level
         out << ws(level+1) << "----- PROC -----" << endl;
     foreach( const CodeModel::Procedure* v, p->d_procs )
     {
-        emitProc(v,out,level+1);
+        emitProc(ds, v,out,level+1);
     }
     if( !m->d_procs.isEmpty() )
         out << endl;
 
     out << ws(level+1) << "obnlj.TRACE(\"" << escape(p->d_name) << "\"," << p->d_def->d_tok.d_lineNr << ")" << endl;
     if( !p->d_body.isEmpty() )
-    {
         out << ws(level+1) << "-- BEGIN" << endl;
-    }
     emitStatementSeq(p,p->d_body,out,level+1);
 
-    out << ws(level) << "end" << endl << endl;
+    out << ws(level) << "end" << endl;
+
+    if( ds == d_curMod && p->d_public )
+        out << "module" << "." << escape(p->d_name) << " = " << escape(p->d_name) << endl;
+    out << endl;
 }
 
 void LuaGen::emitDecls(const CodeModel::Unit* ds, QTextStream& out, int l)
@@ -643,12 +716,14 @@ void LuaGen::emitDecls(const CodeModel::Unit* ds, QTextStream& out, int l)
         out << ws(l) << "local " + escape(c->d_name) << " = "; // ASSIG
 
         if( c->d_const.canConvert<CodeModel::Set>() )
-            out << "0x" << QByteArray::number( quint32(c->d_const.value<CodeModel::Set>().to_ulong()), 16 );
+            out << "obnlj.SET(" << QByteArray::number( quint32(c->d_const.value<CodeModel::Set>().to_ulong()) ) << ")";
         else if( c->d_const.type() == QVariant::ByteArray )
             out << "obnlj.Str(\"" << luaStringEscape(c->d_const.toByteArray() ) << "\")";
         else
             out << c->d_const.toByteArray();
         out << endl;
+        if( ds == d_curMod && c->d_public )
+            out << "module" << "." << escape(c->d_name) << " = " << escape(c->d_name) << endl;
     }
     if( !consts.isEmpty() )
         out << endl;
@@ -733,10 +808,8 @@ void LuaGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             break;
         }
     }
-    if( count == 0 )
-    {
-        out << ws(level) << "-- empty statement" << endl;
-    }
+//    if( count == 0 )
+//        out << ws(level) << "-- empty statement" << endl;
 }
 
 bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpList& dopl, QTextStream& out, int level)
@@ -780,11 +853,11 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, d );
             const bool var = countPrintable(dopl) == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var;
             if( rr.first )
-                initRecord( ds, out, rr.first, name, var, level );
+                initRecord( ds, out, rr.first, name, var, level, true );
             else if( rr.second )
-                initRecord( ds, out, rr.second, name, var, level );
+                initRecord( ds, out, rr.second, name, var, level, true );
             else
-                initRecord( ds, out, 0, name, var, level );
+                initRecord( ds, out, 0, name, var, level, true );
             return true;
         }else
             d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'NEW()' expects one argument") );

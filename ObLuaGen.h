@@ -30,8 +30,9 @@ namespace Ob
     {
     public:
         LuaGen(CodeModel*);
-        bool emitModules(const QString& outdir );
+        bool emitModules(const QString& outdir, const QString& mod );
         QByteArray emitModule(const CodeModel::Module*);
+        static QByteArray escape( const QByteArray& );
     protected:
         static QString ws(int level);
         void emitExpression( const CodeModel::Unit*, const SynTree*, QTextStream&, int level );
@@ -45,7 +46,7 @@ namespace Ob
         bool emitDesig(const CodeModel::Unit*, const CodeModel::NamedThing* prev, const CodeModel::DesigOp&, QTextStream&, int level);
         void emitTypeDecl(const CodeModel::Unit*,const CodeModel::Type* , QTextStream&, int level);
         void emitVarDecl(const CodeModel::Unit*, const CodeModel::Element* st, QTextStream&, int level);
-        void emitProc(const CodeModel::Procedure*p, QTextStream&out, int level);
+        void emitProc(const CodeModel::Unit*, const CodeModel::Procedure*p, QTextStream&out, int level);
         void emitDecls(const CodeModel::Unit*, QTextStream&, int level);
         void emitStatementSeq( const CodeModel::Unit*, const QList<SynTree*>& seq, QTextStream&, int level );
         bool emitPredefProc( const CodeModel::Unit*, const CodeModel::DesigOpList&, QTextStream&, int level );
@@ -60,11 +61,10 @@ namespace Ob
         void emitActualParam( const CodeModel::Unit*, const SynTree*, bool isVarParam, QTextStream& out, int level );
         void emitArrayOp(const CodeModel::Unit*, const SynTree*, QTextStream& out, int level , bool omitLast = false);
         void initMatrix(const CodeModel::Unit*, QTextStream& out, const QList<const CodeModel::Type*>& mat, const QByteArray& name, int level , int i, const CodeModel::Type* rec);
-        void initRecord(const CodeModel::Unit*,QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, bool var, int level );
-        void initArray(const CodeModel::Unit*,QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level );
+        void initRecord(const CodeModel::Unit*, QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, bool var, int level , bool label);
+        void initArray(const CodeModel::Unit*, QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level , bool label);
         typedef QPair<const CodeModel::Type*,const CodeModel::Type*> RecRef; // ref -> rec
         RecRef getRecRefFrom( const CodeModel::Unit* ds, SynTree* );
-        static QByteArray escape( const QByteArray& );
     private:
         CodeModel* d_mdl;
         Errors* d_errs;

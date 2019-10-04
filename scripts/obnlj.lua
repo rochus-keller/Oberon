@@ -24,10 +24,9 @@ local module = {}
 
 function module.instance( class )
 	local obj = {}
-	if class == nil then
-		error("expecting class not nil")
+        if class ~= nil then
+            setmetatable(obj,class)
 	end
-	setmetatable(obj,class)
 	return obj
 end
 
