@@ -27,8 +27,6 @@
 #include <stdio.h>
 using namespace Ob;
 
-// TODO compare output with http://oberon.wikidot.com/obenchmarks
-
 static QSet<QByteArray> s_lkw;
 
 static bool isLuaKeyword( const QByteArray& str )
@@ -324,10 +322,11 @@ bool LuaGen::emitDesigList(const CodeModel::Unit* ds, const CodeModel::DesigOpLi
     if( procCall && !dopl.isEmpty() && dopl.last().d_op != CodeModel::ProcedureOp )
     {
         bool isCallWithoutParams = false;
-        if( const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>(dopl.last().d_sym) )
+        if( const CodeModel::Element* el = dynamic_cast<const CodeModel::Element*>(dopl.last().d_sym) )
         {
-            isCallWithoutParams = ( e->d_kind == CodeModel::Element::StubProc ) ||
-                    ( e->d_type && e->d_type->d_kind == CodeModel::Type::ProcRef );
+            const CodeModel::Type* type = derefed(el->d_type);
+            isCallWithoutParams = ( el->d_kind == CodeModel::Element::StubProc ) ||
+                    ( type && type->d_kind == CodeModel::Type::ProcRef );
         }else if( dynamic_cast<const CodeModel::Procedure*>(dopl.last().d_sym) )
             isCallWithoutParams = true;
         else if( const CodeModel::Type* t = dynamic_cast<const CodeModel::Type*>(dopl.last().d_sym) )
@@ -693,7 +692,9 @@ void LuaGen::emitProc(const CodeModel::Unit* ds, const CodeModel::Procedure* p, 
     if( !m->d_procs.isEmpty() )
         out << endl;
 
+#ifdef _DEBUG
     out << ws(level+1) << "obnlj.TRACE(\"" << escape(p->d_name) << "\"," << p->d_def->d_tok.d_lineNr << ")" << endl;
+#endif
     if( !p->d_body.isEmpty() )
         out << ws(level+1) << "-- BEGIN" << endl;
     emitStatementSeq(p,p->d_body,out,level+1);

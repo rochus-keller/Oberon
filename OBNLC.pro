@@ -50,7 +50,7 @@ HAVE_LUAJIT {
     message( Using LuaJIT )
 
     INCLUDEPATH += .. ../LjTools/luajit-2.0
-    DEFINES += OBNLC_USING_LUAJIT
+    DEFINES += OBNLC_USING_LUAJIT LUA_ENGINE_USE_DEFAULT_PRINT
 
     include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
         LIBS += -ldl

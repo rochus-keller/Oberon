@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <typeinfo>
+#include <QBuffer>
 using namespace Ob;
 
 static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
@@ -100,6 +101,11 @@ void CodeModel::clear()
 
 }
 
+void CodeModel::addPreload(const QByteArray& name, const QByteArray& source)
+{
+    d_preload[name] = source;
+}
+
 QByteArrayList CodeModel::getBuitinIdents()
 {
     QByteArrayList res;
@@ -108,6 +114,18 @@ QByteArrayList CodeModel::getBuitinIdents()
     for( int i = Type::BOOLEAN; i <= Type::SET; i++ )
         res << Type::s_kindName[i];
     return res;
+}
+
+void CodeModel::parseFile(const QString& path)
+{
+    QFile file(path);
+    if( !file.open(QIODevice::ReadOnly) )
+    {
+        d_errs->error(Errors::Lexer, path, 0, 0,
+                         tr("cannot open file from path %1").arg(path) );
+        return;
+    }
+    parseFile( &file, path );
 }
 
 static bool IdenUseLessThan( const CodeModel::IdentUse& lhs, const CodeModel::IdentUse& rhs )
@@ -250,7 +268,7 @@ QList<Token> CodeModel::getComments(QString file) const
     return d_comments.value(file);
 }
 
-void CodeModel::parseFile(const QString& path)
+void CodeModel::parseFile(QIODevice* in, const QString& path)
 {
     Ob::Lexer lex;
     lex.setErrors(d_errs);
@@ -261,7 +279,7 @@ void CodeModel::parseFile(const QString& path)
         lex.setSensExt(d_senseExt);
     else
         lex.setEnableExt(d_enableExt);
-    lex.setStream( path );
+    lex.setStream( in, path );
     Ob::Parser p(&lex,d_errs);
     p.RunParser();
 
@@ -334,7 +352,19 @@ void CodeModel::checkModuleDependencies()
                             d_errs->error( Errors::Semantics, i, tr("'%1' is not a module").arg(globalName.data()));
                             continue;
                         }
-                        if( d_synthesize )
+
+                        if( d_preload.contains(globalName) )
+                        {
+                            QByteArray src = d_preload.value(globalName);
+                            QBuffer buf( &src );
+                            buf.open(QIODevice::ReadOnly);
+                            parseFile( &buf, globalName );
+                            other = dynamic_cast<Module*>( d_scope.d_names.value(globalName) );
+                            if( other == 0 )
+                                qCritical() << "failed preload module" << globalName;
+                            else
+                                qDebug() << "preloaded module" << globalName;
+                        }else if( d_synthesize )
                         {
                             qDebug() << "synthesizing module" << globalName;
                             other = new Module();
@@ -2306,7 +2336,7 @@ CodeModel::Type::~Type()
 
 const CodeModel::Type*CodeModel::Type::deref() const
 {
-    if( d_kind == TypeRef )
+    if( d_kind == TypeRef && d_type != 0 )
         return d_type->deref();
     else
         return this;

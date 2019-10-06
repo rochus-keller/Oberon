@@ -237,6 +237,7 @@ namespace Ob
         FileCache* getFc() const { return d_fc; }
         void setEnableExt( bool b ) { d_enableExt = b; }
         void setSenseExt( bool b ) { d_senseExt = b; }
+        void addPreload( const QByteArray& name, const QByteArray& source );
 
         bool parseFiles( const QStringList& );
         const GlobalScope& getGlobalScope() const { return d_scope; }
@@ -258,7 +259,8 @@ namespace Ob
 
     protected:
         void parseFile( const QString& );
-        void checkModuleDependencies();
+        void parseFile(QIODevice* , const QString& path);
+       void checkModuleDependencies();
         QList<Module*> findProcessingOrder();
         void processDeclSeq(Unit*,SynTree*);
         void processConstDeclaration(Unit*,SynTree*);
@@ -297,6 +299,7 @@ namespace Ob
     private:
         GlobalScope d_scope;
         QHash<QString,QList<Token> > d_comments;
+        QHash<QByteArray,QByteArray> d_preload;
         Errors* d_errs;
         FileCache* d_fc;
         IdentUseDir d_dir;

@@ -6,27 +6,23 @@ function module.Open()
 end
 
 function module.Char(ch)
-	print(ch)
+        io.stdout:write(tostring(ch))
 end
 
 function module.String(s)
-	print(s)
+    io.stdout:write(tostring(s))
 end
 
 function module.Int(i,n)
-	print(i)
-end
-
-function module.Hex(i)
-	print(i)
+        io.stdout:write(string.format("%0"..tostring(n).."d",i))
 end
 
 function module.Real(x,n)
-	print(x)
+    io.stdout:write(x) -- effect of n not properly specified
 end
 
 function module.Ln()
-	print("\n")
+    io.stdout:write("\n")
 end
 
 return module

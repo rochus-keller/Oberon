@@ -41,6 +41,8 @@ static QStringList collectFiles( const QDir& dir )
 
     files = dir.entryList( QStringList() << QString("*.Mod")
                                            << QString("*.mod")
+                           << QString("*.Def")
+                           << QString("*.def")
                                             << QString("*.obn"),
                                            QDir::Files, QDir::Name );
     foreach( const QString& f, files )
@@ -48,6 +50,26 @@ static QStringList collectFiles( const QDir& dir )
         res.append( dir.absoluteFilePath(f) );
     }
     return res;
+}
+
+static bool preloadLib( Ob::CodeModel& mdl, const QByteArray& name )
+{
+    QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
+    if( !f.open(QIODevice::ReadOnly) )
+    {
+        qCritical() << "unknown preload" << name;
+        return false;
+    }
+    mdl.addPreload( name, f.readAll() );
+    return true;
+}
+
+static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
+{
+    QFile obnlj( QString(":/scripts/%1.lua").arg(name.constData()) );
+    obnlj.open(QIODevice::ReadOnly);
+    if( !lua.addSourceLib( obnlj.readAll(), name ) )
+        qCritical() << "compiling" << name << ":" << lua.getLastError();
 }
 
 int main(int argc, char *argv[])
@@ -68,6 +90,8 @@ int main(int argc, char *argv[])
     bool dump = false;
     QString mod;
     QString run;
+    int n = 1;
+    bool ok;
     const QStringList args = QCoreApplication::arguments();
     for( int i = 1; i < args.size(); i++ ) // arg 0 enthaelt Anwendungspfad
     {
@@ -80,7 +104,8 @@ int main(int argc, char *argv[])
             out << "  -o=path   path where to save generated files (default like first source)" << endl;
             out << "  -mod=name directory of the generated files (default empty)" << endl;
 #ifdef OBNLC_USING_LUAJIT
-            out << "  -run=A.B    run procedure B in module A and quit" << endl;
+            out << "  -run=A.B  run procedure B in module A and quit" << endl;
+            out << "  -n=x      number of times to run A.B" << endl;
 #endif
             out << "  -h        display this information" << endl;
             return 0;
@@ -88,7 +113,15 @@ int main(int argc, char *argv[])
             dump = true;
         else if( args[i].startsWith("-o=") )
             outPath = args[i].mid(3);
-        else if( args[i].startsWith("-run=") )
+        else if( args[i].startsWith("-n=") )
+        {
+            n = args[i].mid(3).toUInt(&ok);
+            if( !ok )
+            {
+                qCritical() << "invalid -n value";
+                return -1;
+            }
+        }else if( args[i].startsWith("-run=") )
             run = args[i].mid(5);
         else if( args[i].startsWith("-mod=") )
             mod = args[i].mid(5);
@@ -123,7 +156,15 @@ int main(int argc, char *argv[])
     Ob::CodeModel m;
     m.getErrs()->setRecord(false);
     m.setSynthesize(false);
-    const bool ok = m.parseFiles(files);
+    preloadLib(m,"In");
+    preloadLib(m,"Out");
+    preloadLib(m,"Files");
+    preloadLib(m,"Input");
+    preloadLib(m,"Math");
+    preloadLib(m,"Strings");
+    preloadLib(m,"Coroutines");
+    preloadLib(m,"XYPlane");
+    ok = m.parseFiles(files);
 
     if( dump )
     {
@@ -199,17 +240,27 @@ int main(int argc, char *argv[])
         lua.addLibrary(Lua::Engine2::JIT);
         lua.addLibrary(Lua::Engine2::OS);
         Ob::LjLib::install(lua.getCtx());
-        QFile obnlj( ":/scripts/obnlj.lua" );
-        obnlj.open(QIODevice::ReadOnly);
-        if( !lua.addSourceLib( obnlj.readAll(), "obnlj" ) )
-            qCritical() << "compiling obnlj:" << lua.getLastError();
+        loadLuaLib( lua, "obnlj" );
+        loadLuaLib(lua,"In");
+        loadLuaLib(lua,"Out");
+        loadLuaLib(lua,"Files");
+        loadLuaLib(lua,"Input");
+        loadLuaLib(lua,"Math");
+        loadLuaLib(lua,"Strings");
+        loadLuaLib(lua,"Coroutines");
+        loadLuaLib(lua,"XYPlane");
         Lua::Engine2::setInst(&lua);
         QByteArray src;
         QTextStream out(&src);
         out << "print(\">>> starting \".._VERSION..\" on \"..jit.version)" << endl;
+        // out << "jit.off()" << endl;
+        out << "print(\"LuaJIT status:\",jit.status())" << endl;
         out << "local " << modProc.first() << " = require '" << modProc.first() << "'" << endl;
-        if( modProc.size() > 1 )
-            out << modProc.join('.') << "()" << endl;
+        for( int i = 0; i < n; i++ )
+        {
+            if( modProc.size() > 1 )
+                out << modProc.join('.') << "()" << endl;
+        }
         out.flush();
         lua.executeCmd(src,"terminal");
         printf(">>> finished\n");

@@ -384,9 +384,10 @@ int LjLib::Str(lua_State* L)
         s = strCreate(L);
         const char* rhs = lua_tostring(L,1);
         const int len = lua_objlen(L,1);
-        s->string.resize(len);
+        s->string.resize(len+1);
         for( int i = 0; i < len; i++ )
             s->string[i] = rhs[i];
+        s->string[len] = 0;
     }else
     {
         const int len = luaL_checkinteger(L,1);
@@ -543,7 +544,7 @@ int LjLib::strIndex(lua_State* L)
     {
         const int i = luaL_checkinteger(L, 2) - 1;
         if( i < 0 || i >= s->string.size() )
-            luaL_argerror(L,2,"index out of range");
+            luaL_argerror(L,2,"string index out of range");
 #if 0
         char buf[2];
         buf[0] = s->string[i];
@@ -563,7 +564,7 @@ int LjLib::strNewindex(lua_State* L)
     _String* s = strCheck(L,1);
     const int i = luaL_checkinteger(L, 2) - 1;
     if( i < 0 || i >= s->string.size() )
-        luaL_argerror(L,2,"index out of range");
+        luaL_argerror(L,2,"string index out of range");
     if( lua_type(L,3) == LUA_TNUMBER )
     {
         const int rhs = luaL_checkinteger(L, 3);
