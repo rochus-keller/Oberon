@@ -15,10 +15,11 @@
 // - added LengthList for easier array parsing
 // - added hexchar and hexstring
 // - added Elsif/ElseStatement for easier traversal
+// - integrate DEFINITION syntax
 
 /// Top
 
-Oberon ::= { module }
+Oberon ::= module | definition
 
 /// 3. Vocabulary
 
@@ -134,7 +135,7 @@ set ::= '{' [ element {',' element} ] '}'
 
 element ::= expression ['..' expression]
 
-ActualParameters ::= '(' [ ExpList ] ')'  
+ActualParameters- ::= '(' [ ExpList ] ')'  
 
 /// 9. Statements
 
@@ -155,9 +156,9 @@ assignmentOrProcedureCall ::=
 		// designator enthält neu auch Params: | [ ActualParameters ] // ProcedureCall
 	]
 	
-assignment ::= designator ':=' expression
+assignment- ::= designator ':=' expression
 
-ProcedureCall ::= designator [ ActualParameters ]
+ProcedureCall- ::= designator [ ActualParameters ]
 
 /// 9.3. Statement sequences
 
@@ -199,7 +200,7 @@ ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
 	DO StatementSequence END
 
 /// 10. Procedure declarations
-ProcedureDeclaration ::= ProcedureHeading ';' ProcedureBody ident
+ProcedureDeclaration ::= ProcedureHeading ';'  ProcedureBody ident
 
 ProcedureHeading ::= PROCEDURE identdef [ FormalParameters ]
 
@@ -214,7 +215,13 @@ DeclarationSequence ::=
 	{ ProcedureDeclaration ';' }
 	
 ReturnStatement ::= RETURN expression 
-	
+
+DeclarationSequence2 ::= 
+	[ CONST { ConstDeclaration ';' } ]
+	[ TYPE { TypeDeclaration ';' } ]
+	[ VAR { VariableDeclaration ';' } ]
+	{ ProcedureHeading ';' }
+
 /// 10.1. Formal parameters
 
 FormalParameters ::= '(' [ FPSection { ';' FPSection } ] ')' [ ':' qualident ]
@@ -235,6 +242,10 @@ ImportList ::= IMPORT import { ',' import } ';'
 import ::= ident [ ':=' ident ]
 
 /// 11.1 The Module SYSTEM
+
+/// Definitions
+
+definition ::= DEFINITION ident ';'  [ ImportList ] DeclarationSequence2 END ident '.' 
 
 /// Helper Tokens
 Comment ::=

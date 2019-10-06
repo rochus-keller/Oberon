@@ -35,6 +35,7 @@ class JitEngine;
 namespace Ob
 {
     class CodeModel;
+    class Highlighter;
 
     class LjEditor : public QMainWindow
     {
@@ -77,6 +78,7 @@ namespace Ob
         Lua::BcViewer* d_bcv;
         Lua::Terminal2* d_term;
         Lua::JitEngine* d_eng;
+        Highlighter* d_hl;
         CodeModel* d_mdl;
         QByteArray d_luaCode;
         bool d_lock;

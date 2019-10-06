@@ -30,7 +30,7 @@ QHash<QByteArray,QByteArray> Lexer::d_symbols;
 
 Lexer::Lexer(QObject *parent) : QObject(parent),
     d_lastToken(Tok_Invalid),d_lineNr(0),d_colNr(0),d_in(0),d_err(0),d_fcache(0),
-    d_ignoreComments(true), d_packComments(true),d_lowerCaseKeywords(false), d_underscoreIdents(false)
+    d_ignoreComments(true), d_packComments(true),d_enableExt(false), d_sensExt(false), d_sensed(false)
 {
 
 }
@@ -48,6 +48,7 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         d_colNr = 0;
         d_sourcePath = sourcePath;
         d_lastToken = Tok_Invalid;
+        d_sensed = false;
     }
 }
 
@@ -169,7 +170,7 @@ Token Lexer::nextTokenImp()
             return string();
         else if( ch == '$')
             return hexstring();
-        else if( ::isalpha(ch) || ( d_underscoreIdents && ch == '_' ) )
+        else if( ::isalpha(ch) || ( d_enableExt && ch == '_' ) )
             return ident();
         else if( ::isdigit(ch) )
             return number();
@@ -250,7 +251,7 @@ Token Lexer::ident()
     {
         const char c = lookAhead(off);
         if( !QChar(c).isLetterOrNumber() // QChar wegen möglichen Umlauten
-                && ( !d_underscoreIdents || c != '_' ) )
+                && ( !d_enableExt || c != '_' ) )
             break;
         else
             off++;
@@ -259,7 +260,20 @@ Token Lexer::ident()
     Q_ASSERT( !str.isEmpty() );
     int pos = 0;
     QByteArray keyword = str;
-    if( d_lowerCaseKeywords && isAllLowerCase(keyword) )
+    if( d_sensExt && !d_sensed )
+    {
+        d_sensed = true;
+        if( isAllLowerCase(keyword) )
+        {
+            keyword = keyword.toUpper();
+            TokenType t = tokenTypeFromString( keyword, &pos );
+            if( t != Tok_Invalid && pos == keyword.size() )
+            {
+                d_enableExt = true;
+                return token( t, off );
+            }
+        }
+    }else if( d_enableExt && isAllLowerCase(keyword) )
         keyword = keyword.toUpper();
     TokenType t = tokenTypeFromString( keyword, &pos );
     if( t != Tok_Invalid && pos != keyword.size() )

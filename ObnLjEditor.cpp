@@ -79,9 +79,7 @@ LjEditor::LjEditor(QWidget *parent)
     s_this = this;
 
     d_mdl = new CodeModel(this);
-    d_mdl->setLowerCaseBuiltins(true);
-    d_mdl->setLowerCaseKeywords(true);
-    d_mdl->setUnderscoreIdents(true);
+    d_mdl->setSenseExt(true);
     d_mdl->setSynthesize(false);
     d_mdl->setTrackIds(false);
 
@@ -103,10 +101,7 @@ LjEditor::LjEditor(QWidget *parent)
     d_eng = new JitEngine(this);
 
     d_edit = new CodeEditor(this);
-    Highlighter* hl = new Highlighter( d_edit->document() );
-    hl->setLowerCaseKeywords(true);
-    hl->setUnderscoreIdents(true);
-    hl->setLowerCaseBuiltins(true);
+    d_hl = new Highlighter( d_edit->document() );
     d_edit->updateTabWidth();
 
     setDockNestingEnabled(true);
@@ -463,16 +458,19 @@ void LjEditor::compile(bool asSource)
     if( d_mdl->parseFiles( QStringList() << path ) )
     {
         Q_ASSERT( d_mdl->getGlobalScope().d_mods.size() == 1 );
+        const CodeModel::Module* m = d_mdl->getGlobalScope().d_mods.first();
         QFile dump( "dump.txt");
         if( !dump.open(QIODevice::WriteOnly) )
             qDebug() << "error: cannot open dump file for writing" << dump.fileName();
         QTextStream ts(&dump);
-        Ob::CodeModel::dump(ts,d_mdl->getGlobalScope().d_mods.first()->d_def);
+        Ob::CodeModel::dump(ts,m->d_def);
+
+        d_hl->setEnableExt(m->d_isExt);
 
         if( asSource )
         {
             LuaGen gen(d_mdl);
-            d_luaCode = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
+            d_luaCode = gen.emitModule(m);
             if( !d_luaCode.isEmpty() )
             {
                 QFile dump( "dump.lua");

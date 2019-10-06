@@ -24,7 +24,7 @@
 using namespace Ob;
 
 Highlighter::Highlighter(QTextDocument* parent) :
-    QSyntaxHighlighter(parent),d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false)
+    QSyntaxHighlighter(parent),d_enableExt(false)
 {
     for( int i = 0; i < C_Max; i++ )
     {
@@ -50,10 +50,15 @@ Highlighter::Highlighter(QTextDocument* parent) :
     d_builtins = createBuiltins();
 }
 
-void Highlighter::setLowerCaseBuiltins(bool b)
+void Highlighter::setEnableExt(bool b)
 {
-     d_lowerCaseBuiltins = b;
-     d_builtins = createBuiltins(d_lowerCaseBuiltins);
+    const bool old = d_enableExt;
+    d_enableExt = b;
+    if( old != b )
+    {
+        d_builtins = createBuiltins(d_enableExt);
+        rehighlight();
+    }
 }
 
 QTextCharFormat Highlighter::formatForCategory(int c) const
@@ -115,8 +120,7 @@ void Highlighter::highlightBlock(const QString& text)
     Ob::Lexer lex;
     lex.setIgnoreComments(false);
     lex.setPackComments(false);
-    lex.setLowerCaseKeywords(d_lowerCaseKeywords);
-    lex.setUnderscoreIdents(d_underscoreIdents);
+    lex.setEnableExt(d_enableExt);
 
     QList<Token> tokens =  lex.tokens(text.mid(start));
     for( int i = 0; i < tokens.size(); ++i )

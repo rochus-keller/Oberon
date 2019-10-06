@@ -38,6 +38,7 @@ namespace Ob {
 			case Tok_BY: return "BY";
 			case Tok_CASE: return "CASE";
 			case Tok_CONST: return "CONST";
+			case Tok_DEFINITION: return "DEFINITION";
 			case Tok_DIV: return "DIV";
 			case Tok_DO: return "DO";
 			case Tok_ELSE: return "ELSE";
@@ -69,7 +70,6 @@ namespace Ob {
 			case Tok_ident: return "ident";
 			case Tok_integer: return "integer";
 			case Tok_real: return "real";
-			case Tok_ScaleFactor_: return "ScaleFactor-";
 			case Tok_string: return "string";
 			case Tok_hexchar: return "hexchar";
 			case Tok_hexstring: return "hexstring";
@@ -114,6 +114,7 @@ namespace Ob {
 			case Tok_BY: return "Tok_BY";
 			case Tok_CASE: return "Tok_CASE";
 			case Tok_CONST: return "Tok_CONST";
+			case Tok_DEFINITION: return "Tok_DEFINITION";
 			case Tok_DIV: return "Tok_DIV";
 			case Tok_DO: return "Tok_DO";
 			case Tok_ELSE: return "Tok_ELSE";
@@ -145,7 +146,6 @@ namespace Ob {
 			case Tok_ident: return "Tok_ident";
 			case Tok_integer: return "Tok_integer";
 			case Tok_real: return "Tok_real";
-			case Tok_ScaleFactor_: return "Tok_ScaleFactor_";
 			case Tok_string: return "Tok_string";
 			case Tok_hexchar: return "Tok_hexchar";
 			case Tok_hexstring: return "Tok_hexstring";
@@ -288,6 +288,25 @@ namespace Ob {
 			break;
 		case 'D':
 			switch( at(str,i+1) ){
+			case 'E':
+				if( at(str,i+2) == 'F' ){
+					if( at(str,i+3) == 'I' ){
+						if( at(str,i+4) == 'N' ){
+							if( at(str,i+5) == 'I' ){
+								if( at(str,i+6) == 'T' ){
+									if( at(str,i+7) == 'I' ){
+										if( at(str,i+8) == 'O' ){
+											if( at(str,i+9) == 'N' ){
+												res = Tok_DEFINITION; i += 10;
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				break;
 			case 'I':
 				if( at(str,i+2) == 'V' ){
 					res = Tok_DIV; i += 3;

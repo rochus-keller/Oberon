@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
     qDebug() << "processing" << files.size() << "files...";
     Ob::CodeModel m;
     m.getErrs()->setRecord(false);
-    m.setSynthesize(true);
+    m.setSynthesize(false);
     const bool ok = m.parseFiles(files);
 
     if( dump )

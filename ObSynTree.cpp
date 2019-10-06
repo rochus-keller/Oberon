@@ -10,7 +10,7 @@ SynTree::SynTree(quint16 r, const Token& t ):d_tok(r){
 
 const char* SynTree::rToStr( quint16 r ) {
 	switch(r) {
-		case R_ActualParameters: return "ActualParameters";
+		case R_ActualParameters_: return "ActualParameters";
 		case R_AddOperator: return "AddOperator";
 		case R_ArrayType: return "ArrayType";
 		case R_BaseType: return "BaseType";
@@ -19,6 +19,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_CaseStatement: return "CaseStatement";
 		case R_ConstDeclaration: return "ConstDeclaration";
 		case R_DeclarationSequence: return "DeclarationSequence";
+		case R_DeclarationSequence2: return "DeclarationSequence2";
 		case R_ElseStatement: return "ElseStatement";
 		case R_ElsifStatement: return "ElsifStatement";
 		case R_ElsifStatement2: return "ElsifStatement2";
@@ -38,7 +39,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_Oberon: return "Oberon";
 		case R_PointerType: return "PointerType";
 		case R_ProcedureBody: return "ProcedureBody";
-		case R_ProcedureCall: return "ProcedureCall";
+		case R_ProcedureCall_: return "ProcedureCall";
 		case R_ProcedureDeclaration: return "ProcedureDeclaration";
 		case R_ProcedureHeading: return "ProcedureHeading";
 		case R_ProcedureType: return "ProcedureType";
@@ -50,9 +51,10 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_TypeDeclaration: return "TypeDeclaration";
 		case R_VariableDeclaration: return "VariableDeclaration";
 		case R_WhileStatement: return "WhileStatement";
-		case R_assignment: return "assignment";
+		case R_assignment_: return "assignment";
 		case R_assignmentOrProcedureCall: return "assignmentOrProcedureCall";
-		case R_comment_: return "comment-";
+		case R_comment_: return "comment";
+		case R_definition: return "definition";
 		case R_designator: return "designator";
 		case R_element: return "element";
 		case R_expression: return "expression";

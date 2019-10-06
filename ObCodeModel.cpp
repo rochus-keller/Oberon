@@ -34,7 +34,7 @@ static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
 }
 
 CodeModel::CodeModel(QObject *parent) : QObject(parent),d_synthesize(false),d_trackIds(false),
-    d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false),d_fc(0)
+    d_enableExt(false),d_fc(0), d_senseExt(false)
 {
     d_errs = new Errors(this);
     d_errs->setReportToConsole(true);
@@ -95,13 +95,9 @@ void CodeModel::clear()
     foreach( Element* t, d_scope.d_procs )
         d_scope.addToScope( t );
 
-    if( d_lowerCaseBuiltins )
-    {
-        Scope::Names names = d_scope.d_names;
-        Scope::Names::const_iterator i;
-        for( i = names.begin(); i != names.end(); ++i )
-            d_scope.d_names.insert( Lexer::getSymbol( i.key() ).toLower(), i.value() );
-    }
+    if( d_enableExt ) // additional lower case builtins
+        addLowerCaseGlobals();
+
 }
 
 QByteArrayList CodeModel::getBuitinIdents()
@@ -261,16 +257,24 @@ void CodeModel::parseFile(const QString& path)
     lex.setCache(d_fc);
     lex.setIgnoreComments(false);
     lex.setPackComments(true);
-    lex.setLowerCaseKeywords(d_lowerCaseKeywords);
-    lex.setUnderscoreIdents(d_underscoreIdents);
+    if( d_senseExt )
+        lex.setSensExt(d_senseExt);
+    else
+        lex.setEnableExt(d_enableExt);
     lex.setStream( path );
     Ob::Parser p(&lex,d_errs);
     p.RunParser();
 
+    if( d_senseExt && !d_enableExt && lex.isEnabledExt() )
+    {
+        d_enableExt = true;
+        addLowerCaseGlobals();
+    }
+
     QList<SynTree*> toDelete;
     foreach( SynTree* st, p.d_root.d_children )
     {
-        if( st->d_tok.d_type == SynTree::R_module )
+        if( st->d_tok.d_type == SynTree::R_module || st->d_tok.d_type == SynTree::R_definition )
         {
             SynTree* id = findFirstChild(st,Tok_ident);
             if( id == 0 || !checkNameNotInScope(&d_scope,id) )
@@ -284,6 +288,8 @@ void CodeModel::parseFile(const QString& path)
                 m->d_name = name;
                 m->d_def = st;
                 m->d_id = id;
+                m->d_isExt = lex.isEnabledExt();
+                m->d_isDef = st->d_tok.d_type == SynTree::R_definition;
                 d_scope.d_mods.append( m );
                 d_scope.addToScope( m );
                 index(id,m);
@@ -409,7 +415,9 @@ QList<CodeModel::Module*> CodeModel::findProcessingOrder()
 void CodeModel::processDeclSeq(Unit* m, SynTree* t)
 {
     Q_ASSERT( t != 0 );
-    SynTree* ds = findFirstChild( t, SynTree::R_DeclarationSequence );
+    SynTree* ds = findFirstChild( t, SynTree::R_DeclarationSequence ); // MODULE
+    if( ds == 0 )
+        ds = findFirstChild( t, SynTree::R_DeclarationSequence2 ); // DEFINITION
     if( ds )
     {
         foreach( SynTree* d, ds->d_children )
@@ -425,7 +433,10 @@ void CodeModel::processDeclSeq(Unit* m, SynTree* t)
             case SynTree::R_VariableDeclaration:
                 processVariableDeclaration(m,d);
                 break;
-            case SynTree::R_ProcedureDeclaration:
+            case SynTree::R_ProcedureDeclaration: // MODULE
+                processProcedureDeclaration(m,d);
+                break;
+            case SynTree::R_ProcedureHeading: // DEFINITION
                 processProcedureDeclaration(m,d);
                 break;
             }
@@ -518,7 +529,7 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
 {
     SynTree* ph = findFirstChild( t, SynTree::R_ProcedureHeading );
     SynTree* pb = findFirstChild( t, SynTree::R_ProcedureBody );
-    Q_ASSERT( ph != 0 && pb != 0 );
+    Q_ASSERT( ph != 0 );
     SynTree* idef = findFirstChild(ph,SynTree::R_identdef );
     Q_ASSERT( idef != 0 );
 
@@ -540,6 +551,22 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
     res->d_type = parseFormalParams(res,fp,res->d_vals);
     foreach( Element* p, res->d_vals )
         res->addToScope( p );
+
+    Module* m = dynamic_cast<Module*>( ds );
+    if( m )
+    {
+        if( m->d_isDef )
+        {
+            if( pb != 0 )
+                d_errs->error(Errors::Semantics, t, tr("procedure body not allowed in definitions") );
+            return;
+        }else if( pb == 0 )
+        {
+            d_errs->error(Errors::Semantics, t, tr("procedure body is missing") );
+            return;
+        }
+    }
+    Q_ASSERT( pb != 0 );
 
     processDeclSeq(res,pb);
     SynTree* rs = findFirstChild(pb,SynTree::R_ReturnStatement );
@@ -710,12 +737,12 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
         {
             Q_ASSERT( st->d_children[1]->d_tok.d_type == Tok_ColonEq && st->d_children.size() == 3 &&
                     st->d_children[2]->d_tok.d_type == SynTree::R_expression );
-            st->d_tok.d_type = SynTree::R_assignment;
+            st->d_tok.d_type = SynTree::R_assignment_;
             checkAssig( ds, lhs, st->d_children[2] );
         }else
         {
             //qDebug() << "ProcCall" << toString(dopl,false,true);
-            st->d_tok.d_type = SynTree::R_ProcedureCall;
+            st->d_tok.d_type = SynTree::R_ProcedureCall_;
         }
     }else if( st->d_tok.d_type == SynTree::R_IfStatement || st->d_tok.d_type == SynTree::R_ElsifStatement ||
               st->d_tok.d_type == SynTree::R_WhileStatement )
@@ -1525,6 +1552,8 @@ SynTree*CodeModel::findFirstChild(const SynTree* st, int type, int startWith )
         if( sub->d_tok.d_type == type )
             return sub;
     }
+    if( st->d_tok.d_type == type )
+        return const_cast<SynTree*>(st);
     return 0;
 }
 
@@ -2119,6 +2148,14 @@ void CodeModel::index(const SynTree* idUse, const CodeModel::NamedThing* decl)
     Q_ASSERT( idUse != 0 && decl != 0 );
     d_dir[idUse->d_tok.d_sourcePath].append( IdentUse(idUse,decl) );
     d_revDir.insert(decl,idUse);
+}
+
+void CodeModel::addLowerCaseGlobals()
+{
+    Scope::Names names = d_scope.d_names;
+    Scope::Names::const_iterator i;
+    for( i = names.begin(); i != names.end(); ++i )
+        d_scope.d_names.insert( Lexer::getSymbol( i.key() ).toLower(), i.value() );
 }
 
 CodeModel::GlobalScope::~GlobalScope()

@@ -131,7 +131,7 @@ bool Ob::LuaGen::emitModules(const QString& outdir, const QString& mod)
     const int precount = d_errs->getErrCount();
     foreach( CodeModel::Module* m, d_mdl->getGlobalScope().d_mods )
     {
-        if( m->d_def == 0 )
+        if( m->d_def == 0 || m->d_isDef ) // no stubs, no definition files
             continue;
         qDebug() << "translating module" << m->d_name;
         const QByteArray lua = emitModule(m);
@@ -363,7 +363,7 @@ static int countPrintable( const CodeModel::DesigOpList& dopl )
 
 void LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
 {
-    Q_ASSERT( st->d_tok.d_type == SynTree::R_assignment && st->d_children.size() == 3 );
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_assignment_ && st->d_children.size() == 3 );
     emitAssig( ds, st->d_children.first(), st->d_children.last(), out, level );
 }
 
@@ -771,10 +771,10 @@ void LuaGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
         case SynTree::R_assignmentOrProcedureCall:
             Q_ASSERT( false ); // wurde bereits vorher korrigiert
             break;
-        case SynTree::R_assignment:
+        case SynTree::R_assignment_:
             emitAssig(ds, s, out, level );
             break;
-        case SynTree::R_ProcedureCall:
+        case SynTree::R_ProcedureCall_:
             out << ws(level);
             emitDesigList(ds, d_mdl->derefDesignator( ds, s->d_children.first() ), true, out, level);
             out << endl;

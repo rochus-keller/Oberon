@@ -169,10 +169,12 @@ namespace Ob
         {
         public:
             // Module mit d_st==0 ist ein Stub
-            Module() {}
+            Module():d_isDef(false),d_isExt(false) {}
             ~Module() { if( d_def ) delete d_def; } // Module owns full SynTree
 
             QList<Module*> d_using, d_usedBy; // not owned
+            bool d_isDef, d_isExt;
+
             QByteArray typeName() const { return "Module"; }
         };
 
@@ -233,9 +235,8 @@ namespace Ob
         void setTrackIds(bool on) { d_trackIds = on; }
         Errors* getErrs() const { return d_errs; }
         FileCache* getFc() const { return d_fc; }
-        void setLowerCaseKeywords( bool b ) { d_lowerCaseKeywords = b; }
-        void setLowerCaseBuiltins( bool b ) { d_lowerCaseBuiltins = b; }
-        void setUnderscoreIdents( bool b ) { d_underscoreIdents = b; }
+        void setEnableExt( bool b ) { d_enableExt = b; }
+        void setSenseExt( bool b ) { d_senseExt = b; }
 
         bool parseFiles( const QStringList& );
         const GlobalScope& getGlobalScope() const { return d_scope; }
@@ -289,6 +290,7 @@ namespace Ob
         QVariant evalTerm(const Unit*, SynTree* expr) const;
         QVariant evalFactor(const Unit*, SynTree* expr) const;
         void index( const SynTree* idUse, const NamedThing* decl );
+        void addLowerCaseGlobals();
 
         static QPair<SynTree*,bool> getIdentFromIdentDef(SynTree*);
         static DesigOp getSelectorOp( SynTree* );
@@ -301,9 +303,8 @@ namespace Ob
         RevIndex d_revDir;
         bool d_synthesize; // create stubs if needed
         bool d_trackIds;
-        bool d_lowerCaseKeywords; // Allow for both uppercase and lowercase keywords
-        bool d_lowerCaseBuiltins; // Basic types and global procs accessible by lower case name too
-        bool d_underscoreIdents; // Allow for idents with underscores as in C
+        bool d_enableExt; // Allow for both uppercase and lowercase keywords and builtins, idents with underscores
+        bool d_senseExt; // automacitally determine if extensions enabled (starts with lower case module, etc.)
     };
 }
 
