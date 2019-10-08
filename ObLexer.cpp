@@ -180,7 +180,11 @@ Token Lexer::nextTokenImp()
 
         if( tt == Tok_Latt )
             return comment();
-        else if( tt == Tok_Invalid || pos == d_colNr )
+        else if( d_enableExt && tt == Tok_2Slash )
+        {
+            const int len = d_line.size() - d_colNr;
+            return token( Tok_Comment, len, d_line.mid(d_colNr,len) );
+        }else if( tt == Tok_Invalid || pos == d_colNr )
             return token( Tok_Invalid, 1, QString("unexpected character '%1' %2").arg(char(ch)).arg(int(ch)).toUtf8() );
         else {
             const int len = pos - d_colNr;

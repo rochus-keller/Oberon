@@ -91,6 +91,7 @@ int main(int argc, char *argv[])
     QString mod;
     QString run;
     int n = 1;
+    bool forceObnExt = false;
     bool ok;
     const QStringList args = QCoreApplication::arguments();
     for( int i = 1; i < args.size(); i++ ) // arg 0 enthaelt Anwendungspfad
@@ -100,19 +101,20 @@ int main(int argc, char *argv[])
             out << "usage: OBNLC [options] sources" << endl;
             out << "  reads Oberon sources (files or directories) and translates them to corresponding Lua code." << endl;
             out << "options:" << endl;
-            out << "  -dst      dump syntax trees to files" << endl;
-            out << "  -o=path   path where to save generated files (default like first source)" << endl;
-            out << "  -mod=name directory of the generated files (default empty)" << endl;
+            out << "  -dst          dump syntax trees to files" << endl;
+            out << "  -path=path    path where to save generated files (default like first source)" << endl;
+            out << "  -dir=name     directory of the generated files (default empty)" << endl;
 #ifdef OBNLC_USING_LUAJIT
-            out << "  -run=A[.B] run module A or procedure B in module A and quit" << endl;
-            out << "  -n=x      number of times to run A or A.B" << endl;
+            out << "  -run=A[.B]    run module A or procedure B in module A and quit" << endl;
+            out << "  -n=x          number of times to run A or A.B" << endl;
 #endif
+            out << "  -ext          force Oberon extensions (default autosense)" << endl;
             out << "  -h        display this information" << endl;
             return 0;
         }else if( args[i] == "-dst" )
             dump = true;
-        else if( args[i].startsWith("-o=") )
-            outPath = args[i].mid(3);
+        else if( args[i].startsWith("-path=") )
+            outPath = args[i].mid(6);
         else if( args[i].startsWith("-n=") )
         {
             n = args[i].mid(3).toUInt(&ok);
@@ -123,7 +125,9 @@ int main(int argc, char *argv[])
             }
         }else if( args[i].startsWith("-run=") )
             run = args[i].mid(5);
-        else if( args[i].startsWith("-mod=") )
+        else if( args[i] == "-ext" )
+            forceObnExt = true;
+        else if( args[i].startsWith("-dir=") )
             mod = args[i].mid(5);
         else if( !args[ i ].startsWith( '-' ) )
         {
@@ -156,6 +160,10 @@ int main(int argc, char *argv[])
     Ob::CodeModel m;
     m.getErrs()->setRecord(false);
     m.setSynthesize(false);
+    if( forceObnExt )
+        m.setEnableExt(true);
+    else
+        m.setSenseExt(true);
     preloadLib(m,"In");
     preloadLib(m,"Out");
     preloadLib(m,"Files");

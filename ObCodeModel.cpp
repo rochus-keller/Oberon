@@ -1508,8 +1508,11 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
         }else if( t->isBasicType() )
             err = InvalidOperation;
         else if( t->d_kind == Type::TypeRef )
-            res = applyDesigOp( ds, t->deref(), dop, &err, synthesize, expected );
-        else if( t->d_kind == Type::Array )
+        {
+            t = t->deref();
+            if( t != input )
+                res = applyDesigOp( ds, t->deref(), dop, &err, synthesize, expected );
+        }else if( t->d_kind == Type::Array )
         {
             if( dop.d_op == ArrayOp )
                 res = t->d_type; // don't deref

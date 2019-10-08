@@ -11,6 +11,7 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Implements Oberon-07; successfully reads the Oberon System including the applications (see http://www.projectoberon.com/) and the Lola-2 compiler (see https://www.inf.ethz.ch/personal/wirth/Lola) source code
 - Syntax and semantics validation, error reporting
 - Optionally infers and synthesizes missing modules
+- Supports the language version "Oberon+" with lower-case keywords, underscores in idents and line comments (see examples folder)
 
 ### C++ Code generator features
 
@@ -30,7 +31,6 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - The full Oberon-07 language including the Oakwood libraries are supported (note that the latter are still work in progress)
 - The DEFINITION syntax is supported such that imports can have only a DEFINITION but a Lua implementation
 - Full support for VAR parameters (call by reference, using thunks) and strings as ARRAY OF CHAR with element access
-- Supports both upper and lower case keywords and underscores in idents
 - Oberon idents conflicting with Lua keywords and standard names are postfixed with underscores
 - The generated Lua code is formatted for readability; Oberon comments are not included
 - Restrictions: assignments of records and arrays doesn't make a copy yet; code generator has prototype status; SYSTEM module is not supported
@@ -52,7 +52,10 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 Here is a binary version of OberonViewer for Windows: http://software.rochus-keller.info/OberonViewer_win32.zip
 Just download, unpack and run it; no installer is needed. The ZIP includes the needed Qt libraries.
 
-Here is a binary version of OBNLC (Lua code generator) for Linux x86: http://software.rochus-keller.info/OBNLC_v19-10-08_linux_x86.tar.gz. 
+Here is a binary version of OberonViewer for Linux x86: http://software.rochus-keller.info/OberonViewer_linux_x86.tar.gz
+It requires a preinstalled Qt version >= 5.4.
+
+Here is a binary version of OBNLC (Lua code generator) for Linux x86: http://software.rochus-keller.info/OBNLC_linux_x86.tar.gz. 
 libQt5Core.so is required to run the binary.
 
 ### Build Steps

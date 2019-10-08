@@ -63,6 +63,7 @@ public:
     const CodeModel::NamedThing* d_goto;
     ESL d_nonTerms;
     OberonViewer* d_that;
+    Highlighter* d_hl;
     QString d_find;
 
     Viewer(OberonViewer* p):QPlainTextEdit(p),d_goto(0),d_that(p)
@@ -72,7 +73,7 @@ public:
         setTabStopWidth( 30 );
         setTabChangesFocus(true);
         setMouseTracking(true);
-        new Highlighter( document() );
+        d_hl = new Highlighter( document() );
         QFont f;
         f.setStyleHint( QFont::TypeWriter );
         f.setFamily("Mono");
@@ -86,9 +87,21 @@ public:
         if( d_path == path )
             return true;
         d_path = path;
+        bool isExt = false;
+        foreach( const CodeModel::Module* m, d_that->d_mdl->getGlobalScope().d_mods )
+        {
+            if( m->d_def && m->d_def->d_tok.d_sourcePath == path )
+            {
+                isExt = m->d_isExt;
+                break;
+            }
+        }
+
         QFile in(d_path);
         if( !in.open(QIODevice::ReadOnly) )
             return false;
+
+        d_hl->setEnableExt(isExt);
         setPlainText( QString::fromLatin1(in.readAll()) );
         return true;
     }
@@ -326,6 +339,7 @@ OberonViewer::OberonViewer(QWidget *parent) : QMainWindow(parent),d_pushBackLock
 
     d_mdl = new Ob::CodeModel(this);
     d_mdl->setSynthesize(true);
+    d_mdl->setSenseExt(true);
     d_mdl->setTrackIds(true);
 
     QWidget* pane = new QWidget(this);

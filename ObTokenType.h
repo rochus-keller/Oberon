@@ -23,6 +23,7 @@ namespace Ob {
 		Tok_Dot,
 		Tok_2Dot,
 		Tok_Slash,
+		Tok_2Slash,
 		Tok_Colon,
 		Tok_ColonEq,
 		Tok_Semi,

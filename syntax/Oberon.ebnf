@@ -43,7 +43,7 @@ string ::= // '"' {character} '"' | digit {hexDigit} 'X', also multiline hex str
 hexchar ::=
 hexstring ::=
 
-comment- ::= '(*' '*)' 
+comment- ::= '(*' '*)' '//'
 
 /// 4. Declarations and scope rules
 

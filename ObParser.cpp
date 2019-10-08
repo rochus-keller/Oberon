@@ -105,7 +105,7 @@ void Parser::Oberon() {
 			module();
 		} else if (la->kind == _T_DEFINITION) {
 			definition();
-		} else SynErr(76,__FUNCTION__);
+		} else SynErr(77,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -164,7 +164,7 @@ void Parser::number() {
 		} else if (la->kind == _T_real) {
 			Get();
 			addTerminal(); 
-		} else SynErr(77,__FUNCTION__);
+		} else SynErr(78,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -236,7 +236,7 @@ void Parser::type() {
 			PointerType();
 		} else if (la->kind == _T_PROCEDURE) {
 			ProcedureType();
-		} else SynErr(78,__FUNCTION__);
+		} else SynErr(79,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -408,7 +408,7 @@ void Parser::selector() {
 			}
 			Expect(_T_Rpar,__FUNCTION__);
 			addTerminal(); 
-		} else SynErr(79,__FUNCTION__);
+		} else SynErr(80,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -485,7 +485,7 @@ void Parser::relation() {
 			addTerminal(); 
 			break;
 		}
-		default: SynErr(80,__FUNCTION__); break;
+		default: SynErr(81,__FUNCTION__); break;
 		}
 		d_stack.pop(); 
 }
@@ -511,7 +511,7 @@ void Parser::AddOperator() {
 		} else if (la->kind == _T_OR) {
 			Get();
 			addTerminal(); 
-		} else SynErr(81,__FUNCTION__);
+		} else SynErr(82,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -574,7 +574,7 @@ void Parser::factor() {
 			factor();
 			break;
 		}
-		default: SynErr(82,__FUNCTION__); break;
+		default: SynErr(83,__FUNCTION__); break;
 		}
 		d_stack.pop(); 
 }
@@ -596,7 +596,7 @@ void Parser::MulOperator() {
 		} else if (la->kind == _T_Amp) {
 			Get();
 			addTerminal(); 
-		} else SynErr(83,__FUNCTION__);
+		} else SynErr(84,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -846,7 +846,7 @@ void Parser::label() {
 			addTerminal(); 
 		} else if (la->kind == _T_ident) {
 			qualident();
-		} else SynErr(84,__FUNCTION__);
+		} else SynErr(85,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -1141,7 +1141,7 @@ void Parser::Parse() {
 }
 
 Parser::Parser(Ob::Lexer *scanner, Ob::Errors* err) {
-	maxT = 75;
+	maxT = 76;
 
 	ParserInitCaller<Parser>::CallInit(this);
 	la = &d_dummy;
@@ -1155,14 +1155,14 @@ bool Parser::StartOf(int s) {
 	const bool T = true;
 	const bool x = false;
 
-	static bool set[7][77] = {
-		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x},
-		{x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x},
-		{x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,T, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x},
-		{x,x,x,x, T,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,T,T, T,T,T,T, x,x,x,x, x},
-		{x,x,x,T, x,x,x,T, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, x,T,T,T, x,x,x,x, x}
+	static bool set[7][78] = {
+		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, T,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,T, T,T,T,T, T,x,x,x, x,x},
+		{x,x,x,T, x,x,x,T, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, T,T,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,T,T, T,x,x,x, x,x}
 	};
 
 
@@ -1202,76 +1202,77 @@ void Parser::SynErr(const QString& sourcePath, int line, int col, int n, Ob::Err
 			case 12: s = coco_string_create(L"T_Dot expected"); break;
 			case 13: s = coco_string_create(L"T_2Dot expected"); break;
 			case 14: s = coco_string_create(L"T_Slash expected"); break;
-			case 15: s = coco_string_create(L"T_Colon expected"); break;
-			case 16: s = coco_string_create(L"T_ColonEq expected"); break;
-			case 17: s = coco_string_create(L"T_Semi expected"); break;
-			case 18: s = coco_string_create(L"T_Lt expected"); break;
-			case 19: s = coco_string_create(L"T_Leq expected"); break;
-			case 20: s = coco_string_create(L"T_Eq expected"); break;
-			case 21: s = coco_string_create(L"T_Gt expected"); break;
-			case 22: s = coco_string_create(L"T_Geq expected"); break;
-			case 23: s = coco_string_create(L"T_Lbrack expected"); break;
-			case 24: s = coco_string_create(L"T_Rbrack expected"); break;
-			case 25: s = coco_string_create(L"T_Hat expected"); break;
-			case 26: s = coco_string_create(L"T_Lbrace expected"); break;
-			case 27: s = coco_string_create(L"T_Bar expected"); break;
-			case 28: s = coco_string_create(L"T_Rbrace expected"); break;
-			case 29: s = coco_string_create(L"T_Tilde expected"); break;
-			case 30: s = coco_string_create(L"T_Keywords_ expected"); break;
-			case 31: s = coco_string_create(L"T_ARRAY expected"); break;
-			case 32: s = coco_string_create(L"T_BEGIN expected"); break;
-			case 33: s = coco_string_create(L"T_BY expected"); break;
-			case 34: s = coco_string_create(L"T_CASE expected"); break;
-			case 35: s = coco_string_create(L"T_CONST expected"); break;
-			case 36: s = coco_string_create(L"T_DEFINITION expected"); break;
-			case 37: s = coco_string_create(L"T_DIV expected"); break;
-			case 38: s = coco_string_create(L"T_DO expected"); break;
-			case 39: s = coco_string_create(L"T_ELSE expected"); break;
-			case 40: s = coco_string_create(L"T_ELSIF expected"); break;
-			case 41: s = coco_string_create(L"T_END expected"); break;
-			case 42: s = coco_string_create(L"T_FALSE expected"); break;
-			case 43: s = coco_string_create(L"T_FOR expected"); break;
-			case 44: s = coco_string_create(L"T_IF expected"); break;
-			case 45: s = coco_string_create(L"T_IMPORT expected"); break;
-			case 46: s = coco_string_create(L"T_IN expected"); break;
-			case 47: s = coco_string_create(L"T_IS expected"); break;
-			case 48: s = coco_string_create(L"T_MOD expected"); break;
-			case 49: s = coco_string_create(L"T_MODULE expected"); break;
-			case 50: s = coco_string_create(L"T_NIL expected"); break;
-			case 51: s = coco_string_create(L"T_OF expected"); break;
-			case 52: s = coco_string_create(L"T_OR expected"); break;
-			case 53: s = coco_string_create(L"T_POINTER expected"); break;
-			case 54: s = coco_string_create(L"T_PROCEDURE expected"); break;
-			case 55: s = coco_string_create(L"T_RECORD expected"); break;
-			case 56: s = coco_string_create(L"T_REPEAT expected"); break;
-			case 57: s = coco_string_create(L"T_RETURN expected"); break;
-			case 58: s = coco_string_create(L"T_THEN expected"); break;
-			case 59: s = coco_string_create(L"T_TO expected"); break;
-			case 60: s = coco_string_create(L"T_TRUE expected"); break;
-			case 61: s = coco_string_create(L"T_TYPE expected"); break;
-			case 62: s = coco_string_create(L"T_UNTIL expected"); break;
-			case 63: s = coco_string_create(L"T_VAR expected"); break;
-			case 64: s = coco_string_create(L"T_WHILE expected"); break;
-			case 65: s = coco_string_create(L"T_Specials_ expected"); break;
-			case 66: s = coco_string_create(L"T_ident expected"); break;
-			case 67: s = coco_string_create(L"T_integer expected"); break;
-			case 68: s = coco_string_create(L"T_real expected"); break;
-			case 69: s = coco_string_create(L"T_string expected"); break;
-			case 70: s = coco_string_create(L"T_hexchar expected"); break;
-			case 71: s = coco_string_create(L"T_hexstring expected"); break;
-			case 72: s = coco_string_create(L"T_Comment expected"); break;
-			case 73: s = coco_string_create(L"T_Eof expected"); break;
-			case 74: s = coco_string_create(L"T_MaxToken_ expected"); break;
-			case 75: s = coco_string_create(L"??? expected"); break;
-			case 76: s = coco_string_create(L"invalid Oberon"); break;
-			case 77: s = coco_string_create(L"invalid number"); break;
-			case 78: s = coco_string_create(L"invalid type"); break;
-			case 79: s = coco_string_create(L"invalid selector"); break;
-			case 80: s = coco_string_create(L"invalid relation"); break;
-			case 81: s = coco_string_create(L"invalid AddOperator"); break;
-			case 82: s = coco_string_create(L"invalid factor"); break;
-			case 83: s = coco_string_create(L"invalid MulOperator"); break;
-			case 84: s = coco_string_create(L"invalid label"); break;
+			case 15: s = coco_string_create(L"T_2Slash expected"); break;
+			case 16: s = coco_string_create(L"T_Colon expected"); break;
+			case 17: s = coco_string_create(L"T_ColonEq expected"); break;
+			case 18: s = coco_string_create(L"T_Semi expected"); break;
+			case 19: s = coco_string_create(L"T_Lt expected"); break;
+			case 20: s = coco_string_create(L"T_Leq expected"); break;
+			case 21: s = coco_string_create(L"T_Eq expected"); break;
+			case 22: s = coco_string_create(L"T_Gt expected"); break;
+			case 23: s = coco_string_create(L"T_Geq expected"); break;
+			case 24: s = coco_string_create(L"T_Lbrack expected"); break;
+			case 25: s = coco_string_create(L"T_Rbrack expected"); break;
+			case 26: s = coco_string_create(L"T_Hat expected"); break;
+			case 27: s = coco_string_create(L"T_Lbrace expected"); break;
+			case 28: s = coco_string_create(L"T_Bar expected"); break;
+			case 29: s = coco_string_create(L"T_Rbrace expected"); break;
+			case 30: s = coco_string_create(L"T_Tilde expected"); break;
+			case 31: s = coco_string_create(L"T_Keywords_ expected"); break;
+			case 32: s = coco_string_create(L"T_ARRAY expected"); break;
+			case 33: s = coco_string_create(L"T_BEGIN expected"); break;
+			case 34: s = coco_string_create(L"T_BY expected"); break;
+			case 35: s = coco_string_create(L"T_CASE expected"); break;
+			case 36: s = coco_string_create(L"T_CONST expected"); break;
+			case 37: s = coco_string_create(L"T_DEFINITION expected"); break;
+			case 38: s = coco_string_create(L"T_DIV expected"); break;
+			case 39: s = coco_string_create(L"T_DO expected"); break;
+			case 40: s = coco_string_create(L"T_ELSE expected"); break;
+			case 41: s = coco_string_create(L"T_ELSIF expected"); break;
+			case 42: s = coco_string_create(L"T_END expected"); break;
+			case 43: s = coco_string_create(L"T_FALSE expected"); break;
+			case 44: s = coco_string_create(L"T_FOR expected"); break;
+			case 45: s = coco_string_create(L"T_IF expected"); break;
+			case 46: s = coco_string_create(L"T_IMPORT expected"); break;
+			case 47: s = coco_string_create(L"T_IN expected"); break;
+			case 48: s = coco_string_create(L"T_IS expected"); break;
+			case 49: s = coco_string_create(L"T_MOD expected"); break;
+			case 50: s = coco_string_create(L"T_MODULE expected"); break;
+			case 51: s = coco_string_create(L"T_NIL expected"); break;
+			case 52: s = coco_string_create(L"T_OF expected"); break;
+			case 53: s = coco_string_create(L"T_OR expected"); break;
+			case 54: s = coco_string_create(L"T_POINTER expected"); break;
+			case 55: s = coco_string_create(L"T_PROCEDURE expected"); break;
+			case 56: s = coco_string_create(L"T_RECORD expected"); break;
+			case 57: s = coco_string_create(L"T_REPEAT expected"); break;
+			case 58: s = coco_string_create(L"T_RETURN expected"); break;
+			case 59: s = coco_string_create(L"T_THEN expected"); break;
+			case 60: s = coco_string_create(L"T_TO expected"); break;
+			case 61: s = coco_string_create(L"T_TRUE expected"); break;
+			case 62: s = coco_string_create(L"T_TYPE expected"); break;
+			case 63: s = coco_string_create(L"T_UNTIL expected"); break;
+			case 64: s = coco_string_create(L"T_VAR expected"); break;
+			case 65: s = coco_string_create(L"T_WHILE expected"); break;
+			case 66: s = coco_string_create(L"T_Specials_ expected"); break;
+			case 67: s = coco_string_create(L"T_ident expected"); break;
+			case 68: s = coco_string_create(L"T_integer expected"); break;
+			case 69: s = coco_string_create(L"T_real expected"); break;
+			case 70: s = coco_string_create(L"T_string expected"); break;
+			case 71: s = coco_string_create(L"T_hexchar expected"); break;
+			case 72: s = coco_string_create(L"T_hexstring expected"); break;
+			case 73: s = coco_string_create(L"T_Comment expected"); break;
+			case 74: s = coco_string_create(L"T_Eof expected"); break;
+			case 75: s = coco_string_create(L"T_MaxToken_ expected"); break;
+			case 76: s = coco_string_create(L"??? expected"); break;
+			case 77: s = coco_string_create(L"invalid Oberon"); break;
+			case 78: s = coco_string_create(L"invalid number"); break;
+			case 79: s = coco_string_create(L"invalid type"); break;
+			case 80: s = coco_string_create(L"invalid selector"); break;
+			case 81: s = coco_string_create(L"invalid relation"); break;
+			case 82: s = coco_string_create(L"invalid AddOperator"); break;
+			case 83: s = coco_string_create(L"invalid factor"); break;
+			case 84: s = coco_string_create(L"invalid MulOperator"); break;
+			case 85: s = coco_string_create(L"invalid label"); break;
 
 		default:
 		{

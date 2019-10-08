@@ -18,6 +18,7 @@ namespace Ob {
 			case Tok_Dot: return ".";
 			case Tok_2Dot: return "..";
 			case Tok_Slash: return "/";
+			case Tok_2Slash: return "//";
 			case Tok_Colon: return ":";
 			case Tok_ColonEq: return ":=";
 			case Tok_Semi: return ";";
@@ -94,6 +95,7 @@ namespace Ob {
 			case Tok_Dot: return "Tok_Dot";
 			case Tok_2Dot: return "Tok_2Dot";
 			case Tok_Slash: return "Tok_Slash";
+			case Tok_2Slash: return "Tok_2Slash";
 			case Tok_Colon: return "Tok_Colon";
 			case Tok_ColonEq: return "Tok_ColonEq";
 			case Tok_Semi: return "Tok_Semi";
@@ -210,7 +212,11 @@ namespace Ob {
 			}
 			break;
 		case '/':
-			res = Tok_Slash; i += 1;
+			if( at(str,i+1) == '/' ){
+				res = Tok_2Slash; i += 2;
+			} else {
+				res = Tok_Slash; i += 1;
+			}
 			break;
 		case ':':
 			if( at(str,i+1) == '=' ){
