@@ -1,0 +1,40 @@
+(* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
+(* replaced all SYSTEM.BYTE by BYTE, removed SYSTEM import; 
+   removed LONGINT and LONGREAL versions; added Handle type; fixed typos *)
+DEFINITION Files;
+TYPE
+	Handle = RECORD END;
+	File = POINTER TO Handle;
+	Rider = RECORD
+		eof: BOOLEAN;
+		res: INTEGER;
+	END;
+PROCEDURE Old (name: ARRAY OF CHAR): File;
+PROCEDURE New (name: ARRAY OF CHAR): File;
+PROCEDURE Register (f: File);
+PROCEDURE Close (f: File);
+PROCEDURE Purge (f: File);
+PROCEDURE Delete (name: ARRAY OF CHAR; VAR res: INTEGER);
+PROCEDURE Rename (old, new: ARRAY OF CHAR;VAR res: INTEGER);
+PROCEDURE Length (f: File): INTEGER;
+PROCEDURE GetDate (f: File; VAR t, d: INTEGER);
+PROCEDURE Set (VAR r: Rider; f: File; pos: INTEGER);
+PROCEDURE Pos (VAR r: Rider): INTEGER;
+PROCEDURE Base (VAR r: Rider): File;
+PROCEDURE Read (VAR r: Rider; VAR x: BYTE);
+PROCEDURE ReadInt (VAR R: Rider; VAR x: INTEGER);
+PROCEDURE ReadReal (VAR R: Rider; VAR x: REAL);
+PROCEDURE ReadNum (VAR R: Rider; VAR x: INTEGER);
+PROCEDURE ReadString (VAR R: Rider; VAR x: ARRAY OF CHAR);
+PROCEDURE ReadSet (VAR R: Rider; VAR x: SET);
+PROCEDURE ReadBool (VAR R: Rider; VAR x: BOOLEAN );
+PROCEDURE ReadBytes (VAR r: Rider; VAR x: ARRAY OF BYTE; n: INTEGER);
+PROCEDURE Write (VAR r: Rider; x: BYTE);
+PROCEDURE WriteInt (VAR R: Rider; x: INTEGER);
+PROCEDURE WriteReal (VAR R: Rider; x: REAL);
+PROCEDURE WriteNum (VAR R: Rider; x: INTEGER);
+PROCEDURE WriteString (VAR R: Rider; x: ARRAY OF CHAR);
+PROCEDURE WriteSet (VAR R: Rider; x: SET);
+PROCEDURE WriteBool (VAR R: Rider; x: BOOLEAN);
+PROCEDURE WriteBytes (VAR r: Rider; VAR x: ARRAY OF BYTE;n: INTEGER);
+END Files.

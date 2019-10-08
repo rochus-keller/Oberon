@@ -26,6 +26,8 @@
 #include <QStringList>
 #include <QVector>
 #include <QHash>
+#include <bitset>
+#include <QVariant>
 
 class QTextStream;
 
@@ -48,6 +50,7 @@ namespace Ob
         typedef QList<IdentUse> IdentUseList;
         typedef QHash<QString,IdentUseList> IdentUseDir; // sourcePath -> ids
         typedef QMultiHash<const NamedThing*,const SynTree*> RevIndex;
+        typedef std::bitset<32> Set;
 
         enum DesigOpCode { UnknownOp, IdentOp, PointerOp, TypeOp, ProcedureOp, ArrayOp };
         struct DesigOp
@@ -82,6 +85,7 @@ namespace Ob
             virtual SynTree* getExpr() const { return 0; }
             virtual const Type* getType() const { return 0; }
             virtual QByteArray typeName() const { return ""; }
+            virtual QList<Element*> getParams() const { return QList<Element*>(); }
         };
 
         class Element : public NamedThing
@@ -100,11 +104,13 @@ namespace Ob
             Kind d_kind;
             SynTree* d_st; // not owned; Const: expr;
             const Type* d_type; // not owned; Variable: type
-            QList<Element*> d_vals; // owned, StubProc
+            QList<Element*> d_vals; // owned, only StubProc
+            QVariant d_const; // value in case of Constant
 
             bool isPredefProc() const { return d_kind >= ABS && d_kind <= LED; }
             QByteArray typeName() const;
             virtual const Type* getType() const { return d_type; }
+            virtual QList<Element*> getParams() const;
         };
 
         class Scope : public NamedThing
@@ -163,10 +169,12 @@ namespace Ob
         {
         public:
             // Module mit d_st==0 ist ein Stub
-            Module() {}
+            Module():d_isDef(false),d_isExt(false) {}
             ~Module() { if( d_def ) delete d_def; } // Module owns full SynTree
 
             QList<Module*> d_using, d_usedBy; // not owned
+            bool d_isDef, d_isExt;
+
             QByteArray typeName() const { return "Module"; }
         };
 
@@ -180,6 +188,7 @@ namespace Ob
             Type* d_type; // not owned; return type
             const Type* getType() const { return d_type; }
             QByteArray typeName() const { return "Procedure"; }
+            virtual QList<Element*> getParams() const { return d_vals; }
         };
 
         class Type : public NamedThing
@@ -201,11 +210,13 @@ namespace Ob
             QByteArray typeName() const;
             const Element* findByName( const QByteArray& ) const;
             virtual const Type* getType() const { return this; }
+            virtual QList<Element*> getParams() const;
 
             Kind d_kind;
             const Type* d_type; // not owned; Record: base; ProcRef: return; TypeRef, Array, Pointer: type
             SynTree* d_st; // not owned; Array: dim expression; Ref: quali
             Vals d_vals; // owned; Record: fields; ProcRef: Params
+            quint32 d_len; // Array: len
         };
 
         class TypeAlias : public NamedThing // wird nur temporär auf dem Stack verwendet
@@ -224,15 +235,17 @@ namespace Ob
         void setTrackIds(bool on) { d_trackIds = on; }
         Errors* getErrs() const { return d_errs; }
         FileCache* getFc() const { return d_fc; }
-        void setLowerCaseKeywords( bool b ) { d_lowerCaseKeywords = b; }
-        void setLowerCaseBuiltins( bool b ) { d_lowerCaseBuiltins = b; }
-        void setUnderscoreIdents( bool b ) { d_underscoreIdents = b; }
+        void setEnableExt( bool b ) { d_enableExt = b; }
+        void setSenseExt( bool b ) { d_senseExt = b; }
+        void addPreload( const QByteArray& name, const QByteArray& source );
 
         bool parseFiles( const QStringList& );
         const GlobalScope& getGlobalScope() const { return d_scope; }
         const Type* typeOfExpression( const Unit*, SynTree* ) const;
+        bool isArrayOfChar( const NamedThing* ) const;
+        QVariant evalExpression(const Unit*, SynTree* expr) const; // returns longlong, double, Set, bytearray, bool or invalid
         static SynTree* flatten( SynTree*, int stopAt = 0 );
-        DesigOpList derefDesignator( const Unit*,const SynTree*);
+        DesigOpList derefDesignator( const Unit*,const SynTree*) const;
         Quali derefQualident(const Unit*,const SynTree*);
 
         static void dump( QTextStream&, const SynTree*, int level = 0 );
@@ -246,7 +259,8 @@ namespace Ob
 
     protected:
         void parseFile( const QString& );
-        void checkModuleDependencies();
+        void parseFile(QIODevice* , const QString& path);
+       void checkModuleDependencies();
         QList<Module*> findProcessingOrder();
         void processDeclSeq(Unit*,SynTree*);
         void processConstDeclaration(Unit*,SynTree*);
@@ -274,23 +288,29 @@ namespace Ob
         const NamedThing* applyDesigOp(Unit* ds, const NamedThing* input, const DesigOp& dop, DesigOpErr* errOut ,
                                        bool synthesize = true, const Type* expected = 0);
         const Type* typeOfExpression( Unit*, Element::Kind, SynTree* args ) const;
+        QVariant evalSimpleExpression(const Unit*, SynTree* expr) const;
+        QVariant evalTerm(const Unit*, SynTree* expr) const;
+        QVariant evalFactor(const Unit*, SynTree* expr) const;
         void index( const SynTree* idUse, const NamedThing* decl );
+        void addLowerCaseGlobals();
 
         static QPair<SynTree*,bool> getIdentFromIdentDef(SynTree*);
         static DesigOp getSelectorOp( SynTree* );
     private:
         GlobalScope d_scope;
         QHash<QString,QList<Token> > d_comments;
+        QHash<QByteArray,QByteArray> d_preload;
         Errors* d_errs;
         FileCache* d_fc;
         IdentUseDir d_dir;
         RevIndex d_revDir;
         bool d_synthesize; // create stubs if needed
         bool d_trackIds;
-        bool d_lowerCaseKeywords; // Allow for both uppercase and lowercase keywords
-        bool d_lowerCaseBuiltins; // Basic types and global procs accessible by lower case name too
-        bool d_underscoreIdents; // Allow for idents with underscores as in C
+        bool d_enableExt; // Allow for both uppercase and lowercase keywords and builtins, idents with underscores
+        bool d_senseExt; // automacitally determine if extensions enabled (starts with lower case module, etc.)
     };
 }
+
+Q_DECLARE_METATYPE( Ob::CodeModel::Set )
 
 #endif // OBCODEMODEL_H

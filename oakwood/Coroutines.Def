@@ -1,0 +1,9 @@
+(* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
+(* replaced LONGINT by INTEGER *)
+DEFINITION Coroutines;
+TYPE
+Coroutine = RECORD END;
+Body = PROCEDURE;
+PROCEDURE Init (body: Body; stackSize: INTEGER; VAR cor: Coroutine);
+PROCEDURE Transfer (VAR from, to: Coroutine);
+END Coroutines.

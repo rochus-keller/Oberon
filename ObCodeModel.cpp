@@ -21,10 +21,12 @@
 #include "ObLexer.h"
 #include "ObErrors.h"
 #include "ObParser.h"
+#include "ObFileCache.h"
 #include <QtDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <typeinfo>
+#include <QBuffer>
 using namespace Ob;
 
 static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
@@ -33,10 +35,11 @@ static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
 }
 
 CodeModel::CodeModel(QObject *parent) : QObject(parent),d_synthesize(false),d_trackIds(false),
-    d_lowerCaseKeywords(false),d_underscoreIdents(false),d_lowerCaseBuiltins(false),d_fc(0)
+    d_enableExt(false),d_fc(0), d_senseExt(false)
 {
     d_errs = new Errors(this);
     d_errs->setReportToConsole(true);
+    d_fc = new FileCache(this);
 
 }
 
@@ -93,13 +96,14 @@ void CodeModel::clear()
     foreach( Element* t, d_scope.d_procs )
         d_scope.addToScope( t );
 
-    if( d_lowerCaseBuiltins )
-    {
-        Scope::Names names = d_scope.d_names;
-        Scope::Names::const_iterator i;
-        for( i = names.begin(); i != names.end(); ++i )
-            d_scope.d_names.insert( Lexer::getSymbol( i.key() ).toLower(), i.value() );
-    }
+    if( d_enableExt ) // additional lower case builtins
+        addLowerCaseGlobals();
+
+}
+
+void CodeModel::addPreload(const QByteArray& name, const QByteArray& source)
+{
+    d_preload[name] = source;
 }
 
 QByteArrayList CodeModel::getBuitinIdents()
@@ -110,6 +114,18 @@ QByteArrayList CodeModel::getBuitinIdents()
     for( int i = Type::BOOLEAN; i <= Type::SET; i++ )
         res << Type::s_kindName[i];
     return res;
+}
+
+void CodeModel::parseFile(const QString& path)
+{
+    QFile file(path);
+    if( !file.open(QIODevice::ReadOnly) )
+    {
+        d_errs->error(Errors::Lexer, path, 0, 0,
+                         tr("cannot open file from path %1").arg(path) );
+        return;
+    }
+    parseFile( &file, path );
 }
 
 static bool IdenUseLessThan( const CodeModel::IdentUse& lhs, const CodeModel::IdentUse& rhs )
@@ -252,29 +268,31 @@ QList<Token> CodeModel::getComments(QString file) const
     return d_comments.value(file);
 }
 
-void CodeModel::parseFile(const QString& path)
+void CodeModel::parseFile(QIODevice* in, const QString& path)
 {
-    QFile in( path );
-    if( !in.open(QIODevice::ReadOnly) )
-    {
-        d_errs->warning( Errors::Lexer, path, 0, 0, tr("cannot open file for reading") );
-        return;
-    }
     Ob::Lexer lex;
     lex.setErrors(d_errs);
     lex.setCache(d_fc);
     lex.setIgnoreComments(false);
     lex.setPackComments(true);
-    lex.setLowerCaseKeywords(d_lowerCaseKeywords);
-    lex.setUnderscoreIdents(d_underscoreIdents);
-    lex.setStream( &in, path );
+    if( d_senseExt )
+        lex.setSensExt(d_senseExt);
+    else
+        lex.setEnableExt(d_enableExt);
+    lex.setStream( in, path );
     Ob::Parser p(&lex,d_errs);
     p.RunParser();
+
+    if( d_senseExt && !d_enableExt && lex.isEnabledExt() )
+    {
+        d_enableExt = true;
+        addLowerCaseGlobals();
+    }
 
     QList<SynTree*> toDelete;
     foreach( SynTree* st, p.d_root.d_children )
     {
-        if( st->d_tok.d_type == SynTree::R_module )
+        if( st->d_tok.d_type == SynTree::R_module || st->d_tok.d_type == SynTree::R_definition )
         {
             SynTree* id = findFirstChild(st,Tok_ident);
             if( id == 0 || !checkNameNotInScope(&d_scope,id) )
@@ -288,6 +306,8 @@ void CodeModel::parseFile(const QString& path)
                 m->d_name = name;
                 m->d_def = st;
                 m->d_id = id;
+                m->d_isExt = lex.isEnabledExt();
+                m->d_isDef = st->d_tok.d_type == SynTree::R_definition;
                 d_scope.d_mods.append( m );
                 d_scope.addToScope( m );
                 index(id,m);
@@ -332,7 +352,19 @@ void CodeModel::checkModuleDependencies()
                             d_errs->error( Errors::Semantics, i, tr("'%1' is not a module").arg(globalName.data()));
                             continue;
                         }
-                        if( d_synthesize )
+
+                        if( d_preload.contains(globalName) )
+                        {
+                            QByteArray src = d_preload.value(globalName);
+                            QBuffer buf( &src );
+                            buf.open(QIODevice::ReadOnly);
+                            parseFile( &buf, globalName );
+                            other = dynamic_cast<Module*>( d_scope.d_names.value(globalName) );
+                            if( other == 0 )
+                                qCritical() << "failed preload module" << globalName;
+                            else
+                                qDebug() << "preloaded module" << globalName;
+                        }else if( d_synthesize )
                         {
                             qDebug() << "synthesizing module" << globalName;
                             other = new Module();
@@ -413,7 +445,9 @@ QList<CodeModel::Module*> CodeModel::findProcessingOrder()
 void CodeModel::processDeclSeq(Unit* m, SynTree* t)
 {
     Q_ASSERT( t != 0 );
-    SynTree* ds = findFirstChild( t, SynTree::R_DeclarationSequence );
+    SynTree* ds = findFirstChild( t, SynTree::R_DeclarationSequence ); // MODULE
+    if( ds == 0 )
+        ds = findFirstChild( t, SynTree::R_DeclarationSequence2 ); // DEFINITION
     if( ds )
     {
         foreach( SynTree* d, ds->d_children )
@@ -429,7 +463,10 @@ void CodeModel::processDeclSeq(Unit* m, SynTree* t)
             case SynTree::R_VariableDeclaration:
                 processVariableDeclaration(m,d);
                 break;
-            case SynTree::R_ProcedureDeclaration:
+            case SynTree::R_ProcedureDeclaration: // MODULE
+                processProcedureDeclaration(m,d);
+                break;
+            case SynTree::R_ProcedureHeading: // DEFINITION
                 processProcedureDeclaration(m,d);
                 break;
             }
@@ -463,6 +500,10 @@ void CodeModel::processConstDeclaration(Unit* m, SynTree* d)
         c->d_def = d;
         c->d_id = id.first;
         c->d_st = d->d_children.last();
+        // A ConstExpression is an expression containing constants only. More precisely, its evaluation must
+        // be possible by a mere textual scan without execution of the program
+        // Wirt's compiler seems not even to support name resolution for constants
+        c->d_const = evalExpression(m,c->d_st);
         m->d_elems.append(c);
         m->addToScope( c );
         index(id.first,c);
@@ -518,7 +559,7 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
 {
     SynTree* ph = findFirstChild( t, SynTree::R_ProcedureHeading );
     SynTree* pb = findFirstChild( t, SynTree::R_ProcedureBody );
-    Q_ASSERT( ph != 0 && pb != 0 );
+    Q_ASSERT( ph != 0 );
     SynTree* idef = findFirstChild(ph,SynTree::R_identdef );
     Q_ASSERT( idef != 0 );
 
@@ -540,6 +581,22 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
     res->d_type = parseFormalParams(res,fp,res->d_vals);
     foreach( Element* p, res->d_vals )
         res->addToScope( p );
+
+    Module* m = dynamic_cast<Module*>( ds );
+    if( m )
+    {
+        if( m->d_isDef )
+        {
+            if( pb != 0 )
+                d_errs->error(Errors::Semantics, t, tr("procedure body not allowed in definitions") );
+            return;
+        }else if( pb == 0 )
+        {
+            d_errs->error(Errors::Semantics, t, tr("procedure body is missing") );
+            return;
+        }
+    }
+    Q_ASSERT( pb != 0 );
 
     processDeclSeq(res,pb);
     SynTree* rs = findFirstChild(pb,SynTree::R_ReturnStatement );
@@ -612,7 +669,6 @@ void CodeModel::checkTypeRules(CodeModel::Unit* ds)
     }
     foreach( Procedure* p, ds->d_procs )
         checkTypeRules(p);
-
 }
 
 static QString notNull( const CodeModel::NamedThing* ptr )
@@ -711,12 +767,12 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
         {
             Q_ASSERT( st->d_children[1]->d_tok.d_type == Tok_ColonEq && st->d_children.size() == 3 &&
                     st->d_children[2]->d_tok.d_type == SynTree::R_expression );
-            st->d_tok.d_type = SynTree::R_assignment;
+            st->d_tok.d_type = SynTree::R_assignment_;
             checkAssig( ds, lhs, st->d_children[2] );
         }else
         {
             //qDebug() << "ProcCall" << toString(dopl,false,true);
-            st->d_tok.d_type = SynTree::R_ProcedureCall;
+            st->d_tok.d_type = SynTree::R_ProcedureCall_;
         }
     }else if( st->d_tok.d_type == SynTree::R_IfStatement || st->d_tok.d_type == SynTree::R_ElsifStatement ||
               st->d_tok.d_type == SynTree::R_WhileStatement )
@@ -771,6 +827,15 @@ void CodeModel::checkAssig(CodeModel::Unit* ds, const CodeModel::DesigOpList& lh
         return;
     }
 
+    for( int i = 0; i < lhs.size(); i++ )
+    {
+        if( lhs[i].d_op == ProcedureOp )
+        {
+            d_errs->error(Errors::Semantics, lhs[i].d_arg, tr("procedure call cannot be left of assignment" ) );
+            return;
+        }
+    }
+
     if( lhs.last().d_sym->isStub() )
     {
         // lhs type maybe not known
@@ -821,45 +886,53 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_CaseStatement && st->d_children.size() >= 4 );
 
-    QList< QPair< QPair<const Type*, SynTree*>,SynTree*> > cases;
-    const NamedThing* var = 0;
-    SynTree* id = flatten(st->d_children[1]);
-    if( id->d_tok.d_type == Tok_ident )
-        var = ds->findByName( id->d_tok.d_val ) ;
-    if( var == 0 )
-        goto NormalCaseStatement;
-    for( int i = 3; i < st->d_children.size(); i++ )
+    const CodeModel::Type* t = derefed(typeOfExpression(ds, st->d_children[1]));
+    if( t->d_kind == CodeModel::Type::Pointer || t->d_kind == CodeModel::Type::Record )
     {
-        SynTree* c = st->d_children[i];
-        if( c->d_tok.d_type == SynTree::R_Case && !c->d_children.isEmpty() )
+        QList< QPair< QPair<const Type*, SynTree*>,SynTree*> > cases;
+        const NamedThing* var = 0;
+        SynTree* id = flatten(st->d_children[1]);
+        if( id->d_tok.d_type == Tok_ident )
+            var = ds->findByName( id->d_tok.d_val ) ;
+        if( var == 0 )
         {
-            Q_ASSERT( c->d_children.first()->d_tok.d_type == SynTree::R_CaseLabelList );
-            SynTree* q = flatten(c->d_children.first(),SynTree::R_qualident);
-            if( q->d_tok.d_type != SynTree::R_qualident )
-                goto NormalCaseStatement;
-            Quali quali = derefQualident(ds,q,false,false);
-            if( const Type* t = dynamic_cast<const Type*>( quali.second.first ) )
-            {
-                Q_ASSERT( c->d_children.last()->d_tok.d_type == SynTree::R_StatementSequence );
-                cases << qMakePair( qMakePair( t, c->d_children.first()), c->d_children.last() );
-            }else
-                goto NormalCaseStatement;
+            d_errs->error(Errors::Semantics,st,tr("only simple type case variables supported"));
+            goto NormalCaseStatement;
         }
+        for( int i = 3; i < st->d_children.size(); i++ )
+        {
+            SynTree* c = st->d_children[i];
+            if( c->d_tok.d_type == SynTree::R_Case && !c->d_children.isEmpty() )
+            {
+                Q_ASSERT( c->d_children.first()->d_tok.d_type == SynTree::R_CaseLabelList );
+                SynTree* q = flatten(c->d_children.first(),SynTree::R_qualident);
+                if( q->d_tok.d_type != SynTree::R_qualident )
+                    goto NormalCaseStatement;
+                Quali quali = derefQualident(ds,q,false,false);
+                if( const Type* t = dynamic_cast<const Type*>( quali.second.first ) )
+                {
+                    Q_ASSERT( c->d_children.last()->d_tok.d_type == SynTree::R_StatementSequence );
+                    cases << qMakePair( qMakePair( t, c->d_children.first()), c->d_children.last() );
+                }else
+                    goto NormalCaseStatement;
+            }
+        }
+        // qDebug() << "typecase at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
+        for( int i = 0; i < cases.size(); i++ )
+        {
+            checkNames(ds,cases[i].first.second);
+            Unit scope;
+            scope.d_outer = ds;
+            TypeAlias alias;
+            alias.d_name = id->d_tok.d_val;
+            alias.d_newType = cases[i].first.first;
+            alias.d_alias = const_cast<NamedThing*>(var);
+            scope.addToScope(&alias);
+            checkNames( &scope, cases[i].second );
+        }
+        checkNames(ds,st->d_children[1]);
+        return;
     }
-    for( int i = 0; i < cases.size(); i++ )
-    {
-        checkNames(ds,cases[i].first.second);
-        Unit scope;
-        scope.d_outer = ds;
-        TypeAlias alias;
-        alias.d_name = id->d_tok.d_val;
-        alias.d_newType = cases[i].first.first;
-        alias.d_alias = const_cast<NamedThing*>(var);
-        scope.addToScope(&alias);
-        checkNames( &scope, cases[i].second );
-    }
-    checkNames(ds,st->d_children[1]);
-    return;
 NormalCaseStatement:
     foreach( SynTree* sub, st->d_children )
         checkNames(ds,sub);
@@ -969,6 +1042,10 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
     res->d_def = t;
     res->d_type = tp;
     res->d_st = ll->d_children.first();
+    bool ok;
+    res->d_len = evalExpression( ds, res->d_st ).toUInt(&ok);
+    if( !ok || res->d_len == 0 )
+        d_errs->error(Errors::Semantics, res->d_st, tr("invalid array size") );
     ds->d_types.append(res);
     Type* last = res;
     for( int i = 1; i < ll->d_children.size(); i++ )
@@ -980,6 +1057,9 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
         cur->d_def = t;
         cur->d_type = tp;
         cur->d_st = ll->d_children[i];
+        cur->d_len = evalExpression( ds, cur->d_st ).toUInt(&ok);
+        if( !ok || cur->d_len == 0 )
+            d_errs->error(Errors::Semantics, cur->d_st, tr("invalid array size") );
         ds->d_types.append(cur);
         last = cur;
     }
@@ -997,7 +1077,7 @@ CodeModel::Type*CodeModel::parseProcType(CodeModel::Unit* ds, SynTree* t)
     QList<Element*> params;
     res->d_type = parseFormalParams(ds,fp,params);
     for( int i = 0; i < params.size(); i++ )
-        res->d_vals.insert( "_" + QByteArray::number(i), params[i] );
+        res->d_vals.insert( QString("_%1").arg(i,2,10,QChar('0')).toUtf8(), params[i] );
 
     return res;
 }
@@ -1080,7 +1160,7 @@ void CodeModel::resolveTypeRefs(CodeModel::Unit* ds)
 
 CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool report, bool synthesize)
 {
-    Q_ASSERT( t->d_tok.d_type == SynTree::R_qualident );
+    Q_ASSERT( t && t->d_tok.d_type == SynTree::R_qualident );
     if( t->d_children.isEmpty() )
         return Quali();
     Q_ASSERT( t->d_children.first()->d_tok.d_type == Tok_ident );
@@ -1156,7 +1236,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
 {
     DesigOpList desig; // flattended designator
 
-    Q_ASSERT( t->d_tok.d_type == SynTree::R_designator && !t->d_children.isEmpty() &&
+    Q_ASSERT( t != 0 && t->d_tok.d_type == SynTree::R_designator && !t->d_children.isEmpty() &&
               t->d_children.first()->d_tok.d_type == SynTree::R_qualident );
 
     for( int i = 0; i < t->d_children.first()->d_children.size(); i++ )
@@ -1225,8 +1305,23 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
                 index(desig[i].d_arg,desig[i].d_sym);
         }
     }
-//    if( report && synthesize )
-//        qDebug() << "DESIG:" << toString(desig);
+
+    if( report )
+    {
+        // ProcedureOp darf nur einmal im DesigOpList vorkommen und nur ganz am Schluss
+        int n = 0;
+        int hit = -1;
+        for( int i = 0; i < desig.size(); i++ )
+        {
+            if( desig[i].d_op == ProcedureOp )
+            {
+                n++;
+                hit = i;
+            }
+        }
+        if( n > 1 || ( n > 0 && hit != ( desig.size() -1 ) ) )
+            d_errs->error( Errors::Semantics, t, tr("invalid procedure call embedded in designator" ) );
+    }
     return desig;
 }
 
@@ -1487,6 +1582,8 @@ SynTree*CodeModel::findFirstChild(const SynTree* st, int type, int startWith )
         if( sub->d_tok.d_type == type )
             return sub;
     }
+    if( st->d_tok.d_type == type )
+        return const_cast<SynTree*>(st);
     return 0;
 }
 
@@ -1499,9 +1596,9 @@ SynTree*CodeModel::flatten(SynTree* st, int stopAt)
     return st;
 }
 
-CodeModel::DesigOpList CodeModel::derefDesignator( const CodeModel::Unit* ds, const SynTree* st)
+CodeModel::DesigOpList CodeModel::derefDesignator( const CodeModel::Unit* ds, const SynTree* st) const
 {
-    return derefDesignator(const_cast<Unit*>(ds),const_cast<SynTree*>(st),false,false);
+    return const_cast<CodeModel*>(this)->derefDesignator(const_cast<Unit*>(ds),const_cast<SynTree*>(st),false,false);
 }
 
 CodeModel::Quali CodeModel::derefQualident( const CodeModel::Unit* ds, const SynTree* st)
@@ -1557,11 +1654,14 @@ const CodeModel::Type*CodeModel::typeOfExpression( const Unit* ds, SynTree* st) 
 
     switch( st->d_tok.d_type )
     {
+    case Tok_hexchar:
+        return d_scope.d_charType;
     case Tok_integer:
         return d_scope.d_intType;
     case Tok_real:
         return d_scope.d_realType;
     case Tok_string:
+    case Tok_hexstring:
         return d_scope.d_stringType;
     case Tok_TRUE:
     case Tok_FALSE:
@@ -1634,6 +1734,25 @@ const CodeModel::Type*CodeModel::typeOfExpression( const Unit* ds, SynTree* st) 
     return 0;
 }
 
+bool CodeModel::isArrayOfChar(const NamedThing* nt) const
+{
+    if( nt == 0 )
+        return false;
+    const Type* t = 0;
+    if( const Element* e = dynamic_cast<const Element*>(nt) )
+    {
+        if( e->d_kind == Element::Variable )
+            t = e->d_type;
+    }else
+        t = dynamic_cast<const Type*>(nt);
+    if( t && t->d_kind == Type::Array )
+    {
+        t = derefed(t->d_type);
+        return t == d_scope.d_charType;
+    }
+    return false;
+}
+
 const CodeModel::Type*CodeModel::typeOfExpression(Unit* ds, Element::Kind m, SynTree* args) const
 {
     switch( m )
@@ -1657,6 +1776,401 @@ const CodeModel::Type*CodeModel::typeOfExpression(Unit* ds, Element::Kind m, Syn
     }
 }
 
+QVariant CodeModel::evalSimpleExpression(const CodeModel::Unit* u, SynTree* expr) const
+{
+    Q_ASSERT( expr->d_tok.d_type == SynTree::R_SimpleExpression );
+    Q_ASSERT( !expr->d_children.isEmpty() );
+
+    int op = Tok_Invalid;
+    int termIdx = 0;
+    switch( expr->d_children.first()->d_tok.d_type )
+    {
+    case Tok_Plus:
+    case Tok_Minus:
+        op = expr->d_children.first()->d_tok.d_type;
+        termIdx++;
+        break;
+    }
+    Q_ASSERT( expr->d_children.size() > termIdx );
+    QVariant lhs = evalTerm(u,expr->d_children[termIdx++]);
+
+    // Vorzeichen anwenden
+    if( op != Tok_Invalid )
+    {
+        if( lhs.type() == QVariant::LongLong )
+            lhs = lhs.toLongLong() * ( op == Tok_Plus ? 1 : -1 );
+        else if( lhs.type() == QVariant::Double )
+            lhs = lhs.toDouble() * ( op == Tok_Plus ? 1.0 : -1.0 );
+        else if( lhs.canConvert<Set>() )
+            lhs = QVariant::fromValue( ~lhs.value<Set>());
+        else
+            d_errs->error(Errors::Semantics, expr, tr("invalid sign for expression type"));
+    }
+
+    if( expr->d_children.size() == termIdx )
+        return lhs;
+    // else
+    Q_ASSERT( ( expr->d_children.size() - termIdx ) % 2 == 0 );
+
+    QVariant res = lhs;
+
+    for( int i = termIdx; i < expr->d_children.size() - termIdx; i += 2 )
+    {
+        const QVariant rhs = evalTerm(u,expr->d_children[i+1]);
+
+        Q_ASSERT( expr->d_children[i]->d_tok.d_type == SynTree::R_AddOperator &&
+                  !expr->d_children[i]->d_children.isEmpty());
+        switch( expr->d_children[i]->d_children.first()->d_tok.d_type )
+        {
+        case Tok_Plus:
+            if( res.type() == QVariant::Double && rhs.type() == QVariant::Double )
+                res = res.toDouble() + rhs.toDouble();
+            else if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+                res = res.toLongLong() + rhs.toLongLong();
+            else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+                return QVariant::fromValue( lhs.value<Set>() | rhs.value<Set>() );
+            else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        case Tok_Minus:
+            if( res.type() == QVariant::Double && rhs.type() == QVariant::Double )
+                res = res.toDouble() - rhs.toDouble();
+            else if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+                res = res.toLongLong() - rhs.toLongLong();
+            else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+            {
+                const Set a = lhs.value<Set>();
+                const Set b = rhs.value<Set>();
+                Set res;
+                for( int j = 0; j < a.size(); j++ )
+                    res.set( a.test(j) && !b.test(j) );
+                return QVariant::fromValue( res );
+            }else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        case Tok_OR:
+            if( res.type() == QVariant::Bool && rhs.type() == QVariant::Bool )
+                res = res.toBool() || rhs.toBool();
+            else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        default:
+            Q_ASSERT(false);
+            break;
+        }
+    }
+    return res;
+}
+
+QVariant CodeModel::evalTerm(const CodeModel::Unit* u, SynTree* expr) const
+{
+    Q_ASSERT( expr->d_tok.d_type == SynTree::R_term );
+    Q_ASSERT( !expr->d_children.isEmpty() );
+    const QVariant lhs = evalFactor( u, expr->d_children.first() );
+    if( expr->d_children.size() == 1 )
+        return lhs;
+    Q_ASSERT( ( expr->d_children.size() - 1 ) % 2 == 0 );
+
+    QVariant res = lhs;
+
+    for( int i = 1; i < expr->d_children.size() - 1; i += 2 )
+    {
+        const QVariant rhs = evalFactor( u, expr->d_children[i+1] );
+
+        Q_ASSERT( expr->d_children[i]->d_tok.d_type == SynTree::R_MulOperator &&
+                  !expr->d_children[i]->d_children.isEmpty());
+        switch( expr->d_children[i]->d_children.first()->d_tok.d_type )
+        {
+        case Tok_Star:
+            if( res.type() == QVariant::Double && rhs.type() == QVariant::Double )
+                res = res.toDouble() * rhs.toDouble();
+            else if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+                res = res.toLongLong() * rhs.toLongLong();
+            else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+                return QVariant::fromValue( lhs.value<Set>() & rhs.value<Set>() );
+            else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        case Tok_Slash:
+            if( res.type() == QVariant::Double && rhs.type() == QVariant::Double )
+                res = res.toDouble() / rhs.toDouble();
+            else if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+                res = res.toLongLong() / rhs.toLongLong();
+            else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+            {
+                const Set a = lhs.value<Set>();
+                const Set b = rhs.value<Set>();
+                Set res;
+                for( int j = 0; j < a.size(); j++ )
+                    res.set( a.test(j) || b.test(j) && !( a.test(j) && b.test(j) ) );
+                return QVariant::fromValue( res );
+            }else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        case Tok_DIV:
+            if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            {
+                const qint64 a = res.toLongLong();
+                const qint64 b = rhs.toLongLong();
+                // res = ( a - ( ( a % b + b ) % b ) ) / b;
+                // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+                if (a < 0)
+                    res = (a - b + 1) / b;
+                else
+                    res = a / b;
+            }
+            else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        case Tok_MOD:
+            if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            {
+                const qint64 a = res.toLongLong();
+                const qint64 b = rhs.toLongLong();
+                // res = ( a % b + b ) % b;
+                // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+                if (a < 0)
+                    res = (b - 1) + ((a - b + 1)) % b;
+                else
+                    res = a % b;
+            }
+            else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        case Tok_Amp:
+            if( res.type() == QVariant::Bool && rhs.type() == QVariant::Bool )
+                res = res.toBool() && rhs.toBool();
+            else
+                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+            break;
+        default:
+            qCritical() << "unexpected operator" << SynTree::rToStr(expr->d_children[i]->d_tok.d_type);
+            Q_ASSERT(false);
+            break;
+        }
+    }
+    return res;
+}
+
+QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
+{
+    Q_ASSERT( expr->d_tok.d_type == SynTree::R_factor );
+    Q_ASSERT( !expr->d_children.isEmpty() );
+    SynTree* first = expr->d_children.first();
+    switch( first->d_tok.d_type )
+    {
+    case SynTree::R_number:
+        Q_ASSERT( expr->d_children.size() == 1 );
+        if( first->d_children.first()->d_tok.d_type == Tok_real )
+            return first->d_children.first()->d_tok.d_val.toDouble();
+        else if( first->d_children.first()->d_tok.d_type == Tok_integer )
+        {
+            if( first->d_children.first()->d_tok.d_val.endsWith('H') )
+                return first->d_children.first()->d_tok.d_val.
+                                           left(first->d_children.first()->d_tok.d_val.size()-1).toLongLong(0,16);
+            else
+                return first->d_children.first()->d_tok.d_val.toLongLong();
+        }else
+            Q_ASSERT(false);
+        break;
+    case Tok_string:
+        return first->d_tok.d_val.mid(1,first->d_tok.d_val.size()-2);
+    case Tok_hexstring:
+        return QByteArray::fromHex(first->d_tok.d_val.mid(1, first->d_tok.d_val.size() - 2));
+    case Tok_hexchar:
+        return QByteArray::fromHex( first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) );
+    case Tok_NIL:
+        d_errs->error(Errors::Semantics, first, tr("NIL not allowed as a constant value") );
+        break;
+    case Tok_TRUE:
+        return true;
+    case Tok_FALSE:
+        return false;
+    case SynTree::R_set:
+        {
+           Q_ASSERT( first->d_children.size() >= 2 && first->d_children.first()->d_tok.d_type == Tok_Lbrace &&
+                    first->d_children.last()->d_tok.d_type == Tok_Rbrace );
+           Set res;
+           for( int i = 1; i < first->d_children.size() - 1; i++ )
+           {
+               SynTree* e = first->d_children[i];
+               Q_ASSERT( e->d_tok.d_type == SynTree::R_element && !e->d_children.isEmpty() );
+               const QVariant from = evalExpression(u,e->d_children.first() );
+               if( from.type() != QVariant::LongLong || from.toLongLong() >= res.size() )
+               {
+                   d_errs->error(Errors::Semantics, e->d_children.first(), tr("invalid set element") );
+                   continue;
+               }
+               if( e->d_children.size() > 1 )
+               {
+                   Q_ASSERT( e->d_children.size() == 3 );
+                   const QVariant to = evalExpression(u,e->d_children.last() );
+                   if( to.type() != QVariant::LongLong || to.toLongLong() >= res.size() ||
+                           to.toLongLong() <= from.toLongLong() )
+                   {
+                       d_errs->error(Errors::Semantics, e->d_children.last(), tr("invalid set element range") );
+                       continue;
+                   }
+                   for( int j = from.toLongLong(); j <= to.toLongLong(); j++ )
+                       res.set(j);
+               }else
+                   res.set( from.toULongLong() );
+           }
+           return QVariant::fromValue(res);
+        }
+        break;
+    case SynTree::R_variableOrFunctionCall:
+        {
+            Q_ASSERT( first->d_children.size() == 1 && first->d_children.first()->d_tok.d_type
+                      == SynTree::R_designator );
+            DesigOpList dopl = derefDesignator(u,first->d_children.first());
+            if( dopl.isEmpty() || dopl.size() > 2 || dopl[0].d_op != CodeModel::IdentOp ||
+                    ( dopl.size() == 2 && dopl[1].d_op != CodeModel::IdentOp ) )
+            {
+                if( dopl.size() == 2 && dopl[1].d_op == CodeModel::ProcedureOp )
+                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("procedure calls not supported in const") );
+                else
+                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
+                break;
+            }
+            const CodeModel::Element* e;
+            if( dopl.size() == 2 )
+                e = dynamic_cast<const CodeModel::Element*>( dopl[1].d_sym );
+            else
+                e = dynamic_cast<const CodeModel::Element*>( dopl[0].d_sym );
+            if( e == 0 || e->d_kind != Element::Constant )
+            {
+                d_errs->error(Errors::Semantics, first->d_children.first(), tr("designator must reference a constant") );
+                break;
+            }
+            return e->d_const;
+        }
+        break;
+    case Tok_Lpar: // '(' expression ')'
+        Q_ASSERT( expr->d_children.size() == 3 );
+        return evalExpression( u, expr->d_children[1]);
+    case Tok_Tilde: // '~' factor
+        {
+            Q_ASSERT( expr->d_children.size() == 2 );
+            QVariant v = evalFactor( u, expr->d_children.last() );
+            if( v.type() == QVariant::Bool )
+                return !v.toBool();
+            else
+                d_errs->error(Errors::Semantics, first, tr("operator ~ can only be applied to boolean") );
+        }
+        break;
+    default:
+        d_errs->error(Errors::Semantics, first, tr("invalid constant expression") );
+        break;
+    }
+
+    return QVariant();
+}
+
+QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) const
+{
+    Q_ASSERT( expr->d_tok.d_type == SynTree::R_expression );
+    Q_ASSERT( !expr->d_children.isEmpty() );
+    const QVariant lhs = evalSimpleExpression( u, expr->d_children.first() );
+    if( expr->d_children.size() == 1 )
+        return lhs;
+    // else
+    Q_ASSERT( expr->d_children.size() == 3 );
+    const QVariant rhs = evalSimpleExpression( u, expr->d_children.last() );
+
+    switch( expr->d_children[1]->d_tok.d_type )
+    {
+    case Tok_Eq:
+        if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
+            return lhs.toDouble() == rhs.toDouble();
+        else if( lhs.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            return lhs.toLongLong() == rhs.toLongLong();
+        else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+            return lhs.toByteArray() == rhs.toByteArray();
+        else if( lhs.type() == QVariant::Bool && rhs.type() == QVariant::Bool )
+            return lhs.toByteArray() == rhs.toByteArray();
+        else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+            return lhs.value<Set>() == rhs.value<Set>();
+        else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_Hash:
+        if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
+            return lhs.toDouble() != rhs.toDouble();
+        else if( lhs.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            return lhs.toLongLong() != rhs.toLongLong();
+        else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+            return lhs.toByteArray() != rhs.toByteArray();
+        else if( lhs.type() == QVariant::Bool && rhs.type() == QVariant::Bool )
+            return lhs.toByteArray() != rhs.toByteArray();
+        else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+            return lhs.value<Set>() != rhs.value<Set>();
+        else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_Lt:
+        if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
+            return lhs.toDouble() < rhs.toDouble();
+        else if( lhs.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            return lhs.toLongLong() < rhs.toLongLong();
+        else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+            return lhs.toByteArray() < rhs.toByteArray();
+        else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_Leq:
+        if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
+            return lhs.toDouble() <= rhs.toDouble();
+        else if( lhs.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            return lhs.toLongLong() <= rhs.toLongLong();
+        else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+            return lhs.toByteArray() <= rhs.toByteArray();
+        else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_Geq:
+        if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
+            return lhs.toDouble() >= rhs.toDouble();
+        else if( lhs.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            return lhs.toLongLong() >= rhs.toLongLong();
+        else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+            return lhs.toByteArray() >= rhs.toByteArray();
+        else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_Gt:
+        if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
+            return lhs.toDouble() > rhs.toDouble();
+        else if( lhs.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
+            return lhs.toLongLong() > rhs.toLongLong();
+        else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+            return lhs.toByteArray() > rhs.toByteArray();
+        else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_IN:
+        if( lhs.type() == QVariant::LongLong && rhs.canConvert<Set>() )
+        {
+            const qint64 i = lhs.toLongLong();
+            const Set s = rhs.value<Set>();
+            if( i >= 0 && i < s.size() )
+                return s.test(i);
+            else
+                return false;
+        }else
+            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+        break;
+    case Tok_IS:
+        d_errs->error(Errors::Semantics, expr->d_children[1], tr("relation not supported in a constant") );
+        break;
+    default:
+        Q_ASSERT(false);
+        break;
+    }
+
+    return QVariant();
+}
+
 void CodeModel::index(const SynTree* idUse, const CodeModel::NamedThing* decl)
 {
     if( !d_trackIds )
@@ -1664,6 +2178,14 @@ void CodeModel::index(const SynTree* idUse, const CodeModel::NamedThing* decl)
     Q_ASSERT( idUse != 0 && decl != 0 );
     d_dir[idUse->d_tok.d_sourcePath].append( IdentUse(idUse,decl) );
     d_revDir.insert(decl,idUse);
+}
+
+void CodeModel::addLowerCaseGlobals()
+{
+    Scope::Names names = d_scope.d_names;
+    Scope::Names::const_iterator i;
+    for( i = names.begin(); i != names.end(); ++i )
+        d_scope.d_names.insert( Lexer::getSymbol( i.key() ).toLower(), i.value() );
 }
 
 CodeModel::GlobalScope::~GlobalScope()
@@ -1764,6 +2286,15 @@ const CodeModel::Element* CodeModel::Type::findByName(const QByteArray& n) const
     return res;
 }
 
+QList<CodeModel::Element*> CodeModel::Type::getParams() const
+{
+    QList<Element*> res;
+    Vals::const_iterator i;
+    for( i = d_vals.begin(); i != d_vals.end(); ++i )
+        res << i.value();
+    return res;
+}
+
 const CodeModel::NamedThing*CodeModel::Scope::findByName(const QByteArray& name) const
 {
     const CodeModel::NamedThing* thing = d_names.value(name);
@@ -1790,7 +2321,7 @@ const char* CodeModel::Type::s_kindName[] =
     "ProcRef",
 };
 
-CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0)
+CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0),d_len(0)
 {
     if( k >= BOOLEAN && k <= SET )
         d_name = Lexer::getSymbol( s_kindName[k] );
@@ -1805,7 +2336,7 @@ CodeModel::Type::~Type()
 
 const CodeModel::Type*CodeModel::Type::deref() const
 {
-    if( d_kind == TypeRef )
+    if( d_kind == TypeRef && d_type != 0 )
         return d_type->deref();
     else
         return this;
@@ -1887,4 +2418,17 @@ QByteArray CodeModel::Element::typeName() const
     default:
         return QByteArray();
     }
+}
+
+QList<CodeModel::Element*> CodeModel::Element::getParams() const
+{
+     if( d_type && d_type->d_kind == Type::ProcRef && d_kind != StubProc )
+     {
+         QList<Element*> res;
+         Type::Vals::const_iterator i;
+         for( i = d_type->d_vals.begin(); i != d_type->d_vals.end(); ++i )
+             res << i.value();
+         return res;
+     }else
+         return d_vals;
 }

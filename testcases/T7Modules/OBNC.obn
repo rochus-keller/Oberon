@@ -1,0 +1,37 @@
+(*Copyright (C) 2017, 2018, 2019 Karl Landstrom <karl@miasap.se>
+
+This file is part of OBNC.
+
+OBNC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+OBNC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
+
+MODULE OBNC; (*should not cause a conflict with system C module OBNC*)
+
+	(*generated identifiers with suffixes should not conflict with identifiers declared in system module OBNC*)
+
+	CONST b* = TRUE;
+
+	TYPE
+		OBNC = RECORD f: INTEGER END;
+
+	VAR
+		a: ARRAY 1 OF INTEGER;
+		x: OBNC;
+
+	PROCEDURE Q(OBNC: ARRAY OF INTEGER);
+	END Q;
+
+BEGIN
+	Q(a);
+	x.f := 0
+END OBNC.

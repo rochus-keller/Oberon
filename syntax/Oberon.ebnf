@@ -15,12 +15,13 @@
 // - added LengthList for easier array parsing
 // - added hexchar and hexstring
 // - added Elsif/ElseStatement for easier traversal
+// - integrate DEFINITION syntax
 
-// Top
+/// Top
 
-Oberon ::= { module }
+Oberon ::= module | definition
 
-// 3. Vocabulary
+/// 3. Vocabulary
 
 // letter ::= 'A' | 'B' | ... | 'Z' | 'a' | 'b' | ... | 'z'
 
@@ -44,27 +45,27 @@ hexstring ::=
 
 comment- ::= '(*' '*)' 
 
-// 4. Declarations and scope rules
+/// 4. Declarations and scope rules
 
 qualident ::= [ \LL:2\ ident '.' ] ident  // works even though EbnfStudio disagrees
 
 identdef ::= ident ['*']
 
-// 5. Constant declarations
+/// 5. Constant declarations
 
 ConstDeclaration ::= identdef '=' ConstExpression
 
 ConstExpression* ::= expression
 
-// 6. Type declarations
+/// 6. Type declarations
 
 TypeDeclaration ::= identdef '=' type
 
 type ::= qualident | ArrayType | RecordType | PointerType | ProcedureType
 
-// 6.1. Basic types
+/// 6.1. Basic types
 
-// 6.2. Array types
+/// 6.2. Array types
 
 ArrayType ::= ARRAY LengthList OF type
 
@@ -72,7 +73,7 @@ LengthList ::= length {',' length}
 
 length* ::= ConstExpression
 
-// 6.3. Record types
+/// 6.3. Record types
 
 RecordType ::= RECORD ['(' BaseType ')'] [FieldListSequence]  END 
 
@@ -84,21 +85,21 @@ FieldList ::= IdentList ':' type
 
 IdentList ::= identdef {',' identdef}
 
-// 6.4. Pointer types
+/// 6.4. Pointer types
 
 PointerType ::= POINTER TO type
 
-// 6.5. Procedure types
+/// 6.5. Procedure types
 
 ProcedureType ::= PROCEDURE [FormalParameters]
 
-// 7. Variable declarations
+/// 7. Variable declarations
 
 VariableDeclaration ::= IdentList ':' type
 
-// 8. Expressions
+/// 8. Expressions
 
-// 8.1. Operands
+/// 8.1. Operands
 
 designator ::= qualident {selector}
 
@@ -109,7 +110,7 @@ selector ::= '.' ident | '[' ExpList ']' | '^'
 
 ExpList ::= expression {',' expression}
 
-// 8.2. Operators
+/// 8.2. Operators
 
 expression ::= SimpleExpression [ relation SimpleExpression ]
 
@@ -125,7 +126,7 @@ MulOperator ::= '*' | '/' | DIV | MOD | '&'
 
 factor ::= number | string | hexstring | hexchar | NIL | TRUE | FALSE |
 	set 
-	| variableOrFunctionCall
+	| variableOrFunctionCall // replaces: designator [ActualParameters]
 	| '(' expression ')' | '~' factor
 	
 variableOrFunctionCall ::= designator // designator enthält neu auch: [ ActualParameters ] 
@@ -134,17 +135,18 @@ set ::= '{' [ element {',' element} ] '}'
 
 element ::= expression ['..' expression]
 
-ActualParameters- ::= '(' [ ExpList ] ')' 
+ActualParameters- ::= '(' [ ExpList ] ')'  
 
-// 9. Statements
+/// 9. Statements
 
 statement ::= [ 
 	assignmentOrProcedureCall
 	| IfStatement | CaseStatement |
 	WhileStatement | RepeatStatement | ForStatement ]
 	
-// 9.1. Assignments
-// 9.2. Procedure calls
+/// 9.1. Assignments
+
+/// 9.2. Procedure calls
 
 // merge of assignment and ProcedureCall
 assignmentOrProcedureCall ::=
@@ -158,11 +160,11 @@ assignment- ::= designator ':=' expression
 
 ProcedureCall- ::= designator [ ActualParameters ]
 
-// 9.3. Statement sequences
+/// 9.3. Statement sequences
 
 StatementSequence ::= statement { ';' statement }
 
-// 9.4. If statements
+/// 9.4. If statements
 
 IfStatement ::= IF expression THEN StatementSequence
 	{ ElsifStatement }
@@ -170,7 +172,7 @@ IfStatement ::= IF expression THEN StatementSequence
 ElsifStatement ::= ELSIF expression THEN StatementSequence 
 ElseStatement ::= ELSE StatementSequence
 
-// 9.5. Case statements
+/// 9.5. Case statements
 
 CaseStatement ::= CASE expression OF Case { '|' Case } END
 
@@ -182,22 +184,23 @@ LabelRange ::= label [ '..' label ]
 
 label ::= integer | string | hexchar | hexstring | qualident
 
-// 9.6. While statements
+/// 9.6. While statements
 
 WhileStatement ::= WHILE expression DO StatementSequence
-	{ElsifStatement} END
-	
-// 9.7. Repeat Statements
+	{ElsifStatement2} END
+ElsifStatement2 ::= ELSIF expression DO StatementSequence 
+
+/// 9.7. Repeat Statements
 
 RepeatStatement ::= REPEAT StatementSequence UNTIL expression
 
-// 9.8. For statements
+/// 9.8. For statements
 
 ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
 	DO StatementSequence END
 
-// 10. Procedure declarations
-ProcedureDeclaration ::= ProcedureHeading ';' ProcedureBody ident
+/// 10. Procedure declarations
+ProcedureDeclaration ::= ProcedureHeading ';'  ProcedureBody ident
 
 ProcedureHeading ::= PROCEDURE identdef [ FormalParameters ]
 
@@ -212,8 +215,14 @@ DeclarationSequence ::=
 	{ ProcedureDeclaration ';' }
 	
 ReturnStatement ::= RETURN expression 
-	
-// 10.1. Formal parameters
+
+DeclarationSequence2 ::= 
+	[ CONST { ConstDeclaration ';' } ]
+	[ TYPE { TypeDeclaration ';' } ]
+	[ VAR { VariableDeclaration ';' } ]
+	{ ProcedureHeading ';' }
+
+/// 10.1. Formal parameters
 
 FormalParameters ::= '(' [ FPSection { ';' FPSection } ] ')' [ ':' qualident ]
 
@@ -221,9 +230,9 @@ FPSection ::= [ VAR ] ident { ',' ident } ':' FormalType
 
 FormalType ::= { ARRAY OF } qualident
 
-// 10.2. Predefined procedures
+/// 10.2. Predefined procedures
 
-// 11. Modules
+/// 11. Modules
 
 module ::= MODULE ident ';' [ ImportList ] DeclarationSequence
 	[ BEGIN StatementSequence ] END ident '.' 
@@ -232,12 +241,16 @@ ImportList ::= IMPORT import { ',' import } ';'
 
 import ::= ident [ ':=' ident ]
 
-// 11.1 The Module SYSTEM
+/// 11.1 The Module SYSTEM
 
-// Helper Tokens
+/// Definitions
+
+definition ::= DEFINITION ident ';'  [ ImportList ] DeclarationSequence2 END ident '.' 
+
+/// Helper Tokens
 Comment ::=
 
-// Pragmas
+/// Pragmas
 %module ::= 'Oberon'
 %namespace ::= 'Ob'
 %suppress ::= ';' ',' '.' ':'

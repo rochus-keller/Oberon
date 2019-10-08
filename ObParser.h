@@ -53,44 +53,45 @@ private:
 		_T_BY=33,
 		_T_CASE=34,
 		_T_CONST=35,
-		_T_DIV=36,
-		_T_DO=37,
-		_T_ELSE=38,
-		_T_ELSIF=39,
-		_T_END=40,
-		_T_FALSE=41,
-		_T_FOR=42,
-		_T_IF=43,
-		_T_IMPORT=44,
-		_T_IN=45,
-		_T_IS=46,
-		_T_MOD=47,
-		_T_MODULE=48,
-		_T_NIL=49,
-		_T_OF=50,
-		_T_OR=51,
-		_T_POINTER=52,
-		_T_PROCEDURE=53,
-		_T_RECORD=54,
-		_T_REPEAT=55,
-		_T_RETURN=56,
-		_T_THEN=57,
-		_T_TO=58,
-		_T_TRUE=59,
-		_T_TYPE=60,
-		_T_UNTIL=61,
-		_T_VAR=62,
-		_T_WHILE=63,
-		_T_Specials_=64,
-		_T_ident=65,
-		_T_integer=66,
-		_T_real=67,
-		_T_string=68,
-		_T_hexchar=69,
-		_T_hexstring=70,
-		_T_Comment=71,
-		_T_Eof=72,
-		_T_MaxToken_=73
+		_T_DEFINITION=36,
+		_T_DIV=37,
+		_T_DO=38,
+		_T_ELSE=39,
+		_T_ELSIF=40,
+		_T_END=41,
+		_T_FALSE=42,
+		_T_FOR=43,
+		_T_IF=44,
+		_T_IMPORT=45,
+		_T_IN=46,
+		_T_IS=47,
+		_T_MOD=48,
+		_T_MODULE=49,
+		_T_NIL=50,
+		_T_OF=51,
+		_T_OR=52,
+		_T_POINTER=53,
+		_T_PROCEDURE=54,
+		_T_RECORD=55,
+		_T_REPEAT=56,
+		_T_RETURN=57,
+		_T_THEN=58,
+		_T_TO=59,
+		_T_TRUE=60,
+		_T_TYPE=61,
+		_T_UNTIL=62,
+		_T_VAR=63,
+		_T_WHILE=64,
+		_T_Specials_=65,
+		_T_ident=66,
+		_T_integer=67,
+		_T_real=68,
+		_T_string=69,
+		_T_hexchar=70,
+		_T_hexstring=71,
+		_T_Comment=72,
+		_T_Eof=73,
+		_T_MaxToken_=74
 	};
 	int maxT;
 
@@ -144,6 +145,7 @@ Ob::SynTree d_root;
 
 	void Oberon();
 	void module();
+	void definition();
 	void number();
 	void qualident();
 	void identdef();
@@ -190,11 +192,13 @@ Ob::SynTree d_root;
 	void CaseLabelList();
 	void LabelRange();
 	void label();
+	void ElsifStatement2();
 	void ProcedureDeclaration();
 	void ProcedureHeading();
 	void ProcedureBody();
 	void DeclarationSequence();
 	void ReturnStatement();
+	void DeclarationSequence2();
 	void FPSection();
 	void FormalType();
 	void ImportList();

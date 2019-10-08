@@ -1,0 +1,11 @@
+(* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
+DEFINITION Strings;
+PROCEDURE Length (s: ARRAY OF CHAR): INTEGER;
+PROCEDURE Insert (source: ARRAY OF CHAR; pos: INTEGER; VAR dest: ARRAY OF CHAR);
+PROCEDURE Append (extra: ARRAY OF CHAR; VAR dest: ARRAY OF CHAR);
+PROCEDURE Delete (VAR s: ARRAY OF CHAR; pos, n: INTEGER);
+PROCEDURE Replace (source: ARRAY OF CHAR; pos: INTEGER; VAR dest: ARRAY OF CHAR);
+PROCEDURE Extract (source: ARRAY OF CHAR; pos, n: INTEGER; VAR dest: ARRAY OF CHAR);
+PROCEDURE Pos (pattern, s: ARRAY OF CHAR; pos: INTEGER): INTEGER;
+PROCEDURE Cap (VAR s: ARRAY OF CHAR);
+END Strings.

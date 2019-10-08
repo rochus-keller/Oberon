@@ -307,7 +307,7 @@ void CppGen::emitType(const CodeModel::Unit* ds,const CodeModel::Type* t, QTextS
             out << "*";
         }
         else if( t->d_kind == CodeModel::Type::ProcRef )
-            Q_ASSERT_X(false,"generateTypeDecl","ProcType not supported here");
+            out << "/* ProcType not supported here */";
         else
             out << "int /* unknown type */";
     }else
@@ -747,14 +747,14 @@ void CppGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
         case SynTree::R_assignmentOrProcedureCall:
             Q_ASSERT( false ); // wurde bereits vorher korrigiert
             break;
-        case SynTree::R_assignment:
+        case SynTree::R_assignment_:
             out << ws(level);
             emitDesig(ds, s->d_children.first(), false, out, level);
             out << " = ";
             emitExpression(ds,s->d_children.last(), out, level );
             out << ";" << endl;
             break;
-        case SynTree::R_ProcedureCall:
+        case SynTree::R_ProcedureCall_:
             out << ws(level);
             emitDesig(ds, s->d_children.first(), true, out, level);
             out << ";" << endl;

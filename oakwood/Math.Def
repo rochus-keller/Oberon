@@ -1,0 +1,25 @@
+(* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
+DEFINITION Math;
+CONST
+pi = 3.14159265358979323846;
+e = 2.71828182845904523536;
+PROCEDURE sqrt (x : REAL) : REAL;
+PROCEDURE power (x,base : REAL) : REAL;
+PROCEDURE exp (x : REAL): REAL;
+PROCEDURE ln (x : REAL) : REAL;
+PROCEDURE log (x,base : REAL) : REAL;
+PROCEDURE round (x : REAL) : REAL;
+PROCEDURE sin (x : REAL) : REAL;
+PROCEDURE cos (x : REAL) : REAL;
+PROCEDURE tan (x : REAL) : REAL;
+PROCEDURE arcsin (x : REAL) : REAL;
+PROCEDURE arccos (x : REAL) : REAL;
+PROCEDURE arctan (x : REAL) : REAL;
+PROCEDURE arctan2(x,y : REAL): REAL;
+PROCEDURE sinh (x:REAL):REAL;
+PROCEDURE cosh (x:REAL):REAL;
+PROCEDURE tanh (x:REAL):REAL;
+PROCEDURE arcsinh(x:REAL):REAL;
+PROCEDURE arccosh(x:REAL):REAL;
+PROCEDURE arctanh(x:REAL):REAL;
+END Math.

@@ -1,0 +1,552 @@
+(*Copyright (C) 2017, 2018, 2019 Karl Landstrom <karl@miasap.se>
+  modifications by me@rochus-keller.ch, Oct. 2019
+
+This file is part of OBNC.
+
+OBNC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+OBNC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
+
+MODULE T5Statements;
+
+	TYPE
+		T0 = RECORD END;
+		T1 = RECORD (T0) END;
+
+		Shape = POINTER TO ShapeDesc;
+		ShapeDesc = RECORD
+			x, y: REAL
+		END;
+
+		Rectangle = POINTER TO RectangleDesc;
+		RectangleDesc = RECORD (ShapeDesc)
+			w, h: REAL
+		END;
+
+		Circle = POINTER TO CircleDesc;
+		CircleDesc = RECORD (ShapeDesc)
+			r: REAL
+		END;
+
+		String = ARRAY 256 OF CHAR;
+
+	VAR
+		globalInteger: INTEGER;
+
+	PROCEDURE TestBasicAssignments;
+		VAR b, b1: BOOLEAN;
+			ch, ch1: CHAR;
+			n, n1: INTEGER;
+			x, x1: REAL;
+			y, y1: BYTE;
+			A, A1: SET;
+	BEGIN
+		b := TRUE;
+		b1 := FALSE;
+		b := b1;
+		ASSERT(b = b1);
+		ch := "a";
+		ch1 := 22X;
+		ch := ch1;
+		ASSERT(ch = ch1);
+		n := 0;
+		n1 := -1;
+		n := n1;
+		ASSERT(n = n1);
+		x := 0.0;
+		x1 := -1.0;
+		x := x1;
+		ASSERT(x = x1);
+		y := 0;
+		y1 := 255;
+		y := y1;
+		ASSERT(y = y1);
+		n := 0;
+		y := n;
+		ASSERT(y = n);
+		A := {};
+		A1 := {0, 1};
+		A := A1;
+		ASSERT(A = A1);
+	END TestBasicAssignments;
+
+
+	PROCEDURE TestArrayAssignments;
+		VAR str, str1: ARRAY 60 OF CHAR;
+			strs, strs1: ARRAY 2 OF String;
+			strs2: ARRAY 1, 2 OF String;
+
+		PROCEDURE AssignString(VAR s: ARRAY OF CHAR);
+		BEGIN
+			s := "hello"
+		END AssignString;
+
+		PROCEDURE AssignOpenArray(s: ARRAY OF CHAR);
+			VAR t: ARRAY 128 OF CHAR;
+		BEGIN
+			t := s;
+			ASSERT(t = s)
+		END AssignOpenArray;
+
+		PROCEDURE AssignMultiDimOpenArray(s: ARRAY OF ARRAY OF String);
+			VAR t: ARRAY 2 OF String;
+		BEGIN
+			t := s[0];
+			ASSERT(t[0] = s[0, 0]);
+			ASSERT(t[1] = s[0, 1])
+		END AssignMultiDimOpenArray;
+
+	BEGIN
+		str := "testing, testing...";
+		str1 := "more testing...";
+		str := str1;
+		ASSERT(str = str1);
+		AssignString(str);
+		ASSERT(str = "hello");
+		AssignOpenArray("hello");
+		
+		strs[0] := "foo";
+		ASSERT(strs[0] = "foo");
+		strs[1] := "bar";
+		ASSERT(strs[1] = "bar");
+		strs[1] := strs[0];
+		ASSERT(strs[1] = "foo");
+		
+		strs[0] := "foo";
+		strs[1] := "bar";
+		strs1 := strs;
+		ASSERT(strs1[0] = "foo");
+		ASSERT(strs1[1] = "bar");
+		
+		AssignMultiDimOpenArray(strs2)
+	END TestArrayAssignments;
+
+
+	PROCEDURE TestRecordAssignments;
+		CONST eps = 0.01;
+		VAR foo, bar: RECORD ch: CHAR; i: INTEGER END;
+			s: ShapeDesc;
+			r: RectangleDesc;
+			c: CircleDesc;
+			a: ARRAY 10 OF CircleDesc;
+
+		PROCEDURE P(VAR s: ShapeDesc);
+		BEGIN
+			ASSERT(s IS CircleDesc);
+			s(CircleDesc) := s(CircleDesc);
+			s(CircleDesc).r := 1.0
+		END P;
+
+		PROCEDURE Copy(VAR source, target: ShapeDesc);
+		BEGIN
+			target := source
+		END Copy;
+
+	BEGIN
+		foo.i := 37;
+		bar := foo;
+		ASSERT(bar.i = 37);
+
+		s.x := 0.0;
+		s.y := 0.0;
+		r.x := 0.0;
+		P(c);
+		ASSERT(ABS(c.r - 1.0) < eps);
+
+		r.x := 1.0;
+		s := r;
+		ASSERT(s.x = r.x);
+
+		P(a[9]);
+
+		Copy(r, r)
+	END TestRecordAssignments;
+
+
+	PROCEDURE TestPointerAssignments;
+		VAR x: Rectangle;
+			y: Shape;
+			s: POINTER TO ShapeDesc;
+			r: POINTER TO RectangleDesc;
+			r1: POINTER TO RectangleDesc;
+	BEGIN
+		NEW(x);
+		y := x;
+		ASSERT(y IS Rectangle);
+		NEW(r);
+		s := r;
+		ASSERT(s IS RectangleDesc);
+		r1 := r;
+		ASSERT(r1 IS RectangleDesc)
+	END TestPointerAssignments;
+
+
+	PROCEDURE P;
+	END P;
+
+	PROCEDURE P1(n: INTEGER);
+	END P1;
+
+	PROCEDURE P2(n: INTEGER; x: REAL);
+	END P2;
+
+	PROCEDURE F(): INTEGER;
+	RETURN 0
+	END F;
+
+	PROCEDURE F1(n: INTEGER): INTEGER;
+	RETURN 0
+	END F1;
+
+	PROCEDURE F2(VAR n: INTEGER; x: REAL; s: ARRAY OF CHAR): INTEGER;
+	RETURN 0
+	END F2;
+
+	PROCEDURE TestProcedureAssignments;
+		TYPE
+			PT = PROCEDURE;
+			PT1 = PROCEDURE (n: INTEGER);
+			PT2 = PROCEDURE (n: INTEGER; x: REAL);
+			FT = PROCEDURE (): INTEGER;
+			FT1 = PROCEDURE (n: INTEGER): INTEGER;
+			FT2 = PROCEDURE (VAR n: INTEGER; x: REAL; s: ARRAY OF CHAR): INTEGER;
+		VAR p: PT; p1: PT1; p2: PT2;
+			f: FT; f1: FT1; f2, g2: FT2;
+			n: INTEGER;
+
+		PROCEDURE Local;
+		END Local;
+
+	BEGIN
+		p := NIL;
+		p := P;
+		p := Local;
+		p1 := P1;
+		p2 := P2;
+		f := F;
+		n := f();
+		f1 := F1;
+		f2 := F2;
+		g2 := f2
+	END TestProcedureAssignments;
+
+
+	PROCEDURE TestAssignments;
+	BEGIN
+		TestBasicAssignments;
+		TestArrayAssignments;
+		TestRecordAssignments;
+		TestPointerAssignments;
+		TestProcedureAssignments
+	END TestAssignments;
+
+
+	PROCEDURE TestProcedureCalls;
+		VAR s: ARRAY 16 OF CHAR;
+			p0: POINTER TO T0;
+			p1: POINTER TO T1;
+
+		PROCEDURE P1;
+		END P1;
+
+		PROCEDURE P2(n: INTEGER);
+		END P2;
+
+		PROCEDURE P3(a, b: INTEGER);
+		END P3;
+
+		PROCEDURE P4(a: INTEGER; b: INTEGER);
+		END P4;
+
+		PROCEDURE P5(ch: CHAR);
+		END P5;
+
+		PROCEDURE P6(s: ARRAY OF CHAR);
+		END P6;
+
+		PROCEDURE P7(VAR t: T0);
+		BEGIN
+			ASSERT(t IS T1)
+		END P7;
+
+	BEGIN
+		P1;
+		P2(0);
+		P3(0, 0);
+		P4(0, 0);
+		P5("x");
+		P5(0X);
+		P6("test");
+		s := "test";
+		P6(s);
+		NEW(p1);
+		p0 := p1;
+		P7(p0^)
+	END TestProcedureCalls;
+
+
+	PROCEDURE TestPredeclaredProperProcedures;
+		CONST eps = 0.01;
+		VAR n, i, j: INTEGER;
+			A: SET;
+			x: REAL;
+			a: ARRAY 1 OF REAL;
+			b: ARRAY 1 OF INTEGER;
+			v: POINTER TO RECORD f: INTEGER END;
+
+		PROCEDURE IncReturnZero(VAR x: INTEGER): INTEGER;
+		BEGIN
+			INC(x)
+		RETURN 0
+		END IncReturnZero;
+
+	BEGIN
+		n := 0;
+		INC(n);
+		ASSERT(n = 1);
+
+		n := 0;
+		INC(n, 10);
+		ASSERT(n = 10);
+
+		n := 0;
+		DEC(n);
+		ASSERT(n = -1);
+
+		n := 0;
+		DEC(n, 10);
+		ASSERT(n = -10);
+
+		A := {};
+		INCL(A, 0);
+		ASSERT(A = {0});
+
+		A := {0};
+		EXCL(A, 0);
+		ASSERT(A = {});
+
+		NEW(v);
+		ASSERT(v # NIL);
+		v.f := 1;
+		ASSERT(v.f = 1);
+
+		x := 1.0;
+		PACK(x, 2);
+		ASSERT(x >= 4.0 - eps);
+		ASSERT(x <= 4.0 + eps);
+		a[0] := 1.0;
+		i := 0;
+		j := 0;
+		PACK(a[IncReturnZero(i)], IncReturnZero(j) + 2);
+		ASSERT(a[0] >= 4.0 - eps);
+		ASSERT(a[0] <= 4.0 + eps);
+		ASSERT(i = 1);
+		ASSERT(j = 1);
+
+		x := 4.0;
+		UNPK(x, n);
+		ASSERT(x >= 1.0);
+		ASSERT(x < 2.0);
+		ASSERT(n = 2);
+		a[0] := 4.0;
+		i := 0;
+		j := 0;
+		UNPK(a[IncReturnZero(i)], b[IncReturnZero(j)]);
+		ASSERT(a[0] >= 1.0);
+		ASSERT(a[0] < 2.0);
+		ASSERT(b[0] = 2);
+		ASSERT(i = 1);
+		ASSERT(j = 1)
+	END TestPredeclaredProperProcedures;
+
+
+	PROCEDURE TestIfStatements;
+		VAR n: INTEGER;
+	BEGIN
+		n := 0;
+		IF n = 0 THEN
+			n := 1
+		END;
+		ASSERT(n = 1);
+		n := 1;
+		IF n = 0 THEN
+			n := 1
+		ELSE
+			n := 2
+		END;
+		ASSERT(n = 2);
+		n := 2;
+		IF n = 0 THEN
+			n := 1
+		ELSIF n = 1 THEN
+			n := 2
+		ELSE
+			n := 3
+		END;
+		ASSERT(n = 3)
+	END TestIfStatements;
+
+
+	PROCEDURE TestCaseStatements;
+		CONST
+			C = 0;
+
+		VAR
+			n: INTEGER;
+			ch: CHAR;
+			sp: Shape;
+			rp: Rectangle;
+			c: CircleDesc;
+
+		PROCEDURE P(VAR s: ShapeDesc);
+		BEGIN
+			CASE s OF
+				  (*ShapeDesc:
+				  	s.x := 0.0; s.y := 0.0
+				| *)RectangleDesc:
+					s.w := 1.0; s.h := 0.0
+				| CircleDesc:
+					s.r := 1.0
+			END;
+		END P;
+
+	BEGIN
+		n := 15;
+		CASE n OF
+			  C:
+				CASE 1 OF
+					1:
+				END
+			| 1, 2:
+				CASE sp OF END
+			| 4, 5, 7:
+			| 8 .. 9:
+			| 10, 12 .. 20:
+				n := 0
+		END;
+		ASSERT(n = 0);
+		ch := "u";
+		CASE ch OF
+			| 0X:
+			| "a", "b":
+			| "d", "e", "f":
+			| "h" .. "k":
+			| "l", "m" .. "z":
+				ch := 0X
+		END;
+		ASSERT(ch = 0X);
+		NEW(rp);
+		sp := rp;
+		CASE sp OF
+			  (*Shape:
+			  	sp.x := 0.0; sp.y := 0.0
+			| *)Rectangle:
+				sp.w := 1.0; sp.h := 2.0;
+				sp := sp
+			| Circle:
+				sp.r := 1.0
+		END;
+		ASSERT(sp(Rectangle).w = 1.0);
+		ASSERT(sp(Rectangle).h = 2.0);
+		P(c);
+		ASSERT(c.r = 1.0);
+	END TestCaseStatements;
+
+
+	PROCEDURE TestWhileStatements;
+		VAR n, n1, i: INTEGER;
+	BEGIN
+		n := 0;
+		i := 1;
+		WHILE i <= 10 DO
+			n := n + 1;
+			i := i + 1
+		END;
+		ASSERT(n = 10);
+		n := 4;
+		n1 := 6;
+		WHILE n > n1 DO
+			n := n - n1
+		ELSIF n1 > n DO
+			n1 := n1 - n
+		END;
+		ASSERT(n = 2);
+		ASSERT(n1 = 2);
+		n := 5;
+		n1 := 6;
+		WHILE n > n1 DO
+			n := n - n1
+		ELSIF n1 > n DO
+			n1 := n1 - n
+		END;
+		ASSERT(n = 1);
+		ASSERT(n1 = 1);
+	END TestWhileStatements;
+
+
+	PROCEDURE TestRepeatStatements;
+		VAR n, i: INTEGER;
+	BEGIN
+		n:= 0;
+		i := 1;
+		REPEAT
+			INC(n);
+			INC(i)
+		UNTIL i = 11;
+		ASSERT(n = 10);
+	END TestRepeatStatements;
+
+
+	PROCEDURE IncGlobalIntegerReturnOne(): INTEGER;
+	BEGIN
+		INC(globalInteger)
+	RETURN 1
+	END IncGlobalIntegerReturnOne;
+
+
+	PROCEDURE TestForStatements;
+		VAR n, i: INTEGER;
+			x: REAL;
+	BEGIN
+		x := 0.0; (* added by rochus *)
+		n := 0;
+		FOR i := 1 TO 10 DO
+			n := n + 1
+		END;
+		ASSERT(n = 10);
+		n := 0;
+		FOR i := 1 TO 20 BY 2 DO
+			n := n + 1
+		END;
+		ASSERT(n = 10);
+		n := 0;
+		FOR i := 20 TO 1 BY -2 DO
+			n := n + 1
+		END;
+		ASSERT(n = 10);
+		globalInteger := 0;
+		FOR i := 0 TO IncGlobalIntegerReturnOne() DO (*make sure the limit function is called three times*)
+			x := x + 1.0
+		END;
+		ASSERT(globalInteger = 3)
+	END TestForStatements;
+
+BEGIN
+	TestAssignments;
+	TestProcedureCalls;
+	TestPredeclaredProperProcedures;
+	TestIfStatements;
+	TestCaseStatements;
+	TestWhileStatements;
+	TestRepeatStatements;
+	TestForStatements
+END T5Statements.

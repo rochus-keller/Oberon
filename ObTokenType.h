@@ -45,6 +45,7 @@ namespace Ob {
 		Tok_BY,
 		Tok_CASE,
 		Tok_CONST,
+		Tok_DEFINITION,
 		Tok_DIV,
 		Tok_DO,
 		Tok_ELSE,
