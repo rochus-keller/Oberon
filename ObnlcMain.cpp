@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2019-10-04");
+    a.setApplicationVersion("2019-10-08");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -104,8 +104,8 @@ int main(int argc, char *argv[])
             out << "  -o=path   path where to save generated files (default like first source)" << endl;
             out << "  -mod=name directory of the generated files (default empty)" << endl;
 #ifdef OBNLC_USING_LUAJIT
-            out << "  -run=A.B  run procedure B in module A and quit" << endl;
-            out << "  -n=x      number of times to run A.B" << endl;
+            out << "  -run=A[.B] run module A or procedure B in module A and quit" << endl;
+            out << "  -n=x      number of times to run A or A.B" << endl;
 #endif
             out << "  -h        display this information" << endl;
             return 0;

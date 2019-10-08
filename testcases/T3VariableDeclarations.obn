@@ -1,0 +1,60 @@
+(*Copyright (C) 2017, 2018, 2019 Karl Landstrom <karl@miasap.se>
+
+This file is part of OBNC.
+
+OBNC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+OBNC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
+
+MODULE T3VariableDeclarations;
+
+	TYPE
+		Vector = RECORD
+			x, y: REAL
+		END;
+
+		ShapeDesc = RECORD
+			pos: Vector
+		END;
+
+		Rectangle = POINTER TO RectangleDesc;
+		RectangleDesc = RECORD (ShapeDesc)
+			size: Vector
+		END;
+
+	PROCEDURE TestInitialization;
+		VAR s: ShapeDesc;
+			r: RectangleDesc;
+			rs: ARRAY 10 OF RectangleDesc;
+			rp: Rectangle;
+
+		PROCEDURE AssertVector(VAR v: Vector);
+		BEGIN
+			ASSERT(v IS Vector)
+		END AssertVector;
+
+	BEGIN
+		AssertVector(s.pos);
+		AssertVector(r.pos);
+		AssertVector(r.size);
+		AssertVector(rs[0].pos);
+		AssertVector(rs[0].size);
+
+		NEW(rp);
+		ASSERT(rp IS Rectangle);
+		AssertVector(rp.pos);
+		AssertVector(rp.size);
+	END TestInitialization;
+
+BEGIN
+	TestInitialization
+END T3VariableDeclarations.
