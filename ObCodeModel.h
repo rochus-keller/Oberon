@@ -93,7 +93,9 @@ namespace Ob
         public:
             enum Kind { Unknown,
                 ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
-                        NEW, ASSERT, PACK, UNPK, LED, // LED not global proc in Oberon report, but used as such in Project Oberon
+                        NEW, ASSERT, PACK, UNPK,
+                        WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
+                        LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                         Constant, Variable, StubProc
                       };
             static const char* s_kindName[];

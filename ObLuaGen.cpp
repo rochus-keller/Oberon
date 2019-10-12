@@ -375,7 +375,11 @@ bool LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynT
     d_suppressVar = prints == 1;
     emitDesigList(ds, dopl, false, out, level);
     d_suppressVar = false;
-    // TODO: echte Kopie von val-types, {table.unpack(org)}
+    // TODO: make a copy of value types, e.g. using {table.unpack(org)}
+    // TODO: inline declarations of thunks don't work yet with the LuaJIT optimizer; as soon as
+    // an FNEW is in the trace it is aborted; if the thunk is temporarily stored in a slot instead
+    // and if the declaration is moved outside of possible loops then optimization works with an incredible
+    // speed-up compared to this implementation.
     bool thunk = false;
     const bool arrayOfChar = d_mdl->isArrayOfChar( dopl.last().d_sym );
     if( prints == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var )
@@ -1082,6 +1086,44 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             return true;
         }
         d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'FLT()' with invalid arguments") );
+        break;
+    case CodeModel::Element::WriteChar:
+        if( args.size() == 1 )
+        {
+            out << "Out.Char(";
+            emitExpression(ds, args.first(), out, level );
+            out << ")";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteChar()' with invalid arguments") );
+        break;
+    case CodeModel::Element::WriteInt:
+        if( args.size() == 1 )
+        {
+            out << "Out.Int(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",0)";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteInt()' with invalid arguments") );
+        break;
+    case CodeModel::Element::WriteReal:
+        if( args.size() == 1 )
+        {
+            out << "Out.Real(";
+            emitExpression(ds, args.first(), out, level );
+            out << ",0)";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteReal()' with invalid arguments") );
+        break;
+    case CodeModel::Element::WriteLn:
+        if( args.size() == 0 )
+        {
+            out << "Out.Ln()";
+            return true;
+        }
+        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteLn()' with invalid arguments") );
         break;
     default:
         d_mdl->getErrs()->warning( Errors::Generator, dopl.last().d_arg,

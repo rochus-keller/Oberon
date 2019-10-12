@@ -31,6 +31,8 @@ using namespace Ob;
 #define SET_METANAME "ObnSet"
 #define STRING_METANAME "ObnString"
 
+// TODO: to make full use of LuaJIT optimizations, replace this library by a full Lua implementation.
+
 struct _Set
 {
     std::bitset<32> bits;
@@ -652,3 +654,28 @@ int LjLib::strLe(lua_State* L)
     lua_pushboolean(L, ::strcmp(lhs->string.c_str(),rhs->string.c_str()) <= 0 );
     return 1;
 }
+
+extern "C"
+{
+#ifdef _WIN32
+    __declspec(dllexport)
+#endif
+    int luaopen_obnljlib(lua_State *L)
+    {
+        return LjLib::install(L);
+    }
+}
+
+#ifdef _WIN32
+#include <windows.h>
+
+
+BOOL APIENTRY DllMain( HMODULE hModule,
+                       DWORD  ul_reason_for_call,
+                       LPVOID lpReserved
+                     )
+{
+    return TRUE;
+}
+
+#endif

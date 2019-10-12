@@ -261,7 +261,13 @@ int main(int argc, char *argv[])
         QByteArray src;
         QTextStream out(&src);
         out << "print(\">>> starting \".._VERSION..\" on \"..jit.version)" << endl;
-        // out << "jit.off()" << endl;
+
+        //out << "jit.off()" << endl;
+        out << "jit.opt.start(1)" << endl;
+        //out << "jit.opt.start(\"-abc\")" << endl;
+        //out << "jit.opt.start(\"-fuse\")" << endl;
+        //out << "jit.opt.start(\"hotloop=10\", \"hotexit=2\")" << endl;
+
         out << "print(\"LuaJIT status:\",jit.status())" << endl;
         out << "local " << modProc.first() << " = require '" << modProc.first() << "'" << endl;
         for( int i = 0; i < n; i++ )

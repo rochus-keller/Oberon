@@ -93,6 +93,10 @@ void CodeModel::clear()
     d_scope.d_procs.append( new Element( Element::PACK ) );
     d_scope.d_procs.append( new Element( Element::UNPK ) );
     d_scope.d_procs.append( new Element( Element::LED ) );
+    d_scope.d_procs.append( new Element( Element::WriteInt ) );
+    d_scope.d_procs.append( new Element( Element::WriteReal ) );
+    d_scope.d_procs.append( new Element( Element::WriteChar ) );
+    d_scope.d_procs.append( new Element( Element::WriteLn ) );
     foreach( Element* t, d_scope.d_procs )
         d_scope.addToScope( t );
 
@@ -2388,6 +2392,10 @@ const char* CodeModel::Element::s_kindName[] =
     "ASSERT",
     "PACK",
     "UNPK",
+    "WriteInt",
+    "WriteReal",
+    "WriteChar",
+    "WriteLn",
     "LED",
     "Constant",
     "Variable",
