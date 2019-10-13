@@ -582,7 +582,7 @@ int LjLib::strNewindex(lua_State* L)
     }else
     {
         _String* rhs = strCheck(L,3);
-        if( rhs->string.size() > 1 )
+        if( ::strlen(rhs->string.c_str()) > 1 )
             luaL_argerror(L,2,"expecting single char");
         s->string[i] = rhs->string[0];
     }

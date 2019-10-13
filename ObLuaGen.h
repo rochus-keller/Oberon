@@ -34,6 +34,8 @@ namespace Ob
         QByteArray emitModule(const CodeModel::Module*);
         static QByteArray escape( const QByteArray& );
     protected:
+        void preprocVarParams(const CodeModel::Unit*, const SynTree* stmt, QTextStream& out, int level );
+        void preprocVarParams(const CodeModel::Unit*, const CodeModel::DesigOpList&, QTextStream& out, int level );
         static QString ws(int level);
         void emitExpression( const CodeModel::Unit*, const SynTree*, QTextStream&, int level );
         void emitSimpleExpression(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level);
@@ -59,6 +61,7 @@ namespace Ob
         void emitComment(const SynTree*, QTextStream& out, int level);
         void emitLabel( const SynTree*, QTextStream& out );
         void emitActualParam( const CodeModel::Unit*, const SynTree*, bool isVarParam, QTextStream& out, int level );
+        void emitVarThunk(const CodeModel::Unit*, const SynTree*, QTextStream& out, int level );
         void emitArrayOp(const CodeModel::Unit*, const SynTree*, QTextStream& out, int level , bool omitLast = false);
         void initMatrix(const CodeModel::Unit*, QTextStream& out, const QList<const CodeModel::Type*>& mat, const QByteArray& name, int level , int i, const CodeModel::Type* rec);
         void initRecord(const CodeModel::Unit*, QTextStream& out, const CodeModel::Type* rec, const QByteArray& name, bool var, int level , bool label);
@@ -70,6 +73,7 @@ namespace Ob
         Errors* d_errs;
         const CodeModel::Module* d_curMod;
         QList<Token> d_cmts;
+        QHash<const SynTree*,QByteArray> d_thunkNames;
         quint16 d_nextCmt;
         bool d_suppressVar;
     };

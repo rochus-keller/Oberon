@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2019-10-08");
+    a.setApplicationVersion("2019-10-13");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
         out << "print(\">>> starting \".._VERSION..\" on \"..jit.version)" << endl;
 
         //out << "jit.off()" << endl;
-        out << "jit.opt.start(1)" << endl;
+        //out << "jit.opt.start(3)" << endl;
         //out << "jit.opt.start(\"-abc\")" << endl;
         //out << "jit.opt.start(\"-fuse\")" << endl;
         //out << "jit.opt.start(\"hotloop=10\", \"hotexit=2\")" << endl;

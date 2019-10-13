@@ -41,6 +41,18 @@ static bool isLuaKeyword( const QByteArray& str )
     return s_lkw.contains(str);
 }
 
+static bool startsWith2Underscores( const QByteArray& str )
+{
+    if( !str.startsWith("__") )
+        return false;
+    if( str.size() == 2 )
+        return true;
+    if( str[3] == '_' )
+        return false;
+    else
+        return true;
+}
+
 static QByteArray luaStringEscape( QByteArray str )
 {
     QByteArray out;
@@ -159,6 +171,8 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
 
     int l = 0;
 
+    d_thunkNames.clear();
+
     d_cmts.clear();
     if( m->d_def )
         d_cmts = d_mdl->getComments(m->d_def->d_tok.d_sourcePath);
@@ -199,7 +213,11 @@ QByteArray LuaGen::emitModule(const CodeModel::Module* m)
         out << endl;
 
     if( !m->d_body.isEmpty() )
+    {
+        foreach( SynTree* stmnt, m->d_body )
+            preprocVarParams(m, stmnt, out, l);
         out << ws(l) << "-- BEGIN" << endl;
+    }
     emitStatementSeq(m, m->d_body, out,l);
 //    if( !m->d_body.isEmpty() )
 //        out << ws(l) << "-- END" << endl << endl;
@@ -376,10 +394,6 @@ bool LuaGen::emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynT
     emitDesigList(ds, dopl, false, out, level);
     d_suppressVar = false;
     // TODO: make a copy of value types, e.g. using {table.unpack(org)}
-    // TODO: inline declarations of thunks don't work yet with the LuaJIT optimizer; as soon as
-    // an FNEW is in the trace it is aborted; if the thunk is temporarily stored in a slot instead
-    // and if the declaration is moved outside of possible loops then optimization works with an incredible
-    // speed-up compared to this implementation.
     bool thunk = false;
     const bool arrayOfChar = d_mdl->isArrayOfChar( dopl.last().d_sym );
     if( prints == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var )
@@ -700,7 +714,11 @@ void LuaGen::emitProc(const CodeModel::Unit* ds, const CodeModel::Procedure* p, 
     out << ws(level+1) << "obnlj.TRACE(\"" << escape(p->d_name) << "\"," << p->d_def->d_tok.d_lineNr << ")" << endl;
 #endif
     if( !p->d_body.isEmpty() )
+    {
+        foreach( SynTree* stmnt, p->d_body )
+            preprocVarParams(p, stmnt, out, level+1);
         out << ws(level+1) << "-- BEGIN" << endl;
+    }
     emitStatementSeq(p,p->d_body,out,level+1);
 
     out << ws(level) << "end" << endl;
@@ -1443,6 +1461,7 @@ void LuaGen::emitLabel(const SynTree* st, QTextStream& out)
 void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool isVarParam, QTextStream& out, int level )
 {
     // TODO: kopiere table wenn val-type, {table.unpack(org)}
+
     if( !isVarParam )
     {
         emitExpression(ds, st, out, level );
@@ -1474,6 +1493,7 @@ void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool 
     if( ( prints == 1 && e != 0 && e->d_kind == CodeModel::Element::Variable ) ||
             ( prints == 2 && m != 0 && e != 0 && e->d_kind == CodeModel::Element::Variable ) )
     {
+#if 0
         // use upvalue thunk
         out << "function(__0,__1) if __0 then ";
         const bool thunk = emitAssig(ds,d,0,out,level);
@@ -1483,6 +1503,16 @@ void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool 
         out << " else return ";
         emitExpression(ds, st, out, level );
         out << " end end";
+#else
+
+       if( !d_thunkNames.contains(st) )
+        {
+            d_suppressVar = true;
+            emitExpression(ds, st, out, level ); // no thunk because we use the param recursively
+            d_suppressVar = false;
+        }else
+            out << d_thunkNames[st];
+#endif
         return;
     }
     // else
@@ -1534,6 +1564,51 @@ void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool 
     out << " )";
 }
 
+void LuaGen::emitVarThunk(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
+{
+	// NOTE: inline declarations of thunks don't work yet with the LuaJIT optimizer; as soon as
+	// an FNEW is in the trace it is aborted; if the thunk is temporarily stored in a slot instead
+	// and if the declaration is moved outside of possible loops then optimization works with an incredible
+	// speed-up compared to this implementation.
+
+    const SynTree* d = CodeModel::flatten(const_cast<SynTree*>(st), SynTree::R_designator);
+    if( d == 0 )
+    {
+        d_mdl->getErrs()->error( Errors::Semantics, st, tr("expecting designator as actual var argument") );
+        return;
+    }
+    CodeModel::DesigOpList dopl = d_mdl->derefDesignator(ds,d);
+    const int prints = countPrintable(dopl);
+
+    // Es gibt in ObLuaGen nur local Variablen. Es muss aber unterschieden werden, ob der designator auf
+    // einen Skalar oder eine Table zeigt. Der Skalar wird via Upvalue-Thunk implementiert, die Table via Table Thunk.
+
+    Q_ASSERT( !dopl.isEmpty() );
+    Q_ASSERT( dopl.last().d_op != CodeModel::ProcedureOp );
+
+    const CodeModel::Module* m = dynamic_cast<const CodeModel::Module*>(dopl.first().d_sym);
+    const CodeModel::Element* e = 0;
+    if( prints == 1 && m == 0 )
+        e = dynamic_cast<const CodeModel::Element*>(dopl[0].d_sym);
+    if( prints > 1 )
+        e = dynamic_cast<const CodeModel::Element*>(dopl[1].d_sym);
+    if( ( prints == 1 && e != 0 && e->d_kind == CodeModel::Element::Variable ) ||
+            ( prints == 2 && m != 0 && e != 0 && e->d_kind == CodeModel::Element::Variable ) )
+    {
+        // use upvalue thunk
+        QByteArray name = "__t" + QByteArray::number(d_thunkNames.size());
+        d_thunkNames[st] = name;
+        out << ws(level) << "local " << name << " = " << "function(__0,__1) if __0 then ";
+        const bool thunk = emitAssig(ds,d,0,out,level);
+        out << " __1";
+        if( thunk )
+            out << ")";
+        out << " else return ";
+        emitExpression(ds, st, out, level );
+        out << " end end" << endl;
+    }
+}
+
 void LuaGen::emitArrayOp(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level, bool omitLast )
 {
     Q_ASSERT( st && st->d_tok.d_type == SynTree::R_ExpList );
@@ -1549,10 +1624,98 @@ void LuaGen::emitArrayOp(const CodeModel::Unit* ds, const SynTree* st, QTextStre
 
 QByteArray LuaGen::escape(const QByteArray& id)
 {
-    if( isLuaKeyword(id) )
+    if( isLuaKeyword(id) || startsWith2Underscores(id) )
         return id + "_";
     else
         return id;
+}
+
+void LuaGen::preprocVarParams(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level )
+{
+    if( st == 0 )
+        return;
+
+    // only statements are processed here
+    // both variableOrFunctionCall and assignmentOrProcedureCall lead to designator
+    if( st->d_tok.d_type == SynTree::R_designator )
+    {
+        CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, st );
+
+        if( dopl.isEmpty() || dopl.last().d_op != CodeModel::ProcedureOp )
+        {
+            preprocVarParams(ds,dopl,out,level);
+            return; // we're only interested in procedure calls with args here
+        }
+
+        Q_ASSERT( dopl.size() > 1 );
+        QList<bool> vars;
+        const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>( dopl[ dopl.size() - 2 ].d_sym );
+        if( e && e->isPredefProc() )
+        {
+            switch( e->d_kind )
+            {
+            case CodeModel::Element::PACK:
+                vars << true << false;
+                break;
+            case CodeModel::Element::UNPK:
+                vars << true << true;
+                break;
+            default:
+                break;
+            }
+        }else
+        {
+            Q_ASSERT( dopl[ dopl.size() - 2 ].d_sym );
+            QList<CodeModel::Element*> el = dopl[ dopl.size() - 2 ].d_sym->getParams();
+            foreach( CodeModel::Element* e, el )
+                vars << e->d_var;
+        }
+
+        QList<SynTree*> actuals;
+        if( dopl.last().d_arg == 0 )
+        {
+            preprocVarParams(ds,dopl,out,level);
+            return; // error will be later detected
+        }
+
+        Q_ASSERT( dopl.last().d_arg->d_tok.d_type == SynTree::R_ExpList );
+        actuals = dopl.last().d_arg->d_children;
+        if( actuals.size() != vars.size() )
+        {
+            preprocVarParams(ds,dopl,out,level);
+            return; // predefproc or error, will be later detected
+        }
+
+        const bool isRecursiveCall = ( ds == dynamic_cast<const CodeModel::Procedure*>( dopl[ dopl.size() - 2 ].d_sym ) );
+        for( int j = 0; j < actuals.size(); j++ )
+        {
+            if( vars[j] )
+            {
+                if( !isRecursiveCall ) // TODO: check for indirect recursion
+                    emitVarThunk( ds, actuals[j], out, level );
+                else
+                {
+                    out << ws(level) << "-- no thunk for VAR param ";
+                    d_suppressVar = true;
+                    emitExpression(ds,actuals[j],out,level);
+                    d_suppressVar = false;
+                    out << " in recursive call" << endl;
+                }
+            }
+        }
+        // and now go collect embedded designators
+        preprocVarParams(ds,dopl,out,level);
+    }else
+    {
+        foreach( const SynTree* sub, st->d_children )
+            preprocVarParams( ds, sub, out, level );
+    }
+}
+
+void LuaGen::preprocVarParams(const CodeModel::Unit* ds, const CodeModel::DesigOpList& dopl, QTextStream& out, int level)
+{
+    foreach( const CodeModel::DesigOp& dop, dopl )
+        preprocVarParams(ds, dop.d_arg, out, level );
 }
 
 void LuaGen::emitTerm(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level )
