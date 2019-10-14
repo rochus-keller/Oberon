@@ -1120,7 +1120,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
         {
             out << "Out.Int(";
             emitExpression(ds, args.first(), out, level );
-            out << ",0)";
+            out << ",4)";
             return true;
         }
         d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteInt()' with invalid arguments") );

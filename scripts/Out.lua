@@ -14,12 +14,13 @@ function module.String(s)
 end
 
 function module.Int(i,n)
-        -- io.stdout:write(string.format("%0"..tostring(n).."d",i))
-        io.stdout:write(string.format("%d",i) )
+        io.stdout:write(string.format("%"..tostring(n).."d",i))
+        -- io.stdout:write(string.format("%d",i) )
 end
 
 function module.Real(x,n)
-    io.stdout:write(x) -- effect of n not properly specified
+    -- io.stdout:write(x) -- effect of n not properly specified
+    io.stdout:write(string.format("%"..tostring(n).."e",x))
 end
 
 function module.Ln()

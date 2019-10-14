@@ -123,8 +123,13 @@ int main(int argc, char *argv[])
                 qCritical() << "invalid -n value";
                 return -1;
             }
-        }else if( args[i].startsWith("-run=") )
+        }
+#ifdef OBNLC_USING_LUAJIT
+        else if( args[i].startsWith("-run=") )
             run = args[i].mid(5);
+        else if( args[i] == "-run" )
+            run = "?";
+#endif
         else if( args[i] == "-ext" )
             forceObnExt = true;
         else if( args[i].startsWith("-dir=") )
@@ -216,6 +221,16 @@ int main(int argc, char *argv[])
     }
 
 #ifdef OBNLC_USING_LUAJIT
+    if( run == "?" )
+    {
+        if( files.size() > 1 )
+        {
+            qCritical() << "cannot apply -run without module name because more than one file was compiled";
+            return -1;
+        }
+        run = QFileInfo(files.first()).baseName();
+    }
+
     if( !run.isEmpty() )
     {
         QByteArrayList modProc = run.toUtf8().split('.');
