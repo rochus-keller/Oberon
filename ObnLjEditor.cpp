@@ -23,6 +23,8 @@
 #include "ObFileCache.h"
 #include "ObLuaGen.h"
 #include "ObLjLib.h"
+#include "ObAst.h"
+#include "ObAstEval.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer.h>
@@ -141,15 +143,25 @@ LjEditor::~LjEditor()
 
 }
 
+static bool preloadLib( Ast::Model& mdl, const QByteArray& name )
+{
+    QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
+    if( !f.open(QIODevice::ReadOnly) )
+    {
+        qCritical() << "unknown preload" << name;
+        return false;
+    }
+    mdl.addPreload( name, f.readAll() );
+    return true;
+}
+
 void LjEditor::loadFile(const QString& path)
 {
     d_edit->loadFromFile(path);
     QDir::setCurrent(QFileInfo(path).absolutePath());
     onCaption();
 
-    // TEST
     onDumpSrc();
-    // d_bcv->saveTo(path + ".ljasm");
 }
 
 void LjEditor::logMessage(const QString& str, bool err)
@@ -173,6 +185,7 @@ void LjEditor::createTerminal()
     d_term = new Terminal2(dock, d_lua);
     dock->setWidget(d_term);
     addDockWidget( Qt::BottomDockWidgetArea, dock );
+    new Gui::AutoShortcut( tr("CTRL+SHIFT+C"), this, d_term, SLOT(onClear()) );
 }
 
 void LjEditor::createDumpView()
@@ -299,6 +312,8 @@ void LjEditor::onOpen()
 
     d_edit->loadFromFile(fileName);
     onCaption();
+
+    compile(true);
 }
 
 void LjEditor::onSave()
@@ -451,9 +466,28 @@ bool LjEditor::checkSaved(const QString& title)
 void LjEditor::compile(bool asSource)
 {
     QString path = d_edit->getPath();
-
     if( path.isEmpty() )
         path = "<unnamed>";
+
+#define _USE_AST_MODEL
+#ifdef _USE_AST_MODEL
+    Ast::Model mdl;
+    mdl.setSenseExt(true);
+    mdl.getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
+    preloadLib(mdl,"In");
+    preloadLib(mdl,"Out");
+    preloadLib(mdl,"Files");
+    preloadLib(mdl,"Input");
+    preloadLib(mdl,"Math");
+    preloadLib(mdl,"Strings");
+    preloadLib(mdl,"Coroutines");
+    preloadLib(mdl,"XYPlane");
+    mdl.parseFiles(QStringList() << path );
+    Ast::Model::Modules mods = mdl.getModules();
+    QTextStream out(stdout);
+    for( int m = 0; m < mods.size(); m++ )
+        Ast::Eval::render(out,mods[m].data());
+#else
     d_mdl->getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
     if( d_mdl->parseFiles( QStringList() << path ) )
     {
@@ -500,6 +534,7 @@ void LjEditor::compile(bool asSource)
 #endif
         }
     }
+#endif
 }
 
 int main(int argc, char *argv[])

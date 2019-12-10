@@ -30,12 +30,14 @@ TEMPLATE = app
 
 SOURCES += \
     ObnlcMain.cpp \
-    ObLuaGen.cpp
+    ObLuaGen.cpp \
+    ObLuaGen2.cpp
 
 include( Oberon.pri )
 
 HEADERS += \
-    ObLuaGen.h
+    ObLuaGen.h \
+    ObLuaGen2.h
 
 !win32 {
     QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
@@ -45,7 +47,7 @@ CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
 }
 
-CONFIG   += HAVE_LUAJIT
+CONFIG   += HAVE_LUAJIT #TODO
 HAVE_LUAJIT {
     message( Using LuaJIT )
 
@@ -65,6 +67,7 @@ HAVE_LUAJIT {
         ../LjTools/Engine2.h \
         ObLjLib.h
 
-    RESOURCES += \
-        ObnLjEditor.qrc
 }
+
+RESOURCES += \
+    ObnLjEditor.qrc

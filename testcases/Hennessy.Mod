@@ -415,7 +415,7 @@ END Intmm;
 		WHILE i <= rowsize DO j := 1;
 			WHILE j <= rowsize DO
 				temp := Rand();
-				m[i][j] := (temp - (temp DIV 120)*120 - 60) DIV 3;
+				m[i][j] := FLT( (temp - (temp DIV 120)*120 - 60) DIV 3 );
 				INC(j)
 			END ;
 			INC(i)
@@ -872,8 +872,8 @@ END Trees;
 		WHILE i <= 10 DO
 			factor := factor * i;  power := power*x;
 			IF i MOD 2 = 0 THEN
-				IF i MOD 4 = 0 THEN result := result + power/factor
-				ELSE result := result - power/factor
+				IF i MOD 4 = 0 THEN result := result + power/FLT(factor)
+				ELSE result := result - power/FLT(factor)
 				END
 			END;
 			INC(i)
@@ -893,7 +893,7 @@ END Trees;
 	PROCEDURE Uniform11(iy: LONGINT; yfl: REAL);
 	BEGIN
 		iy := (4855*iy + 1731) MOD 8192;
-		yfl := iy/8192.0;
+		yfl := FLT(iy)/8192.0;
 	END Uniform11;
 
 	PROCEDURE Exptab(n: LONGINT; VAR e: c2array);
@@ -903,7 +903,7 @@ END Trees;
 		theta := 3.1415926536;
 		divisor := 4.0; i:=1;
 		WHILE i <= 25 DO
-			h[i] := 1/(2*Cos( theta/divisor ));
+			h[i] := 1.0/(2.0*Cos( theta/divisor ));
 			divisor := divisor + divisor;
 			INC(i)
 		END;
@@ -992,8 +992,8 @@ BEGIN
 	WHILE i < 10 DO p; INC(i) END ;
 	timer := (Getclock()-timer);
 	Out.Int(timer, 8); Out.Ln;
-	fixed := fixed + timer*base;
-	floated := floated + timer*fbase
+	fixed := fixed + FLT(timer)*base;
+	floated := floated + FLT(timer)*fbase
 END Time;
 
 PROCEDURE Do*;
@@ -1015,4 +1015,5 @@ BEGIN
  
 BEGIN
 	zr := 0.0; zi := 0.0;
+	Do;
 END Hennessy.

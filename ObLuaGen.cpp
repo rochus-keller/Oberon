@@ -27,6 +27,8 @@
 #include <stdio.h>
 using namespace Ob;
 
+Q_DECLARE_METATYPE( Ob::CodeModel::Set )
+
 static QSet<QByteArray> s_lkw;
 
 static bool isLuaKeyword( const QByteArray& str )

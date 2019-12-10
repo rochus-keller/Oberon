@@ -27,7 +27,10 @@ SOURCES += \
     $$PWD/ObLexer.cpp \
     $$PWD/ObFileCache.cpp \
     $$PWD/ObErrors.cpp \
-    $$PWD/ObCodeModel.cpp
+    $$PWD/ObCodeModel.cpp \
+    $$PWD/ObAst.cpp \
+    $$PWD/ObAstEval.cpp \
+    $$PWD/ObAstValidator.cpp
 
 HEADERS  += \
     $$PWD/ObSynTree.h \
@@ -37,5 +40,8 @@ HEADERS  += \
     $$PWD/ObLexer.h \
     $$PWD/ObFileCache.h \
     $$PWD/ObErrors.h \
-    $$PWD/ObCodeModel.h
+    $$PWD/ObCodeModel.h \
+    $$PWD/ObAst.h \
+    $$PWD/ObAstEval.h \
+    $$PWD/ObAstValidator.h
 

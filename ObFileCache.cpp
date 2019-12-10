@@ -23,22 +23,26 @@
 #include <QFileInfo>
 using namespace Ob;
 
+// TODO: brauchen wir hier canonicalPaths?
+// #define _USE_CANONOCALS
+
 FileCache::FileCache(QObject *parent) : QObject(parent)
 {
 }
 
-// TODO: brauchen wir hier canonicalPaths? Löst PpLexer::processInclude hinreichend gut auf?
-#define _USE_CANONOCALS
-
-void FileCache::addFile(const QString& path, const QByteArray& content)
+void FileCache::addFile(const QString& filePath, const QByteArray& code, bool isModuleName)
 {
 #ifdef _USE_CANONOCALS
-    const QString cpath = QFileInfo(path).canonicalFilePath();
+    const QString cpath = isModuleName ? filePath : QFileInfo(filePath).canonicalFilePath();
 #else
-    const QString cpath = path;
+    const QString cpath = filePath;
 #endif
+    Entry e;
+    e.d_code = code;
+    e.d_desig = cpath;
+    e.d_isModuleName = isModuleName;
     d_lock.lockForWrite();
-    d_files[cpath] = content;
+    d_files[e.d_desig] = e;
     d_lock.unlock();
 }
 
@@ -54,9 +58,9 @@ void FileCache::removeFile(const QString& path)
     d_lock.unlock();
 }
 
-QByteArray FileCache::getFile(const QString& path, bool* found) const
+FileCache::Entry FileCache::getFile(const QString& path, bool* found) const
 {
-    QByteArray res;
+    Entry res;
 #ifdef _USE_CANONOCALS
     const QString cpath = QFileInfo(path).canonicalFilePath();
 #else
@@ -79,49 +83,3 @@ QByteArray FileCache::getFile(const QString& path, bool* found) const
 
     return res;
 }
-
-QByteArray FileCache::fetchTextLineFromFile(const QString& path, int line, const QByteArray& defaultString)
-{
-    QIODevice* in = createFileStreamForReading( path );
-    if( in == 0 )
-        return defaultString;
-    QByteArray str;
-    for( int i = 0; i < line; i++ )
-    {
-        if( in->atEnd() )
-        {
-            delete in;
-            return defaultString;
-        }
-        str = in->readLine();
-    }
-    delete in;
-    str.chop(1);
-    if( str.endsWith('\r') )
-        str.chop(1);
-    return str;
-}
-
-QIODevice*FileCache::createFileStreamForReading(const QString& path) const
-{
-    bool found;
-    QByteArray bytes = getFile( path, &found );
-    if( found )
-    {
-        QBuffer* buf = new QBuffer();
-        buf->setData(bytes);
-        buf->open(QIODevice::ReadOnly);
-        return buf;
-    }else if( QFileInfo(path).isReadable() )
-    {
-        QFile* file = new QFile( path );
-        if( !file->open(QIODevice::ReadOnly) )
-        {
-            delete file;
-            return 0;
-        }else
-            return file;
-    }
-    return 0;
-}
-

@@ -313,6 +313,6 @@ namespace Ob
     };
 }
 
-Q_DECLARE_METATYPE( Ob::CodeModel::Set )
+//Q_DECLARE_METATYPE( Ob::CodeModel::Set )
 
 #endif // OBCODEMODEL_H

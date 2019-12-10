@@ -29,6 +29,8 @@
 #include <QBuffer>
 using namespace Ob;
 
+Q_DECLARE_METATYPE( Ob::CodeModel::Set )
+
 static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
 {
     return ( t != 0 ? t->deref() : 0 );

@@ -1,5 +1,5 @@
-#ifndef OBFILECACHE_H
-#define OBFILECACHE_H
+#ifndef OBASTEVAL_H
+#define OBASTEVAL_H
 
 /*
 * Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -20,38 +20,27 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include <QHash>
 #include <QObject>
-#include <QReadWriteLock>
-#include <QStringList>
+#include <QVariant>
 
-class QIODevice;
+class QTextStream;
 
 namespace Ob
 {
-    class FileCache : public QObject
+namespace Ast
+{
+    class Expression;
+    class Thing;
+
+    class Eval : public QObject
     {
-        // this class is thread-safe
     public:
-        struct Entry
-        {
-            QString d_desig; // file path or module name
-            bool d_isModuleName;
-            QByteArray d_code;
-            Entry():d_isModuleName(false) {}
-        };
-
-        explicit FileCache(QObject *parent = 0);
-
-        void addFile( const QString& path, const QByteArray& code, bool isModuleName = false );
-        void removeFile( const QString& path );
-        Entry getFile( const QString& path, bool* found = 0) const;
-
+        static void render( QTextStream&, Thing* );
+        static QVariant evalConstExpr( Expression*, QString* = 0 );
     private:
-        typedef QHash<QString,Entry> Files; // filepath -> Entry
-        Files d_files;
-        mutable QReadWriteLock d_lock;
+        Eval(){}
     };
 }
+}
 
-#endif // OBFILECACHE_H
+#endif // OBASTEVAL_H

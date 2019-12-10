@@ -1,5 +1,5 @@
-#ifndef OBFILECACHE_H
-#define OBFILECACHE_H
+#ifndef OBASTVALIDATOR_H
+#define OBASTVALIDATOR_H
 
 /*
 * Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -20,38 +20,26 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include <QHash>
 #include <QObject>
-#include <QReadWriteLock>
-#include <QStringList>
-
-class QIODevice;
 
 namespace Ob
 {
-    class FileCache : public QObject
+    class Errors;
+
+namespace Ast
+{
+    class Module;
+    class Model;
+
+    class Validator : public QObject
     {
-        // this class is thread-safe
     public:
-        struct Entry
-        {
-            QString d_desig; // file path or module name
-            bool d_isModuleName;
-            QByteArray d_code;
-            Entry():d_isModuleName(false) {}
-        };
 
-        explicit FileCache(QObject *parent = 0);
-
-        void addFile( const QString& path, const QByteArray& code, bool isModuleName = false );
-        void removeFile( const QString& path );
-        Entry getFile( const QString& path, bool* found = 0) const;
-
+        static bool validate( Model*, Module*, Errors* );
     private:
-        typedef QHash<QString,Entry> Files; // filepath -> Entry
-        Files d_files;
-        mutable QReadWriteLock d_lock;
+        Validator();
     };
 }
+}
 
-#endif // OBFILECACHE_H
+#endif // OBASTVALIDATOR_H

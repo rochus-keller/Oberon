@@ -26,6 +26,8 @@
 #include "ObCodeModel.h"
 #include "ObLuaGen.h"
 #include "ObErrors.h"
+#include "ObAst.h"
+#include "ObAstEval.h"
 #ifdef OBNLC_USING_LUAJIT
 #include <LjTools/Engine2.h>
 #include "ObLjLib.h"
@@ -64,6 +66,19 @@ static bool preloadLib( Ob::CodeModel& mdl, const QByteArray& name )
     return true;
 }
 
+static bool preloadLib( Ob::Ast::Model& mdl, const QByteArray& name )
+{
+    QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
+    if( !f.open(QIODevice::ReadOnly) )
+    {
+        qCritical() << "unknown preload" << name;
+        return false;
+    }
+    mdl.addPreload( name, f.readAll() );
+    return true;
+}
+
+#ifdef OBNLC_USING_LUAJIT
 static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
 {
     QFile obnlj( QString(":/scripts/%1.lua").arg(name.constData()) );
@@ -71,6 +86,7 @@ static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
     if( !lua.addSourceLib( obnlj.readAll(), name ) )
         qCritical() << "compiling" << name << ":" << lua.getLastError();
 }
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -92,6 +108,7 @@ int main(int argc, char *argv[])
     QString run;
     int n = 1;
     bool forceObnExt = false;
+    bool useOakwood = false;
     bool ok;
     const QStringList args = QCoreApplication::arguments();
     for( int i = 1; i < args.size(); i++ ) // arg 0 enthaelt Anwendungspfad
@@ -109,11 +126,14 @@ int main(int argc, char *argv[])
             out << "  -n=x          number of times to run A or A.B" << endl;
 #endif
             out << "  -ext          force Oberon extensions (default autosense)" << endl;
-            out << "  -h        display this information" << endl;
+            out << "  -oak          use built-in oakwood definitions" << endl;
+            out << "  -h            display this information" << endl;
             return 0;
         }else if( args[i] == "-dst" )
             dump = true;
-        else if( args[i].startsWith("-path=") )
+        else if( args[i] == "-oak" )
+                    useOakwood = true;
+                else if( args[i].startsWith("-path=") )
             outPath = args[i].mid(6);
         else if( args[i].startsWith("-n=") )
         {
@@ -162,31 +182,32 @@ int main(int argc, char *argv[])
     }
 
     qDebug() << "processing" << files.size() << "files...";
-    Ob::CodeModel m;
-    m.getErrs()->setRecord(false);
-    m.setSynthesize(false);
+
+    Ob::Ast::Model validator;
     if( forceObnExt )
-        m.setEnableExt(true);
+        validator.setEnableExt(true);
     else
-        m.setSenseExt(true);
-    preloadLib(m,"In");
-    preloadLib(m,"Out");
-    preloadLib(m,"Files");
-    preloadLib(m,"Input");
-    preloadLib(m,"Math");
-    preloadLib(m,"Strings");
-    preloadLib(m,"Coroutines");
-    preloadLib(m,"XYPlane");
-    ok = m.parseFiles(files);
+        validator.setSenseExt(true);
+    if( useOakwood )
+    {
+        preloadLib(validator,"In");
+        preloadLib(validator,"Out");
+        preloadLib(validator,"Files");
+        preloadLib(validator,"Input");
+        preloadLib(validator,"Math");
+        preloadLib(validator,"Strings");
+        preloadLib(validator,"Coroutines");
+        preloadLib(validator,"XYPlane");
+    }
+    validator.parseFiles(files);
 
     if( dump )
     {
         qDebug() << "dumping module syntax trees to files...";
-        foreach( const Ob::CodeModel::Module* o, m.getGlobalScope().d_mods )
+        Ob::Ast::Model::Modules mods = validator.getModules();
+        for( int m = 0; m < mods.size(); m++ )
         {
-            if( o->d_def == 0 )
-                continue;
-            QFileInfo fi(o->d_def->d_tok.d_sourcePath );
+            QFileInfo fi(mods[m]->d_file );
             QDir dir = fi.dir();
             if( !mod.isEmpty() )
             {
@@ -200,27 +221,48 @@ int main(int argc, char *argv[])
                 continue;
             }
             QTextStream ts(&out);
-            Ob::CodeModel::dump(ts,o->d_def);
+            Ob::Ast::Eval::render(ts,mods[m].data());
         }
     }
+
+    if( validator.getErrs()->getErrCount() == 0 && validator.getErrs()->getWrnCount() == 0 )
+        qDebug() << "files successfully parsed";
+    else
+    {
+        qDebug() << "completed with" << validator.getErrs()->getErrCount() << "errors and" <<
+                    validator.getErrs()->getWrnCount() << "warnings";
+        return -1;
+    }
+
+#ifdef OBNLC_USING_LUAJIT
+    Ob::CodeModel m;
+    m.getErrs()->setRecord(false);
+    m.setSynthesize(false);
+    if( forceObnExt )
+        m.setEnableExt(true);
+    else
+        m.setSenseExt(true);
+    if( useOakwood )
+    {
+        preloadLib(m,"In");
+        preloadLib(m,"Out");
+        preloadLib(m,"Files");
+        preloadLib(m,"Input");
+        preloadLib(m,"Math");
+        preloadLib(m,"Strings");
+        preloadLib(m,"Coroutines");
+        preloadLib(m,"XYPlane");
+    }
+    ok = m.parseFiles(files);
 
     if( ok )
     {
         qDebug() << "generating files...";
         Ob::LuaGen g(&m);
         g.emitModules(outPath,mod);
-    }
-
-    if( m.getErrs()->getErrCount() == 0 && m.getErrs()->getWrnCount() == 0 )
-        qDebug() << "files successfully generated";
-    else
-    {
-        qDebug() << "completed with" << m.getErrs()->getErrCount() << "errors and" <<
-                    m.getErrs()->getWrnCount() << "warnings";
+    }else
         return -1;
-    }
 
-#ifdef OBNLC_USING_LUAJIT
     if( run == "?" )
     {
         if( files.size() > 1 )
@@ -264,14 +306,17 @@ int main(int argc, char *argv[])
         lua.addLibrary(Lua::Engine2::OS);
         Ob::LjLib::install(lua.getCtx());
         loadLuaLib( lua, "obnlj" );
-        loadLuaLib(lua,"In");
-        loadLuaLib(lua,"Out");
-        loadLuaLib(lua,"Files");
-        loadLuaLib(lua,"Input");
-        loadLuaLib(lua,"Math");
-        loadLuaLib(lua,"Strings");
-        loadLuaLib(lua,"Coroutines");
-        loadLuaLib(lua,"XYPlane");
+        if( useOakwood )
+        {
+            loadLuaLib(lua,"In");
+            loadLuaLib(lua,"Out");
+            loadLuaLib(lua,"Files");
+            loadLuaLib(lua,"Input");
+            loadLuaLib(lua,"Math");
+            loadLuaLib(lua,"Strings");
+            loadLuaLib(lua,"Coroutines");
+            loadLuaLib(lua,"XYPlane");
+        }
         Lua::Engine2::setInst(&lua);
         QByteArray src;
         QTextStream out(&src);

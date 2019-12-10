@@ -32,13 +32,13 @@ Errors::Errors(QObject *parent, bool threadExclusive) :
 
 }
 
-void Errors::error(Errors::Source s, const SynTree* st, const QString& msg)
+bool Errors::error(Errors::Source s, const SynTree* st, const QString& msg)
 {
     Q_ASSERT( st != 0 );
-    error( s, st->d_tok.d_sourcePath, st->d_tok.d_lineNr, st->d_tok.d_colNr, msg );
+    return error( s, st->d_tok.d_sourcePath, st->d_tok.d_lineNr, st->d_tok.d_colNr, msg );
 }
 
-void Errors::error(Errors::Source s, const QString& file, int line, int col, const QString& msg)
+bool Errors::error(Errors::Source s, const QString& file, int line, int col, const QString& msg)
 {
     if( !d_threadExclusive ) d_lock.lockForWrite();
     bool inserted = true;
@@ -65,6 +65,7 @@ void Errors::error(Errors::Source s, const QString& file, int line, int col, con
             d_numOfSyntaxErrs++;
     }
     if( !d_threadExclusive ) d_lock.unlock();
+    return false;
 }
 
 void Errors::warning(Errors::Source s, const SynTree* st, const QString& msg)

@@ -15,7 +15,7 @@
 // - added LengthList for easier array parsing
 // - added hexchar and hexstring
 // - added Elsif/ElseStatement for easier traversal
-// - integrate DEFINITION syntax
+// - integrated DEFINITION syntax
 
 /// Top
 

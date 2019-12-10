@@ -23,6 +23,7 @@
 #include <QBuffer>
 #include <QFile>
 #include <QIODevice>
+#include <QtDebug>
 #include <ctype.h>
 using namespace Ob;
 
@@ -59,11 +60,11 @@ bool Lexer::setStream(const QString& sourcePath)
     if( d_fcache )
     {
         bool found;
-        QByteArray content = d_fcache->getFile(sourcePath, &found );
+        FileCache::Entry content = d_fcache->getFile(sourcePath, &found );
         if( found )
         {
             QBuffer* buf = new QBuffer(this);
-            buf->setData( content );
+            buf->setData( content.d_code );
             buf->open(QIODevice::ReadOnly);
             in = buf;
         }
@@ -331,10 +332,13 @@ Token Lexer::number()
     {
         isChar = true;
         off++;
-    }else if( o1 == '.' )
+    }else if( o1 == '.' && lookAhead(off+1) == '.' )
     {
-        isReal = true;
+        ; // look for decimal point but not for range
+    }else if( o1 == '.'  )
+    {
         off++;
+        isReal = true;
         while( true )
         {
             const char c = lookAhead(off);
@@ -390,7 +394,7 @@ Token Lexer::number()
 
 void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
 {
-    enum State { Idle, Lb, Star } state = Idle;
+    enum State { Idle, Lpar, Star } state = Idle;
     while( pos < str.size() )
     {
         const char c = str[pos++];
@@ -398,11 +402,11 @@ void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
         {
         case Idle:
             if( c == '(')
-                state = Lb;
+                state = Lpar;
             else if( c == '*' )
                 state = Star;
             break;
-        case Lb:
+        case Lpar:
             if( c == '*' )
                 level++;
             state = Idle;
@@ -410,7 +414,8 @@ void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
         case Star:
             if( c == ')')
                 level--;
-            state = Idle;
+            else if( c != '*' )
+                state = Idle;
             if( level <= 0 )
                 return;
             break;
