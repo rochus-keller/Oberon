@@ -30,7 +30,7 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Generates Lua 5.1 compatible code only dependend on an included library and the standard libraries
 - The full Oberon-07 language including the Oakwood libraries are supported (note that the latter are still work in progress)
 - The DEFINITION syntax is supported such that imports can have only a DEFINITION but a Lua implementation
-- Full support for VAR parameters (call by reference, using thunks) and strings as ARRAY OF CHAR with element access
+- Full support for VAR parameters (call by reference, using thunks or multiple return values) and strings as ARRAY OF CHAR with element access
 - Oberon idents conflicting with Lua keywords and standard names are postfixed with underscores
 - The generated Lua code is formatted for readability; Oberon comments are not included
 - Restrictions: assignments of records and arrays doesn't make a copy yet; code generator has prototype status; SYSTEM module is not supported

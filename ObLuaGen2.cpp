@@ -839,22 +839,25 @@ struct LuaGen2Imp : public AstVisitor
         if( pt->isBuiltIn() )
             return;
 
-        int cur = 0;
+        int count1 = 0, count2 = 0;
         for( int i = 0; i < c->d_actuals.size(); i++ )
         {
             if( pt->d_formals[i]->d_var )
             {
                 TransformIndexFunctionToStats::IndexPred ip = TransformIndexFunctionToStats::getLastIndexOp(
                             c->d_actuals[i].data() );
-                if( cur > 0 )
+                if( count1 > 0 || count2 > 0 )
                     out << ",";
                 if( ip.first )
                 {
-                    out << "__t" << cur << "[__i" << cur << "+1]";
+                    out << "__t" << count1 << "[__i" << count1 << "+1]";
                     printRightPart( ip, c->d_actuals[i].data() );
-                    cur++;
+                    count1++;
                 }else
+                {
                     c->d_actuals[i]->accept(this);
+                    count2++;
+                }
             }
         }
     }
