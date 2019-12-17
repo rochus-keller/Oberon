@@ -32,7 +32,7 @@ struct ValidatorImp : public AstVisitor
     Model::BaseTypes bt;
     Module* mod;
 
-    void visit( BaseType* ) {}
+    void visit( BaseType* ) {} // NOP
 
     void visit( Pointer* p)
     {
@@ -563,6 +563,12 @@ struct ValidatorImp : public AstVisitor
     {
         err->error(Errors::Semantics, mod->d_file, l.d_row, l.d_col, msg );
         return false;
+    }
+
+    bool inline warning( const Loc& l, const QString& msg )
+    {
+        err->warning(Errors::Semantics, mod->d_file, l.d_row, l.d_col, msg );
+        return true;
     }
 
     static inline QString tr(const char* msg )

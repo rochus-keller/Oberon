@@ -1,0 +1,28 @@
+**** Thunk based :
+
+Perm      236
+Towers       12
+Queens       24
+Intmm       56
+Mm       58
+Quick       33
+Bubble       21
+Tree       37
+FFT       24
+Nonfloating point composite is 7.565425e+02
+Floating point composite is 1.031284e+03
+
+**** Multi-return based :
+
+Perm       17
+Towers       13
+Queens  Error in Queens.
+     117
+Intmm       14
+Mm       15
+Quick       28
+Bubble       16
+Tree       39
+FFT       17
+Nonfloating point composite is 4.727587e+02
+Floating point composite is 5.912426e+02

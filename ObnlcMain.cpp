@@ -31,6 +31,7 @@
 #ifdef OBNLC_USING_LUAJIT
 #include <LjTools/Engine2.h>
 #include "ObLjLib.h"
+#include "ObLuaGen2.h"
 #endif
 
 static QStringList collectFiles( const QDir& dir )
@@ -95,7 +96,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2019-10-13");
+    a.setApplicationVersion("2019-12-17");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -107,6 +108,7 @@ int main(int argc, char *argv[])
     QString mod;
     QString run;
     int n = 1;
+    int gen = 2;
     bool forceObnExt = false;
     bool useOakwood = false;
     bool ok;
@@ -124,6 +126,7 @@ int main(int argc, char *argv[])
 #ifdef OBNLC_USING_LUAJIT
             out << "  -run=A[.B]    run module A or procedure B in module A and quit" << endl;
             out << "  -n=x          number of times to run A or A.B" << endl;
+            out << "  -gen=n        n=1..thunk for VAR; n=2..multi-return for VAR (default)" << endl;
 #endif
             out << "  -ext          force Oberon extensions (default autosense)" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
@@ -133,7 +136,7 @@ int main(int argc, char *argv[])
             dump = true;
         else if( args[i] == "-oak" )
                     useOakwood = true;
-                else if( args[i].startsWith("-path=") )
+        else if( args[i].startsWith("-path=") )
             outPath = args[i].mid(6);
         else if( args[i].startsWith("-n=") )
         {
@@ -149,6 +152,8 @@ int main(int argc, char *argv[])
             run = args[i].mid(5);
         else if( args[i] == "-run" )
             run = "?";
+        else if( args[i].startsWith("-gen=") )
+            gen = args[i].mid(5).toUInt();
 #endif
         else if( args[i] == "-ext" )
             forceObnExt = true;
@@ -183,28 +188,28 @@ int main(int argc, char *argv[])
 
     qDebug() << "processing" << files.size() << "files...";
 
-    Ob::Ast::Model validator;
+    Ob::Ast::Model astm;
     if( forceObnExt )
-        validator.setEnableExt(true);
+        astm.setEnableExt(true);
     else
-        validator.setSenseExt(true);
+        astm.setSenseExt(true);
     if( useOakwood )
     {
-        preloadLib(validator,"In");
-        preloadLib(validator,"Out");
-        preloadLib(validator,"Files");
-        preloadLib(validator,"Input");
-        preloadLib(validator,"Math");
-        preloadLib(validator,"Strings");
-        preloadLib(validator,"Coroutines");
-        preloadLib(validator,"XYPlane");
+        preloadLib(astm,"In");
+        preloadLib(astm,"Out");
+        preloadLib(astm,"Files");
+        preloadLib(astm,"Input");
+        preloadLib(astm,"Math");
+        preloadLib(astm,"Strings");
+        preloadLib(astm,"Coroutines");
+        preloadLib(astm,"XYPlane");
     }
-    validator.parseFiles(files);
+    astm.parseFiles(files);
 
     if( dump )
     {
         qDebug() << "dumping module syntax trees to files...";
-        Ob::Ast::Model::Modules mods = validator.getModules();
+        Ob::Ast::Model::Modules mods = astm.getModules();
         for( int m = 0; m < mods.size(); m++ )
         {
             QFileInfo fi(mods[m]->d_file );
@@ -225,43 +230,70 @@ int main(int argc, char *argv[])
         }
     }
 
-    if( validator.getErrs()->getErrCount() == 0 && validator.getErrs()->getWrnCount() == 0 )
+    if( astm.getErrs()->getErrCount() == 0 && astm.getErrs()->getWrnCount() == 0 )
         qDebug() << "files successfully parsed";
     else
     {
-        qDebug() << "completed with" << validator.getErrs()->getErrCount() << "errors and" <<
-                    validator.getErrs()->getWrnCount() << "warnings";
+        qDebug() << "completed with" << astm.getErrs()->getErrCount() << "errors and" <<
+                    astm.getErrs()->getWrnCount() << "warnings";
         return -1;
     }
+
+#if 0
+    Ob::Ast::Model::Modules mods = astm.getModules();
+    for( int i = 0; i < mods.size(); i++ )
+    {
+        if( mods[i]->d_file.isEmpty() )
+            continue;
+        QFileInfo info(mods[i]->d_file);
+        QFile f( info.absoluteDir().absoluteFilePath("dump.lua") );
+        f.open(QIODevice::WriteOnly);
+        Ob::LuaGen2::translate(mods[i].data(),&f,0);
+    }
+#endif
+
+    if( run.isEmpty() )
+        return 0;
 
 #ifdef OBNLC_USING_LUAJIT
-    Ob::CodeModel m;
-    m.getErrs()->setRecord(false);
-    m.setSynthesize(false);
-    if( forceObnExt )
-        m.setEnableExt(true);
-    else
-        m.setSenseExt(true);
-    if( useOakwood )
+    if( gen == 1 )
     {
-        preloadLib(m,"In");
-        preloadLib(m,"Out");
-        preloadLib(m,"Files");
-        preloadLib(m,"Input");
-        preloadLib(m,"Math");
-        preloadLib(m,"Strings");
-        preloadLib(m,"Coroutines");
-        preloadLib(m,"XYPlane");
-    }
-    ok = m.parseFiles(files);
+        Ob::CodeModel m;
+        m.getErrs()->setRecord(false);
+        m.setSynthesize(false);
+        if( forceObnExt )
+            m.setEnableExt(true);
+        else
+            m.setSenseExt(true);
+        if( useOakwood )
+        {
+            preloadLib(m,"In");
+            preloadLib(m,"Out");
+            preloadLib(m,"Files");
+            preloadLib(m,"Input");
+            preloadLib(m,"Math");
+            preloadLib(m,"Strings");
+            preloadLib(m,"Coroutines");
+            preloadLib(m,"XYPlane");
+        }
+        ok = m.parseFiles(files);
 
-    if( ok )
+        if( ok )
+        {
+            qDebug() << "generating files using gen=1 ...";
+            Ob::LuaGen g(&m);
+            g.emitModules(outPath,mod);
+        }else
+            return -1;
+    }else if( gen == 2 )
     {
-        qDebug() << "generating files...";
-        Ob::LuaGen g(&m);
-        g.emitModules(outPath,mod);
+        qDebug() << "generating files using gen=2 ...";
+        Ob::LuaGen2::translate(&astm, outPath,mod);
     }else
+    {
+        qCritical() << "invalid generator selected (see -h for more information):" << gen;
         return -1;
+    }
 
     if( run == "?" )
     {
@@ -280,12 +312,14 @@ int main(int argc, char *argv[])
         for( int i = 0; i < modProc.size(); i++ )
             modProc[i] = Ob::LuaGen::escape(modProc[i]);
 
+        /*
         if( dynamic_cast<const Ob::CodeModel::Module*>(
                     m.getGlobalScope().findByName(modProc.first())) == 0 )
         {
             qCritical() << "cannot run" << run << ", unknown module";
             return -1;
         }
+        */
 
         qDebug() << "";
         qDebug() << "running" << run << flush;

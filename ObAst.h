@@ -64,6 +64,7 @@ namespace Ob
                         T_CallExpr, T_SelfRef, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr,
                         T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure,
                      T_MAX };
+            QVariantMap user; // For any use; only eats 4 bytes if not used (QVariant eats 12 instead)
             Thing() {}
             virtual ~Thing() {}
             virtual bool isScope() const { return false; }
@@ -204,6 +205,7 @@ namespace Ob
                 int getTag() const { return T_ProcType; }
                 Parameter* find( const QByteArray& ) const;
                 void accept(AstVisitor* v) { v->visit(this); }
+                bool isBuiltIn() const;
             };
 
             struct SelfRef : public Type // can only be resolved after declaration section
@@ -221,9 +223,11 @@ namespace Ob
             Ref<Type> d_type;
             Scope* d_scope; // owning scope
             bool d_public;
+            bool d_synthetic;
 
-            Named(const QByteArray& n, Type* t, Scope* s):d_scope(s),d_type(t),d_name(n),d_public(false) {}
-            Named():d_scope(0){}
+            Named(const QByteArray& n, Type* t, Scope* s):d_scope(s),d_type(t),d_name(n),
+                d_public(false),d_synthetic(false) {}
+            Named():d_scope(0),d_public(false),d_synthetic(false){}
             bool isNamed() const { return true; }
             virtual bool isVarParam() const { return false; }
         };
@@ -330,6 +334,7 @@ namespace Ob
             {
                 Ref<Expression> d_what;
                 void accept(AstVisitor* v) { v->visit(this); }
+                CallExpr* getCallExpr() const;
             };
 
             struct Return : public Statement
@@ -436,6 +441,7 @@ namespace Ob
                 CallExpr():UnExpr(CALL) {}
                 int getTag() const { return T_CallExpr; }
                 void accept(AstVisitor* v) { v->visit(this); }
+                ProcType* getProcType() const;
             };
 
             struct BinExpr : public Expression

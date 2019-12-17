@@ -123,22 +123,22 @@ void Ast::Model::clear()
     Ref<NamedType> t;
 
     // Built-in types
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_type]),d_boolType.data(),d_global.data());
+    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_type]),d_boolType.data(), d_global.data());
     d_global->d_names.insert( t->d_name.constData(), t.data() );
 
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_type]),d_charType.data(),d_global.data());
+    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_type]),d_charType.data(), d_global.data());
     d_global->d_names.insert( t->d_name.constData(), t.data() );
 
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_byteType->d_type]),d_byteType.data(),d_global.data());
+    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_byteType->d_type]),d_byteType.data(), d_global.data());
     d_global->d_names.insert( t->d_name.constData(), t.data() );
 
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_type]),d_intType.data(),d_global.data());
+    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_type]),d_intType.data(), d_global.data());
     d_global->d_names.insert( t->d_name.constData(), t.data() );
 
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_type]),d_realType.data(),d_global.data());
+    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_type]),d_realType.data(), d_global.data());
     d_global->d_names.insert( t->d_name.constData(), t.data() );
 
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_type]),d_setType.data(),d_global.data());
+    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_type]),d_setType.data(), d_global.data());
     d_global->d_names.insert( t->d_name.constData(), t.data() );
 
     t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_stringType->d_type]),d_stringType.data(),d_global.data());
@@ -171,7 +171,8 @@ void Ast::Model::clear()
     bi = new BuiltIn(BuiltIn::BIT, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_boolType.data() ) );
     sys->d_names.insert(bi->d_name.constData(),bi.data());
 
-    bi = new BuiltIn(BuiltIn::GET, new ProcType( Type::List() << d_intType.data() << d_anyType.data() ) );
+    bi = new BuiltIn(BuiltIn::GET, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),
+                                              ProcType::Vars() << false << true   ) );
     sys->d_names.insert(bi->d_name.constData(),bi.data());
 
     bi = new BuiltIn(BuiltIn::H, new ProcType( Type::List() << d_intType.data(), d_intType.data() ) );
@@ -189,7 +190,8 @@ void Ast::Model::clear()
     bi = new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) );
     sys->d_names.insert(bi->d_name.constData(),bi.data());
 
-    bi = new BuiltIn(BuiltIn::COPY, new ProcType( Type::List() << d_intType.data() << d_intType.data() << d_intType.data() ) );
+    bi = new BuiltIn(BuiltIn::COPY, new ProcType( Type::List() << d_intType.data() << d_intType.data() << d_intType.data(),
+                                                  ProcType::Vars() << false << false << false) ); // all three INTEGER representing address
     sys->d_names.insert(bi->d_name.constData(),bi.data());
 
     d_global->d_names.insert( sys->d_name.constData(), sys.data() );
@@ -242,7 +244,7 @@ void Ast::Model::clear()
                                                   ProcType::Vars() << true << false ) );
     d_global->d_names.insert(bi->d_name.constData(),bi.data());
 
-    bi = new BuiltIn(BuiltIn::NEW, new ProcType( Type::List() << d_anyType.data() ) );
+    bi = new BuiltIn(BuiltIn::NEW, new ProcType( Type::List() << d_anyType.data(), ProcType::Vars() << true ) );
     d_global->d_names.insert(bi->d_name.constData(),bi.data());
 
     bi = new BuiltIn(BuiltIn::ASSERT, new ProcType( Type::List() << d_boolType.data() ) );
@@ -311,8 +313,8 @@ bool Ast::Model::parseFiles(const QStringList& files)
 
     QList<Module*> order = findProcessingOrder(mods);
 
-    if( d_errs->getErrCount() != 0 )
-        return false;
+    // if( d_errs->getErrCount() != 0 )
+    //    return false;
 
     foreach( Module* m, order )
     {
@@ -1719,7 +1721,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                     args << ex;
                     argsSt << e;
                 }
-                for( int j = args.size() - 1; j >= 0 ; j-- )
+                for( int j = 0; j < args.size() ; j++ )
                 {
                     if( type->getTag() == Thing::T_Array )
                     {
@@ -2358,3 +2360,19 @@ Ast::Parameter*Ast::ProcType::find(const QByteArray& name) const
     return 0;
 }
 
+bool Ast::ProcType::isBuiltIn() const
+{
+    return d_ident && d_ident->getTag() == Thing::T_BuiltIn;
+}
+
+Ast::ProcType*Ast::CallExpr::getProcType() const
+{
+    Q_ASSERT( !d_sub.isNull() && !d_sub->d_type.isNull() && d_sub->d_type->getTag() == Thing::T_ProcType );
+    return static_cast<ProcType*>( d_sub->d_type.data() );
+}
+
+Ast::CallExpr*Ast::Call::getCallExpr() const
+{
+    Q_ASSERT( !d_what.isNull() && d_what->getTag() == Thing::T_CallExpr );
+    return static_cast<CallExpr*>( d_what.data() );
+}

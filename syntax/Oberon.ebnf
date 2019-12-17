@@ -11,7 +11,7 @@
 // - modified selector and removed ActualParams so parser needs no type info 
 // - added variableOrFunctionCall to remind that factor can include ActualParams
 // - allow FieldListSequence to have trailing ';' as seen in the ProjectOberon source 
-// - added ReturnStatement to support older Oberon versions if need be
+// - added ReturnStatement to support older Oberon versions if need be; optional semi after RETURN
 // - added LengthList for easier array parsing
 // - added hexchar and hexstring
 // - added Elsif/ElseStatement for easier traversal
@@ -214,7 +214,7 @@ DeclarationSequence ::=
 	[ VAR { VariableDeclaration ';' } ]
 	{ ProcedureDeclaration ';' }
 	
-ReturnStatement ::= RETURN expression 
+ReturnStatement ::= RETURN expression [ ';' ]
 
 DeclarationSequence2 ::= 
 	[ CONST { ConstDeclaration ';' } ]

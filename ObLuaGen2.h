@@ -20,6 +20,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#include <QString>
 class QIODevice;
 
 namespace Ob
@@ -29,10 +30,12 @@ namespace Ob
     namespace Ast
     {
         class Module;
+        class Model;
     }
     class LuaGen2
     {
     public:
+        static bool translate(Ast::Model*,const QString& outdir, const QString& mod, Errors* = 0 );
         static bool translate( Ast::Module*, QIODevice* out, Errors* = 0 );
     private:
         LuaGen2();

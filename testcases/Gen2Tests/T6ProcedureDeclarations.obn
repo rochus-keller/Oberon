@@ -1,0 +1,259 @@
+(*Copyright (C) 2017, 2018, 2019 Karl Landstrom <karl@miasap.se>
+
+This file is part of OBNC.
+
+OBNC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+OBNC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
+
+MODULE T6ProcedureDeclarations;
+
+	TYPE
+		Row = ARRAY 20 OF INTEGER;
+		Matrix = ARRAY 10, 20 OF INTEGER;
+		Ptr = POINTER TO RECORD f: INTEGER END;
+		Proc = PROCEDURE;
+		T0 = RECORD END;
+		T1 = RECORD (T0) END;
+		T2 = RECORD (T1)
+			f: INTEGER
+		END;
+
+	PROCEDURE TestValueParameters;
+		VAR ptr: Ptr;
+			proc: Proc;
+			A: Matrix;
+			B: ARRAY 10 OF Row;
+
+		PROCEDURE P(x: INTEGER);
+		BEGIN
+			x := 0
+		END P;
+
+		PROCEDURE P1(x: Ptr);
+		BEGIN
+			x := NIL
+		END P1;
+
+		PROCEDURE P2(x: Proc);
+		BEGIN
+			x := NIL
+		END P2;
+
+		PROCEDURE P3(A: Matrix);
+		BEGIN
+			ASSERT(LEN(A) = 10);
+			ASSERT(LEN(A[0]) = 20)
+		END P3;
+
+		PROCEDURE P4(A: ARRAY OF Row);
+		END P4;
+
+	BEGIN
+		P(0);
+		NEW(ptr);
+		P1(ptr);
+		P2(proc);
+		P3(A);
+		P4(B)
+	END TestValueParameters;
+
+
+	PROCEDURE TestVarParameters;
+		VAR x: Ptr;
+			A: Matrix;
+			y: T2;
+
+		PROCEDURE Alloc(VAR p: Ptr);
+		BEGIN
+			NEW(p);
+			p.f := 1
+		END Alloc;
+
+		PROCEDURE P(VAR A: Matrix);
+		BEGIN
+			ASSERT(LEN(A) = 10);
+			ASSERT(LEN(A[0]) = 20)
+		END P;
+
+		PROCEDURE Q(VAR x: T0);
+			PROCEDURE R(VAR x: T1);
+			BEGIN
+				x(T2).f := 1
+			END R;
+		BEGIN
+			R(x(T1))
+		END Q;
+
+	BEGIN
+		Alloc(x);
+		ASSERT(x.f = 1);
+		P(A);
+		y.f := 0;
+		Q(y)
+	END TestVarParameters;
+
+
+	PROCEDURE TestOpenArrayParameters;
+		VAR
+			a: ARRAY 2 OF INTEGER;
+			M: ARRAY 2, 3 OF INTEGER;
+			T: ARRAY 2, 3, 4 OF INTEGER;
+			c, i, j, k: INTEGER;
+
+		PROCEDURE P(a: ARRAY OF INTEGER);
+			VAR i: INTEGER;
+		BEGIN
+			FOR i := 0 TO LEN(a) - 1 DO
+				ASSERT(a[i] = i + 1)
+			END
+		END P;
+
+		PROCEDURE Q(M: ARRAY OF ARRAY OF INTEGER);
+			VAR a: ARRAY 3 OF INTEGER;
+
+			PROCEDURE Inner(M: ARRAY OF ARRAY OF INTEGER);
+				VAR c, i, j: INTEGER;
+			BEGIN
+				c := 0;
+				FOR i := 0 TO LEN(M) - 1 DO
+					FOR j := 0 TO LEN(M[0]) - 1 DO
+						ASSERT(M[i, j] = c);
+						INC(c)
+					END
+				END;
+			END Inner;
+
+			PROCEDURE Inner1(row: ARRAY OF INTEGER);
+				VAR c, j: INTEGER;
+			BEGIN
+				c := LEN(row);
+				FOR j := 0 TO LEN(row) - 1 DO
+					ASSERT(row[j] = c);
+					INC(c)
+				END
+			END Inner1;
+
+		BEGIN
+			Inner(M);
+			Inner1(M[1]);
+			a := M[1]
+		END Q;
+
+		PROCEDURE R(VAR T: ARRAY OF ARRAY OF ARRAY OF INTEGER);
+			VAR c, i, j, k: INTEGER;
+		BEGIN
+			c := 0;
+			FOR i := 0 TO LEN(T) - 1 DO
+				FOR j := 0 TO LEN(T[0]) - 1 DO
+					FOR k := 0 TO LEN(T[0, 0]) - 1 DO
+						ASSERT(T[i, j, k] = c);
+						INC(c)
+					END
+				END
+			END;
+			T[0, 0, 0] := 0
+		END R;
+
+	BEGIN
+		FOR i := 0 TO LEN(a) - 1 DO
+			a[i] := i + 1
+		END;
+		P(a);
+
+		c := 0;
+		FOR i := 0 TO LEN(M) - 1 DO
+			FOR j := 0 TO LEN(M[0]) - 1 DO
+				M[i, j] := c;
+				INC(c)
+			END
+		END;
+		Q(M);
+
+		c := 0;
+		FOR i := 0 TO LEN(T) - 1 DO
+			FOR j := 0 TO LEN(T[0]) - 1 DO
+				FOR k := 0 TO LEN(T[0, 0]) - 1 DO
+					T[i, j, k] := c;
+					INC(c)
+				END
+			END
+		END;
+		R(T)
+	END TestOpenArrayParameters;
+
+
+	PROCEDURE TestResultExpressions;
+		VAR x: Ptr;
+
+		PROCEDURE P(): Ptr;
+			TYPE PtrExt = POINTER TO RECORD (Ptr) END;
+			VAR y: PtrExt;
+		BEGIN
+			NEW(y)
+		RETURN y
+		END P;
+
+	BEGIN
+		x := P()
+	END TestResultExpressions;
+
+
+	PROCEDURE TestLocalProcedures;
+		VAR s: INTEGER;
+
+		PROCEDURE Sum(n: INTEGER): INTEGER;
+
+			PROCEDURE Inner(i, acc: INTEGER): INTEGER;
+				VAR result: INTEGER;
+			BEGIN
+				IF i >= 1 THEN
+					result := Inner(i - 1, acc + i)
+				ELSE
+					result := acc
+				END
+			RETURN result
+			END Inner;
+
+		RETURN Inner(n, 0)
+		END Sum;
+
+	BEGIN
+		s := Sum(10);
+		ASSERT(s = 55)
+	END TestLocalProcedures;
+
+
+	PROCEDURE TestScope;
+		TYPE
+			List = POINTER TO Node;
+			Node = RECORD
+				item: INTEGER;
+				next: List
+			END;
+			Proc = PROCEDURE (x: List): List;
+		VAR
+			TestScope: PROCEDURE;
+			p: Proc;
+	BEGIN
+		TestScope := NIL;
+		p := NIL
+	END TestScope;
+
+BEGIN
+	TestValueParameters;
+	TestVarParameters;
+	TestOpenArrayParameters;
+	TestResultExpressions;
+	TestLocalProcedures;
+	TestScope
+END T6ProcedureDeclarations.

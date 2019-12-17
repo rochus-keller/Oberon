@@ -941,6 +941,10 @@ void Parser::ReturnStatement() {
 		Expect(_T_RETURN,__FUNCTION__);
 		addTerminal(); 
 		expression();
+		if (la->kind == _T_Semi) {
+			Get();
+			addTerminal(); 
+		}
 		d_stack.pop(); 
 }
 
