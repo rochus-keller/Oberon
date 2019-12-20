@@ -34,7 +34,6 @@ class JitEngine;
 
 namespace Ob
 {
-    class CodeModel;
     class Highlighter;
 
     class LjEditor : public QMainWindow
@@ -55,10 +54,10 @@ namespace Ob
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
         void compile(bool asSource);
+        void toByteCode();
 
     protected slots:
-        void onDumpBin();
-        void onDumpSrc();
+        void onParse();
         void onRun();
         void onRun2();
         void onNew();
@@ -71,6 +70,7 @@ namespace Ob
         void onCursor();
         void onExportBc();
         void onExportAsm();
+        void onExportLua();
 
     private:
         CodeEditor* d_edit;
@@ -79,8 +79,9 @@ namespace Ob
         Lua::Terminal2* d_term;
         Lua::JitEngine* d_eng;
         Highlighter* d_hl;
-        CodeModel* d_mdl;
         QByteArray d_luaCode;
+        enum { Gen1, Gen2 };
+        quint8 d_useGen;
         bool d_lock;
     };
 }

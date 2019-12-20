@@ -25,6 +25,7 @@
 #include "ObLjLib.h"
 #include "ObAst.h"
 #include "ObAstEval.h"
+#include "ObLuaGen2.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer.h>
@@ -76,14 +77,9 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 }
 
 LjEditor::LjEditor(QWidget *parent)
-    : QMainWindow(parent),d_lock(false)
+    : QMainWindow(parent),d_lock(false),d_useGen(Gen2)
 {
     s_this = this;
-
-    d_mdl = new CodeModel(this);
-    d_mdl->setSenseExt(true);
-    d_mdl->setSynthesize(false);
-    d_mdl->setTrackIds(false);
 
     d_lua = new Engine2(this);
     d_lua->addStdLibs();
@@ -161,7 +157,7 @@ void LjEditor::loadFile(const QString& path)
     QDir::setCurrent(QFileInfo(path).absolutePath());
     onCaption();
 
-    onDumpSrc();
+    onParse();
 }
 
 void LjEditor::logMessage(const QString& str, bool err)
@@ -207,11 +203,12 @@ void LjEditor::createMenu()
     pop->addCommand( "Save", this, SLOT(onSave()), tr("CTRL+S"), false );
     pop->addCommand( "Save as...", this, SLOT(onSaveAs()) );
     pop->addSeparator();
-    pop->addCommand( "Execute LuaJIT", this, SLOT(onRun()), tr("CTRL+E"), false );
-    pop->addCommand( "Execute test VM", this, SLOT(onRun2()), tr("CTRL+SHIFT+E"), false );
-    pop->addCommand( "Dump", this, SLOT(onDumpBin()), tr("CTRL+D"), false );
-    pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
-    pop->addCommand( "Export assembler...", this, SLOT(onExportAsm()) );
+    pop->addCommand( "Compile", this, SLOT(onParse()), tr("CTRL+T"), false );
+    pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Run on test VM", this, SLOT(onRun2()), tr("CTRL+SHIFT+R"), false );
+    // pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
+    pop->addCommand( "Export Lua...", this, SLOT(onExportLua()) );
     pop->addSeparator();
     pop->addCommand( "Undo", d_edit, SLOT(handleEditUndo()), tr("CTRL+Z"), true );
     pop->addCommand( "Redo", d_edit, SLOT(handleEditRedo()), tr("CTRL+Y"), true );
@@ -222,7 +219,7 @@ void LjEditor::createMenu()
     pop->addSeparator();
     pop->addCommand( "Find...", d_edit, SLOT(handleFind()), tr("CTRL+F"), true );
     pop->addCommand( "Find again", d_edit, SLOT(handleFindAgain()), tr("F3"), true );
-    pop->addCommand( "Replace...", d_edit, SLOT(handleReplace()), tr("CTRL+R"), true );
+    pop->addCommand( "Replace...", d_edit, SLOT(handleReplace()) );
     pop->addSeparator();
     pop->addCommand( "&Goto...", d_edit, SLOT(handleGoto()), tr("CTRL+G"), true );
     pop->addCommand( "Go Back", d_edit, SLOT(handleGoBack()), tr("ALT+Left"), true );
@@ -247,22 +244,15 @@ void LjEditor::createMenu()
     new Gui::AutoShortcut( tr("CTRL+N"), this, this, SLOT(onNew()) );
     new Gui::AutoShortcut( tr("CTRL+O"), this, this, SLOT(onOpen()) );
     new Gui::AutoShortcut( tr("CTRL+S"), this, this, SLOT(onSave()) );
-    new Gui::AutoShortcut( tr("CTRL+E"), this, this, SLOT(onRun()) );
-    new Gui::AutoShortcut( tr("CTRL+SHIFT+E"), this, this, SLOT(onRun2()) );
-    new Gui::AutoShortcut( tr("CTRL+SHIFT+D"), this, this, SLOT(onDumpBin()) );
-    new Gui::AutoShortcut( tr("CTRL+D"), this, this, SLOT(onDumpSrc()) );
+    new Gui::AutoShortcut( tr("CTRL+R"), this, this, SLOT(onRun()) );
+    new Gui::AutoShortcut( tr("CTRL+SHIFT+R"), this, this, SLOT(onRun2()) );
+    new Gui::AutoShortcut( tr("CTRL+T"), this, this, SLOT(onParse()) );
 }
 
-void LjEditor::onDumpBin()
+void LjEditor::onParse()
 {
     ENABLED_IF(true);
     compile(false);
-}
-
-void LjEditor::onDumpSrc()
-{
-    ENABLED_IF(true);
-    compile(true);
 }
 
 void LjEditor::onRun()
@@ -416,7 +406,7 @@ void LjEditor::onExportAsm()
     ENABLED_IF(true);
 
     if( d_bcv->topLevelItemCount() == 0 )
-        onDumpBin();
+        onParse();
     if( d_bcv->topLevelItemCount() == 0 )
         return;
 
@@ -433,6 +423,28 @@ void LjEditor::onExportAsm()
         fileName += ".ljasm";
 
     d_bcv->saveTo(fileName);
+}
+
+void LjEditor::onExportLua()
+{
+    ENABLED_IF(!d_luaCode.isEmpty());
+
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Lua Source"),
+                                                          d_edit->getPath(),
+                                                          tr("*.lua") );
+
+    if (fileName.isEmpty())
+        return;
+
+    QDir::setCurrent(QFileInfo(fileName).absolutePath());
+
+    if( !fileName.endsWith(".lua",Qt::CaseInsensitive ) )
+        fileName += ".lua";
+    QFile out(fileName);
+    if( !out.open(QIODevice::WriteOnly) )
+        qCritical() << "cannot write to" << fileName;
+    else
+        out.write( d_luaCode );
 }
 
 bool LjEditor::checkSaved(const QString& title)
@@ -469,72 +481,80 @@ void LjEditor::compile(bool asSource)
     if( path.isEmpty() )
         path = "<unnamed>";
 
-#define _USE_AST_MODEL
-#ifdef _USE_AST_MODEL
-    Ast::Model mdl;
-    mdl.setSenseExt(true);
-    mdl.getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
-    preloadLib(mdl,"In");
-    preloadLib(mdl,"Out");
-    preloadLib(mdl,"Files");
-    preloadLib(mdl,"Input");
-    preloadLib(mdl,"Math");
-    preloadLib(mdl,"Strings");
-    preloadLib(mdl,"Coroutines");
-    preloadLib(mdl,"XYPlane");
-    mdl.parseFiles(QStringList() << path );
-    Ast::Model::Modules mods = mdl.getModules();
-    QTextStream out(stdout);
-    for( int m = 0; m < mods.size(); m++ )
-        Ast::Eval::render(out,mods[m].data());
-#else
-    d_mdl->getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
-    if( d_mdl->parseFiles( QStringList() << path ) )
+    if( d_useGen == Gen2 )
     {
-        Q_ASSERT( d_mdl->getGlobalScope().d_mods.size() == 1 );
-        const CodeModel::Module* m = d_mdl->getGlobalScope().d_mods.first();
-        QFile dump( "dump.txt");
-        if( !dump.open(QIODevice::WriteOnly) )
-            qDebug() << "error: cannot open dump file for writing" << dump.fileName();
-        QTextStream ts(&dump);
-        Ob::CodeModel::dump(ts,m->d_def);
+        Ast::Model mdl;
+        mdl.setSenseExt(true);
+        mdl.getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
+        preloadLib(mdl,"In");
+        preloadLib(mdl,"Out");
+        preloadLib(mdl,"Files");
+        preloadLib(mdl,"Input");
+        preloadLib(mdl,"Math");
+        preloadLib(mdl,"Strings");
+        preloadLib(mdl,"Coroutines");
+        preloadLib(mdl,"XYPlane");
+        mdl.parseFiles(QStringList() << path );
+
+        if( mdl.getErrs()->getErrCount() != 0 )
+            return;
+        Ast::Model::Modules mods = mdl.getModules();
+        Ast::Module* mod = 0;
+        for( int i = 0; i < mods.size(); i++ )
+        {
+            if( mods[i]->d_file == path )
+            {
+                mod = mods[i].data();
+                break;
+            }
+        }
+
+        Q_ASSERT( mod != 0 );
+        d_hl->setEnableExt(mod->d_useExt);
+
+        QBuffer buf;
+        buf.open(QIODevice::WriteOnly);
+        Ob::LuaGen2::translate(mod, &buf);
+        buf.close();
+        d_luaCode = buf.buffer();
+        toByteCode();
+    }else
+    {
+        CodeModel mdl;
+        mdl.setSenseExt(true);
+        mdl.setSynthesize(false);
+        mdl.setTrackIds(false);
+        mdl.getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
+        mdl.parseFiles( QStringList() << path );
+
+        if( mdl.getErrs()->getErrCount() != 0 )
+            return;
+
+        Q_ASSERT( mdl.getGlobalScope().d_mods.size() == 1 );
+        const CodeModel::Module* m = mdl.getGlobalScope().d_mods.first();
 
         d_hl->setEnableExt(m->d_isExt);
 
-        if( asSource )
-        {
-            LuaGen gen(d_mdl);
-            d_luaCode = gen.emitModule(m);
-            if( !d_luaCode.isEmpty() )
-            {
-                QFile dump( "dump.lua");
-                if( !dump.open(QIODevice::WriteOnly) )
-                    qDebug() << "error: cannot open dump file for writing" << dump.fileName();
-                dump.write(d_luaCode);
-                if( d_lua->pushFunction(d_luaCode) )
-                {
-                    QByteArray code = Engine2::getBinaryFromFunc( d_lua->getCtx() );
-                    d_lua->pop();
-                    QBuffer buf(&code);
-                    buf.open(QIODevice::ReadOnly);
-                    d_bcv->loadFrom(&buf,path);
-                }
-            }
-        }else
-        {
-#ifdef _GEN_BYTECODE_
-            LjbcGen gen(d_mdl);
-            QByteArray bc = gen.emitModule(d_mdl->getGlobalScope().d_mods.first());
-            if( !bc.isEmpty() )
-            {
-                QBuffer buf(&bc);
-                buf.open(QIODevice::ReadOnly);
-                d_bcv->loadFrom(&buf,path);
-            }
-#endif
-        }
+        LuaGen gen(&mdl);
+        d_luaCode = gen.emitModule(m);
+        toByteCode();
     }
-#endif
+}
+
+void LjEditor::toByteCode()
+{
+    if( !d_luaCode.isEmpty() )
+    {
+        if( d_lua->pushFunction(d_luaCode) )
+        {
+            QByteArray code = Engine2::getBinaryFromFunc( d_lua->getCtx() );
+            d_lua->pop();
+            QBuffer buf(&code);
+            buf.open(QIODevice::ReadOnly);
+            d_bcv->loadFrom(&buf);
+        }
+    }else
+        d_bcv->clear();
 }
 
 int main(int argc, char *argv[])
@@ -543,7 +563,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("ObnLjEditor");
-    a.setApplicationVersion("0.5.0");
+    a.setApplicationVersion("0.6.0");
     a.setStyle("Fusion");
 
     LjEditor w;
