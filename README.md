@@ -4,7 +4,7 @@ This is an Oberon-07 parser, code model and generator written in C++ and Qt. See
 
 One goal of this project is to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries and with no dependencies to the Oberon System. The C++ based Lola-2 compiler will be integrated in https://github.com/rochus-keller/LolaCreator.
 
-Another goal of this project is to study the feasibility of reusing LuaJIT (see http://luajit.org/) as a backend for statically typed programming languages like Oberon. As it turned out, Oberon is an ideal object of study for this question because it is sufficiently simple and representative as it supports pointers, static and stack based data structures and call by reference which are not usually available with scripting languages. The current implementation is able to map full Oberon to Lua source code and run with decent performance on LuaJIT; a LuaJIT bytecode compiler with more optimizations an better performance is work in progress.
+Another goal of this project is to study the feasibility of reusing LuaJIT (see http://luajit.org/) as a backend for statically typed programming languages like Oberon. As it turned out, Oberon is an ideal object of study for this question because it is sufficiently simple and representative as it supports pointers, static and stack based data structures and call by reference which are not usually available with scripting languages. The current implementation is able to map full Oberon to Lua source code or LuaJIT bytecode and run with decent performance on LuaJIT; the generators are work in progress.
 
 ### Parser and code model features
 
@@ -12,6 +12,7 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Syntax and semantics validation, error reporting
 - Optionally infers and synthesizes missing modules
 - Supports the language version "Oberon+" with lower-case keywords, underscores in idents and line comments (see examples folder)
+- Two parser versions; one generates a syntax tree and one a fully validated AST
 
 ### C++ Code generator features
 
@@ -25,14 +26,15 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Currently only the subset of Oberon-07 used by the Lola-2 compiler is supported; see https://github.com/rochus-keller/Lolac for an example of the generated code
 - There is no garbage collector code generated yet, but an arena based collector can easily be implemented outside of the generator by customizing the _Root class; future versions will generate a regular mark & sweep collector.
 
-### Lua Code generator features
+### Lua source and bytecode generator features
 
-- Generates Lua 5.1 compatible code only dependend on an included library and the standard libraries
+- Generates Lua 5.1 compatible source code only dependend on an included library and the standard libraries
+- Generates LuaJIT 2.0 compatible bytecode
 - The full Oberon-07 language including the Oakwood libraries are supported (note that the latter are still work in progress)
 - The DEFINITION syntax is supported such that imports can have only a DEFINITION but a Lua implementation
 - Full support for VAR parameters (call by reference, using thunks or multiple return values) and strings as ARRAY OF CHAR with element access
 - Oberon idents conflicting with Lua keywords and standard names are postfixed with underscores
-- The generated Lua code is formatted for readability; Oberon comments are not included
+- The generated Lua source code is formatted for readability; Oberon comments are not included
 - Restrictions: assignments of records and arrays doesn't make a copy yet; code generator has prototype status; SYSTEM module is not supported
 
 ### Code browser features
@@ -55,7 +57,7 @@ Just download, unpack and run it; no installer is needed. The ZIP includes the n
 Here is a binary version of OberonViewer for Linux x86: http://software.rochus-keller.info/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
-Here is a binary version of OBNLC (Lua code generator) for Linux x86: http://software.rochus-keller.info/OBNLC_linux_x86.tar.gz. 
+Here is a binary version of OBNLC (Lua source code and bytecode generator) for Linux x86: http://software.rochus-keller.info/OBNLC_linux_x86.tar.gz. 
 libQt5Core.so is required to run the binary.
 
 ### Build Steps
