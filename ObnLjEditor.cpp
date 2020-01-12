@@ -26,9 +26,10 @@
 #include "ObAst.h"
 #include "ObAstEval.h"
 #include "ObLuaGen2.h"
+#include "ObLjbcGen.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
-#include <LjTools/BcViewer.h>
+#include <LjTools/BcViewer2.h>
 #include <LjTools/LuaJitEngine.h>
 #include <QtDebug>
 #include <QDockWidget>
@@ -47,6 +48,8 @@
 #include <GuiTools/AutoShortcut.h>
 using namespace Ob;
 using namespace Lua;
+
+#define USE_LJBC_GEN
 
 static LjEditor* s_this = 0;
 static void report(QtMsgType type, const QString& message )
@@ -76,6 +79,15 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
     report(type,message);
 }
 
+static void loadLuaLib( Lua::Engine2* lua, const QByteArray& name )
+{
+    QFile obnlj( QString(":/scripts/%1.lua").arg(name.constData()) );
+    if( !obnlj.open(QIODevice::ReadOnly) )
+        qCritical() << "cannot load Lua lib" << name;
+    if( !lua->addSourceLib( obnlj.readAll(), name ) )
+        qCritical() << "compiling" << name << ":" << lua->getLastError();
+}
+
 LjEditor::LjEditor(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_useGen(Gen2)
 {
@@ -90,15 +102,23 @@ LjEditor::LjEditor(QWidget *parent)
     d_lua->addLibrary(Engine2::JIT);
     d_lua->addLibrary(Engine2::OS);
     LjLib::install(d_lua->getCtx());
-    QFile obnlj( ":/scripts/obnlj.lua" );
-    obnlj.open(QIODevice::ReadOnly);
-    if( !d_lua->addSourceLib( obnlj.readAll(), "obnlj" ) )
-        qCritical() << "compiling obnlj:" << d_lua->getLastError();
+
+    loadLuaLib( d_lua, "obnlj" );
+    loadLuaLib(d_lua,"In");
+    loadLuaLib(d_lua,"Out");
+    loadLuaLib(d_lua,"Files");
+    loadLuaLib(d_lua,"Input");
+    loadLuaLib(d_lua,"Math");
+    loadLuaLib(d_lua,"Strings");
+    loadLuaLib(d_lua,"Coroutines");
+    loadLuaLib(d_lua,"XYPlane");
+
     Engine2::setInst(d_lua);
 
     d_eng = new JitEngine(this);
 
     d_edit = new CodeEditor(this);
+    d_edit->setCharPerTab(3);
     d_hl = new Highlighter( d_edit->document() );
     d_edit->updateTabWidth();
 
@@ -190,7 +210,7 @@ void LjEditor::createDumpView()
     dock->setObjectName("Bytecode");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable );
-    d_bcv = new BcViewer(dock);
+    d_bcv = new BcViewer2(dock);
     dock->setWidget(d_bcv);
     addDockWidget( Qt::RightDockWidgetArea, dock );
 }
@@ -206,7 +226,7 @@ void LjEditor::createMenu()
     pop->addCommand( "Compile", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
     pop->addCommand( "Run on test VM", this, SLOT(onRun2()), tr("CTRL+SHIFT+R"), false );
-    // pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
     pop->addCommand( "Export Lua...", this, SLOT(onExportLua()) );
     pop->addSeparator();
@@ -252,27 +272,41 @@ void LjEditor::createMenu()
 void LjEditor::onParse()
 {
     ENABLED_IF(true);
-    compile(false);
+    compile();
 }
 
 void LjEditor::onRun()
 {
     ENABLED_IF(true);
-    compile(true);
-    d_lua->executeCmd( d_luaCode, d_edit->getPath().toUtf8() );
+    compile();
+#ifndef USE_LJBC_GEN
+    d_lua->addSourceLib( d_luaCode, d_moduleName );
+    //d_lua->executeCmd( d_luaCode, d_edit->getPath().toUtf8() );
+#else
+    // d_lua->addSourceLib( d_luaBc, d_moduleName );
+    d_lua->executeCmd( d_luaBc, d_edit->getPath().toUtf8() );
+#endif
 }
 
 void LjEditor::onRun2()
 {
     ENABLED_IF(true);
-    compile(true);
+    compile();
     QDir dir( QStandardPaths::writableLocation(QStandardPaths::TempLocation) );
     const QString path = dir.absoluteFilePath(QDateTime::currentDateTime().toString("yyMMddhhmmsszzz")+".bc");
+#ifndef USE_LJBC_GEN
     d_lua->saveBinary(d_luaCode, d_edit->getPath().toUtf8(),path.toUtf8());
     JitBytecode bc;
     if( bc.parse(path) )
         d_eng->run( &bc );
     dir.remove(path);
+#else
+    QBuffer buf( &d_luaBc );
+    buf.open(QIODevice::ReadOnly);
+    JitBytecode bc;
+    if( bc.parse(&buf,d_moduleName) )
+        d_eng->run( &bc );
+#endif
 }
 
 void LjEditor::onNew()
@@ -303,7 +337,7 @@ void LjEditor::onOpen()
     d_edit->loadFromFile(fileName);
     onCaption();
 
-    compile(true);
+    compile();
 }
 
 void LjEditor::onSave()
@@ -389,16 +423,22 @@ void LjEditor::onExportBc()
     ENABLED_IF(true);
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Binary"),
                                                           d_edit->getPath(),
-                                                          tr("*.bc") );
+                                                          tr("*.ljbc") );
 
     if (fileName.isEmpty())
         return;
 
     QDir::setCurrent(QFileInfo(fileName).absolutePath());
 
-    if( !fileName.endsWith(".bc",Qt::CaseInsensitive ) )
-        fileName += ".bc";
+    if( !fileName.endsWith(".ljbc",Qt::CaseInsensitive ) )
+        fileName += ".ljbc";
+#ifndef USE_LJBC_GEN
     d_lua->saveBinary(d_edit->toPlainText().toUtf8(), d_edit->getPath().toUtf8(),fileName.toUtf8());
+#else
+    QFile out(fileName);
+    out.open(QIODevice::WriteOnly);
+    out.write(d_luaBc);
+#endif
 }
 
 void LjEditor::onExportAsm()
@@ -475,7 +515,7 @@ bool LjEditor::checkSaved(const QString& title)
     return true;
 }
 
-void LjEditor::compile(bool asSource)
+void LjEditor::compile()
 {
     QString path = d_edit->getPath();
     if( path.isEmpty() )
@@ -511,13 +551,28 @@ void LjEditor::compile(bool asSource)
 
         Q_ASSERT( mod != 0 );
         d_hl->setEnableExt(mod->d_useExt);
+        d_moduleName = mod->d_name;
 
         QBuffer buf;
         buf.open(QIODevice::WriteOnly);
+#ifndef USE_LJBC_GEN
         Ob::LuaGen2::translate(mod, &buf);
         buf.close();
         d_luaCode = buf.buffer();
         toByteCode();
+#else
+        Ob::LjbcGen::translate(mod, &buf);
+        buf.close();
+        d_luaBc = buf.buffer();
+        d_luaCode.clear();
+        buf.open(QIODevice::ReadOnly);
+        d_bcv->loadFrom(&buf);
+#endif
+#if 0
+        QTextStream out( stdout );
+        Ast::Eval::render( out, mod );
+#endif
+
     }else
     {
         CodeModel mdl;
@@ -534,6 +589,7 @@ void LjEditor::compile(bool asSource)
         const CodeModel::Module* m = mdl.getGlobalScope().d_mods.first();
 
         d_hl->setEnableExt(m->d_isExt);
+        d_moduleName = m->d_name;
 
         LuaGen gen(&mdl);
         d_luaCode = gen.emitModule(m);

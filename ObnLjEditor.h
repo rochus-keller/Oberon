@@ -27,7 +27,7 @@ class CodeEditor;
 namespace Lua
 {
 class Engine2;
-class BcViewer;
+class BcViewer2;
 class Terminal2;
 class JitEngine;
 }
@@ -53,7 +53,7 @@ namespace Ob
         void createMenu();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
-        void compile(bool asSource);
+        void compile();
         void toByteCode();
 
     protected slots:
@@ -75,11 +75,13 @@ namespace Ob
     private:
         CodeEditor* d_edit;
         Lua::Engine2* d_lua;
-        Lua::BcViewer* d_bcv;
+        Lua::BcViewer2* d_bcv;
         Lua::Terminal2* d_term;
         Lua::JitEngine* d_eng;
         Highlighter* d_hl;
         QByteArray d_luaCode;
+        QByteArray d_luaBc;
+        QByteArray d_moduleName;
         enum { Gen1, Gen2 };
         quint8 d_useGen;
         bool d_lock;

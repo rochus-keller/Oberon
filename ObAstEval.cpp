@@ -19,7 +19,6 @@
 
 #include "ObAstEval.h"
 #include "ObAst.h"
-
 #include <QTextStream>
 using namespace Ob;
 using namespace Ob::Ast;
@@ -115,27 +114,14 @@ QVariant Ast::Eval::evalConstExpr(Ast::Expression* e, QString* err)
             UnExpr* ue = static_cast<UnExpr*>(e);
             if( ue->d_op == UnExpr::SEL )
                 return evalNamedConst(e,err);
-            else if( ue->d_op == UnExpr::NEG )
+            else
             {
                 const QVariant v = evalConstExpr(ue->d_sub.data(),err);
                 if( !v.isValid() )
                     return v;
-                if( v.type() == QVariant::Double )
-                    return -v.toDouble();
-                if( v.type() == QVariant::LongLong )
-                    return -v.toLongLong();
-                else
-                    return expErr(err,tr("cannot invert sign of non numerical expression"));
-            }else if( ue->d_op == UnExpr::NOT )
-            {
-                const QVariant v = evalConstExpr(ue->d_sub.data(),err);
-                if( !v.isValid() )
-                    return v;
-                if( v.type() == QVariant::Bool )
-                    return !v.toBool();
-                return expErr(err,tr("cannot negate non boolean expression"));
-            }else
-                return expErr(err,tr("not a const expression"));
+
+                return Eval::unOp(ue->d_op, v,err);
+            }
         }
         break;
     case Thing::T_BinExpr:
@@ -154,116 +140,283 @@ QVariant Ast::Eval::evalConstExpr(Ast::Expression* e, QString* err)
             const QVariant rhs = evalConstExpr(be->d_rhs.data(), err );
             if( !rhs.isValid() )
                 return rhs;
-            if( be->d_op == BinExpr::IN )
-            {
-                const qint64 b = lhs.toLongLong();
-                if( lhs.type() != QVariant::LongLong || !rhs.canConvert<Set>() || b < 0 || b >= SET_BIT_LEN )
-                    return expErr(err,tr("invalid data type for operator IN") );
-                return rhs.value<Set>().test(b);
-            }
-            if( rhs.type() != lhs.type() )
-                return expErr(err,tr("operands not of same type") );
-            switch( be->d_op )
-            {
-            case BinExpr::ADD:
-                if( rhs.type() == QVariant::LongLong )
-                    return lhs.toLongLong() + rhs.toLongLong();
-                else if( rhs.type() == QVariant::Double )
-                    return lhs.toDouble() + rhs.toDouble();
-                else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
-                    return QVariant::fromValue( lhs.value<Set>() | rhs.value<Set>() );
-                else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::SUB:
-                if( rhs.type() == QVariant::LongLong )
-                    return lhs.toLongLong() - rhs.toLongLong();
-                else if( rhs.type() == QVariant::Double )
-                    return lhs.toDouble() - rhs.toDouble();
-                else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
-                {
-                    const Set a = lhs.value<Set>();
-                    const Set b = rhs.value<Set>();
-                    Set res;
-                    for( int j = 0; j < a.size(); j++ )
-                        res.set( a.test(j) && !b.test(j) );
-                    return QVariant::fromValue( res );
-                }else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::FDIV:
-                if( rhs.type() == QVariant::LongLong )
-                    return lhs.toLongLong() / rhs.toLongLong();
-                else if( rhs.type() == QVariant::Double )
-                    return lhs.toDouble() / rhs.toDouble();
-                else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
-                {
-                    const Set a = lhs.value<Set>();
-                    const Set b = rhs.value<Set>();
-                    Set res;
-                    for( int j = 0; j < a.size(); j++ )
-                        res.set( ( a.test(j) || b.test(j) ) && !( a.test(j) && b.test(j) ) );
-                    return QVariant::fromValue( res );
-                }else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::MUL:
-                if( rhs.type() == QVariant::LongLong )
-                    return lhs.toLongLong() * rhs.toLongLong();
-                else if( rhs.type() == QVariant::Double )
-                    return lhs.toDouble() * rhs.toDouble();
-                else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
-                    return QVariant::fromValue( lhs.value<Set>() & rhs.value<Set>() );
-                else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::DIV:
-                if( rhs.type() == QVariant::LongLong )
-                {
-                    const qint64 a = lhs.toLongLong();
-                    const qint64 b = rhs.toLongLong();
-                    // res = ( a - ( ( a % b + b ) % b ) ) / b;
-                    // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
-                    if (a < 0)
-                        return qint64( (a - b + 1) / b );
-                    else
-                        return qint64( a / b );
-                }else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::MOD:
-                if( rhs.type() == QVariant::LongLong )
-                {
-                    const qint64 a = lhs.toLongLong();
-                    const qint64 b = rhs.toLongLong();
-                    // res = ( a % b + b ) % b;
-                    // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
-                    if (a < 0)
-                        return qint64( (b - 1) + ((a - b + 1)) % b );
-                    else
-                        return qint64( a % b );
-                }else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::AND:
-                if( rhs.type() == QVariant::Bool )
-                    return lhs.toBool() && rhs.toBool();
-                else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            case BinExpr::OR:
-                if( rhs.type() == QVariant::Bool )
-                    return lhs.toBool() || rhs.toBool();
-                else
-                    return expErr(err,tr("operand types incompatible with operator") );
-                break;
-            }
+            return binOp( be->d_op, lhs, rhs, err );
         }
         break;
     case Thing::T_CallExpr:
         return expErr(err,tr("operation not supported in a const expression"));
     default:
         Q_ASSERT( false );
+    }
+    return QVariant();
+}
+
+QVariant Eval::NEG(const QVariant& v, QString* err)
+{
+    if( v.type() == QVariant::Double )
+        return -v.toDouble();
+    if( v.type() == QVariant::LongLong )
+        return -v.toLongLong();
+    else
+        return expErr(err,tr("cannot invert sign of non numerical expression"));
+}
+
+QVariant Eval::NOT(const QVariant& v, QString* err)
+{
+    if( v.type() == QVariant::Bool )
+        return !v.toBool();
+    return expErr(err,tr("cannot negate non boolean expression"));
+}
+
+QVariant Eval::ADD(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() + rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() + rhs.toDouble();
+    else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+        return QVariant::fromValue( lhs.value<Set>() | rhs.value<Set>() );
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::SUB(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() - rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() - rhs.toDouble();
+    else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+    {
+        const Set a = lhs.value<Set>();
+        const Set b = rhs.value<Set>();
+        Set res;
+        for( int j = 0; j < a.size(); j++ )
+            res.set( a.test(j) && !b.test(j) );
+        return QVariant::fromValue( res );
+    }else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::FDIV(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() / rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() / rhs.toDouble();
+    else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+    {
+        const Set a = lhs.value<Set>();
+        const Set b = rhs.value<Set>();
+        Set res;
+        for( int j = 0; j < a.size(); j++ )
+            res.set( ( a.test(j) || b.test(j) ) && !( a.test(j) && b.test(j) ) );
+        return QVariant::fromValue( res );
+    }else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::MUL(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() * rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() * rhs.toDouble();
+    else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+        return QVariant::fromValue( lhs.value<Set>() & rhs.value<Set>() );
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::DIV(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+    {
+        const qint64 a = lhs.toLongLong();
+        const qint64 b = rhs.toLongLong();
+        // res = ( a - ( ( a % b + b ) % b ) ) / b;
+        // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+        if (a < 0)
+            return qint64( (a - b + 1) / b );
+        else
+            return qint64( a / b );
+    }else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::MOD(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+    {
+        const qint64 a = lhs.toLongLong();
+        const qint64 b = rhs.toLongLong();
+        // res = ( a % b + b ) % b;
+        // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
+        if (a < 0)
+            return qint64( (b - 1) + ((a - b + 1)) % b );
+        else
+            return qint64( a % b );
+    }else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::AND(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::Bool )
+        return lhs.toBool() && rhs.toBool();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::OR(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::Bool )
+        return lhs.toBool() || rhs.toBool();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::EQ(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() == rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() == rhs.toDouble();
+    else if( rhs.type() == QVariant::Bool )
+        return lhs.toBool() == rhs.toBool();
+    else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+        return QVariant::fromValue( lhs.value<Set>() == rhs.value<Set>() );
+    else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+        return lhs.toByteArray() == rhs.toByteArray();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::NEQ(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() != rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() != rhs.toDouble();
+    else if( rhs.type() == QVariant::Bool )
+        return lhs.toBool() != rhs.toBool();
+    else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
+        return QVariant::fromValue( lhs.value<Set>() != rhs.value<Set>() );
+    else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+        return lhs.toByteArray() != rhs.toByteArray();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::LE(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() < rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() < rhs.toDouble();
+    else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+        return lhs.toByteArray() < rhs.toByteArray();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::LEQ(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() <= rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() <= rhs.toDouble();
+    else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+        return lhs.toByteArray() <= rhs.toByteArray();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::GT(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() > rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() > rhs.toDouble();
+    else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+        return lhs.toByteArray() > rhs.toByteArray();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::GEQ(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( rhs.type() == QVariant::LongLong )
+        return lhs.toLongLong() >= rhs.toLongLong();
+    else if( rhs.type() == QVariant::Double )
+        return lhs.toDouble() >= rhs.toDouble();
+    else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
+        return lhs.toByteArray() >= rhs.toByteArray();
+    else
+        return expErr(err,tr("operand types incompatible with operator") );
+}
+
+QVariant Eval::IN(const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    const qint64 b = lhs.toLongLong();
+    if( lhs.type() != QVariant::LongLong || !rhs.canConvert<Set>() || b < 0 || b >= SET_BIT_LEN )
+        return expErr(err,tr("invalid data type for operator IN") );
+    return rhs.value<Set>().test(b);
+}
+
+QVariant Eval::binOp(quint8 op, const QVariant& lhs, const QVariant& rhs, QString* err)
+{
+    if( op == BinExpr::IN )
+        return IN(lhs,rhs,err);
+    if( rhs.type() != lhs.type() )
+        return expErr(err,tr("operands not of same type") );
+
+    switch( op )
+    {
+    case BinExpr::ADD:
+        return ADD(lhs,rhs,err);
+    case BinExpr::SUB:
+        return SUB(lhs,rhs,err);
+    case BinExpr::FDIV:
+        return FDIV(lhs,rhs,err);
+    case BinExpr::MUL:
+        return MUL(lhs,rhs,err);
+    case BinExpr::DIV:
+        return DIV(lhs,rhs,err);
+    case BinExpr::MOD:
+        return MOD(lhs,rhs,err);
+    case BinExpr::AND:
+        return AND(lhs,rhs,err);
+    case BinExpr::OR:
+        return OR(lhs,rhs,err);
+    case BinExpr::EQ:
+        return EQ(lhs,rhs,err);
+    case BinExpr::NEQ:
+        return NEQ(lhs,rhs,err);
+    case BinExpr::LT:
+        return LE(lhs,rhs,err);
+    case BinExpr::LEQ:
+        return LEQ(lhs,rhs,err);
+    case BinExpr::GT:
+        return GT(lhs,rhs,err);
+    case BinExpr::GEQ:
+        return GEQ(lhs,rhs,err);
+    default:
+        return expErr(err,tr("operator not supported"));
+    }
+    return QVariant();
+}
+
+QVariant Eval::unOp(quint8 op, const QVariant& v, QString* err)
+{
+    switch( op )
+    {
+    case UnExpr::NEG:
+        return NEG(v,err);
+    case UnExpr::NOT:
+        return NOT(v,err);
+    default:
+        return expErr(err,tr("operator not supported"));
     }
     return QVariant();
 }
@@ -354,6 +507,12 @@ struct Printer : public AstVisitor
         else
             out << t->d_self->d_name;
     }
+    void visit( TypeRef* t )
+    {
+        if( namedType(t) )
+            return;
+        out << "REF ";
+    }
     void visit( Field* n)
     {
         out << ws() << n->d_name << " ";
@@ -363,33 +522,47 @@ struct Printer : public AstVisitor
             n->d_type->accept(this);
         out << endl;
     }
+
+    void renderLive( Named* r )
+    {
+        out << " ";
+        if( r->d_liveFrom )
+            out << "live " << r->d_liveFrom << "-" << r->d_liveTo << " ";
+        if( r->d_usedFromSubs )
+            out << "subs ";
+        if( r->d_slotValid )
+            out << "slot " << r->d_slot;
+    }
+
+    void renderVar( Named* r )
+    {
+        out << r->d_name << " ";
+        if( r->d_type.isNull() )
+            out << "?";
+        else
+            r->d_type->accept(this);
+        renderLive(r);
+        out << endl;
+    }
+
     void visit( Variable* n )
     {
-        out << ws() << "V " << n->d_name << " ";
-        if( n->d_type.isNull() )
-            out << "? ";
-        else
-            n->d_type->accept(this);
-        out << endl;
+        out << ws() << "V ";
+        renderVar( n );
     }
+
     void visit( LocalVar* n )
     {
-        out << ws() << "V " << n->d_name << " ";
-        if( n->d_type.isNull() )
-            out << "? ";
-        else
-            n->d_type->accept(this);
-        out << endl;
+        out << ws() << "V ";
+        renderVar( n );
     }
+
     void visit( Parameter* n )
     {
-        out << ws() << "P " << n->d_name << " ";
-        if( n->d_type.isNull() )
-            out << "? ";
-        else
-            n->d_type->accept(this);
-        out << endl;
+        out << ws() << "P ";
+        renderVar( n );
     }
+
     void visit( NamedType* n )
     {
         curNamed = n;
@@ -414,7 +587,8 @@ struct Printer : public AstVisitor
     void visit( Import* n)
     {
         out << ws() << "I " << n->d_name << " ";
-        out << n->d_mod->d_name << " " << endl;
+        out << n->d_mod->d_name;
+        out << endl;
     }
     void visit( Procedure* m )
     {
@@ -423,7 +597,8 @@ struct Printer : public AstVisitor
             out << "? ";
         else
             m->d_type->accept(this);
-        out << " " << endl;
+        renderLive(m);
+        out << endl;
         d_level++;
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);

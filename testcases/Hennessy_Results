@@ -1,3 +1,16 @@
+**** OBNC :
+Perm       13
+Towers       10
+Queens        9
+Intmm        7
+Mm       14
+Quick       11
+Bubble       14
+Tree       10
+FFT       24
+Nonfloating point composite is 1.420000E+02
+Floating point composite is 2.894400E+02
+
 **** Thunk based :
 
 Perm      236
@@ -25,3 +38,19 @@ Tree       39
 FFT       17
 Nonfloating point composite is 4.727587e+02
 Floating point composite is 5.912426e+02
+
+**** Bytecode (multi-return) based on 2020-01-12 :
+
+Perm       21
+Towers       13
+Queens        4
+Intmm       12
+Mm       15
+Quick  Error in Quick.
+      32
+Bubble Error3 in Bubble.
+      17
+Tree       37
+FFT       21
+Nonfloating point composite is 2.761253e+02
+Floating point composite is 4.117424e+02

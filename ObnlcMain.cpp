@@ -31,6 +31,7 @@
 #ifdef OBNLC_USING_LUAJIT
 #include <LjTools/Engine2.h>
 #include "ObLjLib.h"
+#include "ObLjbcGen.h"
 #include "ObLuaGen2.h"
 #endif
 
@@ -96,7 +97,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2019-12-17");
+    a.setApplicationVersion("2020-01-12");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -108,7 +109,7 @@ int main(int argc, char *argv[])
     QString mod;
     QString run;
     int n = 1;
-    int gen = 2;
+    int gen = 3;
     bool forceObnExt = false;
     bool useOakwood = false;
     bool ok;
@@ -126,7 +127,7 @@ int main(int argc, char *argv[])
 #ifdef OBNLC_USING_LUAJIT
             out << "  -run=A[.B]    run module A or procedure B in module A and quit" << endl;
             out << "  -n=x          number of times to run A or A.B" << endl;
-            out << "  -gen=n        n=1..thunk for VAR; n=2..multi-return for VAR (default)" << endl;
+            out << "  -gen=n        n=1..thunk for VAR; n=2..multi-return for VAR; n=3..bytecode (default)" << endl;
 #endif
             out << "  -ext          force Oberon extensions (default autosense)" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
@@ -289,6 +290,10 @@ int main(int argc, char *argv[])
     {
         qDebug() << "generating files using gen=2 ...";
         Ob::LuaGen2::translate(&astm, outPath,mod);
+    }else if( gen == 3 )
+    {
+        qDebug() << "generating files using gen=3 ...";
+        Ob::LjbcGen::translate(&astm, outPath,mod);
     }else
     {
         qCritical() << "invalid generator selected (see -h for more information):" << gen;

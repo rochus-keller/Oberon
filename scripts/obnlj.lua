@@ -76,10 +76,18 @@ function module.PACK( x, n )
 	x( true, _lib.PACK( x(), n ) )
 end
 
+function module.PACK_NT( x, n )
+        return _lib.PACK( x, n )
+end
+
 function module.UNPK( x, n )
 	local _x, _n = _lib.UNPK( x(), n() )
 	x( true, _x )
 	n( true, _n )
+end
+
+function module.UNPK_NT( x, n )
+        return _lib.UNPK( x, n );
 end
 
 function module.Arr(n)

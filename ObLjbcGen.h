@@ -1,5 +1,5 @@
-#ifndef OBLUAGEN2_H
-#define OBLUAGEN2_H
+#ifndef OBLJBCGEN_H
+#define OBLJBCGEN_H
 
 /*
 * Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -31,17 +31,15 @@ namespace Ob
     {
         class Module;
         class Model;
-        class Named;
     }
-    class LuaGen2
+    class LjbcGen
     {
     public:
-        static QByteArray toName( Ast::Named* id);
         static bool translate(Ast::Model*,const QString& outdir, const QString& mod, Errors* = 0 );
         static bool translate( Ast::Module*, QIODevice* out, Errors* = 0 );
     private:
-        LuaGen2();
+        LjbcGen();
     };
 }
 
-#endif // OBLUAGEN2_H
+#endif // OBLJBCGEN_H

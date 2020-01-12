@@ -31,13 +31,19 @@ TEMPLATE = app
 SOURCES += \
     ObnlcMain.cpp \
     ObLuaGen.cpp \
-    ObLuaGen2.cpp
+    ObLuaGen2.cpp \
+    ObLjbcGen.cpp \
+    ../LjTools/LuaJitComposer.cpp \
+    ../LjTools/LuaJitBytecode.cpp
 
 include( Oberon.pri )
 
 HEADERS += \
     ObLuaGen.h \
-    ObLuaGen2.h
+    ObLuaGen2.h \
+    ObLjbcGen.h \
+    ../LjTools/LuaJitComposer.h \
+    ../LjTools/LuaJitBytecode.h
 
 !win32 {
     QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable

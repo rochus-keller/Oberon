@@ -62,9 +62,9 @@ namespace Ob
         {
             enum Tag { T_Thing, T_Module, T_Import, T_Pointer, T_Record, T_BaseType, T_Array, T_ProcType, T_NamedType,
                         T_CallExpr, T_SelfRef, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr,
-                        T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure,
+                        T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure, T_Variable, T_LocalVar, T_TypeRef,
                      T_MAX };
-            QVariantMap user; // For any use; only eats 4 bytes if not used (QVariant eats 12 instead)
+            // QVariantMap user; // Not used so far; For any use; only eats 4 bytes if not used (QVariant eats 12 instead)
             Thing() {}
             virtual ~Thing() {}
             virtual bool isScope() const { return false; }
@@ -80,6 +80,7 @@ namespace Ob
             struct Record;
             struct ProcType;
             struct SelfRef;
+            struct TypeRef;
         struct Named;
             struct Field;
             struct Variable;
@@ -118,6 +119,7 @@ namespace Ob
             virtual void visit( Record* ) {}
             virtual void visit( ProcType* ) {}
             virtual void visit( SelfRef* ) {}
+            virtual void visit( TypeRef* ) {}
             virtual void visit( Field* ) {}
             virtual void visit( Variable* ) {}
             virtual void visit( LocalVar* ) {}
@@ -149,6 +151,8 @@ namespace Ob
 
             Type():d_ident(0) {}
             typedef QList< Ref<Type> > List;
+            virtual bool isStructured() const { return false; }
+            virtual Type* derefed() { return this; }
         };
 
             struct BaseType : public Type
@@ -177,18 +181,20 @@ namespace Ob
                 Ref<Type> d_type;
                 int getTag() const { return T_Array; }
                 void accept(AstVisitor* v) { v->visit(this); }
+                bool isStructured() const { return true; }
             };
 
             struct Record : public Type
             {
-                Record* d_base; // base type or null
-                Type* d_binding; // points back to pointer type in case of anonymous record
+                Type* d_base; // base type (a Record or TypeRef to Record) or null
+                Pointer* d_binding; // points back to pointer type in case of anonymous record
                 QList< Ref<Field> > d_fields;
 
                 Record():d_binding(0),d_base(0) {}
                 Field* find(const QByteArray& name , bool recursive ) const;
                 int getTag() const { return T_Record; }
                 void accept(AstVisitor* v) { v->visit(this); }
+                bool isStructured() const { return true; }
             };
 
             struct ProcType : public Type
@@ -216,18 +222,37 @@ namespace Ob
                 void accept(AstVisitor* v) { v->visit(this); }
             };
 
+            struct TypeRef : public Type // for named types pointing to types in other modules
+            {
+                Ref<Type> d_ref;
+                int getTag() const { return T_TypeRef; }
+                void accept(AstVisitor* v) { v->visit(this); }
+                Type* derefed() { return d_ref->derefed(); }
+            };
+
         struct Named : public Thing
         {
             QByteArray d_name;
             Loc d_loc;
             Ref<Type> d_type;
             Scope* d_scope; // owning scope
-            bool d_public;
-            bool d_synthetic;
 
-            Named(const QByteArray& n, Type* t, Scope* s):d_scope(s),d_type(t),d_name(n),
-                d_public(false),d_synthetic(false) {}
-            Named():d_scope(0),d_public(false),d_synthetic(false){}
+            // Bytecode generator helpers
+            uint d_liveFrom : 24; // 0..undefined
+            uint d_slot : 8;
+            uint d_liveTo : 25; // 0..undefined
+            uint d_slotValid : 1;
+            uint d_usedFromSubs : 1;
+            uint d_usedFromLive : 1; // indirectly used named types
+            uint d_initialized: 1;
+            // end helpers
+
+            uint d_public : 1;
+            uint d_synthetic: 1;
+
+            Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
+                d_public(false),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
+                d_slot(0),d_slotValid(0),d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0) {}
             bool isNamed() const { return true; }
             virtual bool isVarParam() const { return false; }
         };
@@ -240,11 +265,13 @@ namespace Ob
             struct Variable : public Named // Module variable
             {
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_Variable; }
             };
 
             struct LocalVar : public Named // Procedure local variable
             {
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_LocalVar; }
             };
 
             struct Parameter : public Named // Procedure parameter
@@ -285,8 +312,10 @@ namespace Ob
                 Names d_names;
                 QList<Named*> d_order;
                 StatSeq d_body;
+                Loc d_end;
 
                 bool isScope() const { return true; }
+                Module* getModule();
 
                 Named* find( const QByteArray&, bool recursive = true ) const;
             };
@@ -416,11 +445,13 @@ namespace Ob
 
             struct UnExpr : public Expression
             {
-                enum Op { NEG, NOT, SEL, CALL, DEREF, CAST };
+                enum Op { Invalid, NEG, NOT, DEREF, CAST, // implemented in UnExpr
+                          SEL, CALL // implemented in subclasses
+                        };
                 static const char* s_opName[];
                 quint8 d_op;
                 Ref<Expression> d_sub;
-                UnExpr(quint8 op = NEG, Expression* e = 0 ):d_op(op),d_sub(e){}
+                UnExpr(quint8 op = Invalid, Expression* e = 0 ):d_op(op),d_sub(e){}
                 int getTag() const { return T_UnExpr; }
                 void accept(AstVisitor* v) { v->visit(this); }
             };
@@ -446,9 +477,9 @@ namespace Ob
 
             struct BinExpr : public Expression
             {
-                enum Op { Index, Range,
+                enum Op { Invalid, Index, Range,
                         // relations:
-                        EQ, NEQ, LE, LEQ, GT, GEQ, IN, IS,  //'=' | '#' | '<' | '<=' | '>' | '>=' | IN | IS
+                        EQ, NEQ, LT, LEQ, GT, GEQ, IN, IS,  //'=' | '#' | '<' | '<=' | '>' | '>=' | IN | IS
                         // AddOperator
                         ADD, SUB, OR,  // '+' | '-' | OR
                         // MulOperator
@@ -457,6 +488,7 @@ namespace Ob
                 static const char* s_opName[];
                 quint8 d_op;
                 Ref<Expression> d_lhs, d_rhs;
+                BinExpr():d_op(Invalid){}
                 int getTag() const { return T_BinExpr; }
                 void accept(AstVisitor* v) { v->visit(this); }
             };
@@ -507,6 +539,8 @@ namespace Ob
             FileCache* getFc() const { return d_fc; }
 
             static bool isSubType( Type* sub, Type* super );
+            static Record* toRecord( Ast::Type* t );
+            static bool isXInModule( Module* mod, Scope* x );
         protected:
             struct Usage
             {
@@ -538,7 +572,7 @@ namespace Ob
             Ref<Type> arrayType(Scope*,SynTree*);
             Ref<Type> pointerType(Scope*, SynTree*);
             Ast::Ref<ProcType> formalParameters(Scope*,SynTree*);
-            Ref<Type> recordType(Scope*,SynTree*,Type* binding);
+            Ref<Type> recordType(Scope*, SynTree*, Pointer* binding);
             bool variableDeclaration(Scope*,SynTree*);
             bool constDeclaration(Scope*,SynTree*);
             bool fpSection( Scope*, ProcType*, SynTree*);
@@ -573,6 +607,7 @@ namespace Ob
             Ref<Type> getTypeFromQuali(Scope*,SynTree*);
             bool checkSelfRefs(Named* n, Type*, bool top , bool startsWithPointer, bool inRecord);
             void publicWarning(Named* n);
+            bool isInThisModule( Scope* ) const;
         private:
             Ref<Scope> d_global;
             Ref<Scope> d_globalLc; // lower & upper case version of global

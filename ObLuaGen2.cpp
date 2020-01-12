@@ -27,9 +27,7 @@
 #include <QDateTime>
 #include <QDir>
 using namespace Ob;
-using namespace Ast;
-
-// WORK IN PROGRESS
+using namespace Ob::Ast;
 
 struct TransformIndexFunctionToStats : public AstVisitor
 {
@@ -160,6 +158,10 @@ struct TransformIndexFunctionToStats : public AstVisitor
         curScope->d_names.insert( tmp->d_name,tmp.data() );
         curScope->d_order.append(tmp.data());
         tmp->d_type = e->d_type;
+        tmp->d_liveFrom = 1;
+        if( !bodies.back().isEmpty() )
+            tmp->d_liveFrom = bodies.back().back()->d_loc.d_row;
+        tmp->d_liveTo = e->d_loc.d_row;
 
         Ref<Assign> a = new Assign();
         Ref<IdentLeaf> id = new IdentLeaf();
@@ -175,6 +177,7 @@ struct TransformIndexFunctionToStats : public AstVisitor
         const int diff = numOfIndexVar - allocatedVarTemps;
         if( diff > 0 )
         {
+            // not all requred vars are allocated yet
             for( int i = 0; i < diff; i++ )
             {
                 Ref<Variable> tmp = new Variable();
@@ -294,8 +297,8 @@ struct TransformIndexFunctionToStats : public AstVisitor
     {
         Q_ASSERT( curScope != 0 );
 
-        Q_ASSERT( !c->d_sub.isNull() && !c->d_sub->d_type.isNull() && c->d_sub->d_type->getTag() == Thing::T_ProcType );
-        ProcType* pt = static_cast<ProcType*>( c->d_sub->d_type.data() );
+        Q_ASSERT( !c->d_sub.isNull() && !c->d_sub->d_type.isNull() && c->d_sub->d_type->derefed()->getTag() == Thing::T_ProcType );
+        ProcType* pt = static_cast<ProcType*>( c->d_sub->d_type->derefed() );
 
         // CallExpr is always the top Expr in a desig
         c->d_sub->accept(this);
@@ -353,6 +356,8 @@ struct TransformIndexFunctionToStats : public AstVisitor
     typedef QPair<BinExpr*,Expression*> IndexPred;
     static IndexPred getLastIndexOp( Expression* e, Expression* pred = 0 )
     {
+        // TODO: review this concept and printRightPart. Only the case where a
+        // desig contains [] has to be handled, and then only the last table/index
         if( e == 0 )
             return IndexPred();
         switch( e->getTag() )
@@ -494,11 +499,10 @@ struct LuaGen2Imp : public AstVisitor
             // return "module." + toName(n);
         else if( n->d_scope->getTag() == Thing::T_Module )
         {
-            // TODO T7Modules has issue because A imports symbol from B which is actually from C not known to A
-            // we might need type aliasses nevertheless
             if( !imps.contains(n->d_scope) )
-                qDebug() << "missing" << "current mod" << mod->d_name << "imp" << n->d_scope->d_name << "sym" << n->d_name;
-            return imps.value(n->d_scope,"???") + "." + toName(n); // symbol is in imported module
+                qDebug() << "missing" << "current mod" << mod->d_name << "imp" <<
+                            n->d_scope->d_name << "sym" << n->d_name;
+            return imps.value(n->d_scope,"???") + "." + toName(n);
         }
         else
             return toName(n); // symbol must be local to current procedure
@@ -545,12 +549,12 @@ struct LuaGen2Imp : public AstVisitor
             // we're at the highest dimension
             if( isString( dims[curDim] ) )
                 out << " = obnlj.Str(" << dims[curDim]->d_len << ")";
-            else if( dims[curDim]->d_type->getTag() == Thing::T_Record )
+            else if( dims[curDim]->d_type->derefed()->getTag() == Thing::T_Record )
             {
                 const QByteArray rec = "__r" + QByteArray::number(curDim);
                 initHelper( dims[curDim], curDim, name, rec );
                 level++;
-                initRecord( static_cast<Record*>( dims[curDim]->d_type.data() ), rec );
+                initRecord( dims[curDim]->d_type.data(), rec );
                 level--;
                 out << ws() << "end";
             }
@@ -572,8 +576,9 @@ struct LuaGen2Imp : public AstVisitor
         if( t && t->getTag() == Thing::T_Array )
         {
             Array* a = static_cast<Array*>(t);
-            if( a->d_type->getTag() == Thing::T_BaseType &&
-                    static_cast<BaseType*>( a->d_type.data() )->d_type == BaseType::CHAR )
+            Type* td = a->d_type->derefed();
+            if( td->getTag() == Thing::T_BaseType &&
+                    static_cast<BaseType*>( td )->d_type == BaseType::CHAR )
                 return true;
         }
         return false;
@@ -586,28 +591,37 @@ struct LuaGen2Imp : public AstVisitor
         Array* curDim = arr;
         QList<Array*> dims;
         dims << curDim;
-        while( curDim->d_type->getTag() == Thing::T_Array )
+        Type* td = curDim->d_type->derefed();
+        while( td->getTag() == Thing::T_Array )
         {
-            curDim = static_cast<Array*>( curDim->d_type.data() );
+            curDim = static_cast<Array*>( td );
             dims << curDim;
+            td = curDim->d_type->derefed();
         }
         initMatrix( dims, name, 0 );
     }
 
-    void initRecord( Record* r, const QByteArray& name )
+    void initRecord( Type* rt, const QByteArray& name )
     {
-        Q_ASSERT( r != 0 );
+        Q_ASSERT( rt != 0 );
+        if( rt->getTag() == Thing::T_Pointer )
+            rt = static_cast<Pointer*>(rt)->d_to.data();
+
+        Q_ASSERT( rt->derefed()->getTag() == Thing::T_Record );
         // out << " = {}" << endl; was already done by the caller
+
+        if( rt->d_ident )
+            out << ws() << "setmetatable(" << name << "," << quali( rt->d_ident ) << ")" << endl;
+
+        Record* r = static_cast<Record*>( rt->derefed() );
         QList<Record*> topDown;
         topDown << r;
-        if( r->d_ident )
-            out << ws() << "setmetatable(" << name << "," << quali( r->d_ident ) << ")" << endl;
 
-        Record* base = r->d_base;
+        Record* base = r->d_base ? static_cast<Record*>(r->d_base->derefed()) : 0;
         while( base )
         {
             topDown.prepend(base);
-            base = base->d_base;
+            base = base->d_base ? static_cast<Record*>(base->d_base->derefed()) : 0;
         }
 
         for( int j = 0; j < topDown.size(); j++ )
@@ -617,16 +631,17 @@ struct LuaGen2Imp : public AstVisitor
             for( int i = 0; i < rec->d_fields.size(); i++ )
             {
                 Type* t = rec->d_fields[i]->d_type.data();
+                Type* td = t->derefed();
                 const QByteArray field = name + "." + rec->d_fields[i]->d_name;
                 level++;
-                if( t->getTag() == Thing::T_Record )
+                if( td->getTag() == Thing::T_Record )
                 {
                     out << ws() << field << " = {}" << endl;
-                    initRecord( static_cast<Record*>(t), field );
-                }else if( t->getTag() == Thing::T_Array )
+                    initRecord( t, field );
+                }else if( td->getTag() == Thing::T_Array )
                 {
                     out << ws() << field;
-                    initArray( static_cast<Array*>(t), field);
+                    initArray( static_cast<Array*>(td), field);
                 }
                 level--;
             }
@@ -638,17 +653,18 @@ struct LuaGen2Imp : public AstVisitor
         const QByteArray name = toName(v);
         out << ws() << "local ";
         // v->d_type can be null here because of the allocatedVarTemps in TransformIndexFunctionToStats
-        if( !v->d_type.isNull() && v->d_type->getTag() == Thing::T_Record )
+        Type* td = v->d_type.isNull() ? 0 : v->d_type->derefed();
+        if( td && td->getTag() == Thing::T_Record )
         {
             level++;
             out << name << " = {}" << endl;
-            initRecord( static_cast<Record*>(v->d_type.data()), name );
+            initRecord( v->d_type.data(), name );
             level--;
-        }else if( !v->d_type.isNull() && v->d_type->getTag() == Thing::T_Array )
+        }else if( td && td->getTag() == Thing::T_Array )
         {
             level++;
             out << name;
-            initArray( static_cast<Array*>( v->d_type.data() ), name );
+            initArray( static_cast<Array*>(td), name );
             level--;
         }else
             out << name << endl;
@@ -688,9 +704,12 @@ struct LuaGen2Imp : public AstVisitor
     {
         if( t->d_type->d_ident == t )
         {
+            // we are only interested in original (i.e. no shortcut type refs) declarations here
+            Type* td = t->d_type->derefed();
             if( t->d_type->getTag() == Thing::T_Record )
             {
-                Record* r = static_cast<Record*>(t->d_type.data() );
+                // this is an original (i.e. non-alias) declaration of a recrod
+                Record* r = static_cast<Record*>(t->d_type.data());
                 const QByteArray name = toName(t);
                 out << ws() << "local " << name << " = ";
                 out << "{}" << endl;
@@ -702,10 +721,18 @@ struct LuaGen2Imp : public AstVisitor
                     level--;
                 }
                 if( t->d_scope == mod && t->d_public )
-                    out << "module" << "." << toName(t) << " = " << toName(t) << endl;
+                    out << "module" << "." << name << " = " << name << endl;
+            }else if( t->d_type->getTag() == Thing::T_TypeRef && td->getTag() == Thing::T_Record )
+            {
+                TypeRef* tr = static_cast<TypeRef*>(t->d_type.data());
+                const QByteArray name = toName(t);
+                out << ws() << "local " << name << " = " << quali( tr->d_ref->d_ident ) << endl;
+                if( t->d_scope == mod && t->d_public )
+                    out << "module" << "." << name << " = " << name << endl;
             }
         }
     }
+
     void print( const QVariant& v )
     {
         if( v.canConvert<Ast::Set>() )
@@ -753,8 +780,9 @@ struct LuaGen2Imp : public AstVisitor
         for( int i = 0; i < m->d_body.size(); i++ )
             m->d_body[i]->accept(this);
 
-        Q_ASSERT( m->d_type->getTag() == Thing::T_ProcType );
-        ProcType* p = static_cast<ProcType*>( m->d_type.data() );
+        Type* td = m->d_type->derefed();
+        Q_ASSERT( td->getTag() == Thing::T_ProcType );
+        ProcType* p = static_cast<ProcType*>( td );
         if( p->d_return.isNull() )
         {
             int numOfVar = 0;
@@ -929,11 +957,13 @@ struct LuaGen2Imp : public AstVisitor
 
     static inline bool isArrayOfChar( Type* t )
     {
-        if( t && t->getTag() == Thing::T_Array )
+        Type* td = t ? t->derefed() : 0;
+        if( td && td->getTag() == Thing::T_Array )
         {
-            Array* a = static_cast<Array*>(t);
-            if( a->d_type->getTag() == Thing::T_BaseType &&
-                    static_cast<BaseType*>( a->d_type.data() )->d_type == BaseType::CHAR )
+            Array* a = static_cast<Array*>(td);
+            Type* at = a->d_type->derefed();
+            if( at->getTag() == Thing::T_BaseType &&
+                    static_cast<BaseType*>( at )->d_type == BaseType::CHAR )
                 return true;
         }
         return false;
@@ -1194,8 +1224,8 @@ struct LuaGen2Imp : public AstVisitor
 
     void visit( IdentLeaf* id )
     {
-        if( !id->d_ident.isNull() )
-            out << toName(id->d_ident.data());
+        Q_ASSERT( !id->d_ident.isNull() );
+        out << toName(id->d_ident.data());
     }
 
     void visit( UnExpr* e )
@@ -1221,7 +1251,10 @@ struct LuaGen2Imp : public AstVisitor
     void visit( IdentSel* e )
     {
         e->d_sub->accept(this);
+        Q_ASSERT( !e->d_ident.isNull() );
         out << "." << toName( e->d_ident.data() );
+        if( e->d_ident->getTag() == Thing::T_Variable && e->d_ident->d_scope != mod )
+            out << "()";
     }
 
     static Record* toRecord( Type* t )
@@ -1248,7 +1281,7 @@ struct LuaGen2Imp : public AstVisitor
             out << ws();
             c->d_actuals.first()->accept(this);
             out << " = __tmp1" << endl;
-            initRecord( toRecord( c->d_actuals.first()->d_type.data() ), "__tmp1" );
+            initRecord( c->d_actuals.first()->d_type.data(), "__tmp1" );
             return true;
         case BuiltIn::INC:
         case BuiltIn::DEC:
@@ -1527,7 +1560,7 @@ struct LuaGen2Imp : public AstVisitor
             case BinExpr::NEQ:
                 out << " ~= ";
                 break;
-            case BinExpr::LE:
+            case BinExpr::LT:
                 out << " < ";
                 break;
             case BinExpr::LEQ:
@@ -1547,6 +1580,11 @@ struct LuaGen2Imp : public AstVisitor
         }
     }
 };
+
+QByteArray LuaGen2::toName(Named* id)
+{
+    return ::toName(id);
+}
 
 bool LuaGen2::translate(Ast::Model* mdl, const QString& outdir, const QString& mod, Errors* err)
 {

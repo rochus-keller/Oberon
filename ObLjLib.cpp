@@ -25,6 +25,9 @@
 #include <vector>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _DEBUG
+#include <QtDebug>
+#endif
 using namespace Ob;
 
 #define LIBNAME		"obnljlib"
@@ -315,7 +318,7 @@ int LjLib::ASSERT(lua_State* L)
     }
 #ifdef _DEBUG
     else
-        printf( "passed line %d\n", lua_tointeger(L,3) );
+        qDebug() << "passed line" << lua_tointeger(L,3);
 #endif
     return 0;
 }
@@ -330,7 +333,7 @@ int LjLib::TRACE(lua_State* L)
             str += "\t";
         str += lua_tostring(L,i);
     }
-    printf( "TRACE: %s\n", str.c_str() );
+    qDebug() << "TRACE:" << str.c_str();
 #endif
     return 0;
 }

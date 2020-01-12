@@ -37,6 +37,25 @@ namespace Ast
     public:
         static void render( QTextStream&, Thing* );
         static QVariant evalConstExpr( Expression*, QString* = 0 );
+        static QVariant NEG( const QVariant&, QString* err = 0 );
+        static QVariant NOT( const QVariant&, QString* err = 0 );
+        static QVariant ADD( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant SUB( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant FDIV( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant MUL( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant DIV( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant MOD( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant AND( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant OR( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant EQ( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant NEQ( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant LE( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant LEQ( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant GT( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant GEQ( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant IN( const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant binOp( quint8 op, const QVariant& lhs, const QVariant& rhs, QString* err = 0 );
+        static QVariant unOp( quint8 op, const QVariant& rhs, QString* err = 0 );
     private:
         Eval(){}
     };

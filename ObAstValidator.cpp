@@ -78,9 +78,15 @@ struct ValidatorImp : public AstVisitor
         Q_ASSERT( false );
     }
 
+    void visit( TypeRef* r )
+    {
+        r->d_ref->accept(this);
+    }
+
     void visit( Field* f)
     {
-        Q_ASSERT( !f->d_type.isNull() );
+        if( f->d_type.isNull() )
+            return;
         removeSelfRef(f->d_type);
         if( f->d_type->d_ident == 0 )
             f->d_type->accept(this);
@@ -88,7 +94,8 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Variable* v)
     {
-        Q_ASSERT( !v->d_type.isNull() );
+        if( v->d_type.isNull() )
+            return;
         removeSelfRef(v->d_type);
         if( v->d_type->d_ident == 0 )
             v->d_type->accept(this);
@@ -96,7 +103,8 @@ struct ValidatorImp : public AstVisitor
 
     void visit( LocalVar* v )
     {
-        Q_ASSERT( !v->d_type.isNull() );
+        if( v->d_type.isNull() )
+            return;
         removeSelfRef(v->d_type);
         if( v->d_type->d_ident == 0 )
             v->d_type->accept(this);
@@ -104,7 +112,8 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Parameter* p)
     {
-        Q_ASSERT( !p->d_type.isNull() );
+        if( p->d_type.isNull() )
+            return;
         removeSelfRef(p->d_type);
         if( p->d_type->d_ident == 0 )
             p->d_type->accept(this);
@@ -112,7 +121,8 @@ struct ValidatorImp : public AstVisitor
 
     void visit( NamedType* t)
     {
-        Q_ASSERT( !t->d_type.isNull() );
+        if( t->d_type.isNull() )
+            return;
         Q_ASSERT( t->d_type->getTag() != Thing::T_SelfRef );
         if( t->d_type->d_ident == t )
             t->d_type->accept(this);
@@ -129,7 +139,7 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Procedure* m )
     {
-        Q_ASSERT( !m->d_type.isNull() && m->d_type->getTag() == Thing::T_ProcType );
+        Q_ASSERT( !m->d_type.isNull() && m->d_type->derefed()->getTag() == Thing::T_ProcType );
         removeSelfRef(m->d_type);
 
         if( m->d_type->d_ident == 0 )
@@ -144,7 +154,8 @@ struct ValidatorImp : public AstVisitor
 
         // check again d_return for not Array or Record (after removing SelfRefs)
         if( !pt->d_return.isNull() &&
-                ( pt->d_return->getTag() == Thing::T_Record || pt->d_return->getTag() == Thing::T_Array ) )
+                ( pt->d_return->derefed()->getTag() == Thing::T_Record ||
+                  pt->d_return->derefed()->getTag() == Thing::T_Array ) )
             error( m->d_loc, tr("The result type of a procedure can be neither a record nor an array"));
 
         if( !mod->d_isDef && !pt->d_return.isNull() )
@@ -196,7 +207,8 @@ struct ValidatorImp : public AstVisitor
         {
             // only the first lhs of the desig can be a parameter
             Parameter* p = static_cast<Parameter*>( leaf->getIdent() );
-            if( !p->d_var && ( p->d_type->getTag() == Thing::T_Array || p->d_type->getTag() == Thing::T_Record ) )
+            if( !p->d_var && ( p->d_type->derefed()->getTag() == Thing::T_Array ||
+                               p->d_type->derefed()->getTag() == Thing::T_Record ) )
                 error( leaf->d_loc, tr("cannot assign to structured value parameter") );
         }
         if( leaf->getIdent()->getTag() == Thing::T_Import )
@@ -212,7 +224,7 @@ struct ValidatorImp : public AstVisitor
         for( int i = 0; i < l->d_if.size(); i++ )
         {
             l->d_if[i]->accept(this);
-            if( l->d_if[i]->d_type != bt.d_boolType )
+            if( l->d_if[i]->d_type->derefed() != bt.d_boolType )
                 error( l->d_if[i]->d_loc, tr("expecting boolean expression") );
         }
         for( int i = 0; i < l->d_then.size(); i++ )
@@ -228,18 +240,18 @@ struct ValidatorImp : public AstVisitor
     void visit( ForLoop* l )
     {
         Q_ASSERT( !l->d_id.isNull() && !l->d_id->d_type.isNull() );
-        if( l->d_id->d_type != bt.d_intType )
+        if( l->d_id->d_type->derefed() != bt.d_intType )
             error( l->d_loc, tr("control variable must be of type INTEGER") );
 
         Q_ASSERT( !l->d_from.isNull() && !l->d_to.isNull() && !l->d_by.isNull() );
         l->d_from->accept(this);
-        if( l->d_from->d_type != bt.d_intType )
+        if( l->d_from->d_type->derefed() != bt.d_intType )
             error( l->d_loc, tr("begin expression must be of type INTEGER") );
         l->d_to->accept(this);
-        if( l->d_to->d_type != bt.d_intType )
+        if( l->d_to->d_type->derefed() != bt.d_intType )
             error( l->d_loc, tr("end expression must be of type INTEGER") );
         l->d_by->accept(this);
-        if( l->d_by->d_type != bt.d_intType )
+        if( l->d_by->d_type->derefed() != bt.d_intType )
             error( l->d_loc, tr("increment expression must be of type INTEGER") );
         for( int i = 0; i < l->d_do.size(); i++ )
             l->d_do[i]->accept(this);
@@ -249,12 +261,12 @@ struct ValidatorImp : public AstVisitor
     {
         Q_ASSERT( !c->d_exp.isNull() );
         c->d_exp->accept(this);
-        Type* caseType = c->d_exp->d_type.data();
+        Type* caseType = c->d_exp->d_type->derefed();
 
         if( c->d_typeCase &&
-                ( c->d_exp->d_type->getTag() != Thing::T_Record ||
+                ( c->d_exp->d_type->derefed()->getTag() != Thing::T_Record ||
                     c->d_exp->getIdent() == 0 || !c->d_exp->getIdent()->isVarParam() )
-                && c->d_exp->d_type->getTag() != Thing::T_Pointer )
+                && c->d_exp->d_type->derefed()->getTag() != Thing::T_Pointer )
             error( c->d_exp->d_loc,tr("type case variable must be a record VAR parameter or pointer") );
 
         for( int i = 0; i < c->d_cases.size(); i++ )
@@ -264,7 +276,7 @@ struct ValidatorImp : public AstVisitor
                 c->d_cases[i].d_labels[j]->accept(this);
                 if( c->d_typeCase )
                 {
-                    if( !isSubType( c->d_cases[i].d_labels[j]->d_type.data(), caseType ) )
+                    if( !Model::isSubType( c->d_cases[i].d_labels[j]->d_type.data(), caseType ) )
                         error( c->d_cases[i].d_labels[j]->d_loc, tr("case labels must be extensions of case designator") );
                 }else
                 {
@@ -287,9 +299,10 @@ struct ValidatorImp : public AstVisitor
         for( int i = 0; i < s->d_parts.size(); i++ )
         {
             s->d_parts[i]->accept(this);
-            if( s->d_parts[i]->d_type.isNull() ||
-                    ( s->d_parts[i]->d_type != bt.d_intType
-                      && s->d_parts[i]->d_type != bt.d_byteType ) )
+            Type* t = s->d_parts[i]->d_type.isNull() ? 0 : s->d_parts[i]->d_type->derefed();
+            if( t == 0 ||
+                    ( t != bt.d_intType
+                      && t != bt.d_byteType ) )
                 error(s->d_parts[i]->d_loc, tr("expecting INTEGER for SET elements") );
         }
     }
@@ -302,14 +315,16 @@ struct ValidatorImp : public AstVisitor
     {
         Q_ASSERT( !e->d_sub.isNull() && !e->d_sub->d_type.isNull() );
         e->d_sub->accept(this);
+        Type* td = e->d_type->derefed();
+        Type* subtd = e->d_sub->d_type->derefed();
         switch( e->d_op )
         {
         case UnExpr::NOT:
-            if( e->d_sub->d_type.data() != bt.d_boolType )
+            if( subtd != bt.d_boolType )
                 error(e->d_loc, tr("NOT requires boolean operand") );
             break;
         case UnExpr::NEG:
-            if( !isNumeric(e->d_sub->d_type.data() ) && e->d_sub->d_type.data() != bt.d_setType )
+            if( !isNumeric(subtd) && subtd != bt.d_setType )
                 error(e->d_loc, tr("unary minus requires numeric or set operand") );
             break;
         case UnExpr::DEREF:
@@ -319,16 +334,16 @@ struct ValidatorImp : public AstVisitor
             // The guard is applicable, if
             // T0 is an extension of the declared type T of v, and if
             Q_ASSERT( !e->d_type.isNull() );
-            if( e->d_type->getTag() != Thing::T_Record && e->d_type->getTag() != Thing::T_Pointer )
+            if( td->getTag() != Thing::T_Record && td->getTag() != Thing::T_Pointer )
                 error(e->d_loc,tr("the type guard must be a record or pointer") );
 
             // if( !isSubType( type, tg->d_sub->d_type.data() ) ) // doesn't work, still 8 errors in Oberon System
             //      error( sel, tr("the designated type is not a subtype of the actual type") );
 
             // v is a variable parameter of record type, or v is a pointer.
-            if( ( e->d_sub->d_type->getTag() != Thing::T_Record ||
+            if( ( subtd->getTag() != Thing::T_Record ||
                   e->d_sub->getIdent() == 0 || !e->d_sub->getIdent()->isVarParam() )
-                    && e->d_sub->d_type->getTag() != Thing::T_Pointer )
+                    && subtd->getTag() != Thing::T_Pointer )
                 error( e->d_sub->d_loc,tr("the type guarded variable must be a record VAR parameter or pointer") );
             break;
         }
@@ -346,8 +361,9 @@ struct ValidatorImp : public AstVisitor
         c->d_sub->accept(this);
         for( int i = 0; i < c->d_actuals.size(); i++ )
             c->d_actuals[i]->accept(this);
-        Q_ASSERT( c->d_sub->d_type->getTag() == Thing::T_ProcType );
-        ProcType* p = static_cast<ProcType*>(c->d_sub->d_type.data());
+        Type* td = c->d_sub->d_type->derefed();
+        Q_ASSERT( td->getTag() == Thing::T_ProcType );
+        ProcType* p = static_cast<ProcType*>(td);
         checkActuals(p,c->d_actuals,c);
     }
 
@@ -358,6 +374,9 @@ struct ValidatorImp : public AstVisitor
         e->d_lhs->accept(this);
         e->d_rhs->accept(this);
 
+        Type* lhs = e->d_lhs->d_type->derefed();
+        Type* rhs = e->d_rhs->d_type->derefed();
+
         switch( e->d_op )
         {
         case BinExpr::Range:
@@ -367,9 +386,9 @@ struct ValidatorImp : public AstVisitor
         // logical
         case BinExpr::AND: case BinExpr::OR:
         // relation
-        case BinExpr::EQ: case BinExpr::NEQ: case BinExpr::LE: case BinExpr::LEQ:
+        case BinExpr::EQ: case BinExpr::NEQ: case BinExpr::LT: case BinExpr::LEQ:
         case BinExpr::GT: case BinExpr::GEQ:
-            if( !isComparableType(e->d_lhs->d_type.data(), e->d_rhs->d_type.data()) )
+            if( !isComparableType(lhs,rhs) )
                 error( e->d_loc,tr("operands must be of the same type"));
             break;
         default:
@@ -380,72 +399,72 @@ struct ValidatorImp : public AstVisitor
         {
         case BinExpr::AND:
         case BinExpr::OR:
-            if( e->d_lhs->d_type.data() != bt.d_boolType )
+            if( lhs != bt.d_boolType )
                error(e->d_loc,tr("operator requires boolean operands"));
             break;
         case BinExpr::EQ:
         case BinExpr::NEQ:
-            if( !isNumeric(e->d_lhs->d_type.data())
-                    && e->d_lhs->d_type.data() != bt.d_charType
-                    && e->d_lhs->d_type.data() != bt.d_stringType
-                    && !isString( e->d_lhs->d_type.data() )
-                    && e->d_lhs->d_type.data() != bt.d_boolType
-                    && e->d_lhs->d_type.data() != bt.d_setType
-                    && e->d_lhs->d_type->getTag() != Thing::T_Pointer
-                    && e->d_lhs->d_type->getTag() != Thing::T_ProcType )
+            if( !isNumeric(lhs)
+                    && lhs != bt.d_charType
+                    && lhs != bt.d_stringType
+                    && !isString( lhs )
+                    && lhs != bt.d_boolType
+                    && lhs != bt.d_setType
+                    && lhs->getTag() != Thing::T_Pointer
+                    && lhs->getTag() != Thing::T_ProcType )
                 error(e->d_loc,tr("operator requires numeric, string or char operands"));
            break;
         case BinExpr::GT:
         case BinExpr::GEQ:
-        case BinExpr::LE:
+        case BinExpr::LT:
         case BinExpr::LEQ:
-            if( !isNumeric(e->d_lhs->d_type.data())
-                    && e->d_lhs->d_type.data() != bt.d_charType
-                    && e->d_lhs->d_type.data() != bt.d_stringType
-                    && !isString( e->d_lhs->d_type.data() ) )
+            if( !isNumeric(lhs)
+                    && lhs != bt.d_charType
+                    && lhs != bt.d_stringType
+                    && !isString( lhs ) )
                 error(e->d_loc,tr("operator requires numeric, string or char operands"));
             break;
         case BinExpr::IN:
-            if( e->d_lhs->d_type.data() != bt.d_intType && e->d_lhs->d_type.data() != bt.d_byteType )
+            if( lhs != bt.d_intType && lhs != bt.d_byteType )
                 error(e->d_loc,tr("left side of IN must be integer"));
-            else if( e->d_rhs->d_type.data() != bt.d_setType )
+            else if( rhs != bt.d_setType )
                 error(e->d_loc,tr("right side of IN must be set"));
             break;
         case BinExpr::Range:
-            if( e->d_lhs->d_type != e->d_rhs->d_type )
+            if( lhs != rhs )
                 error(e->d_loc,tr("lower and upper bound of range must be of same type"));
-            if( e->d_lhs->d_type.data() != bt.d_intType
-                    && e->d_lhs->d_type.data() != bt.d_byteType
-                    && e->d_lhs->d_type.data() != bt.d_charType
-                    && e->d_lhs->d_type.data() != bt.d_stringType )
+            if( lhs != bt.d_intType
+                    && lhs != bt.d_byteType
+                    && lhs != bt.d_charType
+                    && lhs != bt.d_stringType )
                 error(e->d_loc,tr("range with invalid types"));
             break;
         case BinExpr::Index:
-            if( e->d_rhs->d_type.data() != bt.d_intType &&
-                    e->d_rhs->d_type.data() != bt.d_byteType )
+            if( rhs != bt.d_intType &&
+                    rhs != bt.d_byteType )
                 error(e->d_loc,tr("index must be of type integer or byte"));
             break;
         case BinExpr::IS:
             {
                 // v is a variable parameter of record type, or v is a pointer.
-                if( ( e->d_lhs->d_type->getTag() != Thing::T_Record ||
+                if( ( lhs->getTag() != Thing::T_Record ||
                       e->d_lhs->getIdent() == 0 || !e->d_lhs->getIdent()->isVarParam() )
-                        && e->d_lhs->d_type->getTag() != Thing::T_Pointer )
+                        && lhs->getTag() != Thing::T_Pointer )
                     error( e->d_lhs->d_loc,tr("left operand of IS must be a record VAR parameter or pointer") );
-                if( toRecord(e->d_rhs->d_type.data()) == 0 )
+                if( Model::toRecord(rhs) == 0 )
                     error(e->d_loc,tr("right operand of IS must be of RECORD or POINTER type"));
             }
             break;
         case BinExpr::DIV:
         case BinExpr::MOD:
-            if( e->d_lhs->d_type.data() != bt.d_intType && e->d_lhs->d_type.data() != bt.d_byteType )
+            if( lhs != bt.d_intType && lhs != bt.d_byteType )
                 error(e->d_loc,tr("DIV and MOD require operands of type INTEGER"));
             break;
         case BinExpr::ADD:
         case BinExpr::SUB:
         case BinExpr::MUL:
         case BinExpr::FDIV:
-            if( !isNumeric(e->d_lhs->d_type.data()) && e->d_lhs->d_type.data() != bt.d_setType )
+            if( !isNumeric(lhs) && lhs != bt.d_setType )
                 error(e->d_loc,tr("operator requires numeric or set operands"));
             break;
         }
@@ -481,12 +500,19 @@ struct ValidatorImp : public AstVisitor
 
     static bool isEqualType( Type* lhs, Type* rhs, bool withProcType )
     {
+        lhs = lhs ? lhs->derefed() : 0;
+        rhs = rhs ? rhs->derefed() : 0;
+
         if( lhs == rhs )
             return true;
+
         else if( lhs == 0 || rhs == 0 )
             return false;
+
         else if( lhs->getTag() == Thing::T_Pointer && rhs->getTag() == Thing::T_Pointer )
-            return isEqualType( static_cast<Pointer*>(lhs)->d_to.data(), static_cast<Pointer*>(rhs)->d_to.data(), withProcType );
+            return isEqualType( static_cast<Pointer*>(lhs)->d_to.data(),
+                                static_cast<Pointer*>(rhs)->d_to.data(), withProcType );
+
         else if( lhs->getTag() == Thing::T_Array && rhs->getTag() == Thing::T_Array )
         {
             Array* al = static_cast<Array*>(lhs);
@@ -494,6 +520,7 @@ struct ValidatorImp : public AstVisitor
             return ( al->d_len == 0 || al->d_len == ar->d_len ) &&
                     isEqualType(al->d_type.data(), ar->d_type.data(), withProcType );
         }
+
         else if( withProcType && lhs->getTag() == Thing::T_ProcType && rhs->getTag() == Thing::T_ProcType )
         {
             ProcType* pl = static_cast<ProcType*>(lhs);
@@ -510,6 +537,7 @@ struct ValidatorImp : public AstVisitor
             }
             return true;
         }
+
         return false;
     }
 
@@ -517,6 +545,11 @@ struct ValidatorImp : public AstVisitor
     {
         if( isEqualType(lhs,rhs, true ) )
             return true;
+
+        if( lhs == 0 || rhs == 0 )
+            return false;
+        lhs = lhs->derefed();
+        rhs = rhs->derefed();
 
 #if 0
         // no longer used
@@ -527,7 +560,7 @@ struct ValidatorImp : public AstVisitor
         // we replace anytype returns in Model::designator by true types
 #endif
         if( lhs->getTag() == Thing::T_Pointer && rhs->getTag() == Thing::T_Pointer )
-            return isSubType(lhs,rhs) || isSubType(rhs,lhs);
+            return Model::isSubType(lhs,rhs) || Model::isSubType(rhs,lhs);
 #if 0
         if( lhs->getTag() == Thing::T_ProcType && rhs->getTag() == Thing::T_ProcType )
             return true;
@@ -587,46 +620,6 @@ struct ValidatorImp : public AstVisitor
         return res;
     }
 
-    static bool isSubType(Type* sub, Type* super)
-    {
-        sub = toRecord(sub);
-        super = toRecord(super);
-        if( sub == 0 || super == 0 )
-            return false;
-
-        while( sub )
-        {
-            // A type T extends a type T0, if it equals T0, or if it directly extends an extension of T0
-            if( sub == super )
-                return true;
-            Q_ASSERT( sub->getTag() == Ast::Thing::T_Record );
-            sub = static_cast<Ast::Record*>(sub)->d_base;
-        }
-        return false;
-    }
-
-    static Type* toRecord( Ast::Type* t )
-    {
-        // If a type T is an extension of T0 and P is a pointer type bound to T,
-        // then P is also an extension of P0
-        if( t == 0 )
-            return 0;
-        if( t->getTag() == Ast::Thing::T_Pointer )
-            t = static_cast<Ast::Pointer*>(t)->d_to.data();
-        if( t == 0 )
-            return 0;
-        if( t->getTag() == Ast::Thing::T_SelfRef )
-            t = static_cast<Ast::SelfRef*>(t)->d_ident->d_type.data();
-        if( t == 0 )
-            return 0;
-        if( t->getTag() == Ast::Thing::T_Pointer )
-            t = static_cast<Ast::Pointer*>(t)->d_to.data();
-        if( t == 0 || t->getTag() != Ast::Thing::T_Record )
-            return 0;
-        else
-            return t;
-    }
-
     bool checkActuals(const ProcType* p, const Ast::CallExpr::Actuals& a, Expression* e)
     {
         if( p->d_ident && p->d_ident->getTag() == Thing::T_BuiltIn )
@@ -639,7 +632,7 @@ struct ValidatorImp : public AstVisitor
                 if( a.size() == 1 ) // version with two params is declared as such
                 {
                     checkAssignableToType( bt.d_intType, a.first().data(), true );
-                    if( a.first()->d_type.data() != bt.d_intType )
+                    if( a.first()->d_type->derefed() != bt.d_intType )
                         return error(e->d_loc, tr("INTEGER parameter expected") );
                     else
                         return true;
@@ -648,14 +641,15 @@ struct ValidatorImp : public AstVisitor
             case BuiltIn::ORD:
                 if( a.size() == 1 )
                 {
-                    if( a.first()->d_type.isNull() ||
-                            ( a.first()->d_type.data() != bt.d_charType &&
-                              a.first()->d_type.data() != bt.d_stringType && // happens in Net.Mod
-                            a.first()->d_type.data() != bt.d_boolType &&
-                            a.first()->d_type.data() != bt.d_setType &&
+                    Type* t = a.first()->d_type.isNull() ? 0 : a.first()->d_type->derefed();
+                    if( t == 0 ||
+                            ( t != bt.d_charType &&
+                              t != bt.d_stringType && // happens in Net.Mod
+                              t != bt.d_boolType &&
+                              t != bt.d_setType &&
                               // In Oberon System ORD is also called with REAL and POINTER
-                              a.first()->d_type.data() != bt.d_realType &&
-                              a.first()->d_type->getTag() != Thing::T_Pointer ) )
+                              t != bt.d_realType &&
+                              t->getTag() != Thing::T_Pointer ) )
                         return error(e->d_loc, tr("SET, CHAR or BOOLEAN parameter expected") );
                     else
                         return true;
@@ -664,7 +658,7 @@ struct ValidatorImp : public AstVisitor
             case BuiltIn::LEN:
                 if( a.size() == 1 )
                 {
-                    if( !a.first()->d_type.isNull() && a.first()->d_type->getTag() != Thing::T_Array )
+                    if( !a.first()->d_type.isNull() && a.first()->d_type->derefed()->getTag() != Thing::T_Array )
                         return error(e->d_loc, tr("array parameter expected") );
                     else
                         return true;
@@ -674,7 +668,7 @@ struct ValidatorImp : public AstVisitor
                 if( a.size() == 1 )
                 {
                     checkAssignableToVar( a.first().data() );
-                    if( !a.first()->d_type.isNull() && a.first()->d_type->getTag() != Thing::T_Pointer )
+                    if( !a.first()->d_type.isNull() && a.first()->d_type->derefed()->getTag() != Thing::T_Pointer )
                         return error(e->d_loc, tr("pointer parameter expected") );
                     else
                         return true;
@@ -683,9 +677,10 @@ struct ValidatorImp : public AstVisitor
             case BuiltIn::ABS:
                 if( a.size() == 1 )
                 {
-                    if( a.first()->d_type.isNull() ||
-                            ( a.first()->d_type.data() != bt.d_intType &&
-                              a.first()->d_type.data() != bt.d_realType ) )
+                    Type* t = a.first()->d_type.isNull() ? 0 : a.first()->d_type->derefed();
+                    if( t == 0 ||
+                            ( t != bt.d_intType &&
+                              t != bt.d_realType ) )
                         return error(e->d_loc, tr("numeric parameter expected") );
                     else
                         return true;
@@ -694,14 +689,16 @@ struct ValidatorImp : public AstVisitor
             case BuiltIn::ROR:
                 if( a.size() == 2 )
                 {
-                    if( a.first()->d_type.isNull() ||
-                            ( a.first()->d_type.data() != bt.d_intType &&
-                              a.first()->d_type.data() != bt.d_byteType &&
-                              a.first()->d_type.data() != bt.d_setType ) )
+                    Type* t = a.first()->d_type.isNull() ? 0 : a.first()->d_type->derefed();
+                    if( t == 0 ||
+                            ( t != bt.d_intType &&
+                              t != bt.d_byteType &&
+                              t != bt.d_setType ) )
                         return error(e->d_loc, tr("INTEGER or SET first parameter expected") );
-                    if( a.last()->d_type.isNull() ||
-                            ( a.last()->d_type.data() != bt.d_intType &&
-                              a.last()->d_type.data() != bt.d_byteType ) )
+                    t = a.last()->d_type.isNull() ? 0 : a.last()->d_type->derefed();
+                    if( t == 0 ||
+                            ( t != bt.d_intType &&
+                              t != bt.d_byteType ) )
                         return error(e->d_loc, tr("INTEGER second parameter expected") );
                     else
                         return true;
@@ -711,7 +708,8 @@ struct ValidatorImp : public AstVisitor
                 if( a.size() == 1 )
                 {
                     Expression* leaf = getTail(a.first().data());
-                    if( leaf == 0 && a.first()->getTag() != Thing::T_Literal && a.first()->d_type != bt.d_stringType )
+                    if( leaf == 0 && a.first()->getTag() != Thing::T_Literal &&
+                            a.first()->d_type->derefed() != bt.d_stringType )
                          return error( a.first()->d_loc,
                                        tr("designator or string literal required as an actual parameter of ADR") );
                     else
@@ -733,13 +731,15 @@ struct ValidatorImp : public AstVisitor
                 {
                     if( bi->d_func == BuiltIn::GET )
                         checkAssignableToVar( a.last().data() );
-                    if( a.first()->d_type.isNull() ||
-                            ( a.first()->d_type.data() != bt.d_intType &&
-                              a.first()->d_type.data() != bt.d_byteType ) )
+                    Type* t = a.first()->d_type.isNull() ? 0 : a.first()->d_type->derefed();
+                    if( t == 0 ||
+                            ( t != bt.d_intType &&
+                              t != bt.d_byteType ) )
                         return error(e->d_loc, tr("INTEGER first parameter expected") );
-                    if( a.last()->d_type.isNull() ||
-                            ( a.last()->d_type->getTag() != Thing::T_BaseType
-                              && a.last()->d_type->getTag() != Thing::T_Pointer ) )
+                    t = a.last()->d_type.isNull() ? 0 : a.last()->d_type->derefed();
+                    if( t == 0 ||
+                            ( t->getTag() != Thing::T_BaseType
+                              && t->getTag() != Thing::T_Pointer ) )
                         return error(e->d_loc, tr("basic type or pointer second parameter expected") );
                     else
                         return true;
@@ -774,7 +774,7 @@ struct ValidatorImp : public AstVisitor
                 if( c->d_actuals.size() != 2 || c->d_actuals.first()->d_type.isNull() )
                     return error( c->d_loc, tr("invalid use of SYSTEM.VAL") );
                 if( rightTPtr )
-                    *rightTPtr = c->d_actuals.first()->d_type.data();
+                    *rightTPtr = c->d_actuals.first()->d_type->derefed();
             }else
                 return error( rightEx->d_loc, tr("cannot use result of a function call as an actual VAR parameter") );
         }else if( leaf->getIdent()->getTag() == Thing::T_Import )
@@ -784,7 +784,8 @@ struct ValidatorImp : public AstVisitor
         else if( leaf->getIdent()->getTag() == Thing::T_Parameter )
         {
             Parameter* p = static_cast<Parameter*>( leaf->getIdent() );
-            if( !p->d_var && ( p->d_type->getTag() == Thing::T_Array || p->d_type->getTag() == Thing::T_Record ) )
+            Type* td = p->d_type->derefed();
+            if( !p->d_var && ( td->getTag() == Thing::T_Array || td->getTag() == Thing::T_Record ) )
                 error( leaf->d_loc, tr("cannot assign structured value to VAR parameter") );
         }
         return true;
@@ -795,7 +796,10 @@ struct ValidatorImp : public AstVisitor
         static const char* s_msg1 = QT_TR_NOOP("incompatible types");
         static const char* s_msg2 = QT_TR_NOOP("number of characters in string must be less than the array");
 
-        Type* rightT = rightEx->d_type.data();
+        Q_ASSERT( leftT != 0 );
+        leftT = leftT->derefed();
+
+        Type* rightT = rightEx->d_type->derefed();
         if( rightT == 0 )
             return error( rightEx->d_loc, tr(s_msg1) );
 
@@ -808,7 +812,7 @@ struct ValidatorImp : public AstVisitor
             return true;
         else if( leftT->getTag() == Thing::T_Record )
         {
-            if( rightT->getTag() == Thing::T_Record && isSubType( rightT, leftT ) )
+            if( rightT->getTag() == Thing::T_Record && Model::isSubType( rightT, leftT ) )
                 return true;
             else
                 return false;
@@ -817,7 +821,7 @@ struct ValidatorImp : public AstVisitor
             if( rightT == bt.d_nilType )
                 return true;
             else if( rightT->getTag() == Thing::T_Pointer
-                      && !toVar && isSubType( rightT, leftT ) )
+                      && !toVar && Model::isSubType( rightT, leftT ) )
                 return true;
             else if( rightT->getTag() == Thing::T_Pointer && toVar)
             {
@@ -868,12 +872,13 @@ struct ValidatorImp : public AstVisitor
         }else if( leftT->getTag() == Thing::T_Array )
         {
             Array* lhs = static_cast<Array*>( leftT );
-            if( lhs->d_type.data() == bt.d_byteType && toVar && !s_strict )
+            Type* lt = lhs->d_type->derefed();
+            if( lt == bt.d_byteType && toVar && !s_strict )
                 return true; // Old Oberon rule, see https://inf.ethz.ch/personal/wirth/Oberon/Oberon.Report.pdf chap. 12
             else if( rightT->getTag() == Thing::T_Array )
             {
                 Array* rhs = static_cast<Array*>( rightT );
-                if( isEqualType( lhs->d_type.data(), rhs->d_type.data(), true ) )
+                if( isEqualType( lt, rhs->d_type.data(), true ) )
                 {
                     if( lhs->d_len == 0 )
                     {
@@ -890,7 +895,7 @@ struct ValidatorImp : public AstVisitor
                         error( rightEx->d_loc, tr("arrays with different lengths") );
                 }else
                     error( rightEx->d_loc, tr(s_msg1) );
-            }else if( lhs->d_type.data() == bt.d_charType )
+            }else if( lt == bt.d_charType )
             {
                 // LHS is string
                 if( rightT == bt.d_stringType )
