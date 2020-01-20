@@ -44,8 +44,9 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Array* a)
     {
-        Q_ASSERT( !a->d_lenExpr.isNull() && !a->d_type.isNull() );
-        a->d_lenExpr->accept(this);
+        Q_ASSERT( !a->d_type.isNull() );
+        if( !a->d_lenExpr.isNull() ) // may be null when ARRAY OF params
+            a->d_lenExpr->accept(this);
         removeSelfRef(a->d_type);
         if( a->d_type->d_ident == 0 )
             a->d_type->accept(this);

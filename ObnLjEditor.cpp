@@ -292,9 +292,9 @@ void LjEditor::onRun2()
 {
     ENABLED_IF(true);
     compile();
+#ifndef USE_LJBC_GEN
     QDir dir( QStandardPaths::writableLocation(QStandardPaths::TempLocation) );
     const QString path = dir.absoluteFilePath(QDateTime::currentDateTime().toString("yyMMddhhmmsszzz")+".bc");
-#ifndef USE_LJBC_GEN
     d_lua->saveBinary(d_luaCode, d_edit->getPath().toUtf8(),path.toUtf8());
     JitBytecode bc;
     if( bc.parse(path) )

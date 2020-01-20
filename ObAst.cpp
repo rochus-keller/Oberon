@@ -151,10 +151,10 @@ static void extendLiveRange( Ast::Scope* s, Ast::Named* n, SynTree* st )
         markUsed( n->d_type.data() );
 }
 
-Ast::Model::Model(QObject*p):QObject(p),d_enableExt(false),d_senseExt(false),d_curModule(0),d_curTypeDecl(0)
+Ast::Model::Model(QObject*p):QObject(p),d_enableExt(false),d_senseExt(false),d_curModule(0),
+    d_curTypeDecl(0),d_fillXref(false)
 {
     d_errs = new Errors(this);
-    d_errs->setReportToConsole(true);
     d_fc = new FileCache(this);
 
     d_global = new Scope();
@@ -179,6 +179,9 @@ Ast::Model::~Model()
 void Ast::Model::clear()
 {
     d_errs->clear();
+
+    d_depOrder.clear();
+    d_xref.clear();
 
     unbindFromGlobal();
     d_global->d_names.clear();
@@ -364,11 +367,12 @@ bool Ast::Model::parseFiles(const QStringList& files)
     foreach( const QString& path, files )
     {
         qDebug() << "parsing" << path;
-        parseFile(path,pr);
+        if( !parseFile(path,pr) )
+            qCritical() << "cannot open file" << path;
     }
 
-    if( d_errs->getErrCount() != 0 )
-        return false;
+    //if( d_errs->getErrCount() != 0 )
+    //    return false;
 
     qDebug() << "checking dependencies...";
 
@@ -396,7 +400,7 @@ bool Ast::Model::parseFiles(const QStringList& files)
     return d_errs->getErrCount() == 0;
 }
 
-void Ast::Model::parseFile(const QString& path, ParseResultList& res) const
+bool Ast::Model::parseFile(const QString& path, ParseResultList& res) const
 {
     bool found;
     FileCache::Entry content = d_fc->getFile(path, &found );
@@ -410,13 +414,10 @@ void Ast::Model::parseFile(const QString& path, ParseResultList& res) const
     {
         QFile file(path);
         if( !file.open(QIODevice::ReadOnly) )
-        {
-            d_errs->error(Errors::Lexer, path, 0, 0,
-                             tr("cannot open file from path %1").arg(path) );
-            return;
-        }
+            return false;
         parseFile( &file, path, res );
     }
+    return true;
 }
 
 void Ast::Model::parseFile(QIODevice* in, const QString& path, ParseResultList& res) const
@@ -452,15 +453,15 @@ void Ast::Model::parseFile(QIODevice* in, const QString& path, ParseResultList& 
             SynTree* id = findFirstChild(st,Tok_ident);
             Q_ASSERT( id != 0 );
             ParseResult& pr = res[ id->d_tok.d_val.constData() ];
-            if( pr.d_id != 0 )
+            if( pr.d_modName != 0 )
             {
                 error(id,tr("duplicate module name '%1'").arg(id->d_tok.d_val.constData()));
                 toDelete << st;
             }else
             {
-                pr.d_id = id;
-                pr.d_ext = lex.isEnabledExt();
-                pr.d_mod = st;
+                pr.d_modName = id;
+                pr.d_isExt = lex.isEnabledExt();
+                pr.d_modRoot = st;
             }
         }else
             toDelete << st;
@@ -628,7 +629,7 @@ bool Ast::Model::procedureDeclaration(Ast::Scope* m, SynTree* st, bool headingOn
         Q_ASSERT( st->d_children.size() == 3 );
         procedureBody(p.data(),st->d_children[1]);
         if( st->d_children.last()->d_tok.d_val != p->d_name )
-            error( st->d_children.last(), tr("final ident doens't correspond to procedure name") );
+            error( st->d_children.last(), tr("final ident doesn't correspond to procedure name") );
     }
     return true;
 }
@@ -874,6 +875,8 @@ Ast::Model::Quali Ast::Model::qualident(Scope* s, SynTree* st, bool report)
         }
         Import* i = static_cast<Import*>(res.d_mod);
         s = i->d_mod.data();
+        // if( d_fillXref )
+        //    d_xref[i->d_mod.data()].append(i); // TODO
     }
     Q_ASSERT( s != 0 );
     res.d_item = s->find(res.d_itemName);
@@ -1131,8 +1134,6 @@ bool Ast::Model::fpSection(Scope* s, Ast::ProcType* p, SynTree* st)
         {
             Ref<Parameter> v = new Parameter();
             v->d_type = t;
-            if( v->d_type && v->d_type->d_ident == 0 )
-                v->d_type->d_ident = v.data();
             v->d_name = st->d_children[i]->d_tok.d_val;
             v->d_loc = Loc(st->d_children[i]);
             v->d_scope = s;
@@ -2123,41 +2124,43 @@ void Ast::Model::createModules(Mods& mods, ParseResultList& prl)
     for( i = prl.begin(); i != prl.end(); ++i )
     {
         ParseResult& pr = i.value();
-        SynTree* mod = pr.d_mod;
+        SynTree* modRoot = pr.d_modRoot;
         Ref<Module> m = new Module();
         if( m->d_useExt )
             m->d_scope = d_globalLc.data();
         else
             m->d_scope = d_global.data();
-        m->d_name = pr.d_id->d_tok.d_val;
-        m->d_loc = Loc(pr.d_id);
-        m->d_file = pr.d_id->d_tok.d_sourcePath;
-        m->d_useExt = pr.d_ext;
-        m->d_isDef = mod->d_tok.d_type == SynTree::R_definition;
+        m->d_name = pr.d_modName->d_tok.d_val;
+        m->d_loc = Loc(pr.d_modName);
+        m->d_file = pr.d_modName->d_tok.d_sourcePath;
+        m->d_useExt = pr.d_isExt;
+        m->d_isDef = modRoot->d_tok.d_type == SynTree::R_definition;
 
-        if( m->d_scope->d_names.contains(pr.d_id->d_tok.d_val.constData()) )
-            error(mod,tr("invalid module name '%1'").arg(pr.d_id->d_tok.d_val.constData()));
+        if( m->d_scope->d_names.contains(pr.d_modName->d_tok.d_val.constData()) )
+            error(modRoot,tr("invalid module name '%1'").arg(pr.d_modName->d_tok.d_val.constData()));
         else
         {
-            Usage& u = mods[pr.d_id->d_tok.d_val.constData()];
+            Usage& u = mods[pr.d_modName->d_tok.d_val.constData()];
             Q_ASSERT( u.d_st == 0 );
-            u.d_st = mod;
-            pr.d_mod = 0;
+            u.d_st = modRoot;
+            pr.d_modRoot = 0; // avoid deleting modRoot
         }
 
-        if( !d_global->d_names.contains(pr.d_id->d_tok.d_val.constData()) )
-            d_global->d_names.insert(pr.d_id->d_tok.d_val.constData(),m.data());
-        if( !d_globalLc->d_names.contains(pr.d_id->d_tok.d_val.constData()) )
-            d_globalLc->d_names.insert(pr.d_id->d_tok.d_val.constData(),m.data());
+        if( !d_global->d_names.contains(pr.d_modName->d_tok.d_val.constData()) )
+            d_global->d_names.insert(pr.d_modName->d_tok.d_val.constData(),m.data());
+        if( !d_globalLc->d_names.contains(pr.d_modName->d_tok.d_val.constData()) )
+            d_globalLc->d_names.insert(pr.d_modName->d_tok.d_val.constData(),m.data());
 
-        const QList<SynTree*> imports = getImports(mod);
+        const QList<SynTree*> imports = getImports(modRoot);
         foreach( SynTree* imp, imports )
         {
             if( imp->d_tok.d_val.constData() == d_system.constData() )
             {
-                // NOP
+                // NOP, importing SYSTEM
             }else if( !mods.contains(imp->d_tok.d_val.constData()) && !prl.contains(imp->d_tok.d_val.constData()) )
             {
+                // the required import is not in the parsed files, either because it references a
+                // library outside of the parsed files or a parsed file is missing due to syntax errors
                 if( Named* test = d_global->d_names.value( imp->d_tok.d_val.constData() ).data() )
                 {
                     if( !test->isScope() )
@@ -2174,7 +2177,8 @@ void Ast::Model::createModules(Mods& mods, ParseResultList& prl)
 bool Ast::Model::resolveImport(Mods& mods, const QByteArray& imp)
 {
     ParseResultList pr;
-    parseFile( imp, pr );
+    if( !parseFile( imp, pr ) )
+        return false;
     if( pr.isEmpty() )
         return false;
     else
@@ -2235,15 +2239,15 @@ QList<Ast::Module*> Ast::Model::findProcessingOrder(Mods& in)
         }
     }
 
-    QList<Module*> res;
+    d_depOrder.clear();
     foreach( const char* m, order )
     {
         Named* mod = d_global->d_names.value(m).data();
         if( mod && mod->isScope() )
-            res.append( static_cast<Module*>(mod) );
+            d_depOrder.append( static_cast<Module*>(mod) );
     }
 
-    return res;
+    return d_depOrder;
 }
 
 void Ast::Model::fixTypes()
@@ -2368,7 +2372,8 @@ Ast::Record* Ast::Model::toRecord( Ast::Type* t )
 
 bool Ast::Model::isXInModule(Ast::Module* mod, Ast::Scope* x)
 {
-    Q_ASSERT( x != 0 );
+    if( x == 0 )
+        return false;
     if( x == mod )
         return true;
     else if( x->d_scope )
@@ -2412,31 +2417,33 @@ bool Ast::Model::addToScope(Ast::Scope* s, Ast::Named* n)
 Ast::Loc::Loc(SynTree* st)
 {
     Q_ASSERT( st != 0 );
-    d_row = st->d_tok.d_lineNr;
-    d_col = st->d_tok.d_colNr;
+    static const quint32 maxRow = ( 1 << ROW_BIT_LEN ) - 1;
+    static const quint32 maxCol = ( 1 << ( 32 - ROW_BIT_LEN ) ) - 1;
+    if( st->d_tok.d_lineNr > maxRow )
+    {
+        qWarning() << "exceeding maximum row at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
+        d_row = maxRow;
+    }else
+        d_row = st->d_tok.d_lineNr;
+    if( st->d_tok.d_colNr > maxCol )
+    {
+        qWarning() << "exceeding maximum col at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
+        d_col = maxCol;
+    }else
+        d_col = st->d_tok.d_colNr;
     // d_file = st->d_tok.d_sourcePath;
 }
 
 Ast::Model::ParseResult::~ParseResult()
 {
-    if( d_mod )
-        delete d_mod;
+    if( d_modRoot )
+        delete d_modRoot;
 }
 
 Ast::Model::Usage::~Usage()
 {
     if( d_st )
         delete d_st;
-}
-
-Ast::Module* Ast::Scope::getModule()
-{
-    if( getTag() == Thing::T_Module )
-        return static_cast<Module*>(this);
-    else if( d_scope )
-        return d_scope->getModule();
-    else
-        return 0;
 }
 
 Ast::Named*Ast::Scope::find(const QByteArray& name, bool recursive) const
@@ -2523,4 +2530,15 @@ Ast::CallExpr*Ast::Call::getCallExpr() const
 {
     Q_ASSERT( !d_what.isNull() && d_what->getTag() == Thing::T_CallExpr );
     return static_cast<CallExpr*>( d_what.data() );
+}
+
+
+Ast::Module* Ast::Named::getModule()
+{
+    if( getTag() == Thing::T_Module )
+        return static_cast<Module*>(this);
+    else if( d_scope )
+        return d_scope->getModule();
+    else
+        return 0;
 }

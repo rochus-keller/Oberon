@@ -21,7 +21,6 @@
 #include "ObAst.h"
 #include "ObErrors.h"
 #include "ObAstEval.h"
-#include "ObLuaGen2.h"
 #include "ObLexer.h"
 #include <LjTools/LuaJitComposer.h>
 #include <QBitArray>
@@ -521,6 +520,19 @@ struct LjbcGenImp : public AstVisitor
     void visit( LocalVar* v )
     {
         emitVariable(v);
+    }
+
+    void visit( Const* c )
+    {
+        if( c->d_public )
+        {
+            Value out;
+            fetchValue( c->d_val, out, c->d_loc.d_row );
+            storeConst(out);
+            Q_ASSERT( out.d_kind == Value::Tmp );
+            bc.TSET( out.d_slot, modSlot, QVariant::fromValue(c->d_name), c->d_loc.d_row );
+            ctx.back().sellSlots(out.d_slot);
+        }
     }
 
     int emitImport( const QByteArray& modName, int line )
@@ -1400,30 +1412,35 @@ struct LjbcGenImp : public AstVisitor
         processExpr(ex,out);
     }
 
-    void processLiteral( Literal* l, Value& out )
+    void fetchValue( const QVariant& v, Value& out, int line )
     {
-        if( l->d_val.canConvert<Ast::Set>() )
+        if( v.canConvert<Ast::Set>() )
         {
             // out << "obnlj.SET(" << QByteArray::number( quint32(v.value<Ast::Set>().to_ulong()) ) << ")";
             quint8 tmp = ctx.back().buySlots(2,true);
-            fetchObnljMember( tmp, "SET", l->d_loc.d_row );
-            bc.KSET(tmp+1, qlonglong(l->d_val.value<Ast::Set>().to_ulong()), l->d_loc.d_row );
-            bc.CALL(tmp,1,1, l->d_loc.d_row );
-            emitEndOfCall(tmp,2,out,l->d_loc.d_row);
-        }else if( l->d_val.type() == QVariant::ByteArray )
+            fetchObnljMember( tmp, "SET", line );
+            bc.KSET(tmp+1, qlonglong(v.value<Ast::Set>().to_ulong()), line );
+            bc.CALL(tmp,1,1, line );
+            emitEndOfCall(tmp,2,out,line);
+        }else if( v.type() == QVariant::ByteArray )
         {
             // out << "obnlj.Str(\"" << luaStringEscape(v.toByteArray() ) << "\")"; // TODO: string escape?
             quint8 tmp = ctx.back().buySlots(2,true);
-            fetchObnljMember( tmp, "Str", l->d_loc.d_row );
-            bc.KSET(tmp+1, l->d_val, l->d_loc.d_row );
-            bc.CALL(tmp,1,1, l->d_loc.d_row );
-            emitEndOfCall(tmp,2,out,l->d_loc.d_row);
+            fetchObnljMember( tmp, "Str", line );
+            bc.KSET(tmp+1, v, line );
+            bc.CALL(tmp,1,1, line );
+            emitEndOfCall(tmp,2,out,line);
         }else
         {
-            out.d_val = l->d_val;
+            out.d_val = v;
             out.d_kind = Value::Val;
-            out.d_line = l->d_loc.d_row;
+            out.d_line = line;
         }
+    }
+
+    void processLiteral( Literal* l, Value& out )
+    {
+        fetchValue( l->d_val, out, l->d_loc.d_row );
     }
 
     void processExpr( Expression* ex, Value& out )
@@ -2527,12 +2544,12 @@ bool LjbcGen::translate(Ast::Model* mdl, const QString& outdir, const QString& m
         if( mods[i]->d_isDef )
             continue;
 
-        QFile out( dir.absoluteFilePath( LuaGen2::toName(mods[i].data()) + ".lua" ) );
+        QFile out( dir.absoluteFilePath( mods[i]->d_name + ".lua" ) );
         if( !out.open(QIODevice::WriteOnly) )
         {
             errs++;
             if( err )
-                err->error(Errors::Generator,LuaGen2::toName(mods[i].data()), 0,0,QString("cannot open file '%1' for writing").
+                err->error(Errors::Generator,mods[i]->d_name, 0,0,QString("cannot open file '%1' for writing").
                        arg(out.fileName()) );
         }else
         {

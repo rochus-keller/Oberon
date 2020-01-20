@@ -33,19 +33,20 @@ namespace Ob
     {
         // class is thread-safe
     public:
-        enum Source { Lexer, Syntax, Semantics, Generator };
+        enum Source { Lexer, Syntax, Semantics, Generator, Runtime };
         struct Entry
         {
+            quint32 d_nr;
             quint32 d_line;
             quint16 d_col;
             quint16 d_source;
             QString d_msg;
             QString d_file;
+            bool d_isErr;
             bool operator==( const Entry& rhs )const { return d_line == rhs.d_line && d_col == rhs.d_col &&
-                        d_source == rhs.d_source && d_msg == rhs.d_msg; }
+                        d_source == rhs.d_source && d_msg == rhs.d_msg && d_isErr == rhs.d_isErr; }
         };
         typedef QSet<Entry> EntryList;
-        typedef QHash<QString,EntryList> EntriesByFile;
 
         explicit Errors(QObject *parent = 0, bool threadExclusive = false );
 
@@ -63,16 +64,10 @@ namespace Ob
 
         quint32 getErrCount() const;
         quint32 getWrnCount() const;
-        EntryList getErrors(const QString& file) const;
-        EntriesByFile getErrors() const;
-        EntryList getWarnings(const QString& file) const;
-        EntriesByFile getWarnings() const;
+        const EntryList& getErrors() const { return d_errs; }
         quint32 getSyntaxErrCount() const { return d_numOfSyntaxErrs; }
 
         void clear();
-        void clearFile( const QString& file );
-        void clearFiles( const QStringList& files );
-        void update( const Errors&, bool overwrite = false );
 
         static const char* sourceName(int);
     protected:
@@ -82,8 +77,7 @@ namespace Ob
         quint32 d_numOfErrs;
         quint32 d_numOfSyntaxErrs;
         quint32 d_numOfWrns;
-        EntriesByFile d_errs;
-        EntriesByFile d_wrns;
+        EntryList d_errs;
         bool d_showWarnings;
         bool d_threadExclusive;
         bool d_reportToConsole;

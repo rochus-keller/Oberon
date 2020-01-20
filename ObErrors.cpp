@@ -43,17 +43,18 @@ bool Errors::error(Errors::Source s, const QString& file, int line, int col, con
     if( !d_threadExclusive ) d_lock.lockForWrite();
     bool inserted = true;
     Entry e;
+    e.d_nr = d_errs.size();
     e.d_col = col;
     e.d_line = line;
     e.d_msg = msg;
     e.d_source = s;
     e.d_file = file;
+    e.d_isErr = true;
     if( d_record )
     {
-        EntryList& l = d_errs[file];
-        const int count = l.size();
-        l.insert(e);
-        inserted = count != l.size();
+        const int count = d_errs.size();
+        d_errs.insert(e);
+        inserted = count != d_errs.size();
     }
     if( d_reportToConsole && inserted )
         log(e,true);
@@ -81,6 +82,7 @@ void Errors::warning(Errors::Source s, const QString& file, int line, int col, c
     if( d_showWarnings )
     {
         Entry e;
+        e.d_nr = d_errs.size();
         e.d_col = col;
         e.d_line = line;
         e.d_msg = msg;
@@ -88,10 +90,9 @@ void Errors::warning(Errors::Source s, const QString& file, int line, int col, c
         e.d_file = file;
         if( d_record )
         {
-            EntryList& l = d_wrns[file];
-            const int count = l.size();
-            l.insert(e);
-            inserted = count != l.size();
+            const int count = d_errs.size();
+            d_errs.insert(e);
+            inserted = count != d_errs.size();
         }
         if( d_reportToConsole && inserted )
             log(e,false);
@@ -162,42 +163,6 @@ quint32 Errors::getWrnCount() const
     return res;
 }
 
-Errors::EntryList Errors::getErrors(const QString& file) const
-{
-    EntryList res;
-    if( !d_threadExclusive ) d_lock.lockForRead();
-    res = d_errs.value(file);
-    if( !d_threadExclusive ) d_lock.unlock();
-    return res;
-}
-
-Errors::EntryList Errors::getWarnings(const QString& file) const
-{
-    EntryList res;
-    if( !d_threadExclusive ) d_lock.lockForRead();
-    res = d_wrns.value(file);
-    if( !d_threadExclusive ) d_lock.unlock();
-    return res;
-}
-
-Errors::EntriesByFile Errors::getWarnings() const
-{
-    EntriesByFile res;
-    if( !d_threadExclusive ) d_lock.lockForRead();
-    res = d_wrns;
-    if( !d_threadExclusive ) d_lock.unlock();
-    return res;
-}
-
-Errors::EntriesByFile Errors::getErrors() const
-{
-    EntriesByFile res;
-    if( !d_threadExclusive ) d_lock.lockForRead();
-    res = d_errs;
-    if( !d_threadExclusive ) d_lock.unlock();
-    return res;
-}
-
 void Errors::clear()
 {
     if( !d_threadExclusive ) d_lock.lockForWrite();
@@ -205,70 +170,6 @@ void Errors::clear()
     d_numOfWrns = 0;
     d_numOfSyntaxErrs = 0;
     d_errs.clear();
-    d_wrns.clear();
-    if( !d_threadExclusive ) d_lock.unlock();
-}
-
-void Errors::clearFile(const QString& file)
-{
-    if( !d_threadExclusive ) d_lock.lockForWrite();
-    d_numOfErrs -= d_errs[file].size();
-    d_numOfSyntaxErrs = 0;
-    d_errs.remove(file);
-    d_numOfWrns -= d_wrns[file].size();
-    d_wrns.remove(file);
-    if( !d_threadExclusive ) d_lock.unlock();
-}
-
-void Errors::clearFiles(const QStringList& files)
-{
-    if( !d_threadExclusive ) d_lock.lockForWrite();
-    foreach( const QString& file, files )
-    {
-        d_numOfErrs -= d_errs[file].size();
-        d_errs.remove(file);
-        d_numOfWrns -= d_wrns[file].size();
-        d_wrns.remove(file);
-    }
-    if( !d_threadExclusive ) d_lock.unlock();
-}
-
-void Errors::update(const Errors& rhs, bool overwrite)
-{
-    if( !d_threadExclusive ) d_lock.lockForWrite();
-    if( !rhs.d_threadExclusive ) rhs.d_lock.lockForRead();
-
-    bool doLog = d_reportToConsole && !rhs.d_reportToConsole;
-    if( overwrite )
-    {
-        d_errs = rhs.d_errs;
-        d_wrns = rhs.d_wrns;
-        d_numOfSyntaxErrs = rhs.d_numOfSyntaxErrs;
-        d_numOfErrs = rhs.d_numOfErrs;
-        d_numOfWrns = rhs.d_numOfWrns;
-    }else
-    {
-        EntriesByFile::const_iterator i;
-        for( i = rhs.d_errs.begin(); i != rhs.d_errs.end(); ++i )
-        {
-            d_errs[ i.key() ] = i.value();
-            if( doLog ) foreach( const Entry& e, i.value() ) log(e,true);
-        }
-        d_numOfErrs = 0;
-        d_numOfSyntaxErrs = 0;
-        for( i = d_errs.begin(); i != d_errs.end(); ++i )
-            d_numOfErrs += i.value().size();
-        for( i = rhs.d_wrns.begin(); i != rhs.d_wrns.end(); ++i )
-        {
-            d_wrns[ i.key() ] = i.value();
-            if( doLog ) foreach( const Entry& e, i.value() ) log(e,false);
-        }
-        d_numOfWrns = 0;
-        for( i = d_wrns.begin(); i != d_wrns.end(); ++i )
-            d_numOfWrns += i.value().size();
-    }
-
-    if( !rhs.d_threadExclusive ) rhs.d_lock.unlock();
     if( !d_threadExclusive ) d_lock.unlock();
 }
 

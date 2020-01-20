@@ -52,10 +52,16 @@ namespace Ob
 
         struct Loc
         {
-            uint d_row : 22;
-            uint d_col : 10;
+            enum { ROW_BIT_LEN = 20 };
+            uint d_row : ROW_BIT_LEN;
+            uint d_col : (32-ROW_BIT_LEN);
             Loc():d_row(0),d_col(0) {}
             Loc(SynTree*);
+            bool isValid() const { return d_row > 0 && d_col > 0; } // valid lines and cols start with 1; 0 is invalid
+            quint32 packed() const { return ( d_col << ROW_BIT_LEN ) | d_row; }
+            static bool isPacked( quint32 rowCol ) { return rowCol >= ( 1 << ROW_BIT_LEN ); }
+            static quint32 packedRow(quint32 rowCol ) { return rowCol & ( 1 << ROW_BIT_LEN ) - 1; }
+            static quint32 packedCol(quint32 rowCol ) { return ( rowCol >> ROW_BIT_LEN ); }
         };
 
         struct Thing : public QSharedData
@@ -255,6 +261,7 @@ namespace Ob
                 d_slot(0),d_slotValid(0),d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0) {}
             bool isNamed() const { return true; }
             virtual bool isVarParam() const { return false; }
+            Module* getModule();
         };
 
             struct Field : public Named // Record field
@@ -315,7 +322,6 @@ namespace Ob
                 Loc d_end;
 
                 bool isScope() const { return true; }
-                Module* getModule();
 
                 Named* find( const QByteArray&, bool recursive = true ) const;
             };
@@ -502,24 +508,27 @@ namespace Ob
             void clear();
             void setEnableExt( bool b ) { d_enableExt = b; }
             void setSenseExt( bool b ) { d_senseExt = b; }
+            void setFillXref( bool b ) { d_fillXref = b; }
             void addPreload( const QByteArray& name, const QByteArray& source );
 
             bool parseFiles(const QStringList&);
 
             struct ParseResult
             {
-                SynTree* d_id;
-                SynTree* d_mod; // set to zero to avoid deletion
-                bool d_ext;
-                ParseResult():d_mod(0),d_id(0),d_ext(false){}
-                ~ParseResult();
+                SynTree* d_modName; // sub of d_modRoot
+                SynTree* d_modRoot; // set to zero to avoid deletion
+                bool d_isExt; // has language extensions
+                ParseResult():d_modRoot(0),d_modName(0),d_isExt(false){}
+                ~ParseResult(); // deletes d_modRoot if not zero
             };
             typedef QHash<const char*,ParseResult> ParseResultList;
-            void parseFile( const QString&, ParseResultList& res ) const;
+            bool parseFile( const QString&, ParseResultList& res ) const;
             void parseFile(QIODevice* , const QString& path, ParseResultList& res) const;
 
             typedef QList< Ref<Module> > Modules;
             Modules getModules() const;
+            const QList<Module*>& getProcessingOrder() const { return d_depOrder; }
+
             struct BaseTypes
             {
                 BaseType* d_boolType;
@@ -534,6 +543,10 @@ namespace Ob
                 BaseType* d_anyNum;
             };
             BaseTypes getBaseTypes() const;
+
+            typedef QHash<Named*, QList<Expression*> > XRef; // name used by ident expression
+            const XRef& getXref() const { return d_xref; }
+
 
             Errors* getErrs() const { return d_errs; }
             FileCache* getFc() const { return d_fc; }
@@ -621,6 +634,8 @@ namespace Ob
             Ref<BaseType> d_nilType;
             Ref<BaseType> d_anyType;
             Ref<BaseType> d_anyNum;
+            QList<Module*> d_depOrder; // most to least dependent
+            XRef d_xref;
 
             QByteArray d_system;
             Errors* d_errs;
@@ -642,6 +657,7 @@ namespace Ob
 
             bool d_enableExt; // Allow for both uppercase and lowercase keywords and builtins, idents with underscores
             bool d_senseExt; // automacitally determine if extensions enabled (starts with lower case module, etc.)
+            bool d_fillXref;
         };
     }
 }

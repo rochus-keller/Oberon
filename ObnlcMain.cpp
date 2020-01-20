@@ -190,6 +190,8 @@ int main(int argc, char *argv[])
     qDebug() << "processing" << files.size() << "files...";
 
     Ob::Ast::Model astm;
+    astm.getErrs()->setReportToConsole(true);
+
     if( forceObnExt )
         astm.setEnableExt(true);
     else
@@ -339,7 +341,7 @@ int main(int argc, char *argv[])
         lua.addStdLibs();
         lua.addLibrary(Lua::Engine2::PACKAGE);
         lua.addLibrary(Lua::Engine2::IO);
-        lua.addLibrary(Lua::Engine2::DBG);
+        // lua.addLibrary(Lua::Engine2::DBG);
         lua.addLibrary(Lua::Engine2::BIT);
         lua.addLibrary(Lua::Engine2::JIT);
         lua.addLibrary(Lua::Engine2::OS);
