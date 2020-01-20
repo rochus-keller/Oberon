@@ -223,8 +223,14 @@ struct LjbcGenImp : public AstVisitor
             // the type is declared in an imported module; we expect the module to be present in
             // our import table (otherwise the validator would have complained)
             Import* i = d_imps.value( ident->d_scope );
-            Q_ASSERT( i != 0 && i->d_slotValid );
-            bc.TGET(to,i->d_slot, QVariant::fromValue(ident->d_name), out.d_line );
+            // TODO: TextFrames -> Texts -> Files.Rider doesnt work yet because Files is not in import list of TextFrames
+            if( i == 0 || !i->d_slotValid )
+                qCritical() << "LjbcGen::fetchClass: unknown import" << ident->d_name << "in" << mod->d_name << out.d_line;
+            else
+            {
+                Q_ASSERT( i != 0 && i->d_slotValid );
+                bc.TGET(to,i->d_slot, QVariant::fromValue(ident->d_name), out.d_line );
+            }
         }
     }
 

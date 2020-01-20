@@ -569,6 +569,7 @@ void OberonIde::onNewPro()
         return;
 
     d_pro->createNew();
+    d_tab->onCloseAll();
     compile();
 }
 
@@ -586,6 +587,7 @@ void OberonIde::onOpenPro()
 
     QDir::setCurrent(QFileInfo(fileName).absolutePath());
 
+    d_tab->onCloseAll();
     d_pro->loadFrom(fileName);
 
     compile();

@@ -189,6 +189,7 @@ bool Project::generate()
             i.value().d_bc.clear();
         else
         {
+            qDebug() << "generating" << i.value().d_mod->d_name;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
             LjbcGen::translate(i.value().d_mod.data(), &buf, d_mdl->getErrs() );
