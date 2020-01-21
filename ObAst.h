@@ -581,7 +581,7 @@ namespace Ob
             bool procedureBody(Procedure*,SynTree*);
             Named* typeDeclaration(Scope*,SynTree*);
             Ref<Type> type(Scope* s, Named* id, SynTree*, Pointer* binding = 0);
-            Quali qualident(Scope*, SynTree*, bool report = false );
+            Quali qualident(Scope*, SynTree*, bool report );
             Ref<Type> arrayType(Scope*,SynTree*);
             Ref<Type> pointerType(Scope*, SynTree*);
             Ast::Ref<ProcType> formalParameters(Scope*,SynTree*);
@@ -603,6 +603,7 @@ namespace Ob
             Ref<Expression> term( Scope*, SynTree* );
             Ref<Expression> factor( Scope*, SynTree* );
             Ref<Expression> designator( Scope*, SynTree* );
+            Ref<Expression> qualident( Scope*, SynTree* );
             Ref<Expression> set( Scope*, SynTree* );
             Ref<Expression> labelRange( Scope*, SynTree* );
             Ref<Expression> label( Scope*, SynTree* );

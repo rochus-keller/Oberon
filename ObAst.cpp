@@ -849,6 +849,7 @@ Ast::Ref<Ast::Type> Ast::Model::type(Scope* s, Named* id, SynTree* st, Pointer* 
 
 Ast::Model::Quali Ast::Model::qualident(Scope* s, SynTree* st, bool report)
 {
+    // obsolete, replaced by other qualident returning Expression
     Q_ASSERT( st->d_tok.d_type == SynTree::R_qualident );
 
     Quali res;
@@ -1953,6 +1954,73 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
     return cur.data();
 }
 
+Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
+{
+    Q_ASSERT( quali->d_tok.d_type == SynTree::R_qualident &&
+              !quali->d_children.isEmpty() && quali->d_children.size() <= 2 );
+
+    Ref<Expression> cur;
+    Module* sourceMod = d_curModule;
+    Import* imp = 0;
+    Named* ident = 0;
+
+    // deref first ident of quali (nearly identical to designator)
+    {
+        ident = s->find(quali->d_children.first()->d_tok.d_val);
+        if( ident == 0 )
+        {
+            error(quali->d_children.first(),tr("cannot resolve identifier") );
+            return 0;
+        }
+        Ref<IdentLeaf> id = new IdentLeaf();
+        id->d_ident = ident;
+        id->d_loc = Loc(quali->d_children.first());
+        cur = id.data();
+        extendLiveRange( s, ident, quali->d_children.first() );
+        if( ident->getTag() == Thing::T_Import )
+        {
+            imp = static_cast<Import*>(ident);
+            sourceMod = imp->d_mod.data();
+        }
+        cur->d_type = ident->d_type.data();
+    }
+
+    if( quali->d_children.size() == 2 )
+    {
+        // similar to ident i==0 in designator
+        if( imp == 0 )
+        {
+            error(quali,tr("qualident doesn't reference an imported module") );
+            return 0;
+        }
+        Q_ASSERT( imp != 0 );
+        SynTree* st = quali->d_children.last();
+        ident = imp->d_mod->find(st->d_tok.d_val, false );
+        if( ident == 0 )
+        {
+            error(st,tr("cannot resolve identifier in '%1'").arg(imp->d_mod->d_name.constData() ) );
+            return 0;
+        }
+        Ref<IdentSel> id = new IdentSel();
+        id->d_sub = cur.data();
+        id->d_ident = ident;
+        id->d_loc = Loc(st);
+        cur = id.data();
+        cur->d_type = ident->d_type.data();
+        if( sourceMod != d_curModule && !sourceMod->d_isDef && !ident->d_public )
+            error(st,tr("element is not public") );
+    }
+
+    Q_ASSERT( ident != 0 );
+    Q_ASSERT( ident->d_type == cur->d_type );
+    if( cur->d_type.isNull() && ident == d_curTypeDecl )
+        cur->d_type = new SelfRef(ident);
+    else if( cur->d_type.isNull() )
+        error(quali,tr("type not available")); // is this an expected outcome?
+
+    return cur.data();
+}
+
 Ast::Ref<Ast::Expression> Ast::Model::set(Ast::Scope* s, SynTree* st)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_set );
@@ -2029,6 +2097,7 @@ Ast::Ref<Ast::Expression> Ast::Model::label(Ast::Scope* s, SynTree* st)
                                first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ));
     case SynTree::R_qualident:
         {
+#if 0
             Quali q = qualident(s,first,true);
             if( q.d_item == 0 )
                 return 0;
@@ -2052,6 +2121,9 @@ Ast::Ref<Ast::Expression> Ast::Model::label(Ast::Scope* s, SynTree* st)
                 id->d_type = q.d_item->d_type;
                 return id.data();
             }
+#else
+            return qualident( s, first ).data();
+#endif
         }
         break;
     default:
@@ -2269,6 +2341,7 @@ void Ast::Model::fixTypes()
 
 Ast::Ref<Ast::Type> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st)
 {
+#if 0
     Quali q = qualident(s,st,true);
     if( q.d_item && q.d_item == d_curTypeDecl )
     {
@@ -2285,6 +2358,31 @@ Ast::Ref<Ast::Type> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st)
     }else
         error(st,tr("cannot resolve type") );
     return 0;
+#elif 0
+    Ref<Expression> e = qualident( s, st );
+    if( e.isNull() )
+        return 0; // error was already reported
+    Named* ident = e->getIdent();
+    if( ident != 0 )
+    {
+        if( !ident->d_type.isNull() )
+            return ident->d_type;
+        else if( ident == d_curTypeDecl )
+            return new SelfRef(ident);
+        else
+            error(st,tr("type not available")); // is this an expected outcome?
+    }else
+        error(st,tr("cannot resolve type") );
+    return 0;
+#else
+    Ref<Expression> e = qualident( s, st );
+    if( e.isNull() )
+        return 0; // error was already reported
+    Q_ASSERT( e->getIdent() != 0 );
+    if( e->getIdent()->getTag() != Thing::T_NamedType )
+        error(st,tr("qualident must reference a named type") );
+    return e->d_type;
+#endif
 }
 
 bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWithPointer, bool inRecord )
