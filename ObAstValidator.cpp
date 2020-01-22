@@ -176,7 +176,7 @@ struct ValidatorImp : public AstVisitor
         for( int i = 0; i < m->d_body.size(); i++ )
             m->d_body[i]->accept(this);
 
-        ProcType* pt = static_cast<ProcType*>(m->d_type.data() );
+        ProcType* pt = static_cast<ProcType*>(m->d_type->derefed() );
 
         // check again d_return for not Array or Record (after removing SelfRefs)
         if( !pt->d_return.isNull() &&

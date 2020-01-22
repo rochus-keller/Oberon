@@ -685,6 +685,7 @@ bool Ast::Model::procedureBody(Ast::Procedure* p, SynTree* st)
             break;
         }
     }
+    Q_ASSERT( p->d_type->getTag() == Thing::T_ProcType );
     ProcType* pt = static_cast<ProcType*>(p->d_type.data() );
     if( !pt->d_return.isNull() )
     {
@@ -1841,7 +1842,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 deref->d_sub = cur.data();
                 deref->d_loc = Loc(first);
                 cur = deref.data();
-                Pointer* p = static_cast<Pointer*>(type);
+                Pointer* p = static_cast<Pointer*>(td);
                 type = p->d_to.data();
                 cur->d_type = type;
                 if( type == 0 )
@@ -2128,7 +2129,7 @@ void Ast::Model::unbindFromGlobal()
     for( i = d_global->d_names.begin(); i != d_global->d_names.end(); ++i )
     {
         if( i.value()->isNamed() )
-            static_cast<Named*>(i.value().data())->d_scope = 0; // if Modules continue to live they don't have dangling ptr
+            i.value().data()->d_scope = 0; // if Modules continue to live they don't have dangling ptr
     }
 }
 

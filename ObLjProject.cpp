@@ -187,7 +187,7 @@ bool Project::generate()
     {
         if( i.value().d_mod.isNull() || i.value().d_mod->d_hasErrors || i.value().d_mod->d_isDef )
             i.value().d_bc.clear();
-        else
+        else // if( false ) // TODO TEST
         {
             qDebug() << "generating" << i.value().d_mod->d_name;
             QBuffer buf;
