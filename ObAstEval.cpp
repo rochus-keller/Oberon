@@ -464,11 +464,10 @@ struct Printer : public AstVisitor
         if( namedType(t) )
             return;
         out << "RECORD ";
-        if( t->d_base != 0 )
+        if( !t->d_base.isNull() )
         {
             out << "( TREF ";
-            out << t->d_base->d_ident->d_name;
-            //t->d_base->accept(this);
+            t->d_base->accept(this);
             out << " )";
         }
         d_level++;
@@ -498,20 +497,11 @@ struct Printer : public AstVisitor
         if( !t->d_formals.isEmpty() )
             out << ")";
     }
-    void visit( SelfRef* t )
+    void visit( QualiType* t )
     {
         if( namedType(t) )
             return;
-        if( t->d_self->d_type.isNull() )
-            out << "? ";
-        else
-            out << t->d_self->d_name;
-    }
-    void visit( TypeRef* t )
-    {
-        if( namedType(t) )
-            return;
-        out << "REF ";
+        t->d_quali->accept(this);
     }
     void visit( Field* n)
     {

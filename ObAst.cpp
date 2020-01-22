@@ -91,41 +91,36 @@ static SynTree* flatten(SynTree* st, int stopAt = 0)
 
 static void markUsed( Ast::Type* t )
 {
+    if( t == 0 )
+        return;
+
     if( t->d_ident )
+    {
+        if( t->d_ident->d_usedFromLive )
+            return; // already visited
         t->d_ident->d_usedFromLive = true;
+    }
 
     const int tag = t->getTag();
     switch( tag )
     {
     case Ast::Thing::T_Pointer:
-        {
-            Ast::Pointer* p = static_cast<Ast::Pointer*>(t);
-            if( p->d_to )
-                markUsed( p->d_to.data() );
-        }
+        markUsed( static_cast<Ast::Pointer*>(t)->d_to.data() );
         break;
     case Ast::Thing::T_Array:
-        {
-            Ast::Array* a = static_cast<Ast::Array*>(t);
-            if( a->d_type )
-                markUsed( a->d_type.data() );
-        }
-        break;
-    case Ast::Thing::T_TypeRef:
-        {
-            Ast::TypeRef* r = static_cast<Ast::TypeRef*>(t);
-            if( r->d_ref )
-                markUsed( r->d_ref.data() );
-        }
+        markUsed( static_cast<Ast::Array*>(t)->d_type.data() );
         break;
     case Ast::Thing::T_Record:
         {
             Ast::Record* r = static_cast<Ast::Record*>(t);
-            if( r->d_base )
-                markUsed( r->d_base );
+            if( !r->d_base.isNull() )
+                markUsed( r->d_base.data() );
             if( r->d_binding && r->d_binding->d_ident )
                 r->d_binding->d_ident->d_usedFromLive = true;
         }
+        break;
+    case Ast::Thing::T_QualiType:
+        markUsed( static_cast<Ast::QualiType*>(t)->d_quali->d_type.data() );
         break;
     }
 
@@ -753,22 +748,13 @@ Ast::Named* Ast::Model::typeDeclaration(Scope* m, SynTree* st)
     nt->d_type = type(m,nt.data(),st->d_children.last());
     if( !nt->d_type.isNull() )
     {
-        if( nt->d_type->getTag() == Thing::T_SelfRef )
+        if( nt->d_type->isSelfRef() )
             error(st->d_children.last(),tr("recursive type definition"));
 
         // NOTE: check SelfRefs when type is set. If type is pointer or procedure then there is only
         // an issue when X = POINTER TO X, but not X = POINTER TO RECORD x: X; END.
         // If type is not a pointer, then X = RECORD x: X; END is an error.
         // The following cases are already checked: X = X or X = RECORD(X)
-
-        if( nt->d_type->d_ident != 0 && !isInThisModule(nt->d_type->d_ident->d_scope ) )
-        {
-            // If type lives in another module, create a TypeRef to it which lives here
-            Ref<TypeRef> tr = new TypeRef();
-            tr->d_ident = nt.data();
-            tr->d_ref = nt->d_type;
-            nt->d_type = tr.data();
-        }
     }
     d_curTypeDecl = 0;
     return nt.data();
@@ -782,13 +768,14 @@ Ast::Ref<Ast::Type> Ast::Model::type(Scope* s, Named* id, SynTree* st, Pointer* 
     {
     case SynTree::R_qualident:
         {
+            Ref<Type> t;
             const bool isPointerToType = binding != 0;
             if( isPointerToType ) // only Pointer may reference subsequent declarations
             {
                 if( sub->d_children.size() == 2 )
                 {
                     // Resolve qualidents to imported modules immediately
-                    return getTypeFromQuali(s,sub);
+                    t = getTypeFromQuali(s,sub).data();
                 }else
                 {
                     // Only resolve qualidents after all type declarations, otherwhise a POINTER TO T where
@@ -797,9 +784,14 @@ Ast::Ref<Ast::Type> Ast::Model::type(Scope* s, Named* id, SynTree* st, Pointer* 
                     d_fixType.append( FixType(binding, s, st) );
                 }
             }else
-                return getTypeFromQuali(s,sub);
+                t = getTypeFromQuali(s,sub).data();
+            if( !t.isNull() )
+            {
+                Q_ASSERT( t->d_ident == 0 );
+                t->d_ident = id;
+            }
+            return t;
         }
-        break;
     case SynTree::R_ArrayType:
         {
             Ref<Type> t = arrayType(s, sub );
@@ -968,13 +960,7 @@ Ast::Ref<Ast::ProcType> Ast::Model::formalParameters(Ast::Scope* s, SynTree* st)
             fpSection( s, p.data(), st->d_children[i] );
             break;
         case SynTree::R_qualident:
-            p->d_return = getTypeFromQuali(s, st->d_children[i]);
-            if( !p->d_return.isNull() )
-            {
-                Type* rt = p->d_return->derefed();
-                if( rt->getTag() == Thing::T_Record || rt->getTag() == Thing::T_Array )
-                    error( st->d_children[i], tr("The result type of a procedure can be neither a record nor an array"));
-            }
+            p->d_return = getTypeFromQuali(s, st->d_children[i]).data();
             break;
         case Tok_Lpar:
         case Tok_Rpar:
@@ -996,29 +982,17 @@ Ast::Ref<Ast::Type> Ast::Model::recordType(Ast::Scope* s, SynTree* st, Pointer* 
     {
         Q_ASSERT( baseSt->d_children.size() == 1 );
         baseSt = baseSt->d_children.first();
-        Ref<Type> base = getTypeFromQuali(s, baseSt);
+        Ref<QualiType> base = getTypeFromQuali(s, baseSt);
         if( !base.isNull() )
         {
-            Type* bd = base->derefed();
-            if( bd->getTag() == Thing::T_SelfRef )
+            if( base->isSelfRef() )
                 error(baseSt,tr("record cannot be the base of itself"));
-            else if( bd->getTag() == Thing::T_Record )
-                rec->d_base = base.data(); // d_base can point to a Record or TypeRef
-            else if( bd->getTag() == Thing::T_Pointer )
-            {
-                Pointer* p = static_cast<Pointer*>( bd );
-                if( p->d_to.isNull() )
-                    error(baseSt,tr("base type must be fully known before use"));
-                else if( p->d_to->getTag() == Thing::T_SelfRef )
-                    error(baseSt,tr("record cannot be the base of itself"));
-                else if( p->d_to->derefed()->getTag() != Thing::T_Record )
-                    error(baseSt,tr("expecting record or pointer to record"));
-                else
-                    rec->d_base = p->d_to.data(); // the base can be a TypeRef if it points to a Record
-            }else
-                error(baseSt,tr("expecting record or pointer to record"));
+            else
+                rec->d_base = base;
         }
-        if( rec->d_base )
+#if 0
+        // no longer needed, marked elsewhere
+        if( !rec->d_base.isNull() )
         {
             if( rec->d_base->d_ident )
                 rec->d_base->d_ident->d_usedFromLive = true;
@@ -1029,6 +1003,7 @@ Ast::Ref<Ast::Type> Ast::Model::recordType(Ast::Scope* s, SynTree* st, Pointer* 
                 r->d_binding->d_ident->d_usedFromLive = true;
             }
         }
+#endif
     }
     SynTree* fls = findFirstChild(st,SynTree::R_FieldListSequence, 1 );
     if( fls )
@@ -1114,7 +1089,7 @@ bool Ast::Model::fpSection(Scope* s, Ast::ProcType* p, SynTree* st)
             arrayOfCount++;
     }
 
-    Ref<Type> t = getTypeFromQuali(s,formalType->d_children.last());
+    Ref<Type> t = getTypeFromQuali(s,formalType->d_children.last()).data();
     if( arrayOfCount )
     {
         QList< Ref<Array> > tmp;
@@ -1157,11 +1132,6 @@ void Ast::Model::publicWarning( Ast::Named* n)
              && static_cast<Module*>(n->d_scope)->d_isDef )
         d_errs->warning(Errors::Semantics, d_curModule->d_file, n->d_loc.d_row, n->d_loc.d_col,
                         tr("in a DEFINITION all symbols are public") );
-}
-
-bool Ast::Model::isInThisModule(Ast::Scope* s) const
-{
-    return isXInModule( d_curModule, s );
 }
 
 bool Ast::Model::fieldList(Scope* s, Ast::Record* rec, SynTree* st )
@@ -2013,10 +1983,6 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
 
     Q_ASSERT( ident != 0 );
     Q_ASSERT( ident->d_type == cur->d_type );
-    if( cur->d_type.isNull() && ident == d_curTypeDecl )
-        cur->d_type = new SelfRef(ident);
-    else if( cur->d_type.isNull() )
-        error(quali,tr("type not available")); // is this an expected outcome?
 
     return cur.data();
 }
@@ -2333,13 +2299,12 @@ void Ast::Model::fixTypes()
         // NOTE: sync with pointerType
         if( ft.d_ptr->d_to.isNull() || ft.d_ptr->d_to->derefed()->getTag() != Thing::T_Record )
             error(ft.d_st,tr("not pointing to a record"));
-
     }
 
     d_fixType.clear();
 }
 
-Ast::Ref<Ast::Type> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st)
+Ast::Ref<Ast::QualiType> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st)
 {
 #if 0
     Quali q = qualident(s,st,true);
@@ -2378,10 +2343,19 @@ Ast::Ref<Ast::Type> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st)
     Ref<Expression> e = qualident( s, st );
     if( e.isNull() )
         return 0; // error was already reported
-    Q_ASSERT( e->getIdent() != 0 );
-    if( e->getIdent()->getTag() != Thing::T_NamedType )
+    Named* ident = e->getIdent();
+    Q_ASSERT( ident != 0 );
+    if( ident->getTag() != Thing::T_NamedType )
         error(st,tr("qualident must reference a named type") );
-    return e->d_type;
+
+    Ref<QualiType> q = new QualiType();
+    q->d_quali = e;
+    q->d_selfRef = e->d_type.isNull() && ident == d_curTypeDecl;
+
+    if( e->d_type.isNull() && !q->d_selfRef )
+        error(st,tr("type not available")); // is this an expected outcome?
+
+    return q;
 #endif
 }
 
@@ -2398,7 +2372,7 @@ bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWith
         Pointer* p = static_cast<Pointer*>(t);
         if( p->d_to.isNull() )
             return false;
-        if( p->d_to->getTag() == Thing::T_SelfRef )
+        if( p->d_to->isSelfRef() )
         {
             if( top )
                 return error(n,tr("recursive type declaration") );
@@ -2414,7 +2388,7 @@ bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWith
         Array* a = static_cast<Array*>(t);
         if( a->d_type.isNull() )
             return false;
-        if( a->d_type->getTag() == Thing::T_SelfRef )
+        if( a->d_type->isSelfRef() )
         {
             if( top )
                 return error(n,tr("recursive type declaration") );
@@ -2429,7 +2403,7 @@ bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWith
             Field* f = r->d_fields[i].data();
             if( f->d_type.isNull() )
                 continue;
-            if( f->d_type->getTag() == Thing::T_SelfRef )
+            if( f->d_type->isSelfRef() )
                 return error(n,tr("recursive type declaration") );
             checkSelfRefs(f,f->d_type.data(),false,false,true);
         }
@@ -2442,27 +2416,20 @@ Ast::Record* Ast::Model::toRecord( Ast::Type* t )
 {
     // If a type T is an extension of T0 and P is a pointer type bound to T,
     // then P is also an extension of P0
+
     if( t == 0 )
         return 0;
+    if( t->getTag() == Thing::T_QualiType || t->getTag() == Thing::T_TypeRef )
+        t = t->derefed();
+    Q_ASSERT( t != 0 );
     if( t->getTag() == Ast::Thing::T_Pointer )
         t = static_cast<Ast::Pointer*>(t)->d_to.data();
     if( t == 0 )
         return 0;
-    if( t->getTag() == Ast::Thing::T_TypeRef )
-        t = static_cast<Ast::TypeRef*>(t)->d_ref.data();
-    if( t == 0 )
-        return 0;
-    if( t->getTag() == Ast::Thing::T_SelfRef )
-        t = static_cast<Ast::SelfRef*>(t)->d_ident->d_type.data();
-    if( t == 0 )
-        return 0;
-    if( t->getTag() == Ast::Thing::T_Pointer )
-        t = static_cast<Ast::Pointer*>(t)->d_to.data();
-    if( t == 0 )
-        return 0;
-    if( t->getTag() == Ast::Thing::T_TypeRef )
-        t = static_cast<Ast::TypeRef*>(t)->d_ref.data();
-    if( t == 0 || t->getTag() != Ast::Thing::T_Record )
+    if( t->getTag() == Thing::T_QualiType || t->getTag() == Thing::T_TypeRef )
+        t = t->derefed();
+    Q_ASSERT( t != 0 );
+    if( t->getTag() != Ast::Thing::T_Record )
         return 0;
     else
         return static_cast<Record*>(t);
@@ -2494,9 +2461,7 @@ bool Ast::Model::isSubType(Ast::Type* sub, Ast::Type* super)
         if( sub == super )
             return true;
         Q_ASSERT( sub->getTag() == Ast::Thing::T_Record );
-        sub = static_cast<Ast::Record*>(sub)->d_base;
-        if( sub )
-            sub = sub->derefed();
+        sub = toRecord( static_cast<Ast::Record*>(sub)->d_base.data() );
     }
     return false;
 }
@@ -2562,10 +2527,23 @@ Ast::Field*Ast::Record::find(const QByteArray& name, bool recursive) const
         if( d_fields[i]->d_name.constData() == name.constData() )
             return d_fields[i].data();
     }
-    if( recursive && d_base )
-        return static_cast<Record*>(d_base->derefed())->find(name,recursive);
-    else
+    if( recursive )
+    {
+        Record* r = getBaseRecord();
+        if( r )
+            return r->find(name,recursive);
+    }
+    return 0;
+}
+
+Ast::Record*Ast::Record::getBaseRecord() const
+{
+    Q_ASSERT( d_base.isNull() || !d_base->d_quali.isNull() );
+
+    if( d_base.isNull() || d_base->d_quali->d_type.isNull() )
         return 0;
+
+    return Model::toRecord( d_base.data() );
 }
 
 Ast::BuiltIn::BuiltIn(quint8 f, ProcType* pt):d_func(f)
@@ -2630,7 +2608,6 @@ Ast::CallExpr*Ast::Call::getCallExpr() const
     return static_cast<CallExpr*>( d_what.data() );
 }
 
-
 Ast::Module* Ast::Named::getModule()
 {
     if( getTag() == Thing::T_Module )
@@ -2639,4 +2616,39 @@ Ast::Module* Ast::Named::getModule()
         return d_scope->getModule();
     else
         return 0;
+}
+
+Ast::QualiType::ModItem Ast::QualiType::getQuali() const
+{
+    Q_ASSERT( !d_quali.isNull() );
+    ModItem res;
+    res.second = d_quali->getIdent();
+
+    const int tag = d_quali->getTag();
+    switch( tag )
+    {
+    case Thing::T_IdentLeaf:
+        break; // NOP
+    case Thing::T_IdentSel:
+        {
+            IdentSel* i = static_cast<IdentSel*>( d_quali.data() );
+            Q_ASSERT( !i->d_sub.isNull() && i->d_sub->getTag() == Thing::T_IdentLeaf );
+            res.first = i->d_sub->getIdent();
+        }
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
+    }
+
+    return res;
+}
+
+Ast::Type*Ast::QualiType::derefed()
+{
+    Q_ASSERT( !d_quali.isNull() );
+    if( d_quali->d_type.isNull() )
+        return this; // never return 0 with derefed
+    else
+        return d_quali->d_type->derefed();
 }

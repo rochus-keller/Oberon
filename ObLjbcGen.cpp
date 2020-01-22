@@ -145,27 +145,44 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    Named* findClass( Type* t )
+    static QualiType::ModItem findClass( Type* t )
     {
+        QualiType::ModItem res;
+
+
         if( t->getTag() == Thing::T_Pointer )
         {
             Pointer* p = static_cast<Pointer*>(t);
-            if( p->d_to->d_ident != 0)
-                t = p->d_to.data();
+            if( p->d_to->getTag() == Thing::T_QualiType )
+                return findClass( p->d_to.data() );
+            Q_ASSERT( p->d_to->getTag() == Thing::T_Record &&
+                      p->d_to->d_ident == 0 );
+            // since QualiType type aliasses are no longer shortcutted, but there is an instance of
+            // QualiType wherever there is no inplace type declaration after TO. But the latter has
+            // no d_ident by definition.
+        }else if( t->getTag() == Thing::T_QualiType )
+        {
+            QualiType* q = static_cast<QualiType*>( t );
+            res = q->getQuali();
+            if( res.first )
+                return res; // quali points to an import, that's where we find a class for sure
+            Q_ASSERT( res.second );
+            return findClass( res.second->d_type.data() );
         }
 
-        Named* ident = t->d_ident;
-        if( ident == 0 )
+        Q_ASSERT( t->getTag() != Thing::T_QualiType && t == t->derefed() );
+
+        res.second = t->d_ident;
+        if( res.second == 0 )
         {
-            Type* td = t->derefed();
-            if( td->getTag() == Thing::T_Record )
+            if( t->getTag() == Thing::T_Record )
             {
-                Record* r = static_cast<Record*>( td );
+                Record* r = static_cast<Record*>( t );
                 if( r->d_binding )
-                    ident = r->d_binding->d_ident;
+                    res.second = r->d_binding->d_ident;
             }
         }
-        return ident;
+        return res;
     }
 
     void fetchClass( Type* t, Value& out )
@@ -180,56 +197,42 @@ struct LjbcGenImp : public AstVisitor
             to = out.d_slot;
         }
 
-        // find
+        /*
         if( t->getTag() == Thing::T_Pointer )
         {
             Pointer* p = static_cast<Pointer*>(t);
             if( p->d_to->d_ident != 0)
                 t = p->d_to.data();
         }
+        */
 
-        Named* ident = findClass(t);
-        Q_ASSERT( ident != 0 );
+        QualiType::ModItem quali = findClass(t);
+        Q_ASSERT( quali.second != 0 );
 
-        if( Model::isXInModule(mod,ident->d_scope) )
+        if( quali.first )
         {
-            if( t->getTag() == Thing::T_TypeRef )
-            {
-                // the TypeRef is local in this module and points to a name which we expect in the
-                // imported modules table
-                TypeRef* tr = static_cast<TypeRef*>( t );
-                Q_ASSERT( tr->d_ref->d_ident != 0 );
-                Import* i = d_imps.value( tr->d_ref->d_ident->d_scope );
-                Q_ASSERT( i != 0 && i->d_slotValid );
-                bc.TGET(to,i->d_slot, QVariant::fromValue(tr->d_ref->d_ident->d_name), out.d_line );
-            }else
-            {
-                // just any locally defined type
-                Q_ASSERT( ident && ident->d_slotValid );
+            // class lives in another module
 
-                if( ctx.back().scope != ident->d_scope )
-                {
-                    // resolve upvalue
-                    bc.UGET( to, resolveUpval( ident ), out.d_line );
-                }else
-                {
-                    // Module level
-                    bc.MOV(to,ident->d_slot,out.d_line);
-                }
+            // the type is declared in an imported module
+            // quali.first is the Import symbol which is supposed to have a slot already
+            Q_ASSERT( quali.first->d_slotValid );
 
-            }
+            // TODO: Check TextFrames -> Texts -> Files.Rider does work; Files is not in import list of TextFrames
+            bc.TGET(to, quali.first->d_slot, QVariant::fromValue(quali.second->d_name), out.d_line );
         }else
         {
-            // the type is declared in an imported module; we expect the module to be present in
-            // our import table (otherwise the validator would have complained)
-            Import* i = d_imps.value( ident->d_scope );
-            // TODO: TextFrames -> Texts -> Files.Rider doesnt work yet because Files is not in import list of TextFrames
-            if( i == 0 || !i->d_slotValid )
-                qCritical() << "LjbcGen::fetchClass: unknown import" << ident->d_name << "in" << mod->d_name << out.d_line;
-            else
+            // class lives in this module
+
+            Q_ASSERT( quali.second->d_slotValid );
+
+            if( ctx.back().scope != quali.second->d_scope )
             {
-                Q_ASSERT( i != 0 && i->d_slotValid );
-                bc.TGET(to,i->d_slot, QVariant::fromValue(ident->d_name), out.d_line );
+                // resolve upvalue
+                bc.UGET( to, resolveUpval( quali.second ), out.d_line );
+            }else
+            {
+                // Module level
+                bc.MOV(to,quali.second->d_slot,out.d_line);
             }
         }
     }
@@ -238,6 +241,7 @@ struct LjbcGenImp : public AstVisitor
     {
         if( isNamedTypeWithSlot(t) && ( isLive(t) || isDurable(t) ) )
         {
+            // create a slot representing the record (or pointer to record if latter anonymous)
             Q_ASSERT( t->d_slotValid );
             bc.TNEW( t->d_slot, 0, 0, t->d_loc.d_row );
 
@@ -246,8 +250,10 @@ struct LjbcGenImp : public AstVisitor
                 bc.TSET( t->d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.d_row );
 
             Record* r = Model::toRecord( t->d_type.data() );
-            if( r->d_base )
+            if( !r->d_base.isNull() )
             {
+                // set the super class if there is one
+                // super classes are implemented by meta tables
                 quint8 base = ctx.back().buySlots(3,true);
                 bc.GGET(base, "setmetatable", t->d_loc.d_row );
                 bc.MOV(base+1,t->d_slot,t->d_loc.d_row );
@@ -255,12 +261,14 @@ struct LjbcGenImp : public AstVisitor
                 v.d_slot = base+2;
                 v.d_kind = Value::Pre;
                 v.d_line = t->d_loc.d_row;
-                fetchClass(r->d_base,v);
+                fetchClass(r->d_base.data(),v);
                 bc.CALL(base,0, 2, v.d_line);
                 ctx.back().sellSlots(base,3);
             }
         }else if( Model::toRecord(t->d_type.data()) != 0 && t->d_scope == mod && t->d_public )
         {
+            // if the type points to a record (directly or indirectly) and is publicly visible
+            // on module level then copy its slot to the module table
             Value v;
             v.d_line = t->d_loc.d_row;
             fetchClass(t->d_type.data(),v);
@@ -415,7 +423,7 @@ struct LjbcGenImp : public AstVisitor
         Q_ASSERT( rt != 0 );
         // out << " = {}" << endl; was already done by the caller
 
-        if( findClass(rt) )
+        if( findClass(rt).second )
         {
             quint8 base = ctx.back().buySlots(3,true);
             bc.GGET(base, "setmetatable", line );
@@ -429,20 +437,15 @@ struct LjbcGenImp : public AstVisitor
             ctx.back().sellSlots(base,3);
         }
 
-        if( rt->getTag() == Thing::T_Pointer )
-            rt = static_cast<Pointer*>(rt)->d_to.data();
-
-        Q_ASSERT( rt->derefed()->getTag() == Thing::T_Record );
-
-        Record* r = static_cast<Record*>( rt->derefed() );
+        Record* r = Model::toRecord(rt);
         QList<Record*> topDown;
         topDown << r;
 
-        Record* base = r->d_base ? static_cast<Record*>(r->d_base->derefed()) : 0;
+        Record* base = r->getBaseRecord();
         while( base )
         {
             topDown.prepend(base);
-            base = base->d_base ? static_cast<Record*>(base->d_base->derefed()) : 0;
+            base = base->getBaseRecord();
         }
 
         for( int j = 0; j < topDown.size(); j++ )
@@ -478,14 +481,16 @@ struct LjbcGenImp : public AstVisitor
             return; // Var not used
         Q_ASSERT( v->d_slotValid );
 
-        if( v->d_type->getTag() == Thing::T_Record )
+        Type* td = v->d_type->derefed();
+        const int tag = td->getTag();
+        if( tag == Thing::T_Record )
         {
             // name = {}
             bc.TNEW( v->d_slot, 0, 0, v->d_loc.d_row );
             initRecord( v->d_type.data(), v->d_slot, v->d_loc.d_row );
-        }else if( v->d_type->getTag() == Thing::T_Array )
+        }else if( tag == Thing::T_Array )
         {
-            initArray( static_cast<Array*>( v->d_type.data() ), v->d_slot, v->d_loc.d_row );
+            initArray( static_cast<Array*>( td ), v->d_slot, v->d_loc.d_row );
         }else
         {
             // unneccessary, already nil: bc.KNIL(v->d_slot, 1, v->d_loc.d_row );
@@ -569,12 +574,12 @@ struct LjbcGenImp : public AstVisitor
         return n->d_liveFrom > 0;
     }
 
-    bool inline isNamedTypeWithSlot( Named* nt )
+    static bool inline isNamedTypeWithSlot( Named* nt )
     {
         if( nt->getTag() != Thing::T_NamedType )
             return false;
 
-        // we only consider original named type declarations here, i.e. no aliasses
+        // we only consider original named type declarations here, i.e. no aliasses.
         if( nt->d_type->d_ident != nt )
             return false;
 
@@ -583,7 +588,7 @@ struct LjbcGenImp : public AstVisitor
         // In case of type aliasses which point to record types (wheter in this or another module), we at least
         // put a copy of the original named type table to the module table of the present module,
         // but we don't allocate a new slot.
-        if( tag == Thing::T_TypeRef )
+        if( tag == Thing::T_QualiType )
             return false;
 
         // We need a table for a named record type so it can be used as metatable for the
@@ -594,8 +599,8 @@ struct LjbcGenImp : public AstVisitor
         if( tag == Thing::T_Pointer )
         {
             Pointer* p = static_cast<Pointer*>(nt->d_type.data());
-            Q_ASSERT( p->d_to->getTag() == Thing::T_Record );
-            Record* r = static_cast<Record*>(p->d_to.data());
+            Q_ASSERT( p->d_to->derefed()->getTag() == Thing::T_Record );
+            Record* r = static_cast<Record*>(p->d_to->derefed());
 
             // A pointer to an anonymous record declared for the pointer is treatet the
             // same way as a named Record declaration

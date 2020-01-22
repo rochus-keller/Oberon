@@ -482,7 +482,6 @@ struct LuaGen2Imp : public AstVisitor
     QTextStream out;
     Errors* err;
     Module* mod;
-    QHash<Scope*,QByteArray> imps;
     quint16 level;
     Scope* curScope;
     bool ownsErr;
@@ -492,20 +491,57 @@ struct LuaGen2Imp : public AstVisitor
         return QString(level,QChar('\t'));
     }
 
-    QByteArray quali( Named* n ) const
+    static QualiType::ModItem findClass( Type* t )
     {
-        if( n->d_scope == mod )
-            return toName(n); // symbol is local in current module
-            // return "module." + toName(n);
-        else if( n->d_scope->getTag() == Thing::T_Module )
+        // 1:1 from LjbcGen
+        QualiType::ModItem res;
+
+
+        if( t->getTag() == Thing::T_Pointer )
         {
-            if( !imps.contains(n->d_scope) )
-                qDebug() << "missing" << "current mod" << mod->d_name << "imp" <<
-                            n->d_scope->d_name << "sym" << n->d_name;
-            return imps.value(n->d_scope,"???") + "." + toName(n);
+            Pointer* p = static_cast<Pointer*>(t);
+            if( p->d_to->getTag() == Thing::T_QualiType )
+                return findClass( p->d_to.data() );
+            Q_ASSERT( p->d_to->getTag() == Thing::T_Record &&
+                      p->d_to->d_ident == 0 );
+            // since QualiType type aliasses are no longer shortcutted, but there is an instance of
+            // QualiType wherever there is no inplace type declaration after TO. But the latter has
+            // no d_ident by definition.
+        }else if( t->getTag() == Thing::T_QualiType )
+        {
+            QualiType* q = static_cast<QualiType*>( t );
+            res = q->getQuali();
+            if( res.first )
+                return res; // quali points to an import, that's where we find a class for sure
+            Q_ASSERT( res.second );
+            return findClass( res.second->d_type.data() );
         }
+
+        Q_ASSERT( t->getTag() != Thing::T_QualiType && t == t->derefed() );
+
+        res.second = t->d_ident;
+        if( res.second == 0 )
+        {
+            if( t->getTag() == Thing::T_Record )
+            {
+                Record* r = static_cast<Record*>( t );
+                if( r->d_binding )
+                    res.second = r->d_binding->d_ident;
+            }
+        }
+        return res;
+    }
+
+    static QByteArray className( Type* t )
+    {
+        Q_ASSERT( t );
+        QualiType::ModItem mi = findClass( t );
+        if( mi.first && mi.second )
+            return toName(mi.first) + "." + toName(mi.second);
+        else if( mi.second )
+            return toName(mi.second);
         else
-            return toName(n); // symbol must be local to current procedure
+            return "???";
     }
 
     void inline initHelper( Array* a, int curDim, const QByteArray& name, const QByteArray& rec = QByteArray() )
@@ -603,25 +639,22 @@ struct LuaGen2Imp : public AstVisitor
 
     void initRecord( Type* rt, const QByteArray& name )
     {
-        Q_ASSERT( rt != 0 );
-        if( rt->getTag() == Thing::T_Pointer )
-            rt = static_cast<Pointer*>(rt)->d_to.data();
-
-        Q_ASSERT( rt->derefed()->getTag() == Thing::T_Record );
         // out << " = {}" << endl; was already done by the caller
 
-        if( rt->d_ident )
-            out << ws() << "setmetatable(" << name << "," << quali( rt->d_ident ) << ")" << endl;
+        Q_ASSERT( rt != 0 );
 
-        Record* r = static_cast<Record*>( rt->derefed() );
+        if( findClass(rt).second != 0 )
+            out << ws() << "setmetatable(" << name << "," << className( rt ) << ")" << endl;
+
+        Record* r = toRecord(rt);
         QList<Record*> topDown;
         topDown << r;
 
-        Record* base = r->d_base ? static_cast<Record*>(r->d_base->derefed()) : 0;
+        Record* base = r->getBaseRecord();
         while( base )
         {
             topDown.prepend(base);
-            base = base->d_base ? static_cast<Record*>(base->d_base->derefed()) : 0;
+            base = base->getBaseRecord();
         }
 
         for( int j = 0; j < topDown.size(); j++ )
@@ -700,36 +733,73 @@ struct LuaGen2Imp : public AstVisitor
         out << ")";
     }
 
+    static bool inline isNamedTypeWithLocal( Named* nt )
+    {
+        // adapted from LjbcGen
+
+        if( nt->getTag() != Thing::T_NamedType )
+            return false;
+
+        // we only consider original named type declarations here, i.e. no aliasses.
+        if( nt->d_type->d_ident != nt )
+            return false;
+
+        const int tag = nt->d_type->getTag();
+
+        // In case of type aliasses which point to record types (wheter in this or another module), we at least
+        // put a copy of the original named type table to the module table of the present module,
+        // but we don't allocate a new slot.
+        if( tag == Thing::T_QualiType )
+            return false;
+
+        // We need a table for a named record type so it can be used as metatable for the
+        // instance of the record and a base for subrecords.
+        if( tag == Thing::T_Record )
+            return true;
+
+        if( tag == Thing::T_Pointer )
+        {
+            Pointer* p = static_cast<Pointer*>(nt->d_type.data());
+            Q_ASSERT( p->d_to->derefed()->getTag() == Thing::T_Record );
+            Record* r = static_cast<Record*>(p->d_to->derefed());
+
+            // A pointer to an anonymous record declared for the pointer is treatet the
+            // same way as a named Record declaration
+            if( r->d_binding == p )
+                return true;
+        }
+
+        return false;
+    }
+
     void visit( NamedType* t )
     {
-        if( t->d_type->d_ident == t )
+        if( isNamedTypeWithLocal( t ) )
         {
-            // we are only interested in original (i.e. no shortcut type refs) declarations here
-            Type* td = t->d_type->derefed();
-            if( t->d_type->getTag() == Thing::T_Record )
+            // this is an original (i.e. non-alias) declaration of a recrod
+            Record* r = toRecord(t->d_type.data());
+            const QByteArray name = toName(t);
+            out << ws() << "local " << name << " = ";
+            out << "{}" << endl;
+            if( !r->d_base.isNull() )
             {
-                // this is an original (i.e. non-alias) declaration of a recrod
-                Record* r = static_cast<Record*>(t->d_type.data());
-                const QByteArray name = toName(t);
-                out << ws() << "local " << name << " = ";
-                out << "{}" << endl;
-                if( r->d_base )
-                {
-                    Q_ASSERT( r->d_base->d_ident != 0 );
-                    level++;
-                    out << ws() << "setmetatable(" << name << "," << quali( r->d_base->d_ident ) << ")" << endl;
-                    level--;
-                }
-                if( t->d_scope == mod && t->d_public )
-                    out << "module" << "." << name << " = " << name << endl;
-            }else if( t->d_type->getTag() == Thing::T_TypeRef && td->getTag() == Thing::T_Record )
-            {
-                TypeRef* tr = static_cast<TypeRef*>(t->d_type.data());
-                const QByteArray name = toName(t);
-                out << ws() << "local " << name << " = " << quali( tr->d_ref->d_ident ) << endl;
-                if( t->d_scope == mod && t->d_public )
-                    out << "module" << "." << name << " = " << name << endl;
+                Q_ASSERT( r->d_base->d_quali->getIdent() != 0 );
+                level++;
+                out << ws() << "setmetatable(" << name << "," << className(r->d_base.data()) << ")" << endl;
+                level--;
             }
+            if( t->d_scope == mod && t->d_public )
+                out << "module" << "." << name << " = " << name << endl;
+        }else if( t->d_type->getTag() == Thing::T_QualiType && Model::toRecord(t->d_type.data()) != 0 )
+        {
+            QualiType* q = static_cast<QualiType*>(t->d_type.data());
+            const QByteArray name = toName(t);
+            out << ws() << "local " << name << " = ";
+            q->d_quali->accept(this);
+            out << endl;
+            // << quali( tr->d_quali->d_type->d_ident ) << endl;
+            if( t->d_scope == mod && t->d_public )
+                out << "module" << "." << name << " = " << name << endl;
         }
     }
 
@@ -819,16 +889,6 @@ struct LuaGen2Imp : public AstVisitor
         out << "local module = {}" << endl << endl;
 
         out << "local obnlj = require 'obnlj'" << endl;
-
-        imps.clear();
-        for( int i = 0; i < m->d_order.size(); i++ )
-        {
-            if( m->d_order[i]->getTag() == Thing::T_Import )
-            {
-                Import* imp = static_cast<Import*>(m->d_order[i]);
-                imps.insert( imp->d_mod.data(), m->d_order[i]->d_name );
-            }
-        }
 
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);
@@ -1126,10 +1186,7 @@ struct LuaGen2Imp : public AstVisitor
 
             Q_ASSERT( c.d_labels.size() == 1 );
 
-            Record* r = toRecord( c.d_labels.first()->d_type.data() );
-            Q_ASSERT( r && r->d_ident );
-            out << quali(r->d_ident);
-            //c.d_labels.first()->accept(this);
+            out << className(c.d_labels.first()->d_type.data());
 
             out << " ) then" << endl;
 
@@ -1224,8 +1281,9 @@ struct LuaGen2Imp : public AstVisitor
 
     void visit( IdentLeaf* id )
     {
-        Q_ASSERT( !id->d_ident.isNull() );
-        out << toName(id->d_ident.data());
+        // may be null because of printRightPart which temporarily adds a dummy leaf
+        if( !id->d_ident.isNull() )
+            out << toName(id->d_ident.data());
     }
 
     void visit( UnExpr* e )
@@ -1259,11 +1317,7 @@ struct LuaGen2Imp : public AstVisitor
 
     static Record* toRecord( Type* t )
     {
-        if( t && t->getTag() == Thing::T_Record )
-            return static_cast<Record*>( t );
-        if( t && t->getTag() == Thing::T_Pointer )
-            return static_cast<Record*>( static_cast<Pointer*>( t )->d_to.data() );
-        return 0;
+        return Model::toRecord(t);
     }
 
     bool renderBuiltIn( CallExpr* c )
@@ -1506,10 +1560,7 @@ struct LuaGen2Imp : public AstVisitor
             out << "obnlj.is_a( ";
             e->d_lhs->accept(this);
             out << ", ";
-            Record* r = toRecord( e->d_rhs->d_type.data() );
-            Q_ASSERT( r && r->d_ident );
-            out << quali(r->d_ident);
-            // e->d_rhs->accept(this);
+            out << className(e->d_rhs->d_type.data());
             out << " ) ";
         }else if( e->d_op == BinExpr::MOD )
         {

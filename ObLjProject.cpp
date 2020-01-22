@@ -164,7 +164,7 @@ bool Project::recompile()
     Ast::Model::Modules mods = d_mdl->getModules();
     foreach( const Ast::Ref<Ast::Module>& m, mods )
     {
-        if( m->d_file.isEmpty() )
+        if( m->d_file.isEmpty() || m->d_isDef )
             continue; // e.g. SYSTEM
         FileHash::iterator i = d_files.find(m->d_file);
         if( i != d_files.end() )

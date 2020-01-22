@@ -526,6 +526,7 @@ void LjEditor::compile()
         Ast::Model mdl;
         mdl.setSenseExt(true);
         mdl.getFc()->addFile(path,d_edit->toPlainText().toUtf8() );
+        mdl.getErrs()->setReportToConsole(true);
         preloadLib(mdl,"In");
         preloadLib(mdl,"Out");
         preloadLib(mdl,"Files");

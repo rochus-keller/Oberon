@@ -36,8 +36,9 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Pointer* p)
     {
-        Q_ASSERT( !p->d_to.isNull() );
+        Q_ASSERT( !p->d_to.isNull() && p->d_to->derefed()->getTag() == Thing::T_Record );
         removeSelfRef(p->d_to);
+
         if( p->d_to->d_ident == 0 )
             p->d_to->accept(this);
     }
@@ -54,8 +55,27 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Record* r )
     {
-        if( r->d_base )
-            Q_ASSERT( r->d_base->getTag() != Thing::T_SelfRef );
+        if( !r->d_base.isNull() )
+        {
+            Q_ASSERT( !r->d_base->d_quali->d_type.isNull() && r->d_base->d_quali->getIdent() != 0 );
+
+            Type* base = r->d_base->d_quali->d_type->derefed();
+            Q_ASSERT( base != 0 );
+            const int tag = base->getTag();
+            if( tag != Thing::T_Record && tag != Thing::T_Pointer )
+                error(r->d_base->d_quali->d_loc,tr("expecting record or pointer to record"));
+            Record* br = r->getBaseRecord();
+            while( br )
+            {
+                // check for base self reference
+                if( br == r )
+                {
+                    error(r->d_base->d_quali->d_loc,tr("base of record references itself"));
+                    break;
+                }
+                br = br->getBaseRecord();
+            }
+        }
         for( int i = 0; i < r->d_fields.size(); i++ )
         {
             Q_ASSERT( !r->d_fields[i].isNull() );
@@ -66,22 +86,27 @@ struct ValidatorImp : public AstVisitor
     void visit( ProcType* p )
     {
         removeSelfRef(p->d_return);
-        if( p->d_return && p->d_return->d_ident == 0 )
+        if( !p->d_return.isNull() )
+        {
             p->d_return->accept(this);
+
+            Q_ASSERT( p->d_return->getTag() == Thing::T_QualiType );
+            Type* rt = p->d_return->derefed();
+            if( rt->getTag() == Thing::T_Record || rt->getTag() == Thing::T_Array )
+            {
+                QualiType* q = static_cast<QualiType*>(p->d_return.data());
+                error( q->d_quali->getIdent()->d_loc,
+                       tr("The result type of a procedure can be neither a record nor an array"));
+            }
+        }
         for( int i = 0; i < p->d_formals.size(); i++ )
             p->d_formals[i]->accept(this);
     }
 
-    void visit( SelfRef* r )
+    void visit( QualiType* q )
     {
-        Q_ASSERT( r->d_self != 0 && !r->d_self->d_type.isNull() );
-        qDebug() << "SelRef pending" << r->d_self->d_name << r->d_self->d_loc.d_row << r->d_self->d_loc.d_col;
-        Q_ASSERT( false );
-    }
-
-    void visit( TypeRef* r )
-    {
-        r->d_ref->accept(this);
+        // References already validated idents, thus not again here
+        // q->d_quali->accept(this);
     }
 
     void visit( Field* f)
@@ -124,7 +149,7 @@ struct ValidatorImp : public AstVisitor
     {
         if( t->d_type.isNull() )
             return;
-        Q_ASSERT( t->d_type->getTag() != Thing::T_SelfRef );
+        Q_ASSERT( !t->d_type->isSelfRef() );
         if( t->d_type->d_ident == t )
             t->d_type->accept(this);
     }
@@ -473,10 +498,11 @@ struct ValidatorImp : public AstVisitor
 
     void removeSelfRef( Ref<Type>& t )
     {
-        if( !t.isNull() && t->getTag() == Thing::T_SelfRef )
+        if( !t.isNull() && t->isSelfRef() && t->getTag() == Thing::T_QualiType )
         {
-            SelfRef* s = static_cast<SelfRef*>( t.data() );
-            t = s->d_self->d_type;
+            QualiType* q = static_cast<QualiType*>( t.data() );
+            q->d_quali->d_type = q->d_quali->getIdent()->d_type;
+            q->d_selfRef = false;
         }
     }
 
@@ -612,7 +638,7 @@ struct ValidatorImp : public AstVisitor
 
     inline bool isString( Type* t ) const
     {
-        return t && t->getTag() == Thing::T_Array && static_cast<Array*>(t)->d_type.data() == bt.d_charType;
+        return t && t->getTag() == Thing::T_Array && static_cast<Array*>(t)->d_type->derefed() == bt.d_charType;
     }
 
     inline bool isNumeric( Type* t ) const

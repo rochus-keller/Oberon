@@ -67,8 +67,9 @@ namespace Ob
         struct Thing : public QSharedData
         {
             enum Tag { T_Thing, T_Module, T_Import, T_Pointer, T_Record, T_BaseType, T_Array, T_ProcType, T_NamedType,
-                        T_CallExpr, T_SelfRef, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr,
+                        T_CallExpr, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr,
                         T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure, T_Variable, T_LocalVar, T_TypeRef,
+                       T_QualiType,
                      T_MAX };
             // QVariantMap user; // Not used so far; For any use; only eats 4 bytes if not used (QVariant eats 12 instead)
             Thing() {}
@@ -85,8 +86,7 @@ namespace Ob
             struct Array;
             struct Record;
             struct ProcType;
-            struct SelfRef;
-            struct TypeRef;
+            struct QualiType;
         struct Named;
             struct Field;
             struct Variable;
@@ -124,8 +124,7 @@ namespace Ob
             virtual void visit( Array* ) {}
             virtual void visit( Record* ) {}
             virtual void visit( ProcType* ) {}
-            virtual void visit( SelfRef* ) {}
-            virtual void visit( TypeRef* ) {}
+            virtual void visit( QualiType* ) {}
             virtual void visit( Field* ) {}
             virtual void visit( Variable* ) {}
             virtual void visit( LocalVar* ) {}
@@ -158,6 +157,7 @@ namespace Ob
             Type():d_ident(0) {}
             typedef QList< Ref<Type> > List;
             virtual bool isStructured() const { return false; }
+            virtual bool isSelfRef() const { return false; }
             virtual Type* derefed() { return this; }
         };
 
@@ -192,7 +192,7 @@ namespace Ob
 
             struct Record : public Type
             {
-                Type* d_base; // base type (a Record or TypeRef to Record) or null
+                Ref<QualiType> d_base; // base type - a quali to a Record or Pointer or null
                 Pointer* d_binding; // points back to pointer type in case of anonymous record
                 QList< Ref<Field> > d_fields;
 
@@ -201,6 +201,7 @@ namespace Ob
                 int getTag() const { return T_Record; }
                 void accept(AstVisitor* v) { v->visit(this); }
                 bool isStructured() const { return true; }
+                Record* getBaseRecord() const;
             };
 
             struct ProcType : public Type
@@ -220,20 +221,19 @@ namespace Ob
                 bool isBuiltIn() const;
             };
 
-            struct SelfRef : public Type // can only be resolved after declaration section
+            struct QualiType : public Type
             {
-                SelfRef(Named* n):d_self(n) {}
-                Named* d_self;
-                int getTag() const { return T_SelfRef; }
-                void accept(AstVisitor* v) { v->visit(this); }
-            };
+                typedef QPair<Named*,Named*> ModItem; // Module or 0 -> Item
 
-            struct TypeRef : public Type // for named types pointing to types in other modules
-            {
-                Ref<Type> d_ref;
-                int getTag() const { return T_TypeRef; }
+                Ref<Expression> d_quali;
+                bool d_selfRef; // can only be resolved after declaration section
+
+                QualiType():d_selfRef(false){}
+                ModItem getQuali() const;
+                bool isSelfRef() const { return d_selfRef; }
+                int getTag() const { return T_QualiType; }
                 void accept(AstVisitor* v) { v->visit(this); }
-                Type* derefed() { return d_ref->derefed(); }
+                Type* derefed();
             };
 
         struct Named : public Thing
@@ -618,10 +618,9 @@ namespace Ob
             void fixTypes();
             void deferredBody(Procedure* p, SynTree* st);
             void deferredBody();
-            Ref<Type> getTypeFromQuali(Scope*,SynTree*);
+            Ref<QualiType> getTypeFromQuali(Scope*,SynTree*);
             bool checkSelfRefs(Named* n, Type*, bool top , bool startsWithPointer, bool inRecord);
             void publicWarning(Named* n);
-            bool isInThisModule( Scope* ) const;
         private:
             Ref<Scope> d_global;
             Ref<Scope> d_globalLc; // lower & upper case version of global
