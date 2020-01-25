@@ -52,22 +52,23 @@ namespace Ob
 
         struct Loc
         {
-            enum { ROW_BIT_LEN = 20 };
+            enum { ROW_BIT_LEN = 20, COL_BIT_LEN = 32 - ROW_BIT_LEN };
             uint d_row : ROW_BIT_LEN;
-            uint d_col : (32-ROW_BIT_LEN);
+            uint d_col : COL_BIT_LEN;
             Loc():d_row(0),d_col(0) {}
             Loc(SynTree*);
             bool isValid() const { return d_row > 0 && d_col > 0; } // valid lines and cols start with 1; 0 is invalid
-            quint32 packed() const { return ( d_col << ROW_BIT_LEN ) | d_row; }
-            static bool isPacked( quint32 rowCol ) { return rowCol >= ( 1 << ROW_BIT_LEN ); }
-            static quint32 packedRow(quint32 rowCol ) { return rowCol & ( 1 << ROW_BIT_LEN ) - 1; }
-            static quint32 packedCol(quint32 rowCol ) { return ( rowCol >> ROW_BIT_LEN ); }
+            quint32 packed() const { return ( d_row << COL_BIT_LEN ) | d_col; }
+            static bool isPacked( quint32 rowCol ) { return rowCol >= ( 1 << COL_BIT_LEN ); }
+            static quint32 packedRow(quint32 rowCol ) { return rowCol & ( 1 << COL_BIT_LEN ) - 1; }
+            static quint32 packedCol(quint32 rowCol ) { return ( rowCol >> COL_BIT_LEN ); }
+            bool operator==( const Loc& rhs ) const { return d_row == rhs.d_row && d_col == rhs.d_col; }
         };
 
         struct Thing : public QSharedData
         {
             enum Tag { T_Thing, T_Module, T_Import, T_Pointer, T_Record, T_BaseType, T_Array, T_ProcType, T_NamedType,
-                        T_CallExpr, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr,
+                        T_CallExpr, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr, T_Field,
                         T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure, T_Variable, T_LocalVar, T_TypeRef,
                        T_QualiType,
                      T_MAX };
@@ -79,6 +80,18 @@ namespace Ob
             virtual int getTag() const { return T_Thing; }
             virtual void accept(AstVisitor* v){}
         };
+
+        template <typename T>
+        inline T thing_cast( Thing* in )
+        {
+#ifdef _DEBUG
+            T out = dynamic_cast<T>( in );
+            Q_ASSERT( in == 0 || out != 0 );
+#else
+            T out = static_cast<T>( in );
+#endif
+            return out;
+        }
 
         struct Type;
             struct BaseType;
@@ -95,9 +108,9 @@ namespace Ob
             struct NamedType;
             struct Const;
             struct Import;
+            struct BuiltIn;
         struct Scope;
             struct Procedure;
-            struct BuiltIn;
             struct Module;
         struct Statement;
             struct Call;
@@ -267,6 +280,7 @@ namespace Ob
             struct Field : public Named // Record field
             {
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_Field; }
             };
 
             struct Variable : public Named // Module variable
@@ -313,11 +327,28 @@ namespace Ob
                 void accept(AstVisitor* v) { v->visit(this); }
             };
 
+            struct BuiltIn : public Named
+            {
+                enum { ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
+                        NEW, ASSERT, PACK, UNPK,
+                        WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
+                        LED, // LED not global proc in Oberon report, but used as such in Project Oberon
+                       // SYSTEM
+                       ADR, BIT, GET, H, LDREG, PUT, REG, VAL, COPY
+                     };
+                static const char* s_typeName[];
+                quint8 d_func;
+                BuiltIn(quint8 f, ProcType* = 0 );
+                int getTag() const { return T_BuiltIn; }
+                void accept(AstVisitor* v) { v->visit(this); }
+            };
+
             struct Scope : public Named
             {
                 typedef QHash<const char*, Ref<Named> > Names;
                 Names d_names;
                 QList<Named*> d_order;
+                QList< Ref<IdentLeaf> > d_helper; // filled with all decls when fillXref
                 StatSeq d_body;
                 Loc d_end;
 
@@ -330,22 +361,6 @@ namespace Ob
                 {
                     void accept(AstVisitor* v) { v->visit(this); }
                     int getTag() const { return T_Procedure; }
-                };
-
-                struct BuiltIn : public Named
-                {
-                    enum { ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
-                            NEW, ASSERT, PACK, UNPK,
-                            WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
-                            LED, // LED not global proc in Oberon report, but used as such in Project Oberon
-                           // SYSTEM
-                           ADR, BIT, GET, H, LDREG, PUT, REG, VAL, COPY
-                         };
-                    static const char* s_typeName[];
-                    quint8 d_func;
-                    BuiltIn(quint8 f, ProcType* = 0 );
-                    int getTag() const { return T_BuiltIn; }
-                    void accept(AstVisitor* v) { v->visit(this); }
                 };
 
                 struct Module : public Scope
@@ -398,8 +413,7 @@ namespace Ob
 
             struct ForLoop : public Statement
             {
-                Ref<Named> d_id;
-                Ref<Expression> d_from, d_to, d_by;
+                Ref<Expression> d_id, d_from, d_to, d_by;
                 QVariant d_byVal;
                 StatSeq d_do;
                 void accept(AstVisitor* v) { v->visit(this); }
@@ -424,6 +438,7 @@ namespace Ob
             Ref<Type> d_type;
             Loc d_loc;
             virtual Named* getIdent() const { return 0; }
+            virtual Module* getModule() const { return 0; }
         };
 
             struct Literal : public Expression
@@ -444,7 +459,11 @@ namespace Ob
             struct IdentLeaf : public Expression
             {
                 Ref<Named> d_ident;
+                Module* d_mod;
+                IdentLeaf():d_mod(0) {}
+                IdentLeaf( Named* id, SynTree* loc, Module* mod, Type* t );
                 Named* getIdent() const { return d_ident.data(); }
+                Module* getModule() const { return d_mod; }
                 int getTag() const { return T_IdentLeaf; }
                 void accept(AstVisitor* v) { v->visit(this); }
             };
@@ -468,6 +487,7 @@ namespace Ob
                 Named* getIdent() const { return d_ident.data(); }
                 IdentSel():UnExpr(SEL) {}
                 int getTag() const { return T_IdentSel; }
+                Module* getModule() const { return d_sub->getModule(); }
                 void accept(AstVisitor* v) { v->visit(this); }
             };
 
@@ -544,7 +564,10 @@ namespace Ob
             };
             BaseTypes getBaseTypes() const;
 
-            typedef QHash<Named*, QList<Expression*> > XRef; // name used by ident expression
+            typedef QList< Ref<Expression> > ExpList;
+            // ExpList must have Ref because the Model creates temporary expression which can get in this
+            // list and create dangling pointers if not Ref.
+            typedef QHash<Named*, ExpList > XRef; // name used by ident expression
             const XRef& getXref() const { return d_xref; }
 
 
@@ -577,11 +600,10 @@ namespace Ob
             bool importList(Module*,SynTree*);
             bool declarationSequence(Scope*,SynTree*,bool definition);
             bool procedureDeclaration(Scope*, SynTree*, bool headingOnly);
-            bool procedureHeading(Procedure*,SynTree*);
+            SynTree* procedureHeading(Procedure*,SynTree*);
             bool procedureBody(Procedure*,SynTree*);
             Named* typeDeclaration(Scope*,SynTree*);
             Ref<Type> type(Scope* s, Named* id, SynTree*, Pointer* binding = 0);
-            Quali qualident(Scope*, SynTree*, bool report );
             Ref<Type> arrayType(Scope*,SynTree*);
             Ref<Type> pointerType(Scope*, SynTree*);
             Ast::Ref<ProcType> formalParameters(Scope*,SynTree*);

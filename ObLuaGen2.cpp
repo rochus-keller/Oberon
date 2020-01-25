@@ -1150,12 +1150,12 @@ struct LuaGen2Imp : public AstVisitor
     void visit( ForLoop* l )
     {
         // the same as while because in Lua the TO expression is only executed once
-        out << ws() << toName(l->d_id.data()) << " = ";
+        out << ws() << toName(l->d_id->getIdent()) << " = ";
         l->d_from->accept(this);
         out << endl;
 
         const int inc = l->d_byVal.toInt();
-        out << ws() << "while " << toName(l->d_id.data());
+        out << ws() << "while " << toName(l->d_id->getIdent());
         if( inc > 0 )
             out << " <= ";
         else
@@ -1165,8 +1165,8 @@ struct LuaGen2Imp : public AstVisitor
         level++;
         for( int i = 0; i < l->d_do.size(); i++ )
             l->d_do[i]->accept(this);
-        out << ws() << toName(l->d_id.data()) << " = " <<
-               toName(l->d_id.data()) << " + (" << inc << ")" << endl;
+        out << ws() << toName(l->d_id->getIdent()) << " = " <<
+               toName(l->d_id->getIdent()) << " + (" << inc << ")" << endl;
         level--;
         out << ws() << "end" << endl;
 

@@ -105,14 +105,14 @@ static void markUsed( Ast::Type* t )
     switch( tag )
     {
     case Ast::Thing::T_Pointer:
-        markUsed( static_cast<Ast::Pointer*>(t)->d_to.data() );
+        markUsed( Ast::thing_cast<Ast::Pointer*>(t)->d_to.data() );
         break;
     case Ast::Thing::T_Array:
-        markUsed( static_cast<Ast::Array*>(t)->d_type.data() );
+        markUsed( Ast::thing_cast<Ast::Array*>(t)->d_type.data() );
         break;
     case Ast::Thing::T_Record:
         {
-            Ast::Record* r = static_cast<Ast::Record*>(t);
+            Ast::Record* r = Ast::thing_cast<Ast::Record*>(t);
             if( !r->d_base.isNull() )
                 markUsed( r->d_base.data() );
             if( r->d_binding && r->d_binding->d_ident )
@@ -120,7 +120,7 @@ static void markUsed( Ast::Type* t )
         }
         break;
     case Ast::Thing::T_QualiType:
-        markUsed( static_cast<Ast::QualiType*>(t)->d_quali->d_type.data() );
+        markUsed( Ast::thing_cast<Ast::QualiType*>(t)->d_quali->d_type.data() );
         break;
     }
 
@@ -473,7 +473,7 @@ Ast::Model::Modules Ast::Model::getModules() const
     for( i = d_global->d_names.begin(); i != d_global->d_names.end(); ++i )
     {
         if( i.value()->getTag() == Thing::T_Module )
-            res << static_cast<Module*>(i.value().data());
+            res << Ast::thing_cast<Module*>(i.value().data());
     }
     return res;
 }
@@ -545,23 +545,36 @@ bool Ast::Model::importList(Ast::Module* m, SynTree* st)
     {
         SynTree* imp = st->d_children[i];
         Q_ASSERT( !imp->d_children.isEmpty() );
-        QByteArray moduleName = imp->d_children.first()->d_tok.d_val;
-        QByteArray nickname = moduleName;
+        SynTree* moduleName = imp->d_children.first();
+        SynTree* nickname = moduleName;
         if( imp->d_children.size() > 1 )
         {
             Q_ASSERT( imp->d_children.size() == 3 );
-            moduleName = imp->d_children.last()->d_tok.d_val;
+            moduleName = imp->d_children.last();
         }
         Q_ASSERT( m->d_scope );
-        Named* n = m->d_scope->find(moduleName);
+        Named* n = m->d_scope->find(moduleName->d_tok.d_val);
         if( n && n->getTag() == Thing::T_Module )
         {
-            Module* mi = static_cast<Module*>(n);
+            Module* mi = Ast::thing_cast<Module*>(n);
             Ref<Import> ii = new Import();
             ii->d_mod = mi;
             ii->d_loc = Loc(imp);
-            ii->d_name = nickname;
+            ii->d_name = nickname->d_tok.d_val;
             ii->d_scope = m;
+            if( d_fillXref )
+            {
+                IdentLeaf* e1 = new IdentLeaf( ii.data(), nickname, d_curModule, 0 );
+                m->d_helper.append( e1 );
+                d_xref[ii.data()].append( e1 );
+                if( imp->d_children.size() > 1 )
+                {
+                    IdentLeaf* e2 = new IdentLeaf( mi, moduleName, d_curModule, 0 );
+                    m->d_helper.append( e2 );
+                    d_xref[mi].append( e2 );
+                }
+            }
+
             addToScope( m, ii.data() );
         }// else already reported
     }
@@ -617,7 +630,7 @@ bool Ast::Model::procedureDeclaration(Ast::Scope* m, SynTree* st, bool headingOn
     Ref<Procedure> p = new Procedure();
     p->d_loc = Loc(st);
     p->d_scope = m;
-    procedureHeading(p.data(), headingOnly ? st : st->d_children.first() );
+    SynTree* id = procedureHeading(p.data(), headingOnly ? st : st->d_children.first() );
     addToScope(m,p.data()); // body needs to reference this procedure if recursively called
     if( !headingOnly )
     {
@@ -626,10 +639,17 @@ bool Ast::Model::procedureDeclaration(Ast::Scope* m, SynTree* st, bool headingOn
         if( st->d_children.last()->d_tok.d_val != p->d_name )
             error( st->d_children.last(), tr("final ident doesn't correspond to procedure name") );
     }
+
+    if( d_fillXref )
+    {
+        m->d_helper << new IdentLeaf(p.data(),id,d_curModule, p->d_type.data());
+        d_xref[p.data()].append( m->d_helper.back().data() );
+    }
+
     return true;
 }
 
-bool Ast::Model::procedureHeading(Ast::Procedure* p, SynTree* st)
+SynTree* Ast::Model::procedureHeading(Ast::Procedure* p, SynTree* st)
 {
     Q_ASSERT( st->d_children.size() >= 2 && st->d_children[1]->d_tok.d_type == SynTree::R_identdef );
     SynTree* idef = st->d_children[1];
@@ -655,7 +675,7 @@ bool Ast::Model::procedureHeading(Ast::Procedure* p, SynTree* st)
 
     publicWarning(p);
 
-    return true;
+    return idef->d_children.first();
 }
 
 bool Ast::Model::procedureBody(Ast::Procedure* p, SynTree* st)
@@ -686,7 +706,7 @@ bool Ast::Model::procedureBody(Ast::Procedure* p, SynTree* st)
         }
     }
     Q_ASSERT( p->d_type->getTag() == Thing::T_ProcType );
-    ProcType* pt = static_cast<ProcType*>(p->d_type.data() );
+    ProcType* pt = Ast::thing_cast<ProcType*>(p->d_type.data() );
     if( !pt->d_return.isNull() )
     {
         if( !returnFound )
@@ -757,6 +777,12 @@ Ast::Named* Ast::Model::typeDeclaration(Scope* m, SynTree* st)
         // If type is not a pointer, then X = RECORD x: X; END is an error.
         // The following cases are already checked: X = X or X = RECORD(X)
     }
+    if( d_fillXref )
+    {
+        m->d_helper << new IdentLeaf(nt.data(),idef->d_children.first(),d_curModule, nt->d_type.data() );
+        d_xref[nt.data()].append( m->d_helper.back().data() );
+    }
+
     d_curTypeDecl = 0;
     return nt.data();
 }
@@ -838,52 +864,6 @@ Ast::Ref<Ast::Type> Ast::Model::type(Scope* s, Named* id, SynTree* st, Pointer* 
         break;
     }
     return Ref<Ast::Type>();
-}
-
-Ast::Model::Quali Ast::Model::qualident(Scope* s, SynTree* st, bool report)
-{
-    // obsolete, replaced by other qualident returning Expression
-    Q_ASSERT( st->d_tok.d_type == SynTree::R_qualident );
-
-    Quali res;
-    if( st->d_children.size() == 2 )
-    {
-        res.d_modName = st->d_children.first()->d_tok.d_val;
-        res.d_itemName = st->d_children.last()->d_tok.d_val;
-    }else if( st->d_children.size() == 1 )
-    {
-        res.d_itemName = st->d_children.last()->d_tok.d_val;
-    }else
-        Q_ASSERT( false );
-
-
-    if( !res.d_modName.isEmpty() )
-    {
-        res.d_mod = s->find(res.d_modName);
-        if( res.d_mod == 0 )
-            return res;
-        if( res.d_mod->getTag() != Thing::T_Import )
-        {
-            error(st,tr("qualident doesn't reference an imported module") );
-            return res;
-        }
-        Import* i = static_cast<Import*>(res.d_mod);
-        s = i->d_mod.data();
-        // if( d_fillXref )
-        //    d_xref[i->d_mod.data()].append(i); // TODO
-    }
-    Q_ASSERT( s != 0 );
-    res.d_item = s->find(res.d_itemName);
-    if( res.d_item == 0 )
-    {
-        if( res.d_mod != 0 && res.d_modName != d_curModule->d_name )
-            error(st,tr("cannot resolve qualident in '%1'").arg(res.d_modName.constData() ) );
-        else if( report )
-            error(st,tr("cannot resolve qualident") );
-    }
-    if( res.d_mod != 0 && !res.d_item->d_public )
-        error(st,tr("element is not public") );
-    return res;
 }
 
 static quint32 evalLen( Errors* errs, Ast::Expression* e, SynTree* st )
@@ -991,20 +971,6 @@ Ast::Ref<Ast::Type> Ast::Model::recordType(Ast::Scope* s, SynTree* st, Pointer* 
             else
                 rec->d_base = base;
         }
-#if 0
-        // no longer needed, marked elsewhere
-        if( !rec->d_base.isNull() )
-        {
-            if( rec->d_base->d_ident )
-                rec->d_base->d_ident->d_usedFromLive = true;
-            else if( rec->d_base->derefed()->getTag() == Thing::T_Record )
-            {
-                Record* r = static_cast<Record*>( rec->d_base->derefed() );
-                Q_ASSERT( r->d_binding && r->d_binding->d_ident );
-                r->d_binding->d_ident->d_usedFromLive = true;
-            }
-        }
-#endif
     }
     SynTree* fls = findFirstChild(st,SynTree::R_FieldListSequence, 1 );
     if( fls )
@@ -1035,6 +1001,13 @@ bool Ast::Model::variableDeclaration(Ast::Scope* ds, SynTree* t)
         v->d_type = tp;
         v->d_loc = Loc(id);
         v->d_scope = ds;
+
+        if( d_fillXref )
+        {
+            ds->d_helper << new IdentLeaf(v.data(),id,d_curModule, v->d_type.data() );
+            d_xref[v.data()].append( ds->d_helper.back().data() );
+        }
+
         publicWarning(v.data());
         addToScope( ds, v.data() );
     }
@@ -1066,6 +1039,12 @@ bool Ast::Model::constDeclaration(Ast::Scope* m, SynTree* st)
     c->d_loc = Loc(st);
     if( !c->d_val.isValid() )
         error(st->d_children.last(),msg);
+
+    if( d_fillXref )
+    {
+        m->d_helper << new IdentLeaf(c.data(),id,d_curModule, c->d_type.data() );
+        d_xref[c.data()].append( m->d_helper.back().data() );
+    }
 
     addToScope( m, c.data() );
     publicWarning(c.data());
@@ -1118,6 +1097,12 @@ bool Ast::Model::fpSection(Scope* s, Ast::ProcType* p, SynTree* st)
             if( p->find( v->d_name ) != 0 )
                 error(st->d_children[i],tr("parameter name not unique") );
             p->d_formals.append(v);
+            if( d_fillXref )
+            {
+                s->d_helper << new IdentLeaf(v.data(),st->d_children[i],d_curModule, t.data() );
+                d_xref[v.data()].append( s->d_helper.back().data() );
+            }
+
         }
     }
     return true;
@@ -1130,7 +1115,7 @@ void Ast::Model::publicWarning( Ast::Named* n)
         d_errs->warning(Errors::Semantics, d_curModule->d_file, n->d_loc.d_row, n->d_loc.d_col,
                         tr("declaring local symbol public") );
     else if( n->d_public && n->d_scope->getTag() == Ast::Thing::T_Module
-             && static_cast<Module*>(n->d_scope)->d_isDef )
+             && Ast::thing_cast<Module*>(n->d_scope)->d_isDef )
         d_errs->warning(Errors::Semantics, d_curModule->d_file, n->d_loc.d_row, n->d_loc.d_col,
                         tr("in a DEFINITION all symbols are public") );
 }
@@ -1166,6 +1151,12 @@ bool Ast::Model::fieldList(Scope* s, Ast::Record* rec, SynTree* st )
             publicWarning(f.data());
             f->d_type = t;
             rec->d_fields.append(f);
+            if( d_fillXref )
+            {
+                s->d_helper << new IdentLeaf(f.data(),idef->d_children.first(),d_curModule, t.data() );
+                d_xref[f.data()].append( s->d_helper.back().data() );
+            }
+
         }
     }
     return true;
@@ -1225,7 +1216,7 @@ Ast::Ref<Ast::Statement> Ast::Model::assignmentOrProcedureCall(Ast::Scope* s, Sy
         if( !d->d_type.isNull() && d->d_type->derefed()->getTag() == Thing::T_ProcType &&
                 d->getTag() != Thing::T_CallExpr )
         {
-            ProcType* p = static_cast<ProcType*>(d->d_type->derefed());
+            ProcType* p = Ast::thing_cast<ProcType*>(d->d_type->derefed());
             if( !p->d_formals.isEmpty() )
                 error( st, tr("cannot call procedure without actual arguments") );
             Ref<CallExpr> call = new CallExpr();
@@ -1236,10 +1227,10 @@ Ast::Ref<Ast::Statement> Ast::Model::assignmentOrProcedureCall(Ast::Scope* s, Sy
 
         if( d->getTag() == Thing::T_CallExpr )
         {
-            CallExpr* e = static_cast<CallExpr*>(d.data());
+            CallExpr* e = Ast::thing_cast<CallExpr*>(d.data());
             Q_ASSERT( !e->d_sub.isNull() && !e->d_sub->d_type.isNull() &&
                       e->d_sub->d_type->derefed()->getTag() == Thing::T_ProcType );
-            ProcType* p = static_cast<ProcType*>(e->d_sub->d_type->derefed());
+            ProcType* p = Ast::thing_cast<ProcType*>(e->d_sub->d_type->derefed());
             if( !p->d_return.isNull() )
                 error(st, tr("cannot use a function in a procedure call"));
             Ref<Call> c = new Call();
@@ -1357,11 +1348,16 @@ Ast::Ref<Ast::Statement> Ast::Model::forStatement(Ast::Scope* s, SynTree* st)
     Ref<ForLoop> f = new ForLoop();
     f->d_loc = Loc(st);
     Q_ASSERT( st->d_children[1]->d_tok.d_type == Tok_ident );
-    f->d_id = s->find(st->d_children[1]->d_tok.d_val );
-    if( f->d_id.isNull() )
+    Named* id = s->find(st->d_children[1]->d_tok.d_val );
+    if( id == 0 )
         error(st->d_children[1],tr("identifier not declared") );
     else
-        extendLiveRange( s, f->d_id.data(), st->d_children[1] );
+    {
+        extendLiveRange( s, id, st->d_children[1] );
+        f->d_id = new IdentLeaf( id, st->d_children[1], d_curModule, id->d_type.data() );
+        if( d_fillXref )
+            d_xref[id] << f->d_id.data();
+    }
     f->d_from = expression(s, st->d_children[3]);
     f->d_to = expression(s, st->d_children[5]);
     if( st->d_children[6]->d_tok.d_type == Tok_BY )
@@ -1417,7 +1413,11 @@ Ast::Ref<Ast::Statement> Ast::Model::caseStatement(Ast::Scope* s, SynTree* st)
             SynTree* cll = cst->d_children.first();
             CaseStmt::Case c;
             for( int j = 0; j < cll->d_children.size(); j++ )
-                c.d_labels << labelRange(s, cll->d_children[j] );
+            {
+                Ref<Ast::Expression> lr = labelRange(s, cll->d_children[j] );
+                if( !lr.isNull() ) // error already reported
+                    c.d_labels << lr;
+            }
             if( caseId != 0 )
             {
                 if( c.d_labels.size() != 1 || c.d_labels.first()->getIdent() == 0 )
@@ -1695,13 +1695,16 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
         Ref<IdentLeaf> id = new IdentLeaf();
         id->d_ident = n;
         id->d_loc = Loc(quali->d_children.first());
+        id->d_mod = d_curModule;
         cur = id.data();
         extendLiveRange( s, n, quali->d_children.first() );
+        if( d_fillXref )
+            d_xref[n].append(id.data());
         if( n->getTag() == Thing::T_Import )
         {
             imported = true;
             type = d_nilType.data(); // Just a trick to avoid regular zero type
-            Import* i = static_cast<Import*>(n);
+            Import* i = Ast::thing_cast<Import*>(n);
             sourceMod = i->d_mod.data();
         }else
             type = n->d_type.data();
@@ -1733,7 +1736,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
             if( i == 0 && imported )
             {
                 Q_ASSERT( cur->getIdent() != 0 && cur->getIdent()->getTag() == Thing::T_Import );
-                Import* imp = static_cast<Import*>( cur->getIdent() );
+                Import* imp = Ast::thing_cast<Import*>( cur->getIdent() );
                 Named* v = imp->d_mod->find(first->d_tok.d_val, false );
                 if( v == 0 )
                 {
@@ -1747,6 +1750,8 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 cur = id.data();
                 type = v->d_type.data();
                 cur->d_type = type;
+                if( d_fillXref )
+                    d_xref[v].append(id.data());
                 if( type == 0 )
                     return 0;
                 if( sourceMod != d_curModule && !sourceMod->d_isDef && !v->d_public )
@@ -1761,7 +1766,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 deref->d_sub = cur.data();
                 deref->d_loc = Loc(first);
                 cur = deref.data();
-                Pointer* p = static_cast<Pointer*>(td);
+                Pointer* p = Ast::thing_cast<Pointer*>(td);
                 type = p->d_to.data();
                 cur->d_type = type;
                 if( type == 0 )
@@ -1771,7 +1776,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
             // this is intentionally not elsif so derefed pointer can fall through to record
             if( td->getTag() == Thing::T_Record )
             {
-                Record* r = static_cast<Record*>(td);
+                Record* r = Ast::thing_cast<Record*>(td);
                 Named* f = r->find(first->d_tok.d_val, true);
                 if( f == 0 )
                 {
@@ -1787,6 +1792,8 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 cur = id.data();
                 type = f->d_type.data();
                 cur->d_type = type;
+                if( d_fillXref )
+                    d_xref[f].append(id.data());
                 if( type == 0 )
                     return 0;
             }else
@@ -1814,7 +1821,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 {
                     if( td->getTag() == Thing::T_Array )
                     {
-                        Array* a = static_cast<Array*>(td);
+                        Array* a = Ast::thing_cast<Array*>(td);
                         Ref<BinExpr> ex = new BinExpr();
                         ex->d_op = BinExpr::Index;
                         ex->d_loc = Loc(argsSt[j]);
@@ -1842,7 +1849,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 deref->d_sub = cur.data();
                 deref->d_loc = Loc(first);
                 cur = deref.data();
-                Pointer* p = static_cast<Pointer*>(td);
+                Pointer* p = Ast::thing_cast<Pointer*>(td);
                 type = p->d_to.data();
                 cur->d_type = type;
                 if( type == 0 )
@@ -1892,10 +1899,10 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                     call->d_actuals = args;
                     call->d_sub = cur.data();
                     call->d_loc = Loc(first);
-                    ProcType* p = static_cast<ProcType*>(td);
+                    ProcType* p = Ast::thing_cast<ProcType*>(td);
                     if( cur->getIdent() && cur->getIdent()->getTag() == Thing::T_BuiltIn )
                     {
-                        BuiltIn* bi = static_cast<BuiltIn*>(cur->getIdent());
+                        BuiltIn* bi = Ast::thing_cast<BuiltIn*>(cur->getIdent());
                         if( ( bi->d_func == BuiltIn::VAL || bi->d_func == BuiltIn::ABS ) && !args.isEmpty() )
                             type = args.first()->d_type.data();
                         else
@@ -1946,11 +1953,14 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
         Ref<IdentLeaf> id = new IdentLeaf();
         id->d_ident = ident;
         id->d_loc = Loc(quali->d_children.first());
+        id->d_mod = d_curModule;
         cur = id.data();
         extendLiveRange( s, ident, quali->d_children.first() );
+        if( d_fillXref )
+            d_xref[ident].append(id.data());
         if( ident->getTag() == Thing::T_Import )
         {
-            imp = static_cast<Import*>(ident);
+            imp = Ast::thing_cast<Import*>(ident);
             sourceMod = imp->d_mod.data();
         }
         cur->d_type = ident->d_type.data();
@@ -1978,6 +1988,8 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
         id->d_loc = Loc(st);
         cur = id.data();
         cur->d_type = ident->d_type.data();
+        if( d_fillXref )
+            d_xref[ident].append(id.data());
         if( sourceMod != d_curModule && !sourceMod->d_isDef && !ident->d_public )
             error(st,tr("element is not public") );
     }
@@ -2023,7 +2035,7 @@ Ast::Ref<Ast::Expression> Ast::Model::labelRange(Ast::Scope* s, SynTree* st)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_LabelRange && !st->d_children.isEmpty() );
     Ref<Expression> lhs = label(s,st->d_children.first());
-    if( st->d_children.size() > 1 )
+    if( !lhs.isNull() && st->d_children.size() > 1 )
     {
         Q_ASSERT( st->d_children.size() == 3 );
         Ref<Expression> rhs = label(s,st->d_children.last());
@@ -2064,33 +2076,7 @@ Ast::Ref<Ast::Expression> Ast::Model::label(Ast::Scope* s, SynTree* st)
                                first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ));
     case SynTree::R_qualident:
         {
-#if 0
-            Quali q = qualident(s,first,true);
-            if( q.d_item == 0 )
-                return 0;
-
-            if( q.d_mod )
-            {
-                Ref<IdentLeaf> mod = new IdentLeaf();
-                mod->d_ident = q.d_mod;
-                mod->d_loc = Loc(first);
-                Ref<IdentSel> id = new IdentSel();
-                id->d_loc = Loc(first->d_children.last());
-                id->d_sub = mod.data();
-                id->d_ident = q.d_item;
-                id->d_type = q.d_item->d_type;
-                return id.data();
-            }else
-            {
-                Ref<IdentLeaf> id = new IdentLeaf();
-                id->d_loc = Loc(first);
-                id->d_ident = q.d_item;
-                id->d_type = q.d_item->d_type;
-                return id.data();
-            }
-#else
             return qualident( s, first ).data();
-#endif
         }
         break;
     default:
@@ -2169,6 +2155,11 @@ void Ast::Model::createModules(Mods& mods, ParseResultList& prl)
             m->d_scope = d_globalLc.data();
         else
             m->d_scope = d_global.data();
+        if( d_fillXref )
+        {
+            m->d_helper << new IdentLeaf(m.data(),pr.d_modName,m.data(), 0);
+            d_xref[m.data()].append( m->d_helper.back().data() );
+        }
         m->d_name = pr.d_modName->d_tok.d_val;
         m->d_loc = Loc(pr.d_modName);
         m->d_file = pr.d_modName->d_tok.d_sourcePath;
@@ -2283,7 +2274,7 @@ QList<Ast::Module*> Ast::Model::findProcessingOrder(Mods& in)
     {
         Named* mod = d_global->d_names.value(m).data();
         if( mod && mod->isScope() )
-            d_depOrder.append( static_cast<Module*>(mod) );
+            d_depOrder.append( Ast::thing_cast<Module*>(mod) );
     }
 
     return d_depOrder;
@@ -2307,40 +2298,6 @@ void Ast::Model::fixTypes()
 
 Ast::Ref<Ast::QualiType> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st)
 {
-#if 0
-    Quali q = qualident(s,st,true);
-    if( q.d_item && q.d_item == d_curTypeDecl )
-    {
-        if( !q.d_item->d_type.isNull() )
-            return q.d_item->d_type;
-        else
-            return new SelfRef(q.d_item);
-    }else if( q.d_item != 0 )
-    {
-        if( !q.d_item->d_type.isNull() )
-            return q.d_item->d_type;
-        else
-            error(st,tr("type not available")); // is this an expected outcome?
-    }else
-        error(st,tr("cannot resolve type") );
-    return 0;
-#elif 0
-    Ref<Expression> e = qualident( s, st );
-    if( e.isNull() )
-        return 0; // error was already reported
-    Named* ident = e->getIdent();
-    if( ident != 0 )
-    {
-        if( !ident->d_type.isNull() )
-            return ident->d_type;
-        else if( ident == d_curTypeDecl )
-            return new SelfRef(ident);
-        else
-            error(st,tr("type not available")); // is this an expected outcome?
-    }else
-        error(st,tr("cannot resolve type") );
-    return 0;
-#else
     Ref<Expression> e = qualident( s, st );
     if( e.isNull() )
         return 0; // error was already reported
@@ -2357,7 +2314,6 @@ Ast::Ref<Ast::QualiType> Ast::Model::getTypeFromQuali(Ast::Scope* s, SynTree* st
         error(st,tr("type not available")); // is this an expected outcome?
 
     return q;
-#endif
 }
 
 bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWithPointer, bool inRecord )
@@ -2370,7 +2326,7 @@ bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWith
         // X = POINTER TO X;
         // X = POINTER TO RECORD Y: X; END;
         // X = RECORD Y: POINTER TO X; END;
-        Pointer* p = static_cast<Pointer*>(t);
+        Pointer* p = Ast::thing_cast<Pointer*>(t);
         if( p->d_to.isNull() )
             return false;
         if( p->d_to->isSelfRef() )
@@ -2386,7 +2342,7 @@ bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWith
     {
         // POINTER TO ARRAY illegal
         // X = ARRAY OF POINTER ok
-        Array* a = static_cast<Array*>(t);
+        Array* a = Ast::thing_cast<Array*>(t);
         if( a->d_type.isNull() )
             return false;
         if( a->d_type->isSelfRef() )
@@ -2398,7 +2354,7 @@ bool Ast::Model::checkSelfRefs(Named* n, Ast::Type* t, bool top, bool startsWith
     }
     if( t->getTag() == Thing::T_Record )
     {
-        Record* r = static_cast<Record*>(t);
+        Record* r = Ast::thing_cast<Record*>(t);
         for( int i = 0; i < r->d_fields.size(); i++ )
         {
             Field* f = r->d_fields[i].data();
@@ -2424,7 +2380,7 @@ Ast::Record* Ast::Model::toRecord( Ast::Type* t )
         t = t->derefed();
     Q_ASSERT( t != 0 );
     if( t->getTag() == Ast::Thing::T_Pointer )
-        t = static_cast<Ast::Pointer*>(t)->d_to.data();
+        t = Ast::thing_cast<Ast::Pointer*>(t)->d_to.data();
     if( t == 0 )
         return 0;
     if( t->getTag() == Thing::T_QualiType || t->getTag() == Thing::T_TypeRef )
@@ -2433,7 +2389,7 @@ Ast::Record* Ast::Model::toRecord( Ast::Type* t )
     if( t->getTag() != Ast::Thing::T_Record )
         return 0;
     else
-        return static_cast<Record*>(t);
+        return Ast::thing_cast<Record*>(t);
 }
 
 bool Ast::Model::isXInModule(Ast::Module* mod, Ast::Scope* x)
@@ -2462,7 +2418,7 @@ bool Ast::Model::isSubType(Ast::Type* sub, Ast::Type* super)
         if( sub == super )
             return true;
         Q_ASSERT( sub->getTag() == Ast::Thing::T_Record );
-        sub = toRecord( static_cast<Ast::Record*>(sub)->d_base.data() );
+        sub = toRecord( Ast::thing_cast<Ast::Record*>(sub)->d_base.data() );
     }
     return false;
 }
@@ -2495,7 +2451,6 @@ Ast::Loc::Loc(SynTree* st)
         d_col = maxCol;
     }else
         d_col = st->d_tok.d_colNr;
-    // d_file = st->d_tok.d_sourcePath;
 }
 
 Ast::Model::ParseResult::~ParseResult()
@@ -2600,19 +2555,19 @@ bool Ast::ProcType::isBuiltIn() const
 Ast::ProcType*Ast::CallExpr::getProcType() const
 {
     Q_ASSERT( !d_sub.isNull() && !d_sub->d_type.isNull() && d_sub->d_type->derefed()->getTag() == Thing::T_ProcType );
-    return static_cast<ProcType*>( d_sub->d_type->derefed() );
+    return Ast::thing_cast<ProcType*>( d_sub->d_type->derefed() );
 }
 
 Ast::CallExpr*Ast::Call::getCallExpr() const
 {
     Q_ASSERT( !d_what.isNull() && d_what->getTag() == Thing::T_CallExpr );
-    return static_cast<CallExpr*>( d_what.data() );
+    return Ast::thing_cast<CallExpr*>( d_what.data() );
 }
 
 Ast::Module* Ast::Named::getModule()
 {
     if( getTag() == Thing::T_Module )
-        return static_cast<Module*>(this);
+        return Ast::thing_cast<Module*>(this);
     else if( d_scope )
         return d_scope->getModule();
     else
@@ -2632,7 +2587,7 @@ Ast::QualiType::ModItem Ast::QualiType::getQuali() const
         break; // NOP
     case Thing::T_IdentSel:
         {
-            IdentSel* i = static_cast<IdentSel*>( d_quali.data() );
+            IdentSel* i = Ast::thing_cast<IdentSel*>( d_quali.data() );
             Q_ASSERT( !i->d_sub.isNull() && i->d_sub->getTag() == Thing::T_IdentLeaf );
             res.first = i->d_sub->getIdent();
         }
@@ -2652,4 +2607,11 @@ Ast::Type*Ast::QualiType::derefed()
         return this; // never return 0 with derefed
     else
         return d_quali->d_type->derefed();
+}
+
+
+Ast::IdentLeaf::IdentLeaf(Ast::Named* id, SynTree* loc, Ast::Module* mod, Ast::Type* t):d_mod(mod),d_ident(id)
+{
+    d_loc = Loc(loc);
+    d_type = t;
 }

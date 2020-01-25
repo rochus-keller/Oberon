@@ -43,6 +43,8 @@
 #include <QFileInfo>
 #include <QBuffer>
 #include <QHeaderView>
+#include <QLabel>
+#include <QVBoxLayout>
 #include <GuiTools/AutoMenu.h>
 #include <GuiTools/CodeEditor.h>
 #include <GuiTools/AutoShortcut.h>
@@ -55,39 +57,53 @@ struct ScopeRef : public Ast::Ref<Ast::Scope>
     ScopeRef(Ast::Scope* s = 0):Ref(s) {}
 };
 Q_DECLARE_METATYPE(ScopeRef)
+struct ExRef : public Ast::Ref<Ast::Expression>
+{
+    ExRef(Ast::Expression* n = 0):Ref(n) {}
+};
+Q_DECLARE_METATYPE(ExRef)
 
 class OberonIde::Editor : public CodeEditor
 {
 public:
-    Editor(QWidget* p, Project* pro):CodeEditor(p),d_pro(pro)
+    Editor(OberonIde* p, Project* pro):CodeEditor(p),d_pro(pro),d_ide(p)
     {
         setCharPerTab(3);
+        setTypingLatency(400);
+        setPaintIndents(false);
         d_hl = new Highlighter( document() );
         updateTabWidth();
-   }
+    }
+
     ~Editor()
     {
     }
+
+    OberonIde* d_ide;
     Highlighter* d_hl;
     Project* d_pro;
-#if 0
-    // TODO: modify AST so that all qualifier types are represented by IdentLeaf/IdentSel so usedBy can be constructed
-    Ljas::Assembler::Xref* d_xref;
 
-    typedef QList<const Ljas::Assembler::Xref*> SymList;
+    void clearBackHisto()
+    {
+        d_backHisto.clear();
+    }
 
-    void markNonTerms(const SymList& syms)
+
+    typedef QList<Ast::Expression*> ExList;
+
+    void markNonTerms(const ExList& syms)
     {
         d_nonTerms.clear();
         QTextCharFormat format;
-        format.setBackground( QColor(247,245,243) );
-        foreach( const Ljas::Assembler::Xref* s, syms )
+        format.setBackground( QColor(237,235,243) );
+        foreach( Ast::Expression* s, syms )
         {
-            if( s == 0 )
-                continue;
-            QTextCursor c( document()->findBlockByNumber( s->d_line - 1) );
-            c.setPosition( c.position() + s->d_col - 1 );
-            c.setPosition( c.position() + s->d_name.size(), QTextCursor::KeepAnchor );
+            Ast::Named* ident = s->getIdent();
+            Q_ASSERT( ident );
+            QTextCursor c( document()->findBlockByNumber( s->d_loc.d_row - 1) );
+            c.setPosition( c.position() + s->d_loc.d_col - 1 );
+            int pos = c.position();
+            c.setPosition( pos + ident->d_name.size(), QTextCursor::KeepAnchor );
 
             QTextEdit::ExtraSelection sel;
             sel.format = format;
@@ -111,14 +127,16 @@ public:
 
         sum << d_nonTerms;
 
-        if( false ) // does not work yet !d_err.getErrors().isEmpty() )
+        if( !d_pro->getErrs()->getErrors().isEmpty() )
         {
             QTextCharFormat errorFormat;
             errorFormat.setUnderlineStyle(QTextCharFormat::WaveUnderline);
             errorFormat.setUnderlineColor(Qt::magenta);
-            Ljas::Errors::EntryList::const_iterator i;
-            for( i = d_err.getErrors(getPath()).begin(); i != d_err.getErrors(getPath()).end(); ++i )
+            Errors::EntryList::const_iterator i;
+            for( i = d_pro->getErrs()->getErrors().begin(); i != d_pro->getErrs()->getErrors().end(); ++i )
             {
+                if( (*i).d_file != getPath() )
+                    continue;
                 QTextCursor c( document()->findBlockByNumber((*i).d_line - 1) );
 
                 c.setPosition( c.position() + (*i).d_col - 1 );
@@ -137,45 +155,31 @@ public:
 
         setExtraSelections(sum);
     }
-    const Ljas::Assembler::Xref* findSymbolBySourcePos(const Ljas::Assembler::Xref* node, quint32 line, quint16 col ) const
-    {
-        if( node == 0 )
-            return 0;
-        if( node->d_line > line )
-            return 0;
-        if( line == node->d_line && col >= node->d_col && col <= node->d_col + node->d_name.size() )
-            return node;
-        // else
-        foreach( const Ljas::Assembler::Xref* n, node->d_subs )
-        {
-            const Ljas::Assembler::Xref* res = findSymbolBySourcePos( n, line, col );
-            if( res )
-                return res;
-        }
-        return 0;
-    }
+
     void mousePressEvent(QMouseEvent* e)
     {
         if( !d_link.isEmpty() )
         {
             QTextCursor cur = cursorForPosition(e->pos());
-            pushLocation( Location( cur.blockNumber(), cur.positionInBlock() ) );
+            d_ide->pushLocation( OberonIde::Location( getPath(), cur.blockNumber(), cur.positionInBlock() ) );
             QApplication::restoreOverrideCursor();
             d_link.clear();
-            setCursorPosition( d_linkLineNr, d_linkColNr, true );
-        }else if( QApplication::keyboardModifiers() == Qt::ControlModifier )
+        }
+        if( QApplication::keyboardModifiers() == Qt::ControlModifier )
         {
             QTextCursor cur = cursorForPosition(e->pos());
-            const Ljas::Assembler::Xref* sym = findSymbolBySourcePos(d_xref,cur.blockNumber() + 1,cur.positionInBlock() + 1);
-            if( sym )
+            Ast::Ref<Ast::Expression> e = d_pro->findSymbolBySourcePos(
+                        getPath(),cur.blockNumber() + 1,cur.positionInBlock() + 1);
+            if( e )
             {
-                const Ljas::Assembler::Xref* d = sym->d_decl;
-                if( d )
-                {
-                    pushLocation( Location( cur.blockNumber(), cur.positionInBlock() ) );
-                    setCursorPosition( d->d_line - 1, d->d_col - 1, true );
-                }
-           }
+                Ast::Named* sym = e->getIdent();
+                d_ide->pushLocation( OberonIde::Location( getPath(), cur.blockNumber(), cur.positionInBlock() ) );
+                if( sym->getTag() == Ast::Thing::T_Import && e->d_loc == sym->d_loc )
+                    sym = Ast::thing_cast<Ast::Import*>(sym)->d_mod.data();
+                d_ide->showEditor( sym );
+                //setCursorPosition( sym->d_loc.d_row - 1, sym->d_loc.d_col - 1, true );
+            }
+            updateExtraSelections();
         }else
             QPlainTextEdit::mousePressEvent(e);
     }
@@ -183,29 +187,30 @@ public:
     void mouseMoveEvent(QMouseEvent* e)
     {
         QPlainTextEdit::mouseMoveEvent(e);
-        if( QApplication::keyboardModifiers() == Qt::ControlModifier && d_xref )
+        if( QApplication::keyboardModifiers() == Qt::ControlModifier )
         {
             QTextCursor cur = cursorForPosition(e->pos());
-            const Ljas::Assembler::Xref* sym = findSymbolBySourcePos(d_xref,cur.blockNumber() + 1, cur.positionInBlock() + 1);
+            Ast::Ref<Ast::Expression> e = d_pro->findSymbolBySourcePos(
+                        getPath(),cur.blockNumber() + 1,cur.positionInBlock() + 1);
             const bool alreadyArrow = !d_link.isEmpty();
             d_link.clear();
-            if( sym )
+            if( e )
             {
-                const int off = cur.positionInBlock() + 1 - sym->d_col;
+                Ast::Named* sym = e->getIdent();
+                const int off = cur.positionInBlock() + 1 - e->d_loc.d_col;
                 cur.setPosition(cur.position() - off);
                 cur.setPosition( cur.position() + sym->d_name.size(), QTextCursor::KeepAnchor );
-                const Ljas::Assembler::Xref* d = sym->d_decl;
-                if( d )
-                {
-                    QTextEdit::ExtraSelection sel;
-                    sel.cursor = cur;
-                    sel.format.setFontUnderline(true);
-                    d_link << sel;
-                    d_linkLineNr = d->d_line - 1;
-                    d_linkColNr = d->d_col - 1;
-                    if( !alreadyArrow )
-                        QApplication::setOverrideCursor(Qt::ArrowCursor);
-                }
+
+                QTextEdit::ExtraSelection sel;
+                sel.cursor = cur;
+                sel.format.setFontUnderline(true);
+                d_link << sel;
+                /*
+                d_linkLineNr = sym->d_loc.d_row - 1;
+                d_linkColNr = sym->d_loc.d_col - 1;
+                */
+                if( !alreadyArrow )
+                    QApplication::setOverrideCursor(Qt::ArrowCursor);
             }
             if( alreadyArrow && d_link.isEmpty() )
                 QApplication::restoreOverrideCursor();
@@ -217,7 +222,16 @@ public:
             updateExtraSelections();
         }
     }
-#endif
+
+    void onUpdateModel()
+    {
+        d_ide->compile();
+        if( !d_nonTerms.isEmpty() && !d_pro->getErrs()->getErrors().isEmpty() )
+        {
+            d_nonTerms.clear();
+            updateExtraSelections();
+        }
+    }
 };
 
 class OberonIde::DocTab : public DocTabWidget
@@ -228,13 +242,13 @@ public:
     // overrides
     bool isUnsaved(int i)
     {
-        OberonIde::Editor* edit = static_cast<OberonIde::Editor*>( widget(i) );
+        OberonIde::Editor* edit = dynamic_cast<OberonIde::Editor*>( widget(i) );
         return edit->isModified();
     }
 
     bool save(int i)
     {
-        OberonIde::Editor* edit = static_cast<OberonIde::Editor*>( widget(i) );
+        OberonIde::Editor* edit = dynamic_cast<OberonIde::Editor*>( widget(i) );
         if( !edit->saveToFile( edit->getPath(), false ) )
             return false;
         return true;
@@ -290,7 +304,7 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 }
 
 OberonIde::OberonIde(QWidget *parent)
-    : QMainWindow(parent),d_lock(false),d_filesDirty(false)
+    : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false)
 {
     s_this = this;
 
@@ -335,6 +349,7 @@ OberonIde::OberonIde(QWidget *parent)
     createDumpView();
     createMods();
     createErrs();
+    createXref();
     createMenu();
 
     setCentralWidget(d_tab);
@@ -459,6 +474,30 @@ void OberonIde::createErrs()
     connect( new QShortcut( tr("ESC"), this ), SIGNAL(activated()), dock, SLOT(hide()) );
 }
 
+void OberonIde::createXref()
+{
+    QDockWidget* dock = new QDockWidget( tr("Xref"), this );
+    dock->setObjectName("Xref");
+    dock->setAllowedAreas( Qt::AllDockWidgetAreas );
+    dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
+    QWidget* pane = new QWidget(dock);
+    QVBoxLayout* vbox = new QVBoxLayout(pane);
+    vbox->setMargin(0);
+    vbox->setSpacing(0);
+    d_xrefTitle = new QLabel(pane);
+    d_xrefTitle->setMargin(2);
+    vbox->addWidget(d_xrefTitle);
+    d_xref = new QTreeWidget(pane);
+    d_xref->setAlternatingRowColors(true);
+    d_xref->setHeaderHidden(true);
+    d_xref->setAllColumnsShowFocus(true);
+    d_xref->setRootIsDecorated(false);
+    vbox->addWidget(d_xref);
+    dock->setWidget(pane);
+    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    connect(d_xref, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)), this, SLOT(onXrefDblClicked()) );
+}
+
 void OberonIde::createMenu()
 {
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_mods, true );
@@ -485,6 +524,8 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("CTRL+S"), this, this, SLOT(onSaveFile()) );
     new Gui::AutoShortcut( tr("CTRL+R"), this, this, SLOT(onRun()) );
     new Gui::AutoShortcut( tr("CTRL+T"), this, this, SLOT(onCompile()) );
+    new Gui::AutoShortcut( tr("ALT+Left"), this, this, SLOT(handleGoBack()) );
+    new Gui::AutoShortcut( tr("ALT+Right"), this, this, SLOT(handleGoForward()) );
 }
 
 void OberonIde::onCompile()
@@ -515,6 +556,8 @@ void OberonIde::onRun()
         loadLuaLib(d_lua,"Coroutines");
         loadLuaLib(d_lua,"XYPlane");
     }
+
+    compile(true);
 
     bool hasErrors = false;
     foreach( const Project::File& f, files )
@@ -605,7 +648,7 @@ void OberonIde::onSavePro()
 
 void OberonIde::onSaveFile()
 {
-    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
     ENABLED_IF( edit && edit->isModified() );
 
     edit->saveToFile( edit->getPath() );
@@ -650,7 +693,7 @@ void OberonIde::onGotoLnr(int lnr)
     if( d_lock )
         return;
     d_lock = true;
-    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
         edit->setCursorPosition(lnr-1,0);
     d_lock = false;
@@ -673,10 +716,11 @@ void OberonIde::onFullScreen()
 
 void OberonIde::onCursor()
 {
+    fillXref();
     if( d_lock )
         return;
     d_lock = true;
-    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
     {
         QTextCursor cur = edit->textCursor();
@@ -735,11 +779,7 @@ void OberonIde::onModsDblClicked(QTreeWidgetItem* item, int)
     if( s.isNull() )
         return;
 
-    Ast::Module* m = s->getModule();
-    if( m == 0 )
-        return;
-
-    showEditor( m->d_file, s->d_loc.d_row, s->d_loc.d_col );
+    showEditor( s.data() );
 }
 
 void OberonIde::onTabChanged()
@@ -771,10 +811,12 @@ void OberonIde::onTabClosing(int i)
 
 void OberonIde::onEditorChanged()
 {
+    // only fired once when editor switches from unmodified to modified and back
+    // not fired for every key press
     d_filesDirty = false;
     for( int i = 0; i < d_tab->count(); i++ )
     {
-        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
+        Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
         if( e->isModified() )
             d_filesDirty = true;
         QFileInfo info( d_tab->getDoc(i).toString() );
@@ -818,6 +860,13 @@ void OberonIde::onErrors()
     }
     if( errs.size() )
         d_errs->parentWidget()->show();
+
+    for( int i = 0; i < d_tab->count(); i++ )
+    {
+        Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
+        Q_ASSERT( e );
+        e->updateExtraSelections();
+    }
 }
 
 void OberonIde::onOpenFile()
@@ -914,11 +963,11 @@ bool OberonIde::checkSaved(const QString& title)
     return true;
 }
 
-void OberonIde::compile()
+void OberonIde::compile(bool generate )
 {
     for( int i = 0; i < d_tab->count(); i++ )
     {
-        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
+        Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
         if( e->isModified() )
             d_pro->getFc()->addFile( e->getPath(), e->toPlainText().toUtf8() );
         else
@@ -936,7 +985,8 @@ void OberonIde::compile()
         preloadLib(d_pro,"XYPlane");
     }
     d_pro->recompile();
-    d_pro->generate();
+    if( generate )
+        d_pro->generate();
     onErrors();
     fillMods();
     onTabChanged();
@@ -960,8 +1010,8 @@ static void fillScope( QTreeWidgetItem* p, Ast::Scope* s )
         {
             QTreeWidgetItem* item = new QTreeWidgetItem( p );
             item->setText(0, n->d_name + ( n->d_public ? "*" : "" ) );
-            item->setData(0,Qt::UserRole, QVariant::fromValue(ScopeRef(static_cast<Ast::Scope*>(n))) );
-            fillScope(item, static_cast<Ast::Scope*>(n) );
+            item->setData(0,Qt::UserRole, QVariant::fromValue(ScopeRef(Ast::thing_cast<Ast::Scope*>(n))) );
+            fillScope(item, Ast::thing_cast<Ast::Scope*>(n) );
         }
     }
 }
@@ -993,7 +1043,7 @@ void OberonIde::fillMods()
         item->setText(0, n->d_name);
         item->setToolTip(0,n->d_file);
         item->setData(0,Qt::UserRole,QVariant::fromValue(ScopeRef( n ) ) );
-        fillScope( item, static_cast<Ast::Scope*>(n));
+        fillScope( item, Ast::thing_cast<Ast::Scope*>(n));
     }
 }
 
@@ -1001,7 +1051,9 @@ void OberonIde::addTopCommands(Gui::AutoMenu* pop)
 {
     Q_ASSERT( pop != 0 );
     pop->addSeparator();
-    // TODO
+    pop->addCommand( "Go Back", this, SLOT(handleGoBack()), tr("ALT+Left"), false );
+    pop->addCommand( "Go Forward", this, SLOT(handleGoForward()), tr("ALT+Right"), false );
+    pop->addSeparator();
     pop->addAutoCommand( "Set &Font...", SLOT(handleSetFont()) );
     pop->addAutoCommand( "Show &Linenumbers", SLOT(handleShowLinenumbers()) );
     pop->addCommand( "Show Fullscreen", this, SLOT(onFullScreen()) );
@@ -1019,7 +1071,7 @@ void OberonIde::showEditor(const QString& path, int row, int col)
     if( i != -1 )
     {
         d_tab->setCurrentIndex(i);
-        edit = static_cast<Editor*>( d_tab->widget(i) );
+        edit = dynamic_cast<Editor*>( d_tab->widget(i) );
     }else
     {
         edit = new Editor(this,d_pro);
@@ -1027,14 +1079,22 @@ void OberonIde::showEditor(const QString& path, int row, int col)
 
         connect(edit, SIGNAL(modificationChanged(bool)), this, SLOT(onEditorChanged()) );
         connect(edit,SIGNAL(cursorPositionChanged()),this,SLOT(onCursor()));
+        connect(edit,SIGNAL(sigUpdateLocation(int,int)),this,SLOT(onUpdateLocation(int,int)));
 
         edit->loadFromFile(path);
         d_tab->addDoc(edit,path);
         onEditorChanged();
     }
     if( row > 0 && col > 0 )
-        edit->setCursorPosition( row-1, col-1, true );
+        edit->setCursorPosition( row-1, col-1, false );
     edit->setFocus();
+}
+
+void OberonIde::showEditor(Ast::Named* n)
+{
+    Ast::Module* mod = n->getModule();
+    if( mod )
+        showEditor( mod->d_file, n->d_loc.d_row, n->d_loc.d_col );
 }
 
 void OberonIde::createMenu(OberonIde::Editor* edit)
@@ -1059,8 +1119,6 @@ void OberonIde::createMenu(OberonIde::Editor* edit)
     pop->addCommand( "Replace...", edit, SLOT(handleReplace()) );
     pop->addSeparator();
     pop->addCommand( "&Goto...", edit, SLOT(handleGoto()), tr("CTRL+G"), true );
-    pop->addCommand( "Go Back", edit, SLOT(handleGoBack()), tr("ALT+Left"), true );
-    pop->addCommand( "Go Forward", edit, SLOT(handleGoForward()), tr("ALT+Right"), true );
     pop->addSeparator();
     pop->addCommand( "Indent", edit, SLOT(handleIndent()) );
     pop->addCommand( "Unindent", edit, SLOT(handleUnindent()) );
@@ -1089,13 +1147,168 @@ void OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
     qWarning() << "Unknown Lua error message format:" << msg;
 }
 
+static bool sortExList( const Ast::Expression* lhs, Ast::Expression* rhs )
+{
+    Ast::Module* lm = lhs->getModule();
+    Ast::Module* rm = rhs->getModule();
+    const QByteArray ln = lm ? lm->d_name : QByteArray();
+    const QByteArray rn = rm ? rm->d_name : QByteArray();
+    const quint32 ll = lhs->d_loc.packed();
+    const quint32 rl = rhs->d_loc.packed();
+
+    return ln < rn || (!(rn < ln) && ll < rl);
+}
+
+void OberonIde::fillXref()
+{
+    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    if( edit == 0 )
+    {
+        d_xref->clear();
+        d_xrefTitle->clear();
+        return;
+    }
+    int line, col;
+    edit->getCursorPosition( &line, &col );
+    line += 1;
+    col += 1;
+    Ast::Expression* hitEx = d_pro->findSymbolBySourcePos(edit->getPath(), line, col);
+    if( hitEx )
+    {
+        Ast::Named* hitSym = hitEx->getIdent();
+        Q_ASSERT( hitSym != 0 );
+
+        Ast::Model::ExpList exp = d_pro->getUsage(hitSym);
+
+        Editor::ExList l1, l2;
+        foreach( const Ast::Ref<Ast::Expression> e, exp )
+        {
+            l2 << e.data();
+            Ast::Module* mod = e->getModule();
+            if( mod && mod->d_file == edit->getPath() )
+                l1 << e.data();
+        }
+
+        edit->markNonTerms(l1);
+
+        std::sort( l2.begin(), l2.end(), sortExList );
+
+        QFont f = d_xref->font();
+        f.setBold(true);
+
+        QString type;
+        switch( hitSym->getTag() )
+        {
+        case Ast::Thing::T_Field:
+            type = "Field";
+            break;
+        case Ast::Thing::T_Variable:
+        case Ast::Thing::T_LocalVar:
+            type = "Variable";
+            break;
+        case Ast::Thing::T_Parameter:
+            type = "Parameter";
+            break;
+        case Ast::Thing::T_NamedType:
+            type = "Type";
+            break;
+        case Ast::Thing::T_Const:
+            type = "Const";
+            break;
+        case Ast::Thing::T_Import:
+            type = "Import";
+            break;
+        case Ast::Thing::T_BuiltIn:
+            type = "BuiltIn";
+            break;
+        case Ast::Thing::T_Procedure:
+            type = "Procedure";
+            break;
+        case Ast::Thing::T_Module:
+            type = "Module";
+            break;
+        }
+
+        d_xrefTitle->setText(QString("%1 '%2'").arg(type).arg(hitSym->d_name.constData()));
+
+        d_xref->clear();
+        foreach( Ast::Expression* e, l2 )
+        {
+            Ast::Named* ident = e->getIdent();
+            Ast::Module* mod = e->getModule();
+            if( mod == 0 )
+                continue;
+            Q_ASSERT( ident != 0 && mod != 0 );
+            QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
+            i->setText( 0, QString("%1 (%2:%3%4)")
+                        .arg(e->getModule()->d_name.constData())
+                        .arg(e->d_loc.d_row).arg(e->d_loc.d_col)
+                        .arg( ident->d_loc == e->d_loc ? " decl" : "" ));
+            if( e == hitEx )
+                i->setFont(0,f);
+            i->setToolTip( 0, i->text(0) );
+            i->setData( 0, Qt::UserRole, QVariant::fromValue( ExRef(e) ) );
+            if( mod->d_file != edit->getPath() )
+                i->setForeground( 0, Qt::gray );
+        }
+    }
+}
+
+void OberonIde::handleGoBack()
+{
+    ENABLED_IF( d_backHisto.size() > 1 );
+
+    d_pushBackLock = true;
+    d_forwardHisto.push_back( d_backHisto.last() );
+    d_backHisto.pop_back();
+    showEditor( d_backHisto.last().d_file, d_backHisto.last().d_line+1, d_backHisto.last().d_col+1 );
+    d_pushBackLock = false;
+}
+
+void OberonIde::handleGoForward()
+{
+    ENABLED_IF( !d_forwardHisto.isEmpty() );
+
+    Location cur = d_forwardHisto.last();
+    d_forwardHisto.pop_back();
+    showEditor( cur.d_file, cur.d_line+1, cur.d_col+1 );
+}
+
+void OberonIde::onUpdateLocation(int line, int col)
+{
+    Editor* e = dynamic_cast<Editor*>( sender() );
+    e->clearBackHisto();
+    pushLocation(Location(e->getPath(), line,col));
+}
+
+void OberonIde::onXrefDblClicked()
+{
+    QTreeWidgetItem* item = d_xref->currentItem();
+    if( item )
+    {
+        ExRef e = item->data(0,Qt::UserRole).value<ExRef>();
+        Q_ASSERT( !e.isNull() );
+        showEditor( e->getModule()->d_file, e->d_loc.d_row, e->d_loc.d_col );
+    }
+}
+
+void OberonIde::pushLocation(const OberonIde::Location& loc)
+{
+    if( d_pushBackLock )
+        return;
+    if( !d_backHisto.isEmpty() && d_backHisto.last() == loc )
+        return; // o ist bereits oberstes Element auf dem Stack.
+    d_backHisto.removeAll( loc );
+    d_backHisto.push_back( loc );
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.1.0");
+    a.setApplicationVersion("0.3.0");
     a.setStyle("Fusion");
 
     OberonIde w;
@@ -1103,12 +1316,13 @@ int main(int argc, char *argv[])
     if( a.arguments().size() > 1 )
         w.loadFile(a.arguments()[1] );
 
-    /* TEST
+#if 0
+    // TEST
     Ast::Loc l;
     l.d_col = 1;
     l.d_row = 1;
     quint32 p = l.packed();
     qDebug() << QByteArray::number(p,2) << Ast::Loc::isPacked(p) << Ast::Loc::packedCol(p) << Ast::Loc::packedRow(p);
-    */
+#endif
     return a.exec();
 }

@@ -94,7 +94,7 @@ struct ValidatorImp : public AstVisitor
             Type* rt = p->d_return->derefed();
             if( rt->getTag() == Thing::T_Record || rt->getTag() == Thing::T_Array )
             {
-                QualiType* q = static_cast<QualiType*>(p->d_return.data());
+                QualiType* q = Ast::thing_cast<QualiType*>(p->d_return.data());
                 error( q->d_quali->getIdent()->d_loc,
                        tr("The result type of a procedure can be neither a record nor an array"));
             }
@@ -176,7 +176,7 @@ struct ValidatorImp : public AstVisitor
         for( int i = 0; i < m->d_body.size(); i++ )
             m->d_body[i]->accept(this);
 
-        ProcType* pt = static_cast<ProcType*>(m->d_type->derefed() );
+        ProcType* pt = Ast::thing_cast<ProcType*>(m->d_type->derefed() );
 
         // check again d_return for not Array or Record (after removing SelfRefs)
         if( !pt->d_return.isNull() &&
@@ -187,7 +187,7 @@ struct ValidatorImp : public AstVisitor
         if( !mod->d_isDef && !pt->d_return.isNull() )
         {
             Q_ASSERT( !m->d_body.isEmpty() && m->d_body.last()->getTag() == Thing::T_Return );
-            Return* r = static_cast<Return*>( m->d_body.last().data() );
+            Return* r = Ast::thing_cast<Return*>( m->d_body.last().data() );
             checkAssignableToType( pt->d_return.data(), r->d_what.data(), false );
         }else if( !m->d_body.isEmpty() )
         {
@@ -232,7 +232,7 @@ struct ValidatorImp : public AstVisitor
         if( leaf->getIdent()->getTag() == Thing::T_Parameter )
         {
             // only the first lhs of the desig can be a parameter
-            Parameter* p = static_cast<Parameter*>( leaf->getIdent() );
+            Parameter* p = Ast::thing_cast<Parameter*>( leaf->getIdent() );
             if( !p->d_var && ( p->d_type->derefed()->getTag() == Thing::T_Array ||
                                p->d_type->derefed()->getTag() == Thing::T_Record ) )
                 error( leaf->d_loc, tr("cannot assign to structured value parameter") );
@@ -389,7 +389,7 @@ struct ValidatorImp : public AstVisitor
             c->d_actuals[i]->accept(this);
         Type* td = c->d_sub->d_type->derefed();
         Q_ASSERT( td->getTag() == Thing::T_ProcType );
-        ProcType* p = static_cast<ProcType*>(td);
+        ProcType* p = Ast::thing_cast<ProcType*>(td);
         checkActuals(p,c->d_actuals,c);
     }
 
@@ -500,7 +500,7 @@ struct ValidatorImp : public AstVisitor
     {
         if( !t.isNull() && t->isSelfRef() && t->getTag() == Thing::T_QualiType )
         {
-            QualiType* q = static_cast<QualiType*>( t.data() );
+            QualiType* q = Ast::thing_cast<QualiType*>( t.data() );
             q->d_quali->d_type = q->d_quali->getIdent()->d_type;
             q->d_selfRef = false;
         }
@@ -515,9 +515,9 @@ struct ValidatorImp : public AstVisitor
         case Thing::T_UnExpr:
         case Thing::T_IdentSel:
         case Thing::T_CallExpr:
-            return getTail( static_cast<UnExpr*>(e)->d_sub.data() );
+            return getTail( Ast::thing_cast<UnExpr*>(e)->d_sub.data() );
         case Thing::T_BinExpr:
-            return getTail( static_cast<BinExpr*>(e)->d_lhs.data() );
+            return getTail( Ast::thing_cast<BinExpr*>(e)->d_lhs.data() );
         case Thing::T_IdentLeaf:
             return e;
         default:
@@ -537,21 +537,21 @@ struct ValidatorImp : public AstVisitor
             return false;
 
         else if( lhs->getTag() == Thing::T_Pointer && rhs->getTag() == Thing::T_Pointer )
-            return isEqualType( static_cast<Pointer*>(lhs)->d_to.data(),
-                                static_cast<Pointer*>(rhs)->d_to.data(), withProcType );
+            return isEqualType( Ast::thing_cast<Pointer*>(lhs)->d_to.data(),
+                                Ast::thing_cast<Pointer*>(rhs)->d_to.data(), withProcType );
 
         else if( lhs->getTag() == Thing::T_Array && rhs->getTag() == Thing::T_Array )
         {
-            Array* al = static_cast<Array*>(lhs);
-            Array* ar = static_cast<Array*>(rhs);
+            Array* al = Ast::thing_cast<Array*>(lhs);
+            Array* ar = Ast::thing_cast<Array*>(rhs);
             return ( al->d_len == 0 || al->d_len == ar->d_len ) &&
                     isEqualType(al->d_type.data(), ar->d_type.data(), withProcType );
         }
 
         else if( withProcType && lhs->getTag() == Thing::T_ProcType && rhs->getTag() == Thing::T_ProcType )
         {
-            ProcType* pl = static_cast<ProcType*>(lhs);
-            ProcType* pr = static_cast<ProcType*>(rhs);
+            ProcType* pl = Ast::thing_cast<ProcType*>(lhs);
+            ProcType* pr = Ast::thing_cast<ProcType*>(rhs);
             if( !isEqualType( pl->d_return.data(), pr->d_return.data(), withProcType ) )
                 return false;
             if( pl->d_formals.size() != pr->d_formals.size() )
@@ -638,7 +638,7 @@ struct ValidatorImp : public AstVisitor
 
     inline bool isString( Type* t ) const
     {
-        return t && t->getTag() == Thing::T_Array && static_cast<Array*>(t)->d_type->derefed() == bt.d_charType;
+        return t && t->getTag() == Thing::T_Array && Ast::thing_cast<Array*>(t)->d_type->derefed() == bt.d_charType;
     }
 
     inline bool isNumeric( Type* t ) const
@@ -651,7 +651,7 @@ struct ValidatorImp : public AstVisitor
     {
         if( p->d_ident && p->d_ident->getTag() == Thing::T_BuiltIn )
         {
-            BuiltIn* bi = static_cast<BuiltIn*>(p->d_ident);
+            BuiltIn* bi = Ast::thing_cast<BuiltIn*>(p->d_ident);
             switch( bi->d_func )
             {
             case BuiltIn::INC:
@@ -793,9 +793,9 @@ struct ValidatorImp : public AstVisitor
         Q_ASSERT( leaf->getIdent() );
         if( rightEx->getTag() == Thing::T_CallExpr  )
         {
-            CallExpr* c = static_cast<CallExpr*>(rightEx);
+            CallExpr* c = Ast::thing_cast<CallExpr*>(rightEx);
             if( c->d_sub->getIdent() && c->d_sub->getIdent()->getTag() == Thing::T_BuiltIn &&
-                    static_cast<BuiltIn*>( c->d_sub->getIdent() )->d_func == BuiltIn::VAL )
+                    Ast::thing_cast<BuiltIn*>( c->d_sub->getIdent() )->d_func == BuiltIn::VAL )
             {
                 // NOTE: SYSTEM module is not supported by the code generators of this project and it's use is reported there
                 if( c->d_actuals.size() != 2 || c->d_actuals.first()->d_type.isNull() )
@@ -810,7 +810,7 @@ struct ValidatorImp : public AstVisitor
             error( leaf->d_loc, tr("cannot assign constants to VAR parameters") );
         else if( leaf->getIdent()->getTag() == Thing::T_Parameter )
         {
-            Parameter* p = static_cast<Parameter*>( leaf->getIdent() );
+            Parameter* p = Ast::thing_cast<Parameter*>( leaf->getIdent() );
             Type* td = p->d_type->derefed();
             if( !p->d_var && ( td->getTag() == Thing::T_Array || td->getTag() == Thing::T_Record ) )
                 error( leaf->d_loc, tr("cannot assign structured value to VAR parameter") );
@@ -865,8 +865,8 @@ struct ValidatorImp : public AstVisitor
                 return true;
             else if( rightT->getTag() == Thing::T_ProcType )
             {
-                ProcType* lhs = static_cast<ProcType*>(leftT );
-                ProcType* rhs = static_cast<ProcType*>(rightT );
+                ProcType* lhs = Ast::thing_cast<ProcType*>(leftT );
+                ProcType* rhs = Ast::thing_cast<ProcType*>(rightT );
 
                 // If a formal parameter specifies a procedure type, then the corresponding actual parameter must be
                 // either a procedure declared globally, or a variable (or parameter) of that procedure type. It cannot
@@ -898,13 +898,13 @@ struct ValidatorImp : public AstVisitor
                 error( rightEx->d_loc, tr(s_msg1) );
         }else if( leftT->getTag() == Thing::T_Array )
         {
-            Array* lhs = static_cast<Array*>( leftT );
+            Array* lhs = Ast::thing_cast<Array*>( leftT );
             Type* lt = lhs->d_type->derefed();
             if( lt == bt.d_byteType && toVar && !s_strict )
                 return true; // Old Oberon rule, see https://inf.ethz.ch/personal/wirth/Oberon/Oberon.Report.pdf chap. 12
             else if( rightT->getTag() == Thing::T_Array )
             {
-                Array* rhs = static_cast<Array*>( rightT );
+                Array* rhs = Ast::thing_cast<Array*>( rightT );
                 if( isEqualType( lt, rhs->d_type.data(), true ) )
                 {
                     if( lhs->d_len == 0 )
@@ -932,12 +932,12 @@ struct ValidatorImp : public AstVisitor
                         return true;
                     else if( rightEx->getTag() == Thing::T_Literal )
                     {
-                        if( static_cast<Literal*>(rightEx)->d_val.toByteArray().size() >= lhs->d_len )
+                        if( Ast::thing_cast<Literal*>(rightEx)->d_val.toByteArray().size() >= lhs->d_len )
                             error( rightEx->d_loc, tr(s_msg2) );
                     }else if( rightEx->getTag() == Thing::T_IdentLeaf )
                     {
                         Q_ASSERT( rightEx->getIdent() && rightEx->getIdent()->getTag() == Thing::T_Const );
-                        if( static_cast<Const*>(rightEx->getIdent())->d_val.toByteArray().size() >= lhs->d_len )
+                        if( Ast::thing_cast<Const*>(rightEx->getIdent())->d_val.toByteArray().size() >= lhs->d_len )
                             error( rightEx->d_loc, tr(s_msg2) );
                     }else
                         Q_ASSERT( false );
@@ -956,12 +956,12 @@ struct ValidatorImp : public AstVisitor
             if( rightEx->getTag() == Thing::T_IdentLeaf )
             {
                 Q_ASSERT( rightEx->getIdent() && rightEx->getIdent()->getTag() == Thing::T_Const );
-                if( static_cast<Const*>(rightEx->getIdent())->d_val.toByteArray().size() > 1 )
+                if( Ast::thing_cast<Const*>(rightEx->getIdent())->d_val.toByteArray().size() > 1 )
                     return error( rightEx->d_loc, tr("only single-character strings can be assigned to CHAR") );
             }else
             {
                 Q_ASSERT( rightEx->getTag() == Thing::T_Literal );
-                if( static_cast<Literal*>(rightEx)->d_val.toByteArray().size() > 1 )
+                if( Ast::thing_cast<Literal*>(rightEx)->d_val.toByteArray().size() > 1 )
                     return error( rightEx->d_loc, tr("only single-character strings can be assigned to CHAR") );
             }
             // else ok

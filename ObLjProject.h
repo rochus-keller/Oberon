@@ -66,6 +66,8 @@ namespace Ob
         const FileHash& getFiles() const { return d_files; }
         bool isDirty() const { return d_dirty; }
         FileList getFilesInExecOrder() const;
+        Ast::Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col ) const;
+        Ast::Model::ExpList getUsage( Ast::Named* ) const;
 
         Errors* getErrs() const;
         FileCache* getFc() const;

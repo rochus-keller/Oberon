@@ -152,7 +152,7 @@ struct LjbcGenImp : public AstVisitor
 
         if( t->getTag() == Thing::T_Pointer )
         {
-            Pointer* p = static_cast<Pointer*>(t);
+            Pointer* p = Ast::thing_cast<Pointer*>(t);
             if( p->d_to->getTag() == Thing::T_QualiType )
                 return findClass( p->d_to.data() );
             Q_ASSERT( p->d_to->getTag() == Thing::T_Record &&
@@ -162,7 +162,7 @@ struct LjbcGenImp : public AstVisitor
             // no d_ident by definition.
         }else if( t->getTag() == Thing::T_QualiType )
         {
-            QualiType* q = static_cast<QualiType*>( t );
+            QualiType* q = Ast::thing_cast<QualiType*>( t );
             res = q->getQuali();
             if( res.first )
                 return res; // quali points to an import, that's where we find a class for sure
@@ -177,7 +177,7 @@ struct LjbcGenImp : public AstVisitor
         {
             if( t->getTag() == Thing::T_Record )
             {
-                Record* r = static_cast<Record*>( t );
+                Record* r = Ast::thing_cast<Record*>( t );
                 if( r->d_binding )
                     res.second = r->d_binding->d_ident;
             }
@@ -200,7 +200,7 @@ struct LjbcGenImp : public AstVisitor
         /*
         if( t->getTag() == Thing::T_Pointer )
         {
-            Pointer* p = static_cast<Pointer*>(t);
+            Pointer* p = Ast::thing_cast<Pointer*>(t);
             if( p->d_to->d_ident != 0)
                 t = p->d_to.data();
         }
@@ -391,10 +391,10 @@ struct LjbcGenImp : public AstVisitor
     {
         if( t && t->getTag() == Thing::T_Array )
         {
-            Array* a = static_cast<Array*>(t);
+            Array* a = Ast::thing_cast<Array*>(t);
             Type* td = a->d_type->derefed();
             if( td->getTag() == Thing::T_BaseType &&
-                    static_cast<BaseType*>( td )->d_type == BaseType::CHAR )
+                    Ast::thing_cast<BaseType*>( td )->d_type == BaseType::CHAR )
                 return true;
         }
         return false;
@@ -411,7 +411,7 @@ struct LjbcGenImp : public AstVisitor
         Type* td = curDim->d_type->derefed();
         while( td->getTag() == Thing::T_Array )
         {
-            curDim = static_cast<Array*>( td );
+            curDim = Ast::thing_cast<Array*>( td );
             dims << curDim;
             td = curDim->d_type->derefed();
         }
@@ -467,7 +467,7 @@ struct LjbcGenImp : public AstVisitor
                 else if( td->getTag() == Thing::T_Array )
                 {
                     // out << ws() << field;
-                    initArray( static_cast<Array*>(td), field, line );
+                    initArray( Ast::thing_cast<Array*>(td), field, line );
                     bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), line );
                 }
                 ctx.back().sellSlots(field);
@@ -490,7 +490,7 @@ struct LjbcGenImp : public AstVisitor
             initRecord( v->d_type.data(), v->d_slot, v->d_loc.d_row );
         }else if( tag == Thing::T_Array )
         {
-            initArray( static_cast<Array*>( td ), v->d_slot, v->d_loc.d_row );
+            initArray( Ast::thing_cast<Array*>( td ), v->d_slot, v->d_loc.d_row );
         }else
         {
             // unneccessary, already nil: bc.KNIL(v->d_slot, 1, v->d_loc.d_row );
@@ -598,9 +598,9 @@ struct LjbcGenImp : public AstVisitor
 
         if( tag == Thing::T_Pointer )
         {
-            Pointer* p = static_cast<Pointer*>(nt->d_type.data());
+            Pointer* p = Ast::thing_cast<Pointer*>(nt->d_type.data());
             Q_ASSERT( p->d_to->derefed()->getTag() == Thing::T_Record );
-            Record* r = static_cast<Record*>(p->d_to->derefed());
+            Record* r = Ast::thing_cast<Record*>(p->d_to->derefed());
 
             // A pointer to an anonymous record declared for the pointer is treatet the
             // same way as a named Record declaration
@@ -620,7 +620,7 @@ struct LjbcGenImp : public AstVisitor
             const int tag = s->d_order[i]->getTag();
             if( tag == Thing::T_Parameter )
             {
-                Parameter* p = static_cast<Parameter*>( s->d_order[i] );
+                Parameter* p = Ast::thing_cast<Parameter*>( s->d_order[i] );
                 p->d_slot = c.buySlots();
                 p->d_slotValid = true;
             }else if( tag == Thing::T_Variable || tag == Thing::T_LocalVar || tag == Thing::T_Procedure ||
@@ -675,7 +675,7 @@ struct LjbcGenImp : public AstVisitor
             return; // nobody seems to use this function
 
         ctx.push_back( Ctx(p) );
-        const int id = bc.openFunction(static_cast<ProcType*>(p->d_type.data())->d_formals.size(),
+        const int id = bc.openFunction(Ast::thing_cast<ProcType*>(p->d_type.data())->d_formals.size(),
                         p->d_name,p->d_loc.d_row, p->d_end.d_row );
         Q_ASSERT( id >= 0 );
 
@@ -693,7 +693,7 @@ struct LjbcGenImp : public AstVisitor
         if( !ctx.back().returnFound )
         {
             Q_ASSERT( p->d_type->getTag() == Thing::T_ProcType );
-            ProcType* pt = static_cast<ProcType*>( p->d_type.data() );
+            ProcType* pt = Ast::thing_cast<ProcType*>( p->d_type.data() );
 
             QList<quint8> vars;
             for( int i = 0; i < pt->d_formals.size(); i++ )
@@ -798,7 +798,7 @@ struct LjbcGenImp : public AstVisitor
             obnlj->d_slotValid = true;
             obnlj->d_scope = mod;
         }else
-            obnlj = static_cast<Import*>( lib );
+            obnlj = Ast::thing_cast<Import*>( lib );
 
 
         for( int i = 0; i < m->d_order.size(); i++ )
@@ -831,7 +831,7 @@ struct LjbcGenImp : public AstVisitor
     {
         Q_ASSERT( ctx.back().scope->getTag() == Thing::T_Procedure &&
                   ctx.back().scope->d_type->getTag() == Thing::T_ProcType );
-        ProcType* pt = static_cast<ProcType*>( ctx.back().scope->d_type.data() );
+        ProcType* pt = Ast::thing_cast<ProcType*>( ctx.back().scope->d_type.data() );
 
         QList<quint8> vars;
         for( int i = 0; i < pt->d_formals.size(); i++ )
@@ -913,9 +913,9 @@ struct LjbcGenImp : public AstVisitor
 
         if( tag == Thing::T_Array )
         {
-            Array* a = static_cast<Array*>(t);
+            Array* a = Ast::thing_cast<Array*>(t);
             Type* at = a->d_type->derefed();
-            if( at->getTag() == Thing::T_BaseType && static_cast<BaseType*>( at )->d_type == BaseType::CHAR )
+            if( at->getTag() == Thing::T_BaseType && Ast::thing_cast<BaseType*>( at )->d_type == BaseType::CHAR )
             {
                 quint8 tmp = ctx.back().buySlots(3,true);
                 bc.TGET(tmp, lhs.d_slot, QVariant::fromValue(QByteArray("assig")), line );
@@ -992,10 +992,10 @@ struct LjbcGenImp : public AstVisitor
         Type* td = t ? t->derefed() : 0;
         if( td && td->getTag() == Thing::T_Array )
         {
-            Array* a = static_cast<Array*>(td);
+            Array* a = Ast::thing_cast<Array*>(td);
             Type* at = a->d_type->derefed();
             if( at->getTag() == Thing::T_BaseType &&
-                    static_cast<BaseType*>( at )->d_type == BaseType::CHAR )
+                    Ast::thing_cast<BaseType*>( at )->d_type == BaseType::CHAR )
                 return true;
         }
         return false;
@@ -1210,12 +1210,12 @@ struct LjbcGenImp : public AstVisitor
     {
         // the same as while because in Lua the TO expression is only executed once
 
-        Q_ASSERT( l->d_id->d_slotValid );
+        Q_ASSERT( l->d_id->getIdent()->d_slotValid );
 
         // Consider to first rewrite the AST instead of the following complex code
 
         Value id;
-        id.d_slot = l->d_id->d_slot;
+        id.d_slot = l->d_id->getIdent()->d_slot;
         id.d_kind = Value::Ref;
         assignExpr( id, l->d_from.data(), l->d_loc.d_row );
 
@@ -1325,7 +1325,7 @@ struct LjbcGenImp : public AstVisitor
                 // TODO: avoid calling cs->d_exp more than once by using temp var
                 if( l->getTag() == Thing::T_BinExpr )
                 {
-                    BinExpr* bi = static_cast<BinExpr*>( l );
+                    BinExpr* bi = Ast::thing_cast<BinExpr*>( l );
                     Q_ASSERT( bi->d_op == BinExpr::Range );
 
                     Ref<BinExpr> _and = new BinExpr();
@@ -1460,25 +1460,25 @@ struct LjbcGenImp : public AstVisitor
         switch( ex->getTag() )
         {
         case Thing::T_Literal:
-            processLiteral( static_cast<Literal*>(ex), out );
+            processLiteral( Ast::thing_cast<Literal*>(ex), out );
             break;
         case Thing::T_IdentLeaf:
-            processIdentLeaf( static_cast<IdentLeaf*>( ex ), out );
+            processIdentLeaf( Ast::thing_cast<IdentLeaf*>( ex ), out );
             break;
         case Thing::T_BinExpr:
-            processBinExpr( static_cast<BinExpr*>( ex ), out );
+            processBinExpr( Ast::thing_cast<BinExpr*>( ex ), out );
             break;
         case Thing::T_UnExpr:
-            processUnExpr( static_cast<UnExpr*>( ex ), out );
+            processUnExpr( Ast::thing_cast<UnExpr*>( ex ), out );
             break;
         case Thing::T_SetExpr:
-            processSetExpr( static_cast<SetExpr*>( ex ), out );
+            processSetExpr( Ast::thing_cast<SetExpr*>( ex ), out );
             break;
         case Thing::T_IdentSel:
-            processIdentSel( static_cast<IdentSel*>( ex ), out );
+            processIdentSel( Ast::thing_cast<IdentSel*>( ex ), out );
             break;
         case Thing::T_CallExpr:
-            processCallExpr( static_cast<CallExpr*>( ex ), out );
+            processCallExpr( Ast::thing_cast<CallExpr*>( ex ), out );
             break;
         default:
             Q_ASSERT( false );
@@ -1510,7 +1510,7 @@ struct LjbcGenImp : public AstVisitor
             }
         }else if( tag == Thing::T_Const )
         {
-            Const* c = static_cast<Const*>( id->d_ident.data() );
+            Const* c = Ast::thing_cast<Const*>( id->d_ident.data() );
             out.d_val = c->d_val;
             out.d_kind = Value::Val;
             out.d_line = c->d_loc.d_row;
@@ -2055,9 +2055,9 @@ struct LjbcGenImp : public AstVisitor
         for( int i = 0; i < s->d_parts.size(); i++ )
         {
             if( s->d_parts[i]->getTag() == Thing::T_BinExpr &&
-                    static_cast<BinExpr*>( s->d_parts[i].data() )->d_op == BinExpr::Range )
+                    Ast::thing_cast<BinExpr*>( s->d_parts[i].data() )->d_op == BinExpr::Range )
             {
-                BinExpr* bi = static_cast<BinExpr*>( s->d_parts[i].data() );
+                BinExpr* bi = Ast::thing_cast<BinExpr*>( s->d_parts[i].data() );
                 Value lhs;
                 lhs.d_slot = tmp + n++;
                 lhs.d_kind = Value::Ref;
@@ -2120,7 +2120,7 @@ struct LjbcGenImp : public AstVisitor
     {
         ProcType* pt = c->getProcType();
         Q_ASSERT( pt->d_ident && pt->d_ident->getTag() == Thing::T_BuiltIn );
-        BuiltIn* bi = static_cast<BuiltIn*>( pt->d_ident );
+        BuiltIn* bi = Ast::thing_cast<BuiltIn*>( pt->d_ident );
 
         switch( bi->d_func )
         {

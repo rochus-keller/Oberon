@@ -26,12 +26,219 @@
 #include <QtDebug>
 #include <QSettings>
 using namespace Ob;
+using namespace Ast;
+
+struct HitTest : public AstVisitor
+{
+    quint32 line; quint16 col;
+
+    void test(Expression* e)
+    {
+        if( e == 0 )
+            return;
+        if( e->d_loc.d_row > line )
+            return;
+        Named* n = e->getIdent();
+        if( n == 0 )
+            return;
+        if( line == e->d_loc.d_row && col >= e->d_loc.d_col && col <= e->d_loc.d_col + n->d_name.size() )
+            throw e;
+    }
+
+    void visit( Pointer* p )
+    {
+        if( p->d_to->d_ident == 0 )
+            p->d_to->accept(this); // look for qualis
+    }
+
+    void visit( Array* a )
+    {
+        if( a->d_type->d_ident == 0 )
+            a->d_type->accept(this); // look for qualis
+    }
+
+    void visit( Record* r )
+    {
+        if( !r->d_base.isNull() )
+            r->d_base->accept(this); // look for qualis
+        for( int i = 0; i < r->d_fields.size(); i++ )
+        {
+            r->d_fields[i]->accept(this); // look for qualis
+        }
+    }
+
+    void visit( ProcType* p )
+    {
+        if( p->d_return && p->d_return->d_ident == 0 )
+            p->d_return->accept(this); // look for qualis
+        for( int i = 0; i < p->d_formals.size(); i++ )
+            p->d_formals[i]->accept(this); // look for qualis
+    }
+
+    void visit( QualiType* q )
+    {
+        q->d_quali->accept(this);
+    }
+
+    void visit( Field* f )
+    {
+        if( f->d_type->d_ident == 0 )
+            f->d_type->accept(this);
+        // TODO test(f);
+    }
+
+    void visit( Variable* v )
+    {
+        if( v->d_type->d_ident == 0 )
+            v->d_type->accept(this);
+    }
+
+    void visit( LocalVar* v )
+    {
+        if( v->d_type->d_ident == 0 )
+            v->d_type->accept(this);
+    }
+
+    void visit( Parameter* p )
+    {
+        if( p->d_type->d_ident == 0 )
+            p->d_type->accept(this);
+    }
+
+    void visit( NamedType* t )
+    {
+        if( t->d_type->d_ident == t )
+            t->d_type->accept(this);
+    }
+
+    void visit( Const* c )
+    {
+        c->d_constExpr->accept(this);
+    }
+
+    void visit( Import* i )
+    {
+    }
+
+    void visit( Procedure* m)
+    {
+        if( m->d_type->d_ident == 0 )
+            m->d_type->accept(this);
+
+        for( int i = 0; i < m->d_order.size(); i++ )
+            m->d_order[i]->accept(this);
+        for( int i = 0; i < m->d_body.size(); i++ )
+            m->d_body[i]->accept(this);
+        for( int i = 0; i < m->d_helper.size(); i++ )
+            m->d_helper[i]->accept(this);
+    }
+
+    void visit( Module* m )
+    {
+        for( int i = 0; i < m->d_order.size(); i++ )
+            m->d_order[i]->accept(this);
+        for( int i = 0; i < m->d_body.size(); i++ )
+            m->d_body[i]->accept(this);
+        for( int i = 0; i < m->d_helper.size(); i++ )
+            m->d_helper[i]->accept(this);
+    }
+
+    void visit( Call* c )
+    {
+        c->d_what->accept(this);
+    }
+
+    void visit( Return* r )
+    {
+        r->d_what->accept(this);
+    }
+
+    void visit( Assign* a )
+    {
+        a->d_lhs->accept(this);
+        a->d_rhs->accept(this);
+    }
+
+    void visit( IfLoop* l )
+    {
+        for( int i = 0; i < l->d_if.size(); i++ )
+            l->d_if[i]->accept(this);
+        for( int i = 0; i < l->d_then.size(); i++ )
+        {
+            const StatSeq& then = l->d_then[i];
+            for( int j = 0; j < then.size(); j++ )
+                then[j]->accept(this);
+        }
+        for( int i = 0; i < l->d_else.size(); i++ )
+            l->d_else[i]->accept(this);
+    }
+
+    void visit( ForLoop* l )
+    {
+        l->d_id->accept(this);
+        l->d_from->accept(this);
+        l->d_to->accept(this);
+        l->d_by->accept(this);
+        for( int i = 0; i < l->d_do.size(); i++ )
+            l->d_do[i]->accept(this);
+    }
+
+    void visit( CaseStmt* c )
+    {
+        c->d_exp->accept(this);
+        for( int i = 0; i < c->d_cases.size(); i++ )
+        {
+            for( int j = 0; j < c->d_cases[i].d_labels.size(); j++ )
+                c->d_cases[i].d_labels[j]->accept(this);
+            for( int j = 0; j < c->d_cases[i].d_block.size(); j++ )
+                c->d_cases[i].d_block[j]->accept(this);
+        }
+    }
+
+    void visit( Literal* ) {}
+
+    void visit( SetExpr* s )
+    {
+        for( int i = 0; i < s->d_parts.size(); i++ )
+            s->d_parts[i]->accept(this);
+    }
+
+    void visit( IdentLeaf* id )
+    {
+        test(id);
+    }
+
+    void visit( UnExpr* e )
+    {
+        e->d_sub->accept(this);
+    }
+
+    void visit( IdentSel* e )
+    {
+        e->d_sub->accept(this);
+        test(e);
+    }
+
+    void visit( CallExpr* c )
+    {
+        c->d_sub->accept(this);
+        for( int i = 0; i < c->d_actuals.size(); i++ )
+            c->d_actuals[i]->accept(this);
+    }
+
+    void visit( BinExpr* e )
+    {
+        e->d_lhs->accept(this);
+        e->d_rhs->accept(this);
+    }
+};
 
 Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInOakwood(false)
 {
     d_mdl = new Ast::Model(this);
     d_mdl->setSenseExt(true);
     d_mdl->getErrs()->setRecord(true);
+    d_mdl->setFillXref(true);
 
     d_suffixes << ".Mod" << ".obn";
 }
@@ -115,6 +322,33 @@ Project::FileList Project::getFilesInExecOrder() const
     return res;
 }
 
+Ast::Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
+{
+    FileHash::const_iterator i = d_files.find(file);
+    if( i == d_files.end() || i.value().d_mod->d_hasErrors )
+        return 0;
+    try
+    {
+        HitTest hit;
+        hit.col = col;
+        hit.line = line;
+        i.value().d_mod->accept(&hit);
+    }catch( Expression* e )
+    {
+        return e;
+    }catch(...)
+    {
+
+    }
+    return 0;
+}
+
+Ast::Model::ExpList Project::getUsage(Named* n) const
+{
+    const Model::XRef& xref = d_mdl->getXref();
+    return xref.value(n);
+}
+
 Errors* Project::getErrs() const
 {
     return d_mdl->getErrs();
@@ -187,7 +421,7 @@ bool Project::generate()
     {
         if( i.value().d_mod.isNull() || i.value().d_mod->d_hasErrors || i.value().d_mod->d_isDef )
             i.value().d_bc.clear();
-        else // if( false ) // TODO TEST
+        else
         {
             qDebug() << "generating" << i.value().d_mod->d_name;
             QBuffer buf;

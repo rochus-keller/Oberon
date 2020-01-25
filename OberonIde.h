@@ -24,6 +24,7 @@
 
 class QTreeWidget;
 class QTreeWidgetItem;
+class QLabel;
 
 namespace Lua
 {
@@ -41,6 +42,10 @@ namespace Ob
 {
     class Highlighter;
     class Project;
+    namespace Ast
+    {
+        class Named;
+    }
 
     class OberonIde : public QMainWindow
     {
@@ -59,16 +64,30 @@ namespace Ob
         void createDumpView();
         void createMods();
         void createErrs();
+        void createXref();
         void createMenu();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
-        void compile();
+        void compile(bool generate = false);
         void fillMods();
         void showDocument( const QString& filePath );
         void addTopCommands(Gui::AutoMenu * pop);
         void showEditor( const QString& path, int row = -1, int col = -1 );
+        void showEditor( Ast::Named* );
         void createMenu( Editor* );
         void luaRuntimeMessage(const QByteArray&, const QString& file);
+        void fillXref();
+        struct Location
+        {
+            // Qt-Koordinaten
+            int d_line;
+            int d_col;
+            QString d_file;
+            bool operator==( const Location& rhs ) { return d_line == rhs.d_line && d_col == rhs.d_col &&
+                        d_file == rhs.d_file; }
+            Location(const QString& f, int l, int c ):d_file(f),d_line(l),d_col(c){}
+        };
+        void pushLocation( const Location& );
 
     protected slots:
         void onCompile();
@@ -94,6 +113,10 @@ namespace Ob
         void onOakwood();
         void onAddFiles();
         void onRemoveFile();
+        void handleGoBack();
+        void handleGoForward();
+        void onUpdateLocation(int line, int col );
+        void onXrefDblClicked();
 
     private:
         class DocTab;
@@ -103,10 +126,15 @@ namespace Ob
         Lua::BcViewer2* d_bcv;
         Lua::Terminal2* d_term;
         QTreeWidget* d_mods;
+        QLabel* d_xrefTitle;
+        QTreeWidget* d_xref;
         QTreeWidget* d_errs;
         Highlighter* d_hl;
+        QList<Location> d_backHisto; // d_backHisto.last() ist aktuell angezeigtes Objekt
+        QList<Location> d_forwardHisto;
         bool d_lock;
         bool d_filesDirty;
+        bool d_pushBackLock;
     };
 }
 

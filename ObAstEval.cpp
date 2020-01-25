@@ -36,7 +36,7 @@ static QVariant evalNamedConst(Ast::Expression* e, QString* err)
     Ast::Named* n = e->getIdent();
     QVariant res;
     if( n && n->getTag() == Ast::Thing::T_Const )
-        res = static_cast<Ast::Const*>(n)->d_val;
+        res = Ast::thing_cast<Ast::Const*>(n)->d_val;
     if( !res.isValid() )
         return expErr( err, Ast::Model::tr("not a const expression") );
     else
@@ -86,16 +86,16 @@ QVariant Ast::Eval::evalConstExpr(Ast::Expression* e, QString* err)
     switch( e->getTag() )
     {
     case Thing::T_Literal:
-        return static_cast<Literal*>(e)->d_val;
+        return Ast::thing_cast<Literal*>(e)->d_val;
     case Thing::T_SetExpr:
         {
-            SetExpr* se = static_cast<SetExpr*>(e);
+            SetExpr* se = Ast::thing_cast<SetExpr*>(e);
             Set s;
             for(int i = 0; i < se->d_parts.size(); i++ )
             {
                 if( se->d_parts[i]->getTag() == Thing::T_BinExpr )
                 {
-                    BinExpr* be = static_cast<BinExpr*>(se->d_parts[i].data());
+                    BinExpr* be = Ast::thing_cast<BinExpr*>(se->d_parts[i].data());
                     if( be->d_op != BinExpr::Range )
                         return expErr( err, tr("invalid set part") );
                     if( !setSet( s, be->d_lhs.data(), be->d_rhs.data(), err) )
@@ -111,7 +111,7 @@ QVariant Ast::Eval::evalConstExpr(Ast::Expression* e, QString* err)
         return evalNamedConst(e,err);
     case Thing::T_UnExpr:
         {
-            UnExpr* ue = static_cast<UnExpr*>(e);
+            UnExpr* ue = Ast::thing_cast<UnExpr*>(e);
             if( ue->d_op == UnExpr::SEL )
                 return evalNamedConst(e,err);
             else
@@ -126,7 +126,7 @@ QVariant Ast::Eval::evalConstExpr(Ast::Expression* e, QString* err)
         break;
     case Thing::T_BinExpr:
         {
-            BinExpr* be = static_cast<BinExpr*>(e);
+            BinExpr* be = Ast::thing_cast<BinExpr*>(e);
             switch( be->d_op )
             {
             case BinExpr::Range:
@@ -671,7 +671,7 @@ struct Printer : public AstVisitor
     }
     void visit( ForLoop* s )
     {
-        out << ws() << "FOR " << s->d_id->d_name << " := ";
+        out << ws() << "FOR " << s->d_id->getIdent()->d_name << " := ";
         s->d_from->accept(this);
         out << "TO ";
         s->d_to->accept(this);
