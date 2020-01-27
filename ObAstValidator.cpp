@@ -820,6 +820,9 @@ struct ValidatorImp : public AstVisitor
 
     bool checkAssignableToType( Type* leftT, Expression* rightEx, bool toVar )
     {
+        if( leftT == 0 || rightEx == 0 ) // previous errors
+            return false;
+
         static const char* s_msg1 = QT_TR_NOOP("incompatible types");
         static const char* s_msg2 = QT_TR_NOOP("number of characters in string must be less than the array");
 

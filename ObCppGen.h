@@ -64,9 +64,11 @@ namespace Ob
         void emitWhileStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitRepeatStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitForStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
+        void emitCaseStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitSet( const CodeModel::Unit*, const SynTree*,QTextStream& out, int level );
         void emitScopedName( const CodeModel::Unit*, const CodeModel::NamedThing*, QTextStream& out );
         void emitComment(const SynTree*, QTextStream& out, int level);
+        void emitLabel(const CodeModel::Unit*, const SynTree*,QTextStream& out, int level);
         static bool isSimpleType( const CodeModel::Type* );
         static QByteArray escape( const QByteArray& );
     private:

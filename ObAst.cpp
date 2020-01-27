@@ -226,6 +226,7 @@ void Ast::Model::clear()
     Ref<Module> sys = new Module();
     sys->d_name = d_system;
     sys->d_isDef = true;
+    sys->d_synthetic = true;
 
     bi = new BuiltIn(BuiltIn::ADR, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) );
     sys->d_names.insert(bi->d_name.constData(),bi.data());
@@ -348,6 +349,30 @@ void Ast::Model::addPreload(const QByteArray& name, const QByteArray& source)
     d_fc->addFile( name, source, true );
 }
 
+static QList<Ast::Module*> getImportedModules( Ast::Module* m )
+{
+    QList<Ast::Module*> res;
+    foreach( Ast::Named* n, m->d_order )
+    {
+        if( n->getTag() == Ast::Thing::T_Import )
+        {
+            Ast::Import* imp = Ast::thing_cast<Ast::Import*>(n);
+            res << imp->d_mod.data();
+        }
+    }
+    return res;
+}
+
+static bool anyWithError( const QList<Ast::Module*>& mods )
+{
+    foreach( Ast::Module* m, mods )
+    {
+        if( m->d_hasErrors )
+            return true;
+    }
+    return false;
+}
+
 bool Ast::Model::parseFiles(const QStringList& files)
 {
     if( files.isEmpty() )
@@ -388,8 +413,17 @@ bool Ast::Model::parseFiles(const QStringList& files)
         }
         qDebug() << "analyzing" << m->d_file;
         module( m, mods[m->d_name.constData()].d_st );
+
         if( !m->d_hasErrors )
-            Validator::validate( this, m, d_errs );
+        {
+            if( anyWithError( getImportedModules(m) ) )
+            {
+                d_errs->error(Errors::Semantics, m->d_file, m->d_loc.d_row, m->d_loc.d_col,
+                              tr("There are errors in imported modules") );
+                m->d_hasErrors = true;
+            }else
+                Validator::validate( this, m, d_errs );
+        }
     }
 
     return d_errs->getErrCount() == 0;
@@ -564,6 +598,9 @@ bool Ast::Model::importList(Ast::Module* m, SynTree* st)
             ii->d_scope = m;
             if( d_fillXref )
             {
+                Q_ASSERT( !m->d_helper.isEmpty() && m->d_helper.first()->getIdent()->getTag() == Thing::T_Module );
+                d_xref[mi].append( m->d_helper.first().data() );
+
                 IdentLeaf* e1 = new IdentLeaf( ii.data(), nickname, d_curModule, 0 );
                 m->d_helper.append( e1 );
                 d_xref[ii.data()].append( e1 );
@@ -660,6 +697,7 @@ SynTree* Ast::Model::procedureHeading(Ast::Procedure* p, SynTree* st)
         Q_ASSERT( idef->d_children.size() == 2 &&  idef->d_children.last()->d_tok.d_type == Tok_Star );
         p->d_public = true;
     }
+    p->d_isDef = d_curModule->d_isDef;
 
     if( st->d_children.size() > 2 )
     {
@@ -763,6 +801,7 @@ Ast::Named* Ast::Model::typeDeclaration(Scope* m, SynTree* st)
     nt->d_name = name;
     nt->d_loc = Loc(idef);
     nt->d_public = pub;
+    nt->d_isDef = d_curModule->d_isDef;
     nt->d_scope = m;
     publicWarning(nt.data());
     addToScope(m,nt.data()); // add to scope before type() to support recursive declarations
@@ -998,6 +1037,7 @@ bool Ast::Model::variableDeclaration(Ast::Scope* ds, SynTree* t)
         Ref<Named> v = ( ds->getTag() == Thing::T_Module ? (Named*)new Variable() : (Named*)new LocalVar() );
         v->d_name = id->d_tok.d_val;
         v->d_public = pub;
+        v->d_isDef = d_curModule->d_isDef;
         v->d_type = tp;
         v->d_loc = Loc(id);
         v->d_scope = ds;
@@ -1027,13 +1067,15 @@ bool Ast::Model::constDeclaration(Ast::Scope* m, SynTree* st)
     Ref<Const> c = new Const();
     c->d_name = id->d_tok.d_val;
     c->d_public = pub;
+    c->d_isDef = d_curModule->d_isDef;
     c->d_scope = m;
     // A ConstExpression is an expression containing constants only. More precisely, its evaluation must
     // be possible by a mere textual scan without execution of the program
     // Wirt's compiler seems not even to support name resolution for constants
 
     c->d_constExpr = expression(m,st->d_children.last());
-    c->d_type = c->d_constExpr->d_type;
+    if( !c->d_constExpr.isNull() ) // prev errors
+        c->d_type = c->d_constExpr->d_type;
     QString msg;
     c->d_val = Eval::evalConstExpr(c->d_constExpr.data(), &msg);
     c->d_loc = Loc(st);
@@ -1147,6 +1189,7 @@ bool Ast::Model::fieldList(Scope* s, Ast::Record* rec, SynTree* st )
             f->d_loc = Loc(idef);
             f->d_name = name;
             f->d_public = pub;
+            f->d_isDef = d_curModule->d_isDef;
             f->d_scope = s; // CHECK what goes here?
             publicWarning(f.data());
             f->d_type = t;
@@ -1754,7 +1797,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                     d_xref[v].append(id.data());
                 if( type == 0 )
                     return 0;
-                if( sourceMod != d_curModule && !sourceMod->d_isDef && !v->d_public )
+                if( sourceMod != d_curModule && !sourceMod->d_isDef && !( v->d_public || v->d_isDef ) )
                     error(first,tr("element is not public") );
                 break; // jump out here to avoid interference with pointer and record idents below
             }
@@ -1783,7 +1826,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                     error(first,tr("record field doesn't exist") );
                     return 0;
                 }
-                if( sourceMod != d_curModule && !sourceMod->d_isDef && !f->d_public )
+                if( sourceMod != d_curModule && !sourceMod->d_isDef && !( f->d_public || f->d_isDef ) )
                     error(first,tr("element is not public") );
                 Ref<IdentSel> id = new IdentSel();
                 id->d_sub = cur.data();
@@ -1990,7 +2033,7 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
         cur->d_type = ident->d_type.data();
         if( d_fillXref )
             d_xref[ident].append(id.data());
-        if( sourceMod != d_curModule && !sourceMod->d_isDef && !ident->d_public )
+        if( sourceMod != d_curModule && !sourceMod->d_isDef && !( ident->d_public || ident->d_isDef ) )
             error(st,tr("element is not public") );
     }
 
@@ -2177,9 +2220,9 @@ void Ast::Model::createModules(Mods& mods, ParseResultList& prl)
         }
 
         if( !d_global->d_names.contains(pr.d_modName->d_tok.d_val.constData()) )
-            d_global->d_names.insert(pr.d_modName->d_tok.d_val.constData(),m.data());
+            d_global->d_names.insert(pr.d_modName->d_tok.d_val.constData(), m.data());
         if( !d_globalLc->d_names.contains(pr.d_modName->d_tok.d_val.constData()) )
-            d_globalLc->d_names.insert(pr.d_modName->d_tok.d_val.constData(),m.data());
+            d_globalLc->d_names.insert(pr.d_modName->d_tok.d_val.constData(), m.data());
 
         const QList<SynTree*> imports = getImports(modRoot);
         foreach( SynTree* imp, imports )
@@ -2187,6 +2230,12 @@ void Ast::Model::createModules(Mods& mods, ParseResultList& prl)
             if( imp->d_tok.d_val.constData() == d_system.constData() )
             {
                 // NOP, importing SYSTEM
+                if( false ) // d_fillXref )
+                {
+                    // not needed, leads to double entries
+                    Named* system = d_global->d_names.value( imp->d_tok.d_val.constData() ).data();
+                    d_xref[system].append( m->d_helper.back().data() );
+                }
             }else if( !mods.contains(imp->d_tok.d_val.constData()) && !prl.contains(imp->d_tok.d_val.constData()) )
             {
                 // the required import is not in the parsed files, either because it references a

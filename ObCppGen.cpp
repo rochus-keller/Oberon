@@ -762,9 +762,9 @@ void CppGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
         case SynTree::R_IfStatement:
             emitIfStatement(ds, s, out, level );
             break;
-//        case SynTree::R_CaseStatement:
-//            out << ws(level) << "; // case statement" << endl; // TODO
-//            break;
+        case SynTree::R_CaseStatement:
+            emitCaseStatement(ds,s,out,level);
+            break;
         case SynTree::R_WhileStatement:
             emitWhileStatement(ds,s,out,level);
             break;
@@ -925,7 +925,8 @@ static inline bool ifNeedsBlock( SynTree* stats )
     Q_ASSERT( stat->d_tok.d_type == SynTree::R_statement );
     if( stat->d_children.isEmpty() )
         return false;
-    if( stat->d_children.first()->d_tok.d_type == SynTree::R_IfStatement )
+    const int t = stat->d_children.first()->d_tok.d_type;
+    if( t == SynTree::R_IfStatement || t == SynTree::R_CaseStatement )
         return true;
     else
         return stats->d_children.size() > 1;
@@ -1036,7 +1037,7 @@ void CppGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
         out << " : ";
         out << st->d_children[1]->d_tok.d_val << " >= ";
         emitExpression(ds,st->d_children[5],out,level);
-   }else
+    }else
     {
         out << st->d_children[1]->d_tok.d_val << " <= ";
         emitExpression(ds,st->d_children[5],out,level);
@@ -1056,6 +1057,127 @@ void CppGen::emitForStatement(const CodeModel::Unit* ds, const SynTree* st, QTex
     emitStatementSeq(ds, stat->d_children, out, level + 1);
     if( stat->d_children.size() > 1 )
         out << ws(level) << "}" << endl;
+}
+
+void CppGen::emitCaseStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
+{
+    Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_CaseStatement && st->d_children.size() >= 5 &&
+            st->d_children[1]->d_tok.d_type == SynTree::R_expression );
+
+    const CodeModel::Type* et = d_mdl->typeOfExpression(ds, st->d_children[1] )->deref();
+    Q_ASSERT( et != 0 );
+
+    if( et->d_kind == CodeModel::Type::Pointer || et->d_kind == CodeModel::Type::Record )
+    {
+        // emit typecase
+        out << ws(level);
+
+        int n = 0;
+        for( int i = 3; i < st->d_children.size() - 1; i++, n++ )
+        {
+            SynTree* cas = st->d_children[i];
+            if( cas->d_tok.d_type != SynTree::R_Case || cas->d_children.isEmpty() )
+                continue;
+            Q_ASSERT( cas->d_children.size() == 2 );
+            SynTree* cll = cas->d_children.first();
+            SynTree* seq = cas->d_children.last();
+            if( n == 0 )
+                out << "if( ";
+            else
+                out << "else if( ";
+
+            Q_ASSERT( cll->d_children.size() == 1 );
+            SynTree* lr = cll->d_children.first();
+            Q_ASSERT( lr->d_tok.d_type == SynTree::R_LabelRange );
+            Q_ASSERT( lr->d_children.size() == 1 );
+
+            SynTree* qst = CodeModel::flatten(lr->d_children.first(),SynTree::R_qualident);
+            Q_ASSERT( qst->d_tok.d_type == SynTree::R_qualident );
+            CodeModel::Quali quali = d_mdl->derefQualident(ds,qst);
+
+            out << "dynamic_cast<";
+            emitLabel(ds, lr->d_children.first(), out, level );
+            out << ">(";
+            emitExpression( ds, st->d_children[1], out, level );
+            out << ") != 0 ";
+            out << " ){" << endl;
+
+            SynTree* id = CodeModel::flatten(st->d_children[1]);
+            const CodeModel::NamedThing* var = 0;
+            Q_ASSERT( id->d_tok.d_type == Tok_ident );
+            var = ds->findByName( id->d_tok.d_val );
+            Q_ASSERT( var != 0 );
+
+            CodeModel::Unit scope;
+            scope.d_outer = const_cast<CodeModel::Unit*>(ds);
+            CodeModel::TypeAlias alias;
+            alias.d_name = id->d_tok.d_val;
+            alias.d_newType = dynamic_cast<const CodeModel::Type*>( quali.second.first );
+            alias.d_alias = const_cast<CodeModel::NamedThing*>(var);
+            scope.addToScope(&alias);
+
+            emitStatementSeq( &scope, seq->d_children, out, level+1 );
+
+            out << ws(level) << "} ";
+        }
+        out << endl;
+    }else
+    {
+        // emit normal case
+
+        // TODO: not yet tested
+        const QByteArray name = "__tmp" + QByteArray::number(d_nameNr++);
+
+        emitType( ds, et, out, level );
+        out << " " << name << " = ";
+        emitExpression( ds, st->d_children[1], out, level );
+        out << ";" << endl;
+        qDebug() << ds->d_id->d_tok.d_sourcePath;
+        out << ws(level);
+
+        int n = 0;
+        for( int i = 3; i < st->d_children.size() - 1; i++, n++ )
+        {
+            SynTree* cas = st->d_children[i];
+            if( cas->d_tok.d_type != SynTree::R_Case || cas->d_children.isEmpty() )
+                continue;
+            Q_ASSERT( cas->d_children.size() == 2 );
+            SynTree* cll = cas->d_children.first();
+            SynTree* seq = cas->d_children.last();
+            if( n == 0 )
+                out << "if( ";
+            else
+                out << "else if( ";
+
+            for( int j = 0; j < cll->d_children.size(); j++ )
+            {
+                SynTree* lr = cll->d_children[j];
+                Q_ASSERT( lr->d_tok.d_type == SynTree::R_LabelRange );
+                if( j != 0 )
+                    out << " || ";
+                if( lr->d_children.size() == 1 )
+                {
+                    out << name << " == ";
+                    emitLabel(ds, lr->d_children.first(), out, level );
+                }else if( lr->d_children.size() == 3 )
+                {
+                    out << name << " >= ";
+                    emitLabel(ds, lr->d_children.first(), out, level );
+                    out << " && ";
+                    out << name << " <= ";
+                    emitLabel(ds, lr->d_children.last(), out, level );
+                }else
+                    Q_ASSERT( false );
+            }
+            out << " ){" << endl;
+
+            emitStatementSeq(ds, seq->d_children, out, level+1 );
+
+            out << ws(level) << "} ";
+        }
+        out << endl;
+    }
+
 }
 
 void CppGen::emitSet(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
@@ -1101,6 +1223,37 @@ void CppGen::emitComment(const SynTree* st, QTextStream& out, int level )
     {
         const QByteArray str = d_cmts[d_nextCmt++].d_val;
         out << ws(level) << "/* " << str.mid(2,str.size()-4) << " */" << endl;
+    }
+}
+
+void CppGen::emitLabel(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
+{
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_label && st->d_children.size() == 1 );
+
+    SynTree* first = st->d_children.first();
+    switch( first->d_tok.d_type )
+    {
+    case Tok_integer:
+        out << first->d_tok.d_val;
+        break;
+    case Tok_string:
+        if( first->d_tok.d_val.size() == 3 )
+            out << "'" << ( first->d_tok.d_val[1] == '\'' ? "\\" : "" ) << first->d_tok.d_val[1] << "'"; // CHAR
+        else
+            out << first->d_tok.d_val;
+        break;
+    case Tok_hexchar:
+        out << "0x" << first->d_tok.d_val.left(first->d_tok.d_val.size() - 1 );
+        break;
+    case Tok_hexstring:
+        out << "\"" << first->d_tok.d_val << "\"";
+        break;
+    case SynTree::R_qualident:
+        out << quali(first);
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
     }
 }
 

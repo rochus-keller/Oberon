@@ -176,7 +176,10 @@ public:
                 d_ide->pushLocation( OberonIde::Location( getPath(), cur.blockNumber(), cur.positionInBlock() ) );
                 if( sym->getTag() == Ast::Thing::T_Import && e->d_loc == sym->d_loc )
                     sym = Ast::thing_cast<Ast::Import*>(sym)->d_mod.data();
-                d_ide->showEditor( sym );
+                if( sym->getTag() == Ast::Thing::T_Module && Ast::thing_cast<Ast::Module*>(sym)->d_synthetic )
+                    d_ide->fillXref(sym);
+                else
+                    d_ide->showEditor( sym );
                 //setCursorPosition( sym->d_loc.d_row - 1, sym->d_loc.d_col - 1, true );
             }
             updateExtraSelections();
@@ -381,7 +384,7 @@ void OberonIde::loadFile(const QString& path)
 {
     QFileInfo info(path);
 
-    if( info.isDir() || info.suffix() != ".obnpro" )
+    if( info.isDir() && info.suffix() != ".obnpro" )
     {
         d_pro->initializeFromDir( path );
     }else
@@ -538,6 +541,8 @@ void OberonIde::onRun()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() );
 
+    compile(true);
+
     Project::FileList files = d_pro->getFilesInExecOrder();
     if( files.isEmpty() )
     {
@@ -556,8 +561,6 @@ void OberonIde::onRun()
         loadLuaLib(d_lua,"Coroutines");
         loadLuaLib(d_lua,"XYPlane");
     }
-
-    compile(true);
 
     bool hasErrors = false;
     foreach( const Project::File& f, files )
@@ -1251,6 +1254,37 @@ void OberonIde::fillXref()
             if( mod->d_file != edit->getPath() )
                 i->setForeground( 0, Qt::gray );
         }
+    }
+}
+
+void OberonIde::fillXref(Ast::Named* sym)
+{
+    d_xref->clear();
+    d_xrefTitle->clear();
+
+    Ast::Model::ExpList exp = d_pro->getUsage(sym);
+
+    Editor::ExList l2;
+    foreach( const Ast::Ref<Ast::Expression> e, exp )
+    {
+        l2 << e.data();
+    }
+
+    std::sort( l2.begin(), l2.end(), sortExList );
+
+    d_xrefTitle->setText(sym->d_name);
+
+    foreach( Ast::Expression* e, l2 )
+    {
+        Ast::Named* ident = e->getIdent();
+        Ast::Module* mod = e->getModule();
+        if( mod == 0 )
+            continue;
+        Q_ASSERT( ident != 0 && mod != 0 );
+        QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
+        i->setText( 0, e->getModule()->d_name );
+        i->setToolTip( 0, i->text(0) );
+        i->setData( 0, Qt::UserRole, QVariant::fromValue( ExRef(e) ) );
     }
 }
 

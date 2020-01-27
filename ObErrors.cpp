@@ -88,6 +88,7 @@ void Errors::warning(Errors::Source s, const QString& file, int line, int col, c
         e.d_msg = msg;
         e.d_source = s;
         e.d_file = file;
+        e.d_isErr = false;
         if( d_record )
         {
             const int count = d_errs.size();

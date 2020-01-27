@@ -45,6 +45,7 @@ namespace Ob
     namespace Ast
     {
         class Named;
+        class Expression;
     }
 
     class OberonIde : public QMainWindow
@@ -77,6 +78,7 @@ namespace Ob
         void createMenu( Editor* );
         void luaRuntimeMessage(const QByteArray&, const QString& file);
         void fillXref();
+        void fillXref(Ast::Named*);
         struct Location
         {
             // Qt-Koordinaten

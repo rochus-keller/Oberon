@@ -259,7 +259,7 @@ namespace Ob
             // Bytecode generator helpers
             uint d_liveFrom : 24; // 0..undefined
             uint d_slot : 8;
-            uint d_liveTo : 25; // 0..undefined
+            uint d_liveTo : 24; // 0..undefined
             uint d_slotValid : 1;
             uint d_usedFromSubs : 1;
             uint d_usedFromLive : 1; // indirectly used named types
@@ -268,10 +268,11 @@ namespace Ob
 
             uint d_public : 1;
             uint d_synthetic: 1;
+            uint d_isDef;
 
             Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
                 d_public(false),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
-                d_slot(0),d_slotValid(0),d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0) {}
+                d_slot(0),d_slotValid(0),d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0),d_isDef(0) {}
             bool isNamed() const { return true; }
             virtual bool isVarParam() const { return false; }
             Module* getModule();
@@ -366,11 +367,11 @@ namespace Ob
                 struct Module : public Scope
                 {
                     bool d_useExt; // use extensions of the language
-                    bool d_isDef; // DEFINITION module
+                    // bool d_isDef; // DEFINITION module
                     bool d_hasErrors;
                     QString d_file;
 
-                    Module():d_useExt(false),d_isDef(false),d_hasErrors(false) {}
+                    Module():d_useExt(false),d_hasErrors(false) {}
                     int getTag() const { return T_Module; }
                     void accept(AstVisitor* v) { v->visit(this); }
                 };
