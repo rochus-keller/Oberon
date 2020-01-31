@@ -1828,6 +1828,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 }
                 if( sourceMod != d_curModule && !sourceMod->d_isDef && !( f->d_public || f->d_isDef ) )
                     error(first,tr("element is not public") );
+
                 Ref<IdentSel> id = new IdentSel();
                 id->d_sub = cur.data();
                 id->d_ident = f;

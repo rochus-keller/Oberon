@@ -478,6 +478,7 @@ namespace Ob
                 quint8 d_op;
                 Ref<Expression> d_sub;
                 UnExpr(quint8 op = Invalid, Expression* e = 0 ):d_op(op),d_sub(e){}
+                Module* getModule() const { return d_sub->getModule(); }
                 int getTag() const { return T_UnExpr; }
                 void accept(AstVisitor* v) { v->visit(this); }
             };
@@ -488,7 +489,6 @@ namespace Ob
                 Named* getIdent() const { return d_ident.data(); }
                 IdentSel():UnExpr(SEL) {}
                 int getTag() const { return T_IdentSel; }
-                Module* getModule() const { return d_sub->getModule(); }
                 void accept(AstVisitor* v) { v->visit(this); }
             };
 

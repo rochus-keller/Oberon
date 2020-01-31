@@ -1185,7 +1185,7 @@ void CppGen::emitSet(const CodeModel::Unit* ds, const SynTree* st, QTextStream& 
     Q_ASSERT( st->d_tok.d_type == SynTree::R_set && st->d_children.size() >= 2 );
     out << "( _Set() ";
 
-    for( int i = 1; i < st->d_children.size() - 2; i++ )
+    for( int i = 1; i < st->d_children.size() - 1; i++ ) // TODO it was -2, but likely wrong, corrected to -1
     {
         SynTree* el = st->d_children[i];
         Q_ASSERT( el->d_tok.d_type == SynTree::R_element && !el->d_children.isEmpty() );
