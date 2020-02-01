@@ -541,7 +541,8 @@ void OberonIde::onRun()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() );
 
-    compile(true);
+    if( !compile(true) )
+        return;
 
     Project::FileList files = d_pro->getFilesInExecOrder();
     if( files.isEmpty() )
@@ -570,7 +571,7 @@ void OberonIde::onRun()
         {
             QByteArray msg = d_lua->getLastError();
             hasErrors = true;
-            luaRuntimeMessage(msg,f.d_file);
+            luaRuntimeMessage(msg.simplified(),f.d_file);
             qCritical() << msg.constData();
         }
     }
@@ -966,7 +967,7 @@ bool OberonIde::checkSaved(const QString& title)
     return true;
 }
 
-void OberonIde::compile(bool generate )
+bool OberonIde::compile(bool generate )
 {
     for( int i = 0; i < d_tab->count(); i++ )
     {
@@ -987,12 +988,14 @@ void OberonIde::compile(bool generate )
         preloadLib(d_pro,"Coroutines");
         preloadLib(d_pro,"XYPlane");
     }
+    const quint32 errCount = d_pro->getErrs()->getErrCount();
     d_pro->recompile();
     if( generate )
         d_pro->generate();
     onErrors();
     fillMods();
     onTabChanged();
+    return errCount == d_pro->getErrs()->getErrCount();
 }
 
 static bool sortNamed( Ast::Named* lhs, Ast::Named* rhs )

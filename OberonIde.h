@@ -69,7 +69,7 @@ namespace Ob
         void createMenu();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
-        void compile(bool generate = false);
+        bool compile(bool generate = false);
         void fillMods();
         void showDocument( const QString& filePath );
         void addTopCommands(Gui::AutoMenu * pop);

@@ -97,6 +97,7 @@ struct LjbcGenImp : public AstVisitor
     typedef QHash<Scope*,Import*> Imps;
     Imps d_imps;
     Ref<Import> obnlj;
+    QList<NamedType*> deferred;
 
     struct Value
     {
@@ -145,11 +146,38 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    static QualiType::ModItem findClass( Type* t )
+    static QualiType::ModItem getQuali( Expression* e )
     {
         QualiType::ModItem res;
+        res.second = e->getIdent();
+        if( res.second )
+        {
+            if( e->getTag() == Thing::T_IdentSel )
+            {
+                IdentSel* sel = thing_cast<IdentSel*>(e);
+                Q_ASSERT( sel->d_sub->getTag() == Thing::T_IdentLeaf );
+                res.first = sel->d_sub->getIdent();
+            }
+            if( res.second->d_type->getTag() == Thing::T_Pointer )
+            {
+                Pointer* p = Ast::thing_cast<Pointer*>(res.second->d_type.data());
+                if( p->d_to->getTag() == Thing::T_QualiType )
+                {
+                    QualiType::ModItem res2 = findClass( p->d_to.data() );
+                    if( res2.first == 0 )
+                        res2.first = res.first;
+                    return res2;
+                }
+                // else
+                Q_ASSERT( p->d_to->getTag() == Thing::T_Record &&
+                          p->d_to->d_ident == 0 );
+            }
+        }
+        return res;
+    }
 
-
+    static QualiType::ModItem findClass( Type* t )
+    {
         if( t->getTag() == Thing::T_Pointer )
         {
             Pointer* p = Ast::thing_cast<Pointer*>(t);
@@ -163,7 +191,7 @@ struct LjbcGenImp : public AstVisitor
         }else if( t->getTag() == Thing::T_QualiType )
         {
             QualiType* q = Ast::thing_cast<QualiType*>( t );
-            res = q->getQuali();
+            QualiType::ModItem res = q->getQuali();
             if( res.first )
                 return res; // quali points to an import, that's where we find a class for sure
             Q_ASSERT( res.second );
@@ -172,6 +200,7 @@ struct LjbcGenImp : public AstVisitor
 
         Q_ASSERT( t->getTag() != Thing::T_QualiType && t == t->derefed() );
 
+        QualiType::ModItem res;
         res.second = t->d_ident;
         if( res.second == 0 )
         {
@@ -185,8 +214,9 @@ struct LjbcGenImp : public AstVisitor
         return res;
     }
 
-    void fetchClass( Type* t, Value& out )
+    void fetchClass( QualiType::ModItem quali, Value& out, const Loc& loc )
     {
+        Q_ASSERT( quali.second != 0 );
         quint8 to;
         if( out.d_kind == Value::Pre )
             to = out.d_slot;
@@ -197,44 +227,55 @@ struct LjbcGenImp : public AstVisitor
             to = out.d_slot;
         }
 
-        /*
-        if( t->getTag() == Thing::T_Pointer )
-        {
-            Pointer* p = Ast::thing_cast<Pointer*>(t);
-            if( p->d_to->d_ident != 0)
-                t = p->d_to.data();
-        }
-        */
-
-        QualiType::ModItem quali = findClass(t);
-        Q_ASSERT( quali.second != 0 );
+        if( quali.first == mod )
+            quali.first = 0;
 
         if( quali.first )
         {
             // class lives in another module
-
             // the type is declared in an imported module
-            // quali.first is the Import symbol which is supposed to have a slot already
-            Q_ASSERT( quali.first->d_slotValid );
+            // quali.first is the Import symbol
+            Q_ASSERT( quali.first->getTag() == Thing::T_Import );
 
-            // TODO: Check TextFrames -> Texts -> Files.Rider does work; Files is not in import list of TextFrames
-            bc.TGET(to, quali.first->d_slot, QVariant::fromValue(quali.second->d_name), out.d_line );
+            if( quali.first->d_scope == mod )
+            {
+                // The import symbol is in this module and is supposed to have a slot already
+                if( !quali.first->d_slotValid )
+                    err->error(Errors::Generator, mod->d_file, loc.d_row, loc.d_col,
+                         QString("accessing import '%1' which has no allocated slot").arg(quali.first->d_name.constData()) );
+
+                bc.TGET(to, quali.first->d_slot, QVariant::fromValue(quali.second->d_name), out.d_line );
+            }else
+            {
+                // The import symbol is in another module so we cannot directly access it here
+                // Example: TextFrames -> Texts -> Files.Rider where Files is not in import list of TextFrames
+                bc.GGET( to, "#" + quali.first->d_name, out.d_line);
+                bc.TGET(to, to, QVariant::fromValue(quali.second->d_name), out.d_line );
+            }
         }else
         {
             // class lives in this module
 
-            Q_ASSERT( quali.second->d_slotValid );
-
+            if( !quali.second->d_slotValid )
+            {
+                err->error(Errors::Generator, mod->d_file, loc.d_row, loc.d_col,
+                     QString("accessing local symbol '%1' which has no allocated slot").arg(quali.second->d_name.constData()) );
+            }
             if( ctx.back().scope != quali.second->d_scope )
             {
                 // resolve upvalue
-                bc.UGET( to, resolveUpval( quali.second ), out.d_line );
+                bc.UGET( to, resolveUpval( quali.second, out.d_line ), out.d_line );
             }else
             {
                 // Module level
                 bc.MOV(to,quali.second->d_slot,out.d_line);
             }
         }
+    }
+
+    void fetchClass( Type* t, Value& out, const Loc& loc )
+    {
+        fetchClass( findClass(t), out, loc );
     }
 
     void visit( NamedType* t )
@@ -261,7 +302,7 @@ struct LjbcGenImp : public AstVisitor
                 v.d_slot = base+2;
                 v.d_kind = Value::Pre;
                 v.d_line = t->d_loc.d_row;
-                fetchClass(r->d_base.data(),v);
+                fetchClass( findClass(r->d_base.data()),v,t->d_loc);
                 bc.CALL(base,0, 2, v.d_line);
                 ctx.back().sellSlots(base,3);
             }
@@ -269,15 +310,30 @@ struct LjbcGenImp : public AstVisitor
         {
             // if the type points to a record (directly or indirectly) and is publicly visible
             // on module level then copy its slot to the module table
-            Value v;
-            v.d_line = t->d_loc.d_row;
-            fetchClass(t->d_type.data(),v);
-            bc.TSET( v.d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.d_row );
-            sell(v);
+            if( t->d_type->getTag() == Thing::T_Pointer )
+                deferred << t; // Pointer can point to something which is created later, so defer it
+            else
+                publishTypeRef(t);
         }
     }
 
-    quint16 resolveUpval( Named* n )
+    void publishTypeRef( NamedType* t )
+    {
+        Value v;
+        v.d_line = t->d_loc.d_row;
+        fetchClass(findClass(t->d_type.data()),v,t->d_loc);
+        bc.TSET( v.d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.d_row );
+        sell(v);
+    }
+
+    void publishDeferred()
+    {
+        foreach( NamedType* t, deferred )
+            publishTypeRef(t);
+        deferred.clear();
+    }
+
+    quint16 resolveUpval( Named* n, int line )
     {
         Q_ASSERT( n->d_scope != ctx.back().scope );
         // get the upval id from the present context
@@ -294,7 +350,9 @@ struct LjbcGenImp : public AstVisitor
             }else
                 ctx[i].resolveUpval(n);
         }
-        Q_ASSERT( foundHome );
+        if( !foundHome )
+            err->error(Errors::Generator, mod->d_file, line, 1,
+                QString("cannot find module level symbol for upvalue '%1'").arg(n->d_name.constData()) );
         return res;
     }
 
@@ -308,7 +366,7 @@ struct LjbcGenImp : public AstVisitor
         ctx.back().sellSlots(tmp,2);
     }
 
-    void initMatrix( const QList<Array*>& dims, quint8 table, int curDim, int line )
+    void initMatrix( const QList<Array*>& dims, quint8 table, int curDim, const Loc& line )
     {
         // We need to create the arrays for each matrix dimension besides the highest one, unless it is of record value.
         // If a matrix has only one dimension (i.e. it is an array), no initialization is required, unless it is of record value
@@ -331,55 +389,55 @@ struct LjbcGenImp : public AstVisitor
             {
                 // out << " = obnlj.Str(" << dims[curDim]->d_len << ")";
                 quint8 tmp = ctx.back().buySlots(2,true);
-                fetchObnljMember(tmp,"Str",line);
-                bc.KSET(tmp+1, dims[curDim]->d_len, line );
-                bc.CALL(tmp,1,1,line);
-                bc.MOV(table,tmp,line);
+                fetchObnljMember(tmp,"Str",line.d_row);
+                bc.KSET(tmp+1, dims[curDim]->d_len, line.d_row );
+                bc.CALL(tmp,1,1,line.d_row);
+                bc.MOV(table,tmp,line.d_row);
                 ctx.back().sellSlots(tmp,2);
             }else if( dims[curDim]->d_type->derefed()->getTag() == Thing::T_Record )
             {
                 // initHelper( dims[curDim], curDim, name, rec );
-                genArray( dims[curDim]->d_len, table, line );
+                genArray( dims[curDim]->d_len, table, line.d_row );
 
                 quint8 base = ctx.back().buySlots(4);
                 quint8 elem = ctx.back().buySlots(1);
-                bc.KSET(base,1,line);
-                bc.KSET(base+1,dims[curDim]->d_len,line);
-                bc.KSET(base+2,1,line);
-                bc.FORI(base,0,line);
+                bc.KSET(base,1,line.d_row);
+                bc.KSET(base+1,dims[curDim]->d_len,line.d_row);
+                bc.KSET(base+2,1,line.d_row);
+                bc.FORI(base,0,line.d_row);
                 const quint32 pc = bc.getCurPc();
 
-                bc.TNEW( elem, 0, 0, line );
+                bc.TNEW( elem, 0, 0, line.d_row );
                 initRecord( dims[curDim]->d_type.data(), elem, line );
-                bc.TSET(elem,table,base+3, line);
+                bc.TSET(elem,table,base+3, line.d_row);
 
-                bc.FORL(base, pc - bc.getCurPc() - 1,line);
+                bc.FORL(base, pc - bc.getCurPc() - 1,line.d_row);
                 bc.patch(pc,bc.getCurPc() - pc);
 
                 ctx.back().sellSlots(elem);
                 ctx.back().sellSlots(base,4);
 
             }else
-                genArray( dims[curDim]->d_len, table, line );
+                genArray( dims[curDim]->d_len, table, line.d_row );
                 // out << " = obnlj.Arr(" << dims[curDim]->d_len << ")";
         }else
         {
             // we're at a lower dimension
             //initHelper( dims[curDim], curDim, table, line );
-            genArray( dims[curDim]->d_len, table, line );
+            genArray( dims[curDim]->d_len, table, line.d_row );
 
             quint8 base = ctx.back().buySlots(4);
             quint8 elem = ctx.back().buySlots(1);
-            bc.KSET(base,1,line);
-            bc.KSET(base+1,dims[curDim]->d_len,line);
-            bc.KSET(base+2,1,line);
-            bc.FORI(base,0,line);
+            bc.KSET(base,1,line.d_row);
+            bc.KSET(base+1,dims[curDim]->d_len,line.d_row);
+            bc.KSET(base+2,1,line.d_row);
+            bc.FORI(base,0,line.d_row);
             const quint32 pc = bc.getCurPc();
 
             initMatrix( dims, elem, curDim + 1, line );
-            bc.TSET(elem,table,base+3, line);
+            bc.TSET(elem,table,base+3, line.d_row);
 
-            bc.FORL(base, pc - bc.getCurPc() - 1,line);
+            bc.FORL(base, pc - bc.getCurPc() - 1,line.d_row);
             bc.patch(pc,bc.getCurPc() - pc);
 
             ctx.back().sellSlots(elem);
@@ -400,7 +458,7 @@ struct LjbcGenImp : public AstVisitor
         return false;
     }
 
-    void initArray(Array* arr, quint8 table, int line )
+    void initArray(Array* arr, quint8 table, const Loc& line )
     {
         // table is the slot where the new array will be stored
 
@@ -418,21 +476,22 @@ struct LjbcGenImp : public AstVisitor
         initMatrix( dims, table, 0, line );
     }
 
-    void initRecord( Type* rt, quint8 table, int line )
+    void initRecord( Type* rt, quint8 table, const Loc& loc )
     {
         Q_ASSERT( rt != 0 );
         // out << " = {}" << endl; was already done by the caller
 
-        if( findClass(rt).second )
+        QualiType::ModItem quali = findClass(rt);
+        if( quali.second )
         {
             quint8 base = ctx.back().buySlots(3,true);
-            bc.GGET(base, "setmetatable", line );
-            bc.MOV(base+1,table,line );
+            bc.GGET(base, "setmetatable", loc.d_row );
+            bc.MOV(base+1,table,loc.d_row );
             Value v;
             v.d_slot = base+2;
             v.d_kind = Value::Pre;
-            v.d_line = line;
-            fetchClass(rt,v);
+            v.d_line = loc.d_row;
+            fetchClass(quali,v, loc);
             bc.CALL(base,0, 2, v.d_line);
             ctx.back().sellSlots(base,3);
         }
@@ -460,15 +519,15 @@ struct LjbcGenImp : public AstVisitor
                 if( td->getTag() == Thing::T_Record )
                 {
                     // out << ws() << field << " = {}" << endl;
-                    bc.TNEW( field, 0, 0, line );
-                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), line );
-                    initRecord( t, field, line );
+                    bc.TNEW( field, 0, 0, loc.d_row );
+                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.d_row );
+                    initRecord( t, field, loc );
                 }
                 else if( td->getTag() == Thing::T_Array )
                 {
                     // out << ws() << field;
-                    initArray( Ast::thing_cast<Array*>(td), field, line );
-                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), line );
+                    initArray( Ast::thing_cast<Array*>(td), field, loc );
+                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.d_row );
                 }
                 ctx.back().sellSlots(field);
             }
@@ -487,10 +546,10 @@ struct LjbcGenImp : public AstVisitor
         {
             // name = {}
             bc.TNEW( v->d_slot, 0, 0, v->d_loc.d_row );
-            initRecord( v->d_type.data(), v->d_slot, v->d_loc.d_row );
+            initRecord( v->d_type.data(), v->d_slot, v->d_loc );
         }else if( tag == Thing::T_Array )
         {
-            initArray( Ast::thing_cast<Array*>( td ), v->d_slot, v->d_loc.d_row );
+            initArray( Ast::thing_cast<Array*>( td ), v->d_slot, v->d_loc );
         }else
         {
             // unneccessary, already nil: bc.KNIL(v->d_slot, 1, v->d_loc.d_row );
@@ -559,6 +618,8 @@ struct LjbcGenImp : public AstVisitor
     void visit( Import* i )
     {
         // local imported = require 'module'
+        if( i->d_mod->d_name == "SYSTEM" )
+            return;
         i->d_slot = emitImport( i->d_mod.isNull() ? i->d_name : i->d_mod->d_name, i->d_loc.d_row );
         i->d_slotValid = true;
         d_imps.insert(i->d_mod.data(), i );
@@ -685,7 +746,14 @@ struct LjbcGenImp : public AstVisitor
             p->d_type->accept(this);
 
         for( int i = 0; i < p->d_order.size(); i++ )
+        {
+            const int tag = p->d_order[i]->getTag();
+            Q_ASSERT( tag != Thing::T_Variable );
+            if( tag == Thing::T_Procedure || tag == Thing::T_LocalVar )
+                publishDeferred();
             p->d_order[i]->accept(this);
+        }
+        publishDeferred();
 
         for( int i = 0; i < p->d_body.size(); i++ )
             p->d_body[i]->accept(this);
@@ -762,11 +830,11 @@ struct LjbcGenImp : public AstVisitor
             {
                 u.d_uv = i.key()->d_slot;
                 u.d_isLocal = true;
-            }else
+            }else if( ctx.size() > 1 )
             {
-                Q_ASSERT( ctx.size() > 1 );
                 u.d_uv = ctx[ ctx.size() - 2 ].resolveUpval(i.key());
-            }
+            }else
+                error( i.key()->d_loc, QString("cannot compose upvalue list because of '%1'").arg(u.d_name.constData() ) );
             uvl[i.value()] = u;
         }
 
@@ -802,13 +870,22 @@ struct LjbcGenImp : public AstVisitor
 
 
         for( int i = 0; i < m->d_order.size(); i++ )
+        {
+            const int tag = m->d_order[i]->getTag();
+            Q_ASSERT( tag != Thing::T_LocalVar );
+            if( tag == Thing::T_Procedure || tag == Thing::T_Variable )
+                publishDeferred();
             m->d_order[i]->accept(this);
+        }
+        publishDeferred();
 
         for( int i = 0; i < m->d_body.size(); i++ )
             m->d_body[i]->accept(this);
 
         bc.UCLO( modSlot, 0, m->d_end.d_row );
-        // bc.GSET( modSlot, m->d_name, m->d_end.d_row );
+        // make Module table a global variable (because of fetchClass)
+        // prefix '#' to avoid collisions with other global names
+        bc.GSET( modSlot, "#" + m->d_name, m->d_end.d_row );
         bc.RET( modSlot, 1, m->d_end.d_row ); // return module
 
         JitComposer::VarNameList sn = getSlotNames(m);
@@ -1498,7 +1575,7 @@ struct LjbcGenImp : public AstVisitor
             if( id->d_ident->d_scope != ctx.back().scope )
             {
                 // Upvalue
-                out.d_slot = resolveUpval(id->d_ident.data());
+                out.d_slot = resolveUpval(id->d_ident.data(),id->d_loc.d_row);
                 out.d_kind = Value::Uv;
                 out.d_line = id->d_loc.d_row;
             }else
@@ -1642,7 +1719,7 @@ struct LjbcGenImp : public AstVisitor
         if( ctx.back().scope != mod ) // obnlj->d_scope == mod
         {
             // resolve upvalue
-            bc.UGET( to, resolveUpval( obnlj.data() ), line );
+            bc.UGET( to, resolveUpval( obnlj.data(), line ), line );
             bc.TGET(to, to, QVariant::fromValue(index), line );
         }else
         {
@@ -1679,7 +1756,8 @@ struct LjbcGenImp : public AstVisitor
         {
             v.d_line = e->d_loc.d_row;
             v.d_kind = Value::Pre;
-            fetchClass(e->d_rhs->d_type.data(),v);
+
+            fetchClass( getQuali( e->d_rhs.data() ),v,e->d_rhs->d_loc);
         }else
         {
             v.d_kind = Value::Ref;
@@ -2143,7 +2221,7 @@ struct LjbcGenImp : public AstVisitor
                 }
                 rhs.d_line = c->d_loc.d_row;
                 bc.TNEW( rhs.d_slot, 0, 0, rhs.d_line );
-                initRecord( c->d_actuals.first()->d_type.data(), rhs.d_slot, rhs.d_line );
+                initRecord( c->d_actuals.first()->d_type.data(), rhs.d_slot, c->d_loc );
 
                 assign(lhs,rhs);
             }
@@ -2392,7 +2470,7 @@ struct LjbcGenImp : public AstVisitor
         case BuiltIn::VAL:
         case BuiltIn::COPY:
             qWarning() << "SYSTEM." << BuiltIn::s_typeName[bi->d_func] << "not supported by code generator";
-            return false;
+            return true; // don't generate
         }
         return false;
     }
