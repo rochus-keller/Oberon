@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
 
 MODULE T5Statements;
-
+	IMPORT Out;
 	TYPE
 		T0 = RECORD END;
 		T1 = RECORD (T0) END;
@@ -547,5 +547,6 @@ BEGIN
 	TestCaseStatements;
 	TestWhileStatements;
 	TestRepeatStatements;
-	TestForStatements
+	TestForStatements;
+	Out.String("Finished T5Statements");
 END T5Statements.

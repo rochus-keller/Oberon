@@ -1,0 +1,20 @@
+[General]
+BuiltInOakwood=true
+MainModule=@ByteArray()
+MainProc=@ByteArray()
+Suffixes=.Mod, .obn
+
+[Modules]
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Gen2Tests/T6ProcedureDeclarations.obn
+1\RelPath=T6ProcedureDeclarations.obn
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Gen2Tests/T3VariableDeclarations.obn
+2\RelPath=T3VariableDeclarations.obn
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Gen2Tests/T5Statements.obn
+3\RelPath=T5Statements.obn
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Gen2Tests/T4Expressions.obn
+4\RelPath=T4Expressions.obn
+5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Gen2Tests/T1ConstantDeclarations.obn
+5\RelPath=T1ConstantDeclarations.obn
+6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Gen2Tests/T2TypeDeclarations.obn
+6\RelPath=T2TypeDeclarations.obn
+size=6

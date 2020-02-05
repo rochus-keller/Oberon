@@ -20,10 +20,23 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#include <bitset>
+#include <string>
+
 typedef struct lua_State lua_State;
 
 namespace Ob
 {
+    struct _Set
+    {
+        std::bitset<32> bits;
+    };
+
+    struct _String
+    {
+        std::string string;
+    };
+
     class LjLib
     {
     public:
@@ -44,6 +57,11 @@ namespace Ob
         static int UNPK(lua_State *L);
         static int Str(lua_State *L);
         static int Char(lua_State *L);
+
+        static _String* strCreate(lua_State* L);
+        static _String* strCheck(lua_State *L, int narg = 1 );
+        static _Set* setCreate(lua_State* L);
+        static _Set* setCheck(lua_State *L, int narg = 1, bool justPeek = false );
     protected:
         static void installSet(lua_State* L);
         static int setAdd(lua_State *L);

@@ -42,7 +42,8 @@ SOURCES += OberonIde.cpp \
     ../LjTools/BcViewer2.cpp \
     ObLjProject.cpp \
     ../GuiTools/DocSelector.cpp \
-    ../GuiTools/DocTabWidget.cpp
+    ../GuiTools/DocTabWidget.cpp \
+    ObSysInnerLib.cpp
 
 HEADERS  += OberonIde.h \
     ../GuiTools/CodeEditor.h \
@@ -60,7 +61,8 @@ HEADERS  += OberonIde.h \
     ../LjTools/BcViewer2.h \
     ObLjProject.h \
     ../GuiTools/DocSelector.h \
-    ../GuiTools/DocTabWidget.h
+    ../GuiTools/DocTabWidget.h \
+    ObSysInnerLib.h
 
 include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
     LIBS += -ldl

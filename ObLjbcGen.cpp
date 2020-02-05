@@ -244,12 +244,21 @@ struct LjbcGenImp : public AstVisitor
                     err->error(Errors::Generator, mod->d_file, loc.d_row, loc.d_col,
                          QString("accessing import '%1' which has no allocated slot").arg(quali.first->d_name.constData()) );
 
-                bc.TGET(to, quali.first->d_slot, QVariant::fromValue(quali.second->d_name), out.d_line );
+                if( ctx.back().scope != quali.first->d_scope )
+                {
+                    // resolve upvalue
+                    bc.UGET( to, resolveUpval( quali.first, out.d_line ), out.d_line );
+                    bc.TGET(to, to, QVariant::fromValue(quali.second->d_name), out.d_line );
+                }else
+                {
+                    // Module level
+                    bc.TGET(to, quali.first->d_slot, QVariant::fromValue(quali.second->d_name), out.d_line );
+                }
             }else
             {
                 // The import symbol is in another module so we cannot directly access it here
                 // Example: TextFrames -> Texts -> Files.Rider where Files is not in import list of TextFrames
-                bc.GGET( to, "#" + quali.first->d_name, out.d_line);
+                bc.GGET( to, quali.first->d_name, out.d_line);
                 bc.TGET(to, to, QVariant::fromValue(quali.second->d_name), out.d_line );
             }
         }else
@@ -407,7 +416,7 @@ struct LjbcGenImp : public AstVisitor
                 bc.FORI(base,0,line.d_row);
                 const quint32 pc = bc.getCurPc();
 
-                bc.TNEW( elem, 0, 0, line.d_row );
+                // done within initRecord: bc.TNEW( elem, 0, 0, line.d_row );
                 initRecord( dims[curDim]->d_type.data(), elem, line );
                 bc.TSET(elem,table,base+3, line.d_row);
 
@@ -479,22 +488,46 @@ struct LjbcGenImp : public AstVisitor
     void initRecord( Type* rt, quint8 table, const Loc& loc )
     {
         Q_ASSERT( rt != 0 );
-        // out << " = {}" << endl; was already done by the caller
+
 
         QualiType::ModItem quali = findClass(rt);
         if( quali.second )
         {
-            quint8 base = ctx.back().buySlots(3,true);
-            bc.GGET(base, "setmetatable", loc.d_row );
-            bc.MOV(base+1,table,loc.d_row );
-            Value v;
-            v.d_slot = base+2;
-            v.d_kind = Value::Pre;
-            v.d_line = loc.d_row;
-            fetchClass(quali,v, loc);
-            bc.CALL(base,0, 2, v.d_line);
-            ctx.back().sellSlots(base,3);
-        }
+            if( quali.second->d_isDef )
+            {
+                // Special instantiation for tables in Def modules which could be userdata.
+                // The record table is supposed to have a function "__new" which generates the table or userdata
+                Q_ASSERT( quali.first );
+
+                quint8 base = ctx.back().buySlots(1,true);
+                Value v;
+                v.d_slot = base;
+                v.d_kind = Value::Pre;
+                v.d_line = loc.d_row;
+                fetchClass(quali,v, loc);
+                bc.TGET(base,base,QVariant::fromValue(QByteArray("__new")), loc.d_row );
+                bc.CALL(base,1, 0, v.d_line);
+                bc.MOV(table,base,loc.d_row );
+                ctx.back().sellSlots(base,1);
+
+                return;
+            }else
+            {
+                bc.TNEW( table, 0, 0, loc.d_row );
+
+                quint8 base = ctx.back().buySlots(3,true);
+                bc.GGET(base, "setmetatable", loc.d_row );
+                bc.MOV(base+1,table,loc.d_row );
+                Value v;
+                v.d_slot = base+2;
+                v.d_kind = Value::Pre;
+                v.d_line = loc.d_row;
+                fetchClass(quali,v, loc);
+                bc.CALL(base,0, 2, v.d_line);
+                ctx.back().sellSlots(base,3);
+            }
+        }else
+            bc.TNEW( table, 0, 0, loc.d_row );
 
         Record* r = Model::toRecord(rt);
         QList<Record*> topDown;
@@ -518,10 +551,9 @@ struct LjbcGenImp : public AstVisitor
                 quint8 field = ctx.back().buySlots(1);
                 if( td->getTag() == Thing::T_Record )
                 {
-                    // out << ws() << field << " = {}" << endl;
-                    bc.TNEW( field, 0, 0, loc.d_row );
-                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.d_row );
+                    // done within initRecord: bc.TNEW( field, 0, 0, loc.d_row );
                     initRecord( t, field, loc );
+                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.d_row );
                 }
                 else if( td->getTag() == Thing::T_Array )
                 {
@@ -544,8 +576,7 @@ struct LjbcGenImp : public AstVisitor
         const int tag = td->getTag();
         if( tag == Thing::T_Record )
         {
-            // name = {}
-            bc.TNEW( v->d_slot, 0, 0, v->d_loc.d_row );
+            // done within initRecord: bc.TNEW( v->d_slot, 0, 0, v->d_loc.d_row );
             initRecord( v->d_type.data(), v->d_slot, v->d_loc );
         }else if( tag == Thing::T_Array )
         {
@@ -884,8 +915,7 @@ struct LjbcGenImp : public AstVisitor
 
         bc.UCLO( modSlot, 0, m->d_end.d_row );
         // make Module table a global variable (because of fetchClass)
-        // prefix '#' to avoid collisions with other global names
-        bc.GSET( modSlot, "#" + m->d_name, m->d_end.d_row );
+        bc.GSET( modSlot, m->d_name, m->d_end.d_row );
         bc.RET( modSlot, 1, m->d_end.d_row ); // return module
 
         JitComposer::VarNameList sn = getSlotNames(m);
@@ -2171,16 +2201,19 @@ struct LjbcGenImp : public AstVisitor
 
         Q_ASSERT( lhs.d_kind == Value::Ref || lhs.d_kind == Value::Tmp );
 
-        if( e->d_sub->getTag() == Thing::T_Import &&
-                e->d_ident->getTag() != Thing::T_Procedure && !e->d_ident->d_type->isStructured() &&
-                e->d_ident->getTag() != Thing::T_NamedType )
+        Named* subId = e->d_sub->getIdent();
+        const int subTag = subId ? subId->getTag() : 0;
+        const int tag = e->d_ident ? e->d_ident->getTag() : 0;
+        if( subTag == Thing::T_Import && tag != Thing::T_Procedure && !e->d_ident->d_type->isStructured() &&
+                tag != Thing::T_NamedType && tag != Thing::T_Const )
         {
             // value access to scalar variable in other module by function call
             quint8 tmp = ctx.back().buySlots(1,true);
-            Q_ASSERT( lhs.d_kind == Value::Ref );
             bc.TGET( tmp, lhs.d_slot, QVariant::fromValue(e->d_ident->d_name), e->d_loc.d_row );
             bc.CALL( tmp, 1, 0, e->d_loc.d_row );
             emitEndOfCall(tmp,1,out,e->d_loc.d_row);
+            if( lhs.d_kind == Value::Tmp )
+                ctx.back().sellSlots(lhs.d_slot);
         }else
         {
             // ignore Pre if there
@@ -2220,7 +2253,7 @@ struct LjbcGenImp : public AstVisitor
                     rhs.d_kind = Value::Tmp;
                 }
                 rhs.d_line = c->d_loc.d_row;
-                bc.TNEW( rhs.d_slot, 0, 0, rhs.d_line );
+                // done within initRecord: bc.TNEW( rhs.d_slot, 0, 0, rhs.d_line );
                 initRecord( c->d_actuals.first()->d_type.data(), rhs.d_slot, c->d_loc );
 
                 assign(lhs,rhs);

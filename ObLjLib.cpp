@@ -19,7 +19,6 @@
 
 #include "ObLjLib.h"
 #include <lua.hpp>
-#include <bitset>
 #include <stdio.h>
 #include <math.h>
 #include <vector>
@@ -36,12 +35,8 @@ using namespace Ob;
 
 // TODO: to make full use of LuaJIT optimizations, replace this library by a full Lua implementation.
 
-struct _Set
-{
-    std::bitset<32> bits;
-};
 
-static _Set* setCheck(lua_State *L, int narg = 1, bool justPeek = false )
+_Set* LjLib::setCheck(lua_State *L, int narg, bool justPeek )
 {
     if( !justPeek )
         return static_cast<_Set*>( luaL_checkudata( L, narg, SET_METANAME ) );
@@ -62,7 +57,7 @@ static _Set* setCheck(lua_State *L, int narg = 1, bool justPeek = false )
     return res;
 }
 
-static _Set* setCreate(lua_State* L)
+_Set* LjLib::setCreate(lua_State* L)
 {
     void* buf = lua_newuserdata( L, sizeof(_Set) );
     _Set* s = ::new( buf ) _Set();
@@ -74,17 +69,12 @@ static _Set* setCreate(lua_State* L)
     return s;
 }
 
-struct _String
-{
-    std::string string;
-};
-
-static _String* strCheck(lua_State *L, int narg = 1 )
+_String* LjLib::strCheck(lua_State *L, int narg )
 {
     return static_cast<_String*>( luaL_checkudata( L, narg, STRING_METANAME ) );
 }
 
-static _String* strCreate(lua_State* L)
+_String* LjLib::strCreate(lua_State* L)
 {
     void* buf = lua_newuserdata( L, sizeof(_String) );
     _String* s = ::new( buf ) _String();

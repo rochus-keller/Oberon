@@ -26,6 +26,7 @@
 #include "ObErrors.h"
 #include "ObLjbcGen.h"
 #include "ObLjProject.h"
+#include "ObSysInnerLib.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
@@ -489,6 +490,7 @@ void OberonIde::createXref()
     vbox->setSpacing(0);
     d_xrefTitle = new QLabel(pane);
     d_xrefTitle->setMargin(2);
+    d_xrefTitle->setWordWrap(true);
     vbox->addWidget(d_xrefTitle);
     d_xref = new QTreeWidget(pane);
     d_xref->setAlternatingRowColors(true);
@@ -562,6 +564,8 @@ void OberonIde::onRun()
         loadLuaLib(d_lua,"Coroutines");
         loadLuaLib(d_lua,"XYPlane");
     }
+
+    SysInnerLib::install(d_lua->getCtx());
 
     bool hasErrors = false;
     foreach( const Project::File& f, files )
