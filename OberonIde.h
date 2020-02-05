@@ -94,13 +94,14 @@ namespace Ob
     protected slots:
         void onCompile();
         void onRun();
+        void onGenerate();
         void onNewPro();
         void onOpenPro();
         void onSavePro();
         void onSaveFile();
         void onSaveAs();
         void onCaption();
-        void onGotoLnr(int);
+        void onGotoLnr(quint32);
         void onFullScreen();
         void onCursor();
         void onExportBc();

@@ -1412,8 +1412,9 @@ Ast::Ref<Ast::Statement> Ast::Model::forStatement(Ast::Scope* s, SynTree* st)
             error(st->d_children[7],err);
     }else
     {
-        f->d_by = new Literal(d_intType.data(), Loc(), 1);
+        f->d_by = new Literal(d_intType.data(), Loc(st), 1);
         f->d_byVal = 1;
+        f->d_loc = Loc(st);
     }
 
     SynTree* ss = findFirstChild( st, SynTree::R_StatementSequence, 6 );
@@ -2488,7 +2489,7 @@ Ast::Loc::Loc(SynTree* st)
 {
     Q_ASSERT( st != 0 );
     static const quint32 maxRow = ( 1 << ROW_BIT_LEN ) - 1;
-    static const quint32 maxCol = ( 1 << ( 32 - ROW_BIT_LEN ) ) - 1;
+    static const quint32 maxCol = ( 1 << COL_BIT_LEN ) - 1;
     if( st->d_tok.d_lineNr > maxRow )
     {
         qWarning() << "exceeding maximum row at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;

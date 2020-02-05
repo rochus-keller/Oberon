@@ -431,7 +431,7 @@ void OberonIde::createDumpView()
     d_bcv = new BcViewer2(dock);
     dock->setWidget(d_bcv);
     addDockWidget( Qt::RightDockWidgetArea, dock );
-    connect(d_bcv,SIGNAL(sigGotoLine(int)),this,SLOT(onGotoLnr(int)));
+    connect(d_bcv,SIGNAL(sigGotoLine(quint32)),this,SLOT(onGotoLnr(quint32)));
 
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_bcv, true );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
@@ -519,6 +519,7 @@ void OberonIde::createMenu()
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
+    pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
     addTopCommands(pop);
 
@@ -529,6 +530,7 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("CTRL+S"), this, this, SLOT(onSaveFile()) );
     new Gui::AutoShortcut( tr("CTRL+R"), this, this, SLOT(onRun()) );
     new Gui::AutoShortcut( tr("CTRL+T"), this, this, SLOT(onCompile()) );
+    new Gui::AutoShortcut( tr("CTRL+SHIFT+T"), this, this, SLOT(onGenerate()) );
     new Gui::AutoShortcut( tr("ALT+Left"), this, this, SLOT(handleGoBack()) );
     new Gui::AutoShortcut( tr("ALT+Right"), this, this, SLOT(handleGoForward()) );
 }
@@ -610,6 +612,12 @@ void OberonIde::onRun()
     out.flush();
     d_lua->executeCmd(src,"terminal");
 
+}
+
+void OberonIde::onGenerate()
+{
+    ENABLED_IF(true);
+    compile(true);
 }
 
 void OberonIde::onNewPro()
@@ -696,14 +704,19 @@ void OberonIde::onCaption()
     }
 }
 
-void OberonIde::onGotoLnr(int lnr)
+void OberonIde::onGotoLnr(quint32 lnr)
 {
     if( d_lock )
         return;
     d_lock = true;
     Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
-        edit->setCursorPosition(lnr-1,0);
+    {
+        if( Ast::Loc::isPacked(lnr) )
+            edit->setCursorPosition(Ast::Loc::unpackRow(lnr)-1,Ast::Loc::unpackCol(lnr)-1);
+        else
+            edit->setCursorPosition(lnr-1,0);
+    }
     d_lock = false;
 }
 
@@ -1349,7 +1362,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.3.0");
+    a.setApplicationVersion("0.4.0");
     a.setStyle("Fusion");
 
     OberonIde w;
@@ -1360,10 +1373,10 @@ int main(int argc, char *argv[])
 #if 0
     // TEST
     Ast::Loc l;
-    l.d_col = 1;
-    l.d_row = 1;
+    l.d_col = 1234;
+    l.d_row = 56789;
     quint32 p = l.packed();
-    qDebug() << QByteArray::number(p,2) << Ast::Loc::isPacked(p) << Ast::Loc::packedCol(p) << Ast::Loc::packedRow(p);
+    qDebug() << QByteArray::number(p,2) << Ast::Loc::isPacked(p) << Ast::Loc::unpackCol(p) << Ast::Loc::unpackRow(p);
 #endif
     return a.exec();
 }

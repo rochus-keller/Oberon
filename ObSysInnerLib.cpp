@@ -149,7 +149,7 @@ QtDisplay::QtDisplay():d_img(Width,Height,QImage::Format_Mono),d_lock(0)
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setCursor(Qt::BlankCursor);
-    startTimer(0); // idle timer
+    // TODO startTimer(0); // idle timer
 }
 
 /*********************** Tools ************************************/
@@ -986,15 +986,136 @@ int SysInnerLib::installDisplay(lua_State* L)
 
 /***************** MODULE Modules ********************************/
 
+static std::string importing;
+static std::string imported;
+static int root = LUA_REFNIL;
+static int res = 0;
+
+static int Modules_importing(lua_State* L)
+{
+    _String* str = LjLib::strCreate(L);
+    str->string = importing;
+    return 1;
+}
+
+static int Modules_imported(lua_State* L)
+{
+    _String* str = LjLib::strCreate(L);
+    str->string = imported;
+    return 1;
+}
+
+static int Modules_root(lua_State* L)
+{
+    lua_getref(L,root);
+    return 1;
+}
+
+static int Modules_res(lua_State* L)
+{
+    lua_pushinteger(L,res);
+    return 1;
+}
+
+static int Modules_Load(lua_State* L)
+{
+    // name: ARRAY OF CHAR; VAR newmod: Module
+    _String* str = LjLib::strCheck(L, 1);
+    importing = str->string;
+    lua_getglobal(L,str->string.c_str());
+    if( lua_type(L,-1) == LUA_TNIL )
+    {
+        // no module for name
+        res = 1;
+        return 1;
+    }else
+    {
+        lua_pop(L,1); // module
+
+        lua_getref(L,root);
+        while( lua_istable(L,-1) )
+        {
+            lua_getfield( L,-1,"name" );
+            if( !lua_isnil(L,-1) )
+            {
+                _String* name = LjLib::strCheck(L, -1);
+                if( name->string == str->string )
+                {
+                    lua_pop(L,1); // name
+                    res = 0;
+                    return 1;
+                }
+            }
+            lua_pop(L,1); // name
+            lua_getfield( L,-1,"next" );
+            lua_remove(L,-2); // prev table
+        }
+        lua_pop(L,1); // nil prev table
+
+        lua_newtable(L);
+        const int ModDesc = lua_gettop(L);
+
+        luaL_getmetatable(L,"Modules");
+        lua_getfield(L,-1,"ModDesc");
+        lua_remove(L,-2); // modules
+        lua_setmetatable(L,ModDesc);
+
+        lua_getref(L,root);
+        lua_unref(L,root);
+        lua_setfield(L,ModDesc,"next");
+        lua_pushvalue(L,ModDesc);
+        root = lua_ref(L,1);
+    }
+    return 1;
+}
+
+static int Modules_ThisCommand(lua_State* L)
+{
+    // mod: Module; name: ARRAY OF CHAR): Command;
+    if( !lua_istable(L,1) )
+        lua_pushnil(L);
+    else
+    {
+        _String* str = LjLib::strCheck(L, 2);
+        lua_getfield(L,1, str->string.c_str());
+    }
+    return 1;
+}
+
+static int Modules_Free(lua_State* L)
+{
+    // name: ARRAY OF CHAR
+    // NOP
+    return 0;
+}
+
 static const luaL_Reg Modules_Reg[] =
 {
-    // TODO
+    { "res", Modules_res },
+    { "root", Modules_root },
+    { "imported", Modules_imported },
+    { "importing", Modules_importing },
+    { "Load", Modules_Load },
+    { "ThisCommand", Modules_ThisCommand },
+    { "Free", Modules_Free },
     { NULL,		NULL	}
 };
 
 int SysInnerLib::installModules(lua_State* L)
 {
     luaL_register( L, "Modules", Modules_Reg );
+    const int module = lua_gettop(L);
+
+    lua_newtable(L);
+    const int ModDesc = lua_gettop(L);
+    lua_pushliteral(L,"ModDesc");
+    lua_pushvalue(L,ModDesc);
+    lua_rawset(L, module);
+
+    lua_pushliteral(L,"__new");
+    lua_pushvalue(L,ModDesc);
+    lua_pushcclosure(L, Generic_new, 1 );
+    lua_rawset(L, ModDesc);
 
     return 1;
 }
@@ -1086,20 +1207,38 @@ int SysInnerLib::installInput(lua_State* L)
     return 1;
 }
 
+static void saveCall(lua_State* L)
+{
+    const int err = lua_pcall( L, 0, 0, 0 );
+    switch( err )
+    {
+    case LUA_ERRRUN:
+        qCritical() << lua_tostring( L, -1 );
+        lua_pop( L, 1 );  /* remove error message */
+        break;
+    case LUA_ERRMEM:
+        qCritical() << "Lua memory exception";
+        break;
+    case LUA_ERRERR:
+        // should not happen
+        qCritical() << "Lua unknown error";
+        break;
+    }
+}
 
 void SysInnerLib::install(lua_State* L)
 {
     lua_pushcfunction(L, installFiles);
-    lua_call(L, 0, 0);
+    saveCall(L);
     lua_pushcfunction(L, installFileDir);
-    lua_call(L, 0, 0);
+    saveCall(L);
     lua_pushcfunction(L, installKernel);
-    lua_call(L, 0, 0);
+    saveCall(L);
     lua_pushcfunction(L, installDisplay);
-    lua_call(L, 0, 0);
+    saveCall(L);
     lua_pushcfunction(L, installModules);
-    lua_call(L, 0, 0);
+    saveCall(L);
     lua_pushcfunction(L, installInput);
-    lua_call(L, 0, 0);
+    saveCall(L);
 }
 

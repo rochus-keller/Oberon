@@ -32,7 +32,6 @@ SOURCES += OberonIde.cpp \
     ../LjTools/Engine2.cpp \
     ../LjTools/Terminal2.cpp \
     ../LjTools/ExpressionParser.cpp \
-    ../LjTools/BcViewer.cpp \
     ../LjTools/LuaJitEngine.cpp \
     ../LjTools/LuaJitComposer.cpp \
     ObnHighlighter.cpp \
@@ -51,7 +50,6 @@ HEADERS  += OberonIde.h \
     ../LjTools/Engine2.h \
     ../LjTools/Terminal2.h \
     ../LjTools/ExpressionParser.h \
-    ../LjTools/BcViewer.h \
     ../LjTools/LuaJitEngine.h \
     ../LjTools/LuaJitComposer.h \
     ObnHighlighter.h \

@@ -52,16 +52,20 @@ namespace Ob
 
         struct Loc
         {
-            enum { ROW_BIT_LEN = 20, COL_BIT_LEN = 32 - ROW_BIT_LEN };
-            uint d_row : ROW_BIT_LEN;
-            uint d_col : COL_BIT_LEN;
+            enum { ROW_BIT_LEN = 19, COL_BIT_LEN = 32 - ROW_BIT_LEN - 1, MSB = 0x80000000 };
+            uint d_row : ROW_BIT_LEN; // supports 524k lines
+            uint d_col : COL_BIT_LEN; // supports 4k chars per line
+            uint unused : 1;
             Loc():d_row(0),d_col(0) {}
             Loc(SynTree*);
             bool isValid() const { return d_row > 0 && d_col > 0; } // valid lines and cols start with 1; 0 is invalid
-            quint32 packed() const { return ( d_row << COL_BIT_LEN ) | d_col; }
-            static bool isPacked( quint32 rowCol ) { return rowCol >= ( 1 << COL_BIT_LEN ); }
-            static quint32 packedRow(quint32 rowCol ) { return rowCol & ( 1 << COL_BIT_LEN ) - 1; }
-            static quint32 packedCol(quint32 rowCol ) { return ( rowCol >> COL_BIT_LEN ); }
+            quint32 packed() const { return ( d_row << COL_BIT_LEN ) | d_col | MSB; }
+            static bool isPacked( quint32 rowCol ) { return rowCol & MSB; }
+            static quint32 unpackCol(quint32 rowCol ) { return rowCol & ( 1 << COL_BIT_LEN ) - 1; }
+            static quint32 unpackRow(quint32 rowCol ) { return ( ( rowCol & ~MSB ) >> COL_BIT_LEN ); }
+            // NOTE: we cannot use packed yet with Lua/JIT because word length of stored line number is set depending
+            // on actual number of bytecodes of function!
+            quint32 line() const { return d_row; }
             bool operator==( const Loc& rhs ) const { return d_row == rhs.d_row && d_col == rhs.d_col; }
         };
 
