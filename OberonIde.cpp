@@ -716,6 +716,7 @@ void OberonIde::onGotoLnr(quint32 lnr)
             edit->setCursorPosition(Ast::Loc::unpackRow(lnr)-1,Ast::Loc::unpackCol(lnr)-1);
         else
             edit->setCursorPosition(lnr-1,0);
+        edit->setFocus();
     }
     d_lock = false;
 }
@@ -746,7 +747,7 @@ void OberonIde::onCursor()
     {
         QTextCursor cur = edit->textCursor();
         const int line = cur.blockNumber() + 1;
-        d_bcv->gotoLine(line);
+        d_bcv->gotoLine(Ast::Loc(line,cur.positionInBlock() + 1).packed());
     }
     d_lock = false;
 }
@@ -1362,7 +1363,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.4.0");
+    a.setApplicationVersion("0.4.1");
     a.setStyle("Fusion");
 
     OberonIde w;

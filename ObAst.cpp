@@ -2488,20 +2488,34 @@ bool Ast::Model::addToScope(Ast::Scope* s, Ast::Named* n)
 Ast::Loc::Loc(SynTree* st)
 {
     Q_ASSERT( st != 0 );
+    if( !setRowCol( st->d_tok.d_lineNr, st->d_tok.d_colNr ) )
+        qWarning() << "exceeding maximum row or column number at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
+}
+
+Ast::Loc::Loc(quint32 row, quint32 col)
+{
+    if( !setRowCol(row,col) )
+        qWarning() << "exceeding maximum row or column number";
+}
+
+bool Ast::Loc::setRowCol(quint32 row, quint32 col)
+{
     static const quint32 maxRow = ( 1 << ROW_BIT_LEN ) - 1;
     static const quint32 maxCol = ( 1 << COL_BIT_LEN ) - 1;
-    if( st->d_tok.d_lineNr > maxRow )
+    int err = 0;
+    if( row > maxRow )
     {
-        qWarning() << "exceeding maximum row at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
         d_row = maxRow;
+        err++;
     }else
-        d_row = st->d_tok.d_lineNr;
-    if( st->d_tok.d_colNr > maxCol )
+        d_row = row;
+    if( col > maxCol )
     {
-        qWarning() << "exceeding maximum col at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
         d_col = maxCol;
+        err++;
     }else
-        d_col = st->d_tok.d_colNr;
+        d_col = col;
+    return err == 0;
 }
 
 Ast::Model::ParseResult::~ParseResult()

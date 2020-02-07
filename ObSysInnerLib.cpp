@@ -571,10 +571,14 @@ int Rider::WriteByte(lua_State* L)
 int Rider::Write(lua_State* L)
 {
     Rider* r = check(L,1);
-    _String* x = LjLib::strCheck(L, 2);
+    std::string ch;
+    if( lua_type(L,2) == LUA_TSTRING )
+        ch = lua_tostring(L,2);
+    else
+        ch = LjLib::strCheck(L, 2)->string;
     r->res = 0;
-    if( x->string.size() >= 1 )
-        r->WriteByte(x->string[0]);
+    if( ch.size() >= 1 )
+        r->WriteByte(ch[0]);
     lua_pushvalue(L,1);
     return 1;
 }

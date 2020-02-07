@@ -216,7 +216,7 @@ struct LjbcGenImp : public AstVisitor
     void fetchClass( QualiType::ModItem quali, Value& out, const Loc& loc )
     {
         Q_ASSERT( quali.second != 0 );
-        const quint32 rowCol = loc.line();
+        const quint32 rowCol = loc.packed();
         quint8 to;
         if( out.d_kind == Value::Pre )
             to = out.d_slot;
@@ -293,11 +293,11 @@ struct LjbcGenImp : public AstVisitor
         {
             // create a slot representing the record (or pointer to record if latter anonymous)
             Q_ASSERT( t->d_slotValid );
-            bc.TNEW( t->d_slot, 0, 0, t->d_loc.line() );
+            bc.TNEW( t->d_slot, 0, 0, t->d_loc.packed() );
 
             // export it if public by copy to module table
             if( t->d_scope == mod && t->d_public )
-                bc.TSET( t->d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.line() );
+                bc.TSET( t->d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.packed() );
 
             Record* r = Model::toRecord( t->d_type.data() );
             if( !r->d_base.isNull() )
@@ -305,13 +305,13 @@ struct LjbcGenImp : public AstVisitor
                 // set the super class if there is one
                 // super classes are implemented by meta tables
                 quint8 base = ctx.back().buySlots(3,true);
-                bc.GGET(base, "setmetatable", t->d_loc.line() );
-                bc.MOV(base+1,t->d_slot,t->d_loc.line() );
+                bc.GGET(base, "setmetatable", t->d_loc.packed() );
+                bc.MOV(base+1,t->d_slot,t->d_loc.packed() );
                 Value v;
                 v.d_slot = base+2;
                 v.d_kind = Value::Pre;
                 fetchClass( findClass(r->d_base.data()),v,t->d_loc);
-                bc.CALL(base,0, 2, t->d_loc.line());
+                bc.CALL(base,0, 2, t->d_loc.packed());
                 ctx.back().sellSlots(base,3);
             }
         }else if( Model::toRecord(t->d_type.data()) != 0 && t->d_scope == mod && t->d_public )
@@ -329,7 +329,7 @@ struct LjbcGenImp : public AstVisitor
     {
         Value v;
         fetchClass(findClass(t->d_type.data()),v,t->d_loc);
-        bc.TSET( v.d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.line() );
+        bc.TSET( v.d_slot, modSlot, QVariant::fromValue(t->d_name), t->d_loc.packed() );
         sell(v);
     }
 
@@ -367,9 +367,9 @@ struct LjbcGenImp : public AstVisitor
     {
         quint8 tmp = ctx.back().buySlots(2,true);
         fetchObnljMember(tmp,"Arr",loc);
-        bc.KSET(tmp+1, len,loc.line() );
-        bc.CALL(tmp,1,1,loc.line());
-        bc.MOV(out,tmp,loc.line());
+        bc.KSET(tmp+1, len,loc.packed() );
+        bc.CALL(tmp,1,1,loc.packed());
+        bc.MOV(out,tmp,loc.packed());
         ctx.back().sellSlots(tmp,2);
     }
 
@@ -397,9 +397,9 @@ struct LjbcGenImp : public AstVisitor
                 // out << " = obnlj.Str(" << dims[curDim]->d_len << ")";
                 quint8 tmp = ctx.back().buySlots(2,true);
                 fetchObnljMember(tmp,"Str",loc);
-                bc.KSET(tmp+1, dims[curDim]->d_len, loc.line() );
-                bc.CALL(tmp,1,1,loc.line());
-                bc.MOV(table,tmp,loc.line());
+                bc.KSET(tmp+1, dims[curDim]->d_len, loc.packed() );
+                bc.CALL(tmp,1,1,loc.packed());
+                bc.MOV(table,tmp,loc.packed());
                 ctx.back().sellSlots(tmp,2);
             }else if( dims[curDim]->d_type->derefed()->getTag() == Thing::T_Record )
             {
@@ -408,17 +408,17 @@ struct LjbcGenImp : public AstVisitor
 
                 quint8 base = ctx.back().buySlots(4);
                 quint8 elem = ctx.back().buySlots(1);
-                bc.KSET(base,1,loc.line());
-                bc.KSET(base+1,dims[curDim]->d_len,loc.line());
-                bc.KSET(base+2,1,loc.line());
-                bc.FORI(base,0,loc.line());
+                bc.KSET(base,1,loc.packed());
+                bc.KSET(base+1,dims[curDim]->d_len,loc.packed());
+                bc.KSET(base+2,1,loc.packed());
+                bc.FORI(base,0,loc.packed());
                 const quint32 pc = bc.getCurPc();
 
-                // done within initRecord: bc.TNEW( elem, 0, 0, loc.line() );
+                // done within initRecord: bc.TNEW( elem, 0, 0, loc.packed() );
                 initRecord( dims[curDim]->d_type.data(), elem, loc );
-                bc.TSET(elem,table,base+3, loc.line());
+                bc.TSET(elem,table,base+3, loc.packed());
 
-                bc.FORL(base, pc - bc.getCurPc() - 1,loc.line());
+                bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
                 bc.patch(pc,bc.getCurPc() - pc);
 
                 ctx.back().sellSlots(elem);
@@ -435,16 +435,16 @@ struct LjbcGenImp : public AstVisitor
 
             quint8 base = ctx.back().buySlots(4);
             quint8 elem = ctx.back().buySlots(1);
-            bc.KSET(base,1,loc.line());
-            bc.KSET(base+1,dims[curDim]->d_len,loc.line());
-            bc.KSET(base+2,1,loc.line());
-            bc.FORI(base,0,loc.line());
+            bc.KSET(base,1,loc.packed());
+            bc.KSET(base+1,dims[curDim]->d_len,loc.packed());
+            bc.KSET(base+2,1,loc.packed());
+            bc.FORI(base,0,loc.packed());
             const quint32 pc = bc.getCurPc();
 
             initMatrix( dims, elem, curDim + 1, loc );
-            bc.TSET(elem,table,base+3, loc.line());
+            bc.TSET(elem,table,base+3, loc.packed());
 
-            bc.FORL(base, pc - bc.getCurPc() - 1,loc.line());
+            bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
             bc.patch(pc,bc.getCurPc() - pc);
 
             ctx.back().sellSlots(elem);
@@ -502,28 +502,28 @@ struct LjbcGenImp : public AstVisitor
                 v.d_slot = base;
                 v.d_kind = Value::Pre;
                 fetchClass(quali,v, loc);
-                bc.TGET(base,base,QVariant::fromValue(QByteArray("__new")), loc.line() );
-                bc.CALL(base,1, 0, loc.line());
-                bc.MOV(table,base,loc.line() );
+                bc.TGET(base,base,QVariant::fromValue(QByteArray("__new")), loc.packed() );
+                bc.CALL(base,1, 0, loc.packed());
+                bc.MOV(table,base,loc.packed() );
                 ctx.back().sellSlots(base,1);
 
                 return;
             }else
             {
-                bc.TNEW( table, 0, 0, loc.line() );
+                bc.TNEW( table, 0, 0, loc.packed() );
 
                 quint8 base = ctx.back().buySlots(3,true);
-                bc.GGET(base, "setmetatable", loc.line() );
-                bc.MOV(base+1,table,loc.line() );
+                bc.GGET(base, "setmetatable", loc.packed() );
+                bc.MOV(base+1,table,loc.packed() );
                 Value v;
                 v.d_slot = base+2;
                 v.d_kind = Value::Pre;
                 fetchClass(quali,v, loc);
-                bc.CALL(base,0, 2, loc.line());
+                bc.CALL(base,0, 2, loc.packed());
                 ctx.back().sellSlots(base,3);
             }
         }else
-            bc.TNEW( table, 0, 0, loc.line() );
+            bc.TNEW( table, 0, 0, loc.packed() );
 
         Record* r = Model::toRecord(rt);
         QList<Record*> topDown;
@@ -547,15 +547,15 @@ struct LjbcGenImp : public AstVisitor
                 quint8 field = ctx.back().buySlots(1);
                 if( td->getTag() == Thing::T_Record )
                 {
-                    // done within initRecord: bc.TNEW( field, 0, 0, loc.line() );
+                    // done within initRecord: bc.TNEW( field, 0, 0, loc.packed() );
                     initRecord( t, field, loc );
-                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.line() );
+                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.packed() );
                 }
                 else if( td->getTag() == Thing::T_Array )
                 {
                     // out << ws() << field;
                     initArray( Ast::thing_cast<Array*>(td), field, loc );
-                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.line() );
+                    bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.packed() );
                 }
                 ctx.back().sellSlots(field);
             }
@@ -572,28 +572,28 @@ struct LjbcGenImp : public AstVisitor
         const int tag = td->getTag();
         if( tag == Thing::T_Record )
         {
-            // done within initRecord: bc.TNEW( v->d_slot, 0, 0, v->d_loc.line() );
+            // done within initRecord: bc.TNEW( v->d_slot, 0, 0, v->d_loc.packed() );
             initRecord( v->d_type.data(), v->d_slot, v->d_loc );
         }else if( tag == Thing::T_Array )
         {
             initArray( Ast::thing_cast<Array*>( td ), v->d_slot, v->d_loc );
         }else
         {
-            // unneccessary, already nil: bc.KNIL(v->d_slot, 1, v->d_loc.line() );
+            // unneccessary, already nil: bc.KNIL(v->d_slot, 1, v->d_loc.packed() );
         }
 
         if( v->d_scope == mod && v->d_public )
         {
             if( v->d_type->isStructured() )
             {
-                bc.TSET( v->d_slot, modSlot, QVariant::fromValue(v->d_name), v->d_loc.line() );
+                bc.TSET( v->d_slot, modSlot, QVariant::fromValue(v->d_name), v->d_loc.packed() );
             }else
             {
                 //    out << "module" << "." << name << " = function() return " << name << " end" << endl;
                 const int tmp = ctx.back().buySlots(1);
-                const int func = bc.openFunction(0,v->d_name,v->d_loc.d_row, v->d_loc.d_row );
-                bc.UGET(0,0, v->d_loc.line());
-                bc.RET(0,1, v->d_loc.line());
+                const int func = bc.openFunction(0,v->d_name,v->d_loc.packed(), v->d_loc.packed() );
+                bc.UGET(0,0, v->d_loc.packed());
+                bc.RET(0,1, v->d_loc.packed());
                 JitComposer::Upval uv;
                 uv.d_isLocal = true;
                 uv.d_isRo = true;
@@ -602,8 +602,8 @@ struct LjbcGenImp : public AstVisitor
                 uv.d_uv = v->d_slot;
                 bc.setUpvals(JitComposer::UpvalList() << uv);
                 bc.closeFunction(1);
-                bc.FNEW(tmp,func,v->d_loc.line());
-                bc.TSET( tmp,modSlot,QVariant::fromValue(v->d_name), v->d_loc.line() );
+                bc.FNEW(tmp,func,v->d_loc.packed());
+                bc.TSET( tmp,modSlot,QVariant::fromValue(v->d_name), v->d_loc.packed() );
                 ctx.back().sellSlots(tmp);
             }
         }
@@ -628,7 +628,7 @@ struct LjbcGenImp : public AstVisitor
             fetchValue( c->d_val, out, c->d_constExpr->d_loc );
             storeConst(out, c->d_constExpr->d_loc );
             Q_ASSERT( out.d_kind == Value::Tmp );
-            bc.TSET( out.d_slot, modSlot, QVariant::fromValue(c->d_name), c->d_loc.line() );
+            bc.TSET( out.d_slot, modSlot, QVariant::fromValue(c->d_name), c->d_loc.packed() );
             ctx.back().sellSlots(out.d_slot);
         }
     }
@@ -636,9 +636,9 @@ struct LjbcGenImp : public AstVisitor
     int emitImport( const QByteArray& modName, const Loc& loc )
     {
         int tmp = ctx.back().buySlots(2,true);
-        bc.GGET( tmp, "require", loc.line() );
-        bc.KSET( tmp+1, modName, loc.line() );
-        bc.CALL( tmp, 1, 1, loc.line() );
+        bc.GGET( tmp, "require", loc.packed() );
+        bc.KSET( tmp+1, modName, loc.packed() );
+        bc.CALL( tmp, 1, 1, loc.packed() );
         ctx.back().sellSlots(tmp+1); // keep tmp+0 as fixed import slot, release the other
         return tmp;
     }
@@ -765,7 +765,7 @@ struct LjbcGenImp : public AstVisitor
 
         ctx.push_back( Ctx(p) );
         const int id = bc.openFunction(Ast::thing_cast<ProcType*>(p->d_type.data())->d_formals.size(),
-                        p->d_name,p->d_loc.d_row, p->d_end.d_row );
+                        p->d_name,p->d_loc.packed(), p->d_end.packed() );
         Q_ASSERT( id >= 0 );
 
         allocateLocals(p);
@@ -798,13 +798,13 @@ struct LjbcGenImp : public AstVisitor
                     vars.append(i);
             }
             if( vars.isEmpty() )
-                bc.RET(p->d_end.line());
+                bc.RET(p->d_end.packed());
             else
             {
                 quint8 tmp = ctx.back().buySlots(vars.size());
                 for( int i = 0; i < vars.size(); i++ )
-                    bc.MOV(tmp+i,vars[i],p->d_end.line());
-                bc.RET(tmp,vars.size(),p->d_end.line());
+                    bc.MOV(tmp+i,vars[i],p->d_end.packed());
+                bc.RET(tmp,vars.size(),p->d_end.packed());
                 ctx.back().sellSlots(tmp);
             }
         }
@@ -815,9 +815,9 @@ struct LjbcGenImp : public AstVisitor
         bc.closeFunction(ctx.back().frameSize);
         ctx.pop_back();
         Q_ASSERT( p->d_slotValid );
-        bc.FNEW( p->d_slot, id, p->d_end.line() );
+        bc.FNEW( p->d_slot, id, p->d_end.packed() );
         if( p->d_scope == mod && p->d_public )
-            bc.TSET( p->d_slot, modSlot, QVariant::fromValue(p->d_name), p->d_end.line() );
+            bc.TSET( p->d_slot, modSlot, QVariant::fromValue(p->d_name), p->d_end.packed() );
     }
 
     JitComposer::VarNameList getSlotNames( Scope* m )
@@ -872,7 +872,7 @@ struct LjbcGenImp : public AstVisitor
     void visit( Module* m )
     {
         ctx.push_back( Ctx(m) );
-        bc.openFunction(0,m->d_file.toUtf8(),m->d_loc.d_row, m->d_end.d_row );
+        bc.openFunction(0,m->d_file.toUtf8(),m->d_loc.packed(), m->d_end.packed() );
 
         modSlot = ctx.back().buySlots(1);
         // NOTE: if not modSlot is at slot 0 but a module var instead, upvalue access to the var at
@@ -880,7 +880,7 @@ struct LjbcGenImp : public AstVisitor
 
         allocateLocals(m);
 
-        bc.TNEW( modSlot, 0, 0, m->d_loc.line() ); // local module = {}
+        bc.TNEW( modSlot, 0, 0, m->d_loc.packed() ); // local module = {}
 
         // local obnlj = require 'obnlj'
         Named* lib = m->find("obnlj");
@@ -910,10 +910,10 @@ struct LjbcGenImp : public AstVisitor
         for( int i = 0; i < m->d_body.size(); i++ )
             m->d_body[i]->accept(this);
 
-        bc.UCLO( modSlot, 0, m->d_end.line() );
+        bc.UCLO( modSlot, 0, m->d_end.packed() );
         // make Module table a global variable (because of fetchClass)
-        bc.GSET( modSlot, m->d_name, m->d_end.line() );
-        bc.RET( modSlot, 1, m->d_end.line() ); // return module
+        bc.GSET( modSlot, m->d_name, m->d_end.packed() );
+        bc.RET( modSlot, 1, m->d_end.packed() ); // return module
 
         JitComposer::VarNameList sn = getSlotNames(m);
         sn[modSlot].d_name = "_mod_";
@@ -952,9 +952,9 @@ struct LjbcGenImp : public AstVisitor
         assignExpr( ret, r->d_what.data() );
 
         for( int i = 0; i < vars.size(); i++ )
-            bc.MOV( ret.d_slot + 1, vars[i], r->d_loc.line() );
+            bc.MOV( ret.d_slot + 1, vars[i], r->d_loc.packed() );
 
-        bc.RET(ret.d_slot, 1 + vars.size(), r->d_loc.line());
+        bc.RET(ret.d_slot, 1 + vars.size(), r->d_loc.packed());
         ctx.back().sellSlots( ret.d_slot, 1 + vars.size() );
     }
 
@@ -1017,18 +1017,18 @@ struct LjbcGenImp : public AstVisitor
             if( at->getTag() == Thing::T_BaseType && Ast::thing_cast<BaseType*>( at )->d_type == BaseType::CHAR )
             {
                 quint8 tmp = ctx.back().buySlots(3,true);
-                bc.TGET(tmp, lhs.d_slot, QVariant::fromValue(QByteArray("assig")), loc.line() );
-                bc.MOV(tmp+1, lhs.d_slot, loc.line() );
-                bc.MOV(tmp+2,rhs.d_slot, loc.line() );
-                bc.CALL(tmp,0,2,loc.line());
+                bc.TGET(tmp, lhs.d_slot, QVariant::fromValue(QByteArray("assig")), loc.packed() );
+                bc.MOV(tmp+1, lhs.d_slot, loc.packed() );
+                bc.MOV(tmp+2,rhs.d_slot, loc.packed() );
+                bc.CALL(tmp,0,2,loc.packed());
                 ctx.back().sellSlots(tmp,3);
             }else
-                qWarning() << "array deep copy not implemented" << loc.line() << loc.d_col; // TODO
+                qWarning() << "array deep copy not implemented" << loc.packed() << loc.d_col; // TODO
 
         }else
         {
             // TODO
-            qWarning() << "record deep copy not implemented" << loc.line() << loc.d_col;
+            qWarning() << "record deep copy not implemented" << loc.packed() << loc.d_col;
         }
     }
 
@@ -1039,22 +1039,22 @@ struct LjbcGenImp : public AstVisitor
             switch( rhs.d_kind )
             {
             case Value::Val:
-                bc.KSET( lhs.d_slot, rhs.d_val, loc.line() );
+                bc.KSET( lhs.d_slot, rhs.d_val, loc.packed() );
                 break;
             case Value::Tmp2:
             case Value::Ref2:
-                bc.TGET( lhs.d_slot, rhs.d_slot, rhs.d_idx, loc.line() );
+                bc.TGET( lhs.d_slot, rhs.d_slot, rhs.d_idx, loc.packed() );
                 break;
             case Value::Tmp2v:
             case Value::Ref2v:
-                bc.TGET( lhs.d_slot, rhs.d_slot, rhs.d_val, loc.line() );
+                bc.TGET( lhs.d_slot, rhs.d_slot, rhs.d_val, loc.packed() );
                 break;
             case Value::Ref:
             case Value::Tmp:
-                bc.MOV( lhs.d_slot, rhs.d_slot, loc.line() );
+                bc.MOV( lhs.d_slot, rhs.d_slot, loc.packed() );
                 break;
             case Value::Uv:
-                bc.UGET( lhs.d_slot, rhs.d_slot, loc.line() );
+                bc.UGET( lhs.d_slot, rhs.d_slot, loc.packed() );
                 break;
             default:
                 Q_ASSERT( false );
@@ -1065,21 +1065,21 @@ struct LjbcGenImp : public AstVisitor
             derefIndexed(rhs, loc);
             Q_ASSERT( rhs.d_kind == Value::Ref || rhs.d_kind == Value::Tmp || rhs.d_kind == Value::Val );
             if( rhs.d_kind == Value::Val )
-                bc.USET( lhs.d_slot, rhs.d_val, loc.line() );
+                bc.USET( lhs.d_slot, rhs.d_val, loc.packed() );
             else
-                bc.USET( lhs.d_slot, rhs.d_slot, loc.line() );
+                bc.USET( lhs.d_slot, rhs.d_slot, loc.packed() );
         }else if( lhs.d_kind == Value::Ref2 || lhs.d_kind == Value::Tmp2 )
         {
             derefIndexed(rhs, loc);
             storeConst(rhs, loc);
             Q_ASSERT( rhs.d_kind == Value::Ref || rhs.d_kind == Value::Tmp );
-            bc.TSET( rhs.d_slot, lhs.d_slot, lhs.d_idx, loc.line() );
+            bc.TSET( rhs.d_slot, lhs.d_slot, lhs.d_idx, loc.packed() );
         }else if( lhs.d_kind == Value::Ref2v || lhs.d_kind == Value::Tmp2v )
         {
             derefIndexed(rhs, loc);
             storeConst(rhs, loc);
             Q_ASSERT( rhs.d_kind == Value::Ref || rhs.d_kind == Value::Tmp );
-            bc.TSET( rhs.d_slot, lhs.d_slot, lhs.d_val, loc.line() );
+            bc.TSET( rhs.d_slot, lhs.d_slot, lhs.d_val, loc.packed() );
         }else
             Q_ASSERT( false );
 
@@ -1106,10 +1106,10 @@ struct LjbcGenImp : public AstVisitor
         {
             out.d_slot = ctx.back().buySlots(1);
             out.d_kind = Value::Tmp;
-            bc.KSET(out.d_slot, false, loc.line() );
+            bc.KSET(out.d_slot, false, loc.packed() );
             backpatch( out.falseList, bc.getCurPc() );
-            bc.JMP( ctx.back().frameSize, 1, loc.line() );
-            bc.KSET(out.d_slot, true, loc.line() );
+            bc.JMP( ctx.back().frameSize, 1, loc.packed() );
+            bc.KSET(out.d_slot, true, loc.packed() );
             backpatch( out.trueList, bc.getCurPc() );
         }
     }
@@ -1126,10 +1126,10 @@ struct LjbcGenImp : public AstVisitor
         {
             if( rhs.d_kind == Value::Jump )
             {
-                bc.KSET(lhs.d_slot, false, loc.line() );
+                bc.KSET(lhs.d_slot, false, loc.packed() );
                 backpatch( rhs.falseList, bc.getCurPc() );
-                bc.JMP( ctx.back().frameSize, 1, loc.line() );
-                bc.KSET(lhs.d_slot, true, loc.line() );
+                bc.JMP( ctx.back().frameSize, 1, loc.packed() );
+                bc.KSET(lhs.d_slot, true, loc.packed() );
                 backpatch( rhs.trueList, bc.getCurPc() );
             }// else assignment implicitly happened by evaluating rhs expr to lhs slot
         }else
@@ -1180,7 +1180,7 @@ struct LjbcGenImp : public AstVisitor
         for( int i = 0; i < l->d_then[0].size(); i++ )
             l->d_then[0][i]->accept(this);
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.line() );
+        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() );
         after << bc.getCurPc();
 
         backpatch( if0.falseList, bc.getCurPc() + 1 );
@@ -1197,7 +1197,7 @@ struct LjbcGenImp : public AstVisitor
             for( int j = 0; j < l->d_then[i].size(); j++ )
                 l->d_then[i][j]->accept(this);
 
-            bc.JMP(ctx.back().frameSize, 0, l->d_if[i]->d_loc.line() );
+            bc.JMP(ctx.back().frameSize, 0, l->d_if[i]->d_loc.packed() );
             after << bc.getCurPc();
 
             backpatch( ifn.falseList, bc.getCurPc() + 1 );
@@ -1216,7 +1216,7 @@ struct LjbcGenImp : public AstVisitor
     {
         QList<quint32> loop, after;
 
-        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.line() ); // while true do
+        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.packed() ); // while true do
         const quint32 start = bc.getCurPc();
         loop << start;
 
@@ -1230,7 +1230,7 @@ struct LjbcGenImp : public AstVisitor
         for( int i = 0; i < l->d_then[0].size(); i++ ) // then start
             l->d_then[0][i]->accept(this);
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.line() ); // then complete, stay in loop
+        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // then complete, stay in loop
         loop << bc.getCurPc();
 
         backpatch( if0.falseList, bc.getCurPc() + 1 );
@@ -1247,16 +1247,16 @@ struct LjbcGenImp : public AstVisitor
             for( int j = 0; j < l->d_then[i].size(); j++ ) // then start
                 l->d_then[i][j]->accept(this);
 
-            bc.JMP( ctx.back().frameSize, 0, l->d_if[i]->d_loc.line() ); // then complete, stay in loop
+            bc.JMP( ctx.back().frameSize, 0, l->d_if[i]->d_loc.packed() ); // then complete, stay in loop
             loop << bc.getCurPc();
 
             backpatch( ifn.falseList, bc.getCurPc() + 1 );
         }
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.line() ); // else quit loop
+        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // else quit loop
         after << bc.getCurPc();
 
-        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.line() ); // end while true
+        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
         backpatch( loop, bc.getCurPc() );
 
         backpatch( after, bc.getCurPc() + 1 );
@@ -1266,7 +1266,7 @@ struct LjbcGenImp : public AstVisitor
     {
         QList<quint32> loop;
 
-        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.line() ); // repeat
+        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.packed() ); // repeat
         const quint32 start = bc.getCurPc();
         loop << start;
 
@@ -1278,7 +1278,7 @@ struct LjbcGenImp : public AstVisitor
         derefIndexed(cond, l->d_if.first()->d_loc);
         assureJump(cond, l->d_if.first()->d_loc);
 
-        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.line() ); // end while true
+        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
         backpatch( loop, bc.getCurPc() );
         backpatch( cond.falseList, bc.getCurPc() );
 
@@ -1324,7 +1324,7 @@ struct LjbcGenImp : public AstVisitor
 
         QList<quint32> loop, after;
 
-        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.line() ); // while true do
+        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.packed() ); // while true do
         const quint32 start = bc.getCurPc();
         loop << start;
 
@@ -1336,13 +1336,13 @@ struct LjbcGenImp : public AstVisitor
         Value if0;
         const int inc = l->d_byVal.toInt();
         if( inc > 0 )
-            bc.ISLE(id.d_slot,to.d_slot,l->d_loc.line()); // id <= to
+            bc.ISLE(id.d_slot,to.d_slot,l->d_loc.packed()); // id <= to
         else
-            bc.ISGE(id.d_slot,to.d_slot,l->d_loc.line()); // id >= to
+            bc.ISGE(id.d_slot,to.d_slot,l->d_loc.packed()); // id >= to
 
-        bc.JMP( ctx.back().frameSize, 0, l->d_loc.line() );
+        bc.JMP( ctx.back().frameSize, 0, l->d_loc.packed() );
         if0.trueList << bc.getCurPc();
-        bc.JMP( ctx.back().frameSize, 0, l->d_loc.line() );
+        bc.JMP( ctx.back().frameSize, 0, l->d_loc.packed() );
         if0.falseList << bc.getCurPc();
         if0.d_kind = Value::Jump;
 
@@ -1350,17 +1350,17 @@ struct LjbcGenImp : public AstVisitor
 
         for( int i = 0; i < l->d_do.size(); i++ ) // do start
             l->d_do[i]->accept(this);
-        bc.ADD(id.d_slot,id.d_slot,l->d_byVal, l->d_loc.line() ); // id += inc
+        bc.ADD(id.d_slot,id.d_slot,l->d_byVal, l->d_loc.packed() ); // id += inc
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.line() ); // do complete, stay in loop
+        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // do complete, stay in loop
         loop << bc.getCurPc();
 
         backpatch( if0.falseList, bc.getCurPc() + 1 );
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.line() ); // else quit loop
+        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // else quit loop
         after << bc.getCurPc();
 
-        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.line() ); // end while true
+        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
         backpatch( loop, bc.getCurPc() );
 
         backpatch( after, bc.getCurPc() + 1 );
@@ -1527,16 +1527,16 @@ struct LjbcGenImp : public AstVisitor
             // out << "obnlj.SET(" << QByteArray::number( quint32(v.value<Ast::Set>().to_ulong()) ) << ")";
             quint8 tmp = ctx.back().buySlots(2,true);
             fetchObnljMember( tmp, "SET", loc );
-            bc.KSET(tmp+1, qlonglong(v.value<Ast::Set>().to_ulong()), loc.line() );
-            bc.CALL(tmp,1,1, loc.line() );
+            bc.KSET(tmp+1, qlonglong(v.value<Ast::Set>().to_ulong()), loc.packed() );
+            bc.CALL(tmp,1,1, loc.packed() );
             emitEndOfCall(tmp,2,out,loc);
         }else if( v.type() == QVariant::ByteArray )
         {
             // out << "obnlj.Str(\"" << luaStringEscape(v.toByteArray() ) << "\")"; // TODO: string escape?
             quint8 tmp = ctx.back().buySlots(2,true);
             fetchObnljMember( tmp, "Str", loc );
-            bc.KSET(tmp+1, v, loc.line() );
-            bc.CALL(tmp,1,1, loc.line() );
+            bc.KSET(tmp+1, v, loc.packed() );
+            bc.CALL(tmp,1,1, loc.packed() );
             emitEndOfCall(tmp,2,out,loc);
         }else
         {
@@ -1682,12 +1682,12 @@ struct LjbcGenImp : public AstVisitor
         {
             derefIndexed(out, loc);
             storeConst(out, loc);
-            bc.IST(out.d_slot,loc.line());
+            bc.IST(out.d_slot,loc.packed());
             sell(out);
             out.d_kind = Value::Jump;
-            bc.JMP( ctx.back().frameSize, 0, loc.line() );
+            bc.JMP( ctx.back().frameSize, 0, loc.packed() );
             out.trueList << bc.getCurPc();
-            bc.JMP( ctx.back().frameSize, 0, loc.line() );
+            bc.JMP( ctx.back().frameSize, 0, loc.packed() );
             out.falseList << bc.getCurPc();
         }
     }
@@ -1734,12 +1734,12 @@ struct LjbcGenImp : public AstVisitor
         if( ctx.back().scope != mod ) // obnlj->d_scope == mod
         {
             // resolve upvalue
-            bc.UGET( to, resolveUpval( obnlj.data(), loc ), loc.line() );
-            bc.TGET(to, to, QVariant::fromValue(index), loc.line() );
+            bc.UGET( to, resolveUpval( obnlj.data(), loc ), loc.packed() );
+            bc.TGET(to, to, QVariant::fromValue(index), loc.packed() );
         }else
         {
             // Module level
-            bc.TGET(to, obnlj->d_slot, QVariant::fromValue(index), loc.line() );
+            bc.TGET(to, obnlj->d_slot, QVariant::fromValue(index), loc.packed() );
         }
     }
 
@@ -1777,7 +1777,7 @@ struct LjbcGenImp : public AstVisitor
             assign(v, rhs, e->d_loc, true );
         }
 
-        bc.CALL(tmp,1,2, e->d_loc.line());
+        bc.CALL(tmp,1,2, e->d_loc.packed());
         emitEndOfCall(tmp,3,out,e->d_loc);
 
         sell(lhs);
@@ -1803,52 +1803,52 @@ struct LjbcGenImp : public AstVisitor
         {
         case BinExpr::EQ:
             if( rhs.d_kind == Value::Val )
-                bc.ISEQ(lhs.d_slot,rhs.d_val,e->d_loc.line());
+                bc.ISEQ(lhs.d_slot,rhs.d_val,e->d_loc.packed());
             else if( lhs.d_kind == Value::Val )
-                bc.ISEQ(rhs.d_slot,lhs.d_val,e->d_loc.line());
+                bc.ISEQ(rhs.d_slot,lhs.d_val,e->d_loc.packed());
             else
-                bc.ISEQ(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISEQ(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             break;
         case BinExpr::NEQ:
             if( rhs.d_kind == Value::Val )
-                bc.ISNE(lhs.d_slot,rhs.d_val,e->d_loc.line());
+                bc.ISNE(lhs.d_slot,rhs.d_val,e->d_loc.packed());
             else if( lhs.d_kind == Value::Val )
-                bc.ISNE(rhs.d_slot,lhs.d_val,e->d_loc.line());
+                bc.ISNE(rhs.d_slot,lhs.d_val,e->d_loc.packed());
             else
-                bc.ISNE(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISNE(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             break;
 
         case BinExpr::LT:
             storeConst(lhs, e->d_lhs->d_loc);
             storeConst(rhs, e->d_rhs->d_loc);
             if( inv )
-                bc.ISGE(lhs.d_slot,rhs.d_slot,e->d_loc.line()); // see http://wiki.luajit.org/Bytecode-2.0
+                bc.ISGE(lhs.d_slot,rhs.d_slot,e->d_loc.packed()); // see http://wiki.luajit.org/Bytecode-2.0
             else
-                bc.ISLT(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISLT(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             break;
         case BinExpr::LEQ:
             storeConst(lhs, e->d_lhs->d_loc);
             storeConst(rhs, e->d_rhs->d_loc);
             if( inv )
-                bc.ISGT(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISGT(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             else
-                bc.ISLE(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISLE(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             break;
         case BinExpr::GT:
             storeConst(lhs, e->d_lhs->d_loc);
             storeConst(rhs, e->d_rhs->d_loc);
             if( inv )
-                bc.ISGE(rhs.d_slot,lhs.d_slot,e->d_loc.line());
+                bc.ISGE(rhs.d_slot,lhs.d_slot,e->d_loc.packed());
             else
-                bc.ISGT(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISGT(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             break;
        case BinExpr::GEQ:
             storeConst(lhs, e->d_lhs->d_loc);
             storeConst(rhs, e->d_rhs->d_loc);
             if( inv )
-                bc.ISGT(rhs.d_slot,lhs.d_slot,e->d_loc.line());
+                bc.ISGT(rhs.d_slot,lhs.d_slot,e->d_loc.packed());
             else
-                bc.ISGE(lhs.d_slot,rhs.d_slot,e->d_loc.line());
+                bc.ISGE(lhs.d_slot,rhs.d_slot,e->d_loc.packed());
             break;
 
         default:
@@ -1856,9 +1856,9 @@ struct LjbcGenImp : public AstVisitor
             break;
         }
 
-        bc.JMP( ctx.back().frameSize, 0, e->d_loc.line() );
+        bc.JMP( ctx.back().frameSize, 0, e->d_loc.packed() );
         out.trueList << bc.getCurPc();
-        bc.JMP( ctx.back().frameSize, 0, e->d_loc.line() );
+        bc.JMP( ctx.back().frameSize, 0, e->d_loc.packed() );
         out.falseList << bc.getCurPc();
         out.d_kind = Value::Jump;
 
@@ -1871,26 +1871,26 @@ struct LjbcGenImp : public AstVisitor
         switch( v.d_kind )
         {
         case Value::Tmp2:
-            bc.TGET( v.d_slot, v.d_slot, v.d_idx, loc.line() );
+            bc.TGET( v.d_slot, v.d_slot, v.d_idx, loc.packed() );
             ctx.back().sellSlots( v.d_idx );
             v.d_kind = Value::Tmp;
             break;
         case Value::Ref2:
             {
                 quint8 slot = ctx.back().buySlots(1);
-                bc.TGET( slot, v.d_slot, v.d_idx, loc.line() );
+                bc.TGET( slot, v.d_slot, v.d_idx, loc.packed() );
                 v.d_slot = slot;
                 v.d_kind = Value::Tmp;
             }
             break;
         case Value::Tmp2v:
-            bc.TGET( v.d_slot, v.d_slot, v.d_val, loc.line() );
+            bc.TGET( v.d_slot, v.d_slot, v.d_val, loc.packed() );
             v.d_kind = Value::Tmp;
             break;
         case Value::Ref2v:
             {
                 quint8 slot = ctx.back().buySlots(1);
-                bc.TGET( slot, v.d_slot, v.d_val, loc.line() );
+                bc.TGET( slot, v.d_slot, v.d_val, loc.packed() );
                 v.d_slot = slot;
                 v.d_kind = Value::Tmp;
             }
@@ -1898,7 +1898,7 @@ struct LjbcGenImp : public AstVisitor
         case Value::Uv:
             {
                 quint8 slot = ctx.back().buySlots(1);
-                bc.UGET(slot, v.d_slot, loc.line() );
+                bc.UGET(slot, v.d_slot, loc.packed() );
                 v.d_slot = slot;
                 v.d_kind = Value::Tmp;
             }
@@ -1911,7 +1911,7 @@ struct LjbcGenImp : public AstVisitor
         if( v.d_kind == Value::Val )
         {
             v.d_slot = ctx.back().buySlots(1);
-            bc.KSET( v.d_slot, v.d_val, loc.line() );
+            bc.KSET( v.d_slot, v.d_val, loc.packed() );
             v.d_kind = Value::Tmp;
         }
     }
@@ -1950,44 +1950,44 @@ struct LjbcGenImp : public AstVisitor
         {
         case BinExpr::ADD:
             if( lhs.d_kind == Value::Val )
-                bc.ADD( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.line() );
+                bc.ADD( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.packed() );
             else if( rhs.d_kind == Value::Val )
-                bc.ADD( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.line() );
+                bc.ADD( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.packed() );
             else
-                bc.ADD( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.line() );
+                bc.ADD( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.packed() );
             break;
         case BinExpr::SUB:
             if( lhs.d_kind == Value::Val )
-                bc.SUB( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.line() );
+                bc.SUB( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.packed() );
             else if( rhs.d_kind == Value::Val )
-                bc.SUB( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.line() );
+                bc.SUB( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.packed() );
             else
-                bc.SUB( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.line() );
+                bc.SUB( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.packed() );
             break;
         case BinExpr::MUL:
             if( lhs.d_kind == Value::Val )
-                bc.MUL( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.line() );
+                bc.MUL( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.packed() );
             else if( rhs.d_kind == Value::Val )
-                bc.MUL( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.line() );
+                bc.MUL( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.packed() );
             else
-                bc.MUL( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.line() );
+                bc.MUL( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.packed() );
             break;
         case BinExpr::FDIV:
             if( lhs.d_kind == Value::Val )
-                bc.DIV( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.line() );
+                bc.DIV( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.packed() );
             else if( rhs.d_kind == Value::Val )
-                bc.DIV( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.line() );
+                bc.DIV( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.packed() );
             else
-                bc.DIV( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.line() );
+                bc.DIV( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.packed() );
             break;
         case BinExpr::MOD:
 #if 0
             if( lhs.d_kind == Value::Val )
-                bc.MOD( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.line() );
+                bc.MOD( resSlot, lhs.d_val, rhs.d_slot, e->d_loc.packed() );
             else if( rhs.d_kind == Value::Val )
-                bc.MOD( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.line() );
+                bc.MOD( resSlot, lhs.d_slot, rhs.d_val, e->d_loc.packed() );
             else
-                bc.MOD( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.line() );
+                bc.MOD( resSlot, lhs.d_slot, rhs.d_slot, e->d_loc.packed() );
 #endif
             {
                 quint8 tmp = ctx.back().buySlots(3,true);
@@ -1999,8 +1999,8 @@ struct LjbcGenImp : public AstVisitor
                 arg.d_slot = tmp + 2;
                 arg.d_kind = Value::Ref;
                 assign(arg, rhs, e->d_loc, true );
-                bc.CALL(tmp,1,2,e->d_loc.line());
-                bc.MOV(resSlot, tmp, e->d_loc.line() ); // TODO: move MOD/DIV in separate function to avoid this MOV
+                bc.CALL(tmp,1,2,e->d_loc.packed());
+                bc.MOV(resSlot, tmp, e->d_loc.packed() ); // TODO: move MOD/DIV in separate function to avoid this MOV
                 ctx.back().sellSlots(tmp,3);
             }
             break;
@@ -2015,8 +2015,8 @@ struct LjbcGenImp : public AstVisitor
                 arg.d_slot = tmp + 2;
                 arg.d_kind = Value::Ref;
                 assign(arg, rhs, e->d_loc, true );
-                bc.CALL(tmp,1,2,e->d_loc.line());
-                bc.MOV(resSlot, tmp, e->d_loc.line() );
+                bc.CALL(tmp,1,2,e->d_loc.packed());
+                bc.MOV(resSlot, tmp, e->d_loc.packed() );
                 ctx.back().sellSlots(tmp,3);
             }
             break;
@@ -2055,14 +2055,14 @@ struct LjbcGenImp : public AstVisitor
         {
             out.d_kind = Value::Tmp2;
             out.d_slot = ctx.back().buySlots(1);
-            bc.MOV( out.d_slot, lhs.d_slot, e->d_loc.line() );
+            bc.MOV( out.d_slot, lhs.d_slot, e->d_loc.packed() );
             out.d_idx = rhs.d_slot;
         }else if( lhs.d_kind == Value::Tmp && rhs.d_kind == Value::Ref )
         {
             out.d_kind = Value::Tmp2;
             out.d_slot = lhs.d_slot;
             out.d_idx = ctx.back().buySlots(1);
-            bc.MOV( out.d_idx, rhs.d_slot, e->d_loc.line() );
+            bc.MOV( out.d_idx, rhs.d_slot, e->d_loc.packed() );
         }else if( lhs.d_kind == Value::Tmp && rhs.d_kind == Value::Tmp )
         {
             out.d_kind = Value::Tmp2;
@@ -2125,10 +2125,10 @@ struct LjbcGenImp : public AstVisitor
         switch( e->d_op )
         {
         case UnExpr::NOT:
-            bc.NOT( resSlot, rhs.d_slot, e->d_loc.line() );
+            bc.NOT( resSlot, rhs.d_slot, e->d_loc.packed() );
             break;
         case UnExpr::NEG:
-            bc.UNM( resSlot, rhs.d_slot, e->d_loc.line() );
+            bc.UNM( resSlot, rhs.d_slot, e->d_loc.packed() );
             break;
         }
 
@@ -2168,7 +2168,7 @@ struct LjbcGenImp : public AstVisitor
                 assign(lhs, rhs, s->d_parts[i]->d_loc );
             }
         }
-        bc.CALL( tmp, 1, count - 1, s->d_loc.line() );
+        bc.CALL( tmp, 1, count - 1, s->d_loc.packed() );
         emitEndOfCall(tmp,count,out,s->d_loc);
     }
 
@@ -2191,8 +2191,8 @@ struct LjbcGenImp : public AstVisitor
         {
             // value access to scalar variable in other module by function call
             quint8 tmp = ctx.back().buySlots(1,true);
-            bc.TGET( tmp, lhs.d_slot, QVariant::fromValue(e->d_ident->d_name), e->d_loc.line() );
-            bc.CALL( tmp, 1, 0, e->d_loc.line() );
+            bc.TGET( tmp, lhs.d_slot, QVariant::fromValue(e->d_ident->d_name), e->d_loc.packed() );
+            bc.CALL( tmp, 1, 0, e->d_loc.packed() );
             emitEndOfCall(tmp,1,out,e->d_loc);
             if( lhs.d_kind == Value::Tmp )
                 ctx.back().sellSlots(lhs.d_slot);
@@ -2272,9 +2272,9 @@ struct LjbcGenImp : public AstVisitor
                 lhs.d_slot = tmp + 1;
                 lhs.d_kind = Value::Ref;
                 assignExpr(lhs, c->d_actuals.first().data() );
-                bc.KSET(tmp + 2, QVariant::fromValue(mod->d_name), c->d_loc.line() );
-                bc.KSET(tmp + 3, c->d_loc.d_row, c->d_loc.line() );
-                bc.CALL(tmp,0,3,c->d_loc.line());
+                bc.KSET(tmp + 2, QVariant::fromValue(mod->d_name), c->d_loc.packed() );
+                bc.KSET(tmp + 3, c->d_loc.d_row, c->d_loc.packed() );
+                bc.CALL(tmp,0,3,c->d_loc.packed());
                 ctx.back().sellSlots(tmp,4);
             }
             return true;
@@ -2294,7 +2294,7 @@ struct LjbcGenImp : public AstVisitor
                 lhs.d_slot = tmp + 2;
                 lhs.d_kind = Value::Ref;
                 assignExpr(lhs, c->d_actuals.last().data() );
-                bc.CALL(tmp,0,2,c->d_loc.line());
+                bc.CALL(tmp,0,2,c->d_loc.packed());
                 ctx.back().sellSlots(tmp,3);
             }
             return true;
@@ -2325,8 +2325,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 1 );
                 quint8 tmp = ctx.back().buySlots(2,true);
-                bc.GGET(tmp, "Out", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"Char", c->d_loc.line() );
+                bc.GGET(tmp, "Out", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"Char", c->d_loc.packed() );
                 emitCall(tmp,false,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2334,8 +2334,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 1 );
                 quint8 tmp = ctx.back().buySlots(3,true);
-                bc.GGET(tmp, "Out", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"Int", c->d_loc.line() );
+                bc.GGET(tmp, "Out", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"Int", c->d_loc.packed() );
                 CallExpr::Actuals acts = c->d_actuals;
                 acts.append( new Literal(0,c->d_loc, qlonglong(4) ) );
                 emitCall(tmp,false,out,acts, c->d_loc );
@@ -2345,8 +2345,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 1 );
                 quint8 tmp = ctx.back().buySlots(3,true);
-                bc.GGET(tmp, "Out", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"Real", c->d_loc.line() );
+                bc.GGET(tmp, "Out", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"Real", c->d_loc.packed() );
                 CallExpr::Actuals acts = c->d_actuals;
                 acts.append( new Literal(0,c->d_loc, qlonglong(4) ) );
                 emitCall(tmp,false,out,acts, c->d_loc );
@@ -2356,8 +2356,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 0 );
                 quint8 tmp = ctx.back().buySlots(1,true);
-                bc.GGET(tmp, "Out", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"Ln", c->d_loc.line() );
+                bc.GGET(tmp, "Out", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"Ln", c->d_loc.packed() );
                 emitCall(tmp,false,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2400,8 +2400,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 1 );
                 quint8 tmp = ctx.back().buySlots(2,true);
-                bc.GGET(tmp, "math", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"abs", c->d_loc.line() );
+                bc.GGET(tmp, "math", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"abs", c->d_loc.packed() );
                 emitCall(tmp,true,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2414,18 +2414,18 @@ struct LjbcGenImp : public AstVisitor
                 Q_ASSERT( id.d_kind == Value::Tmp || id.d_kind == Value::Ref );
                 if( out.d_kind == Value::Pre )
                 {
-                    bc.TGET( out.d_slot, id.d_slot, QVariant::fromValue(QByteArray("n")), c->d_loc.line() );
+                    bc.TGET( out.d_slot, id.d_slot, QVariant::fromValue(QByteArray("n")), c->d_loc.packed() );
                     sell(id);
                 }else if( id.d_kind == Value::Tmp )
                 {
                     out.d_slot = id.d_slot;
                     out.d_kind = Value::Tmp;
-                    bc.TGET( out.d_slot, id.d_slot, QVariant::fromValue(QByteArray("n")), c->d_loc.line() );
+                    bc.TGET( out.d_slot, id.d_slot, QVariant::fromValue(QByteArray("n")), c->d_loc.packed() );
                 }else
                 {
                     out.d_slot = ctx.back().buySlots(1);
                     out.d_kind = Value::Tmp;
-                    bc.TGET( out.d_slot, id.d_slot, QVariant::fromValue(QByteArray("n")), c->d_loc.line() );
+                    bc.TGET( out.d_slot, id.d_slot, QVariant::fromValue(QByteArray("n")), c->d_loc.packed() );
                 }
             }
             return true;
@@ -2433,8 +2433,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 2 );
                 quint8 tmp = ctx.back().buySlots(3,true);
-                bc.GGET(tmp, "bit", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"lshift", c->d_loc.line() );
+                bc.GGET(tmp, "bit", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"lshift", c->d_loc.packed() );
                 emitCall(tmp,true,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2442,8 +2442,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 2 );
                 quint8 tmp = ctx.back().buySlots(3,true);
-                bc.GGET(tmp, "bit", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"arshift", c->d_loc.line() );
+                bc.GGET(tmp, "bit", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"arshift", c->d_loc.packed() );
                 emitCall(tmp,true,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2451,8 +2451,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 2 );
                 quint8 tmp = ctx.back().buySlots(3,true);
-                bc.GGET(tmp, "bit", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"ror", c->d_loc.line() );
+                bc.GGET(tmp, "bit", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"ror", c->d_loc.packed() );
                 emitCall(tmp,true,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2460,8 +2460,8 @@ struct LjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( c->d_actuals.size() == 1 );
                 quint8 tmp = ctx.back().buySlots(2,true);
-                bc.GGET(tmp, "math", c->d_loc.line() );
-                bc.TGET(tmp, tmp,"floor", c->d_loc.line() );
+                bc.GGET(tmp, "math", c->d_loc.packed() );
+                bc.TGET(tmp, tmp,"floor", c->d_loc.packed() );
                 emitCall(tmp,true,out,c->d_actuals, c->d_loc );
             }
             return true;
@@ -2493,7 +2493,7 @@ struct LjbcGenImp : public AstVisitor
     {
         if( out.d_kind == Value::Pre )
         {
-            bc.MOV( out.d_slot, base, loc.line() );
+            bc.MOV( out.d_slot, base, loc.packed() );
             ctx.back().sellSlots( base, baseLen );
         }else
         {
@@ -2560,7 +2560,7 @@ struct LjbcGenImp : public AstVisitor
         }
 
         const int off = hasReturn ? 1 : 0;
-        bc.CALL( base, off+vpCount, actuals.size(), loc.line() );
+        bc.CALL( base, off+vpCount, actuals.size(), loc.packed() );
 
         for( int i = 0; i < vp.size(); i++ )
         {
@@ -2569,15 +2569,15 @@ struct LjbcGenImp : public AstVisitor
             {
             case Value::Tmp2:
             case Value::Ref2:
-                bc.TSET( base + off + i, v.d_slot, v.d_idx, actuals[i]->d_loc.line() );
+                bc.TSET( base + off + i, v.d_slot, v.d_idx, actuals[i]->d_loc.packed() );
                 break;
             case Value::Tmp2v:
             case Value::Ref2v:
-                bc.TSET( base + off + i, v.d_slot, v.d_val, actuals[i]->d_loc.line() );
+                bc.TSET( base + off + i, v.d_slot, v.d_val, actuals[i]->d_loc.packed() );
                 break;
             case Value::Tmp:
             case Value::Ref:
-                bc.MOV(v.d_slot, base + off + i, actuals[i]->d_loc.line() );
+                bc.MOV(v.d_slot, base + off + i, actuals[i]->d_loc.packed() );
                 break;
             }
 
@@ -2621,7 +2621,7 @@ struct LjbcGenImp : public AstVisitor
 
         if( lhs.d_kind != Value::Pre )
         {
-            bc.MOV( tmp, lhs.d_slot, e->d_loc.line() );
+            bc.MOV( tmp, lhs.d_slot, e->d_loc.packed() );
             sell(lhs);
         }
 
@@ -2632,6 +2632,7 @@ struct LjbcGenImp : public AstVisitor
 bool LjbcGen::translate(Ast::Model* mdl, const QString& outdir, const QString& mod, Errors* err)
 {
     Q_ASSERT( mdl );
+    Q_ASSERT( Loc::COL_BIT_LEN == JitComposer::COL_BIT_LEN && Loc::ROW_BIT_LEN == JitComposer::ROW_BIT_LEN );
 
     QDir dir(outdir);
     if( !mod.isEmpty() )

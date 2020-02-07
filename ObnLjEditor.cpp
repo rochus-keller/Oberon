@@ -149,7 +149,7 @@ LjEditor::LjEditor(QWidget *parent)
 
 
     connect(d_edit, SIGNAL(modificationChanged(bool)), this, SLOT(onCaption()) );
-    connect(d_bcv,SIGNAL(sigGotoLine(int)),this,SLOT(onGotoLnr(int)));
+    connect(d_bcv,SIGNAL(sigGotoLine(quint32)),this,SLOT(onGotoLnr(quint32)));
     connect(d_edit,SIGNAL(cursorPositionChanged()),this,SLOT(onCursor()));
     connect(d_eng,SIGNAL(sigPrint(QString,bool)), d_term, SLOT(printText(QString,bool)) );
 }
@@ -383,12 +383,15 @@ void LjEditor::onCaption()
     }
 }
 
-void LjEditor::onGotoLnr(int lnr)
+void LjEditor::onGotoLnr(quint32 lnr)
 {
     if( d_lock )
         return;
     d_lock = true;
-    d_edit->setCursorPosition(lnr-1,0);
+    if( Ast::Loc::isPacked(lnr) )
+        d_edit->setCursorPosition(Ast::Loc::unpackRow(lnr)-1,Ast::Loc::unpackCol(lnr)-1);
+    else
+        d_edit->setCursorPosition(lnr-1,0);
     d_lock = false;
 }
 
@@ -414,7 +417,7 @@ void LjEditor::onCursor()
     d_lock = true;
     QTextCursor cur = d_edit->textCursor();
     const int line = cur.blockNumber() + 1;
-    d_bcv->gotoLine(line);
+    d_bcv->gotoLine(Ast::Loc(line,cur.positionInBlock() + 1).packed());
     d_lock = false;
 }
 
