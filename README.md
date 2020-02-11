@@ -60,7 +60,7 @@ Same as code browser, in addition
 - Integrated source level debugger with breakpoints, stack trace and locals view
 
 
-![Oberon IDE Screenshot](http://software.rochus-keller.info/screenshot_oberon_ide_0.5.png)
+![Oberon IDE Screenshot](http://software.rochus-keller.info/screenshot_oberon_ide_0.5.1.png)
 
 
 ### Binary version

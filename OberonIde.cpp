@@ -1499,9 +1499,9 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
         QTreeWidgetItem* item = new QTreeWidgetItem(super);
         item->setText(0, i.key() );
 
-        if( i.value().canConvert<Lua::Engine2::LocalVar::Type>() )
+        if( i.value().canConvert<Lua::Engine2::DummyVar>() )
         {
-            switch( i.value().value<Lua::Engine2::LocalVar::Type>() )
+            switch( i.value().value<Lua::Engine2::DummyVar>().d_type )
             {
             case Engine2::LocalVar::NIL:
                 item->setText(1, "nil");
@@ -1662,7 +1662,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.5");
+    a.setApplicationVersion("0.5.1");
     a.setStyle("Fusion");
 
     OberonIde w;
