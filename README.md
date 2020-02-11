@@ -42,11 +42,25 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Syntax highlighting
 - Code navigation; jump to the declaration of an ident
 - Mark all idents refering to the same declaration
-- List all uses of a declaration for easy navigation
+- Cross-referencing: list all uses of a declaration for easy navigation
 - Browsing history, forward and backward navigation
 
 
 ![OberonViewer Screenshot](http://software.rochus-keller.info/oberonviewer_screenshot_1.png)
+
+### IDE features
+
+Same as code browser, in addition
+
+- Project file format: combine modules to a single project
+- Oberon to LuaJIT bytecode compiler, automatic recompile when edited
+- Built-in LuaJIT engine
+- Bytecode view (LuaJIT assembler syntax), synchronized to source
+- Optional Oakwood or Oberon System backend
+- Integrated source level debugger with breakpoints, stack trace and locals view
+
+
+![Oberon IDE Screenshot](http://software.rochus-keller.info/screenshot_oberon_ide_0.5.png)
 
 
 ### Binary version

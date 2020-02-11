@@ -66,6 +66,8 @@ namespace Ob
         void createMods();
         void createErrs();
         void createXref();
+        void createStack();
+        void createLocals();
         void createMenu();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
@@ -73,12 +75,14 @@ namespace Ob
         void fillMods();
         void showDocument( const QString& filePath );
         void addTopCommands(Gui::AutoMenu * pop);
-        void showEditor( const QString& path, int row = -1, int col = -1 );
-        void showEditor( Ast::Named* );
+        void showEditor( const QString& path, int row = -1, int col = -1, bool setMarker = false );
+        void showEditor(Ast::Named* , bool setMarker = false);
         void createMenu( Editor* );
-        void luaRuntimeMessage(const QByteArray&, const QString& file);
+        bool luaRuntimeMessage(const QByteArray&, const QString& file);
         void fillXref();
         void fillXref(Ast::Named*);
+        void fillStack();
+        void fillLocals();
         struct Location
         {
             // Qt-Koordinaten
@@ -94,6 +98,7 @@ namespace Ob
     protected slots:
         void onCompile();
         void onRun();
+        void onAbort();
         void onGenerate();
         void onNewPro();
         void onOpenPro();
@@ -107,6 +112,7 @@ namespace Ob
         void onExportBc();
         void onExportAsm();
         void onModsDblClicked(QTreeWidgetItem*,int);
+        void onStackDblClicked(QTreeWidgetItem*,int);
         void onTabChanged();
         void onTabClosing(int);
         void onEditorChanged();
@@ -116,25 +122,35 @@ namespace Ob
         void onOakwood();
         void onAddFiles();
         void onRemoveFile();
+        void onEnableDebug();
         void handleGoBack();
         void handleGoForward();
         void onUpdateLocation(int line, int col );
         void onXrefDblClicked();
+        void onToggleBreakPt();
+        void onSingleStep();
+        void onContinue();
+        void onShowLlBc();
 
     private:
         class DocTab;
+        class Debugger;
         Project* d_pro;
         DocTab* d_tab;
+        Debugger* d_dbg;
         Lua::Engine2* d_lua;
         Lua::BcViewer2* d_bcv;
         Lua::Terminal2* d_term;
         QTreeWidget* d_mods;
+        QTreeWidget* d_stack;
+        QTreeWidget* d_locals;
         QLabel* d_xrefTitle;
         QTreeWidget* d_xref;
         QTreeWidget* d_errs;
         Highlighter* d_hl;
         QList<Location> d_backHisto; // d_backHisto.last() ist aktuell angezeigtes Objekt
         QList<Location> d_forwardHisto;
+        QByteArray d_curBc;
         bool d_lock;
         bool d_filesDirty;
         bool d_pushBackLock;

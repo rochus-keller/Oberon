@@ -189,6 +189,12 @@ static void installRecord( lua_State* L, const char* metaName, const char* recor
     lua_pushcfunction(L , gc );
     lua_rawset(L, metaTable);
 
+#ifdef _DEBUG
+    lua_pushliteral(L,"__classname");
+    lua_pushstring(L,recordName);
+    lua_rawset(L,metaTable);
+#endif
+
     lua_pop(L, 3);  // metaTable, pubMeta, module
 }
 
@@ -396,6 +402,12 @@ void FileDesc::install(lua_State* L)
 
 Rider* Rider::check(lua_State *L, int narg)
 {
+#ifdef _DEBUG_
+    lua_getmetatable(L,narg);
+    lua_getfield(L,-1,"__classname");
+    qDebug() << "class" << lua_tostring(L,-1);
+    lua_pop(L,2);
+#endif
     return static_cast<Rider*>( luaL_checkudata( L, narg, Rider_METANAME ) );
 }
 
@@ -1244,5 +1256,14 @@ void SysInnerLib::install(lua_State* L)
     saveCall(L);
     lua_pushcfunction(L, installInput);
     saveCall(L);
+}
+
+void SysInnerLib::quit()
+{
+    if( s_disp )
+    {
+        s_disp->deleteLater();
+        s_disp = 0;
+    }
 }
 

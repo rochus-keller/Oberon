@@ -136,6 +136,7 @@ namespace Ob
     {
     public:
         static void install(lua_State *L);
+        static void quit();
     protected:
         static int installFiles(lua_State *L);
         static int installFileDir(lua_State *L);

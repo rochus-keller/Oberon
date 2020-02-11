@@ -30,6 +30,7 @@
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
+#include <LjTools/BcViewer.h>
 #include <LjTools/LuaJitEngine.h>
 #include <QtDebug>
 #include <QDockWidget>
@@ -46,6 +47,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QDesktopWidget>
 #include <GuiTools/AutoMenu.h>
 #include <GuiTools/CodeEditor.h>
 #include <GuiTools/AutoShortcut.h>
@@ -259,6 +261,31 @@ public:
     }
 };
 
+class OberonIde::Debugger : public DbgShell
+{
+public:
+    OberonIde* d_ide;
+    Debugger(OberonIde* ide):d_ide(ide){}
+    void handleBreak( Engine2* lua, const QByteArray& source, quint32 )
+    {
+        d_ide->fillStack();
+        d_ide->fillLocals();
+
+        QByteArray msg = lua->getValueString(1).simplified();
+        msg = msg.mid(1,msg.size()-2); // remove ""
+        if( d_ide->luaRuntimeMessage(msg,source) )
+            d_ide->onErrors();
+
+        while( lua->isWaiting() )
+        {
+            QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
+            QApplication::flush();
+        }
+        d_ide->d_stack->clear();
+        d_ide->d_locals->clear();
+    }
+};
+
 static OberonIde* s_this = 0;
 static void report(QtMsgType type, const QString& message )
 {
@@ -324,6 +351,9 @@ OberonIde::OberonIde(QWidget *parent)
     LjLib::install(d_lua->getCtx());
     loadLuaLib( d_lua, "obnlj" );
 
+    d_dbg = new Debugger(this);
+    d_lua->setDbgShell(d_dbg);
+
     Engine2::setInst(d_lua);
 
     d_tab = new DocTab(this);
@@ -354,6 +384,8 @@ OberonIde::OberonIde(QWidget *parent)
     createMods();
     createErrs();
     createXref();
+    createStack();
+    createLocals();
     createMenu();
 
     setCentralWidget(d_tab);
@@ -362,6 +394,8 @@ OberonIde::OberonIde(QWidget *parent)
 
     QSettings s;
 
+    const QRect screen = QApplication::desktop()->screenGeometry();
+    resize( screen.width() - 20, screen.height() - 30 ); // so that restoreState works
     if( s.value("Fullscreen").toBool() )
         showFullScreen();
     else
@@ -378,7 +412,7 @@ OberonIde::OberonIde(QWidget *parent)
 
 OberonIde::~OberonIde()
 {
-
+    delete d_dbg;
 }
 
 void OberonIde::loadFile(const QString& path)
@@ -407,7 +441,13 @@ void OberonIde::closeEvent(QCloseEvent* event)
 {
     QSettings s;
     s.setValue( "DockState", saveState() );
-    event->setAccepted(checkSaved( tr("Quit Application")));
+    const bool ok = checkSaved( tr("Quit Application"));
+    event->setAccepted(ok);
+    if( ok )
+    {
+        d_lua->terminate(true);
+        SysInnerLib::quit();
+    }
 }
 
 void OberonIde::createTerminal()
@@ -435,6 +475,10 @@ void OberonIde::createDumpView()
 
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_bcv, true );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Abort", this, SLOT(onAbort()) );
+    pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
+    pop->addSeparator();
+    pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
     addTopCommands(pop);
@@ -503,6 +547,41 @@ void OberonIde::createXref()
     connect(d_xref, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)), this, SLOT(onXrefDblClicked()) );
 }
 
+void OberonIde::createStack()
+{
+    QDockWidget* dock = new QDockWidget( tr("Stack"), this );
+    dock->setObjectName("Stack");
+    dock->setAllowedAreas( Qt::AllDockWidgetAreas );
+    dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
+    d_stack = new QTreeWidget(dock);
+    d_stack->setHeaderHidden(true);
+    d_stack->setAlternatingRowColors(true);
+    d_stack->setColumnCount(4); // Level, Name, Pos, Mod
+    d_stack->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    d_stack->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    d_stack->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    d_stack->header()->setSectionResizeMode(3, QHeaderView::Stretch);
+    dock->setWidget(d_stack);
+    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    connect( d_stack, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onStackDblClicked(QTreeWidgetItem*,int)) );
+}
+
+void OberonIde::createLocals()
+{
+    QDockWidget* dock = new QDockWidget( tr("Locals"), this );
+    dock->setObjectName("Locals");
+    dock->setAllowedAreas( Qt::AllDockWidgetAreas );
+    dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
+    d_locals = new QTreeWidget(dock);
+    d_locals->setHeaderHidden(true);
+    d_locals->setAlternatingRowColors(true);
+    d_locals->setColumnCount(2); // Name, Value
+    d_locals->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    d_locals->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+    dock->setWidget(d_locals);
+    addDockWidget( Qt::LeftDockWidgetArea, dock );
+}
+
 void OberonIde::createMenu()
 {
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_mods, true );
@@ -520,7 +599,10 @@ void OberonIde::createMenu()
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
+    pop->addSeparator();
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Abort", this, SLOT(onAbort()) );
+    pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
     addTopCommands(pop);
 
     new QShortcut(tr("CTRL+Q"),this,SLOT(close()));
@@ -533,6 +615,9 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("CTRL+SHIFT+T"), this, this, SLOT(onGenerate()) );
     new Gui::AutoShortcut( tr("ALT+Left"), this, this, SLOT(handleGoBack()) );
     new Gui::AutoShortcut( tr("ALT+Right"), this, this, SLOT(handleGoForward()) );
+    new Gui::AutoShortcut( tr("F9"), this, this, SLOT(onToggleBreakPt()) );
+    new Gui::AutoShortcut( tr("F11"), this, this, SLOT(onSingleStep()) );
+    new Gui::AutoShortcut( tr("F5"), this, this, SLOT(onContinue()) );
 }
 
 void OberonIde::onCompile()
@@ -543,7 +628,7 @@ void OberonIde::onCompile()
 
 void OberonIde::onRun()
 {
-    ENABLED_IF( !d_pro->getFiles().isEmpty() );
+    ENABLED_IF( !d_pro->getFiles().isEmpty() && !d_lua->isExecuting() );
 
     if( !compile(true) )
         return;
@@ -575,11 +660,14 @@ void OberonIde::onRun()
         qDebug() << "loading" << f.d_mod->d_name;
         if( !d_lua->addSourceLib( f.d_bc, f.d_mod->d_name ) )
         {
-            QByteArray msg = d_lua->getLastError();
+            // QByteArray msg = d_lua->getLastError();
             hasErrors = true;
-            luaRuntimeMessage(msg.simplified(),f.d_file);
-            qCritical() << msg.constData();
+            // luaRuntimeMessage(msg.simplified(),f.d_file);
+            // qCritical() << msg.constData();
+            // TODO: abort
         }
+        if( d_lua->isAborted() )
+            return;
     }
 
     if( hasErrors )
@@ -612,6 +700,12 @@ void OberonIde::onRun()
     out.flush();
     d_lua->executeCmd(src,"terminal");
 
+}
+
+void OberonIde::onAbort()
+{
+    ENABLED_IF( d_lua->isWaiting() );
+    d_lua->terminate();
 }
 
 void OberonIde::onGenerate()
@@ -804,6 +898,25 @@ void OberonIde::onModsDblClicked(QTreeWidgetItem* item, int)
     showEditor( s.data() );
 }
 
+void OberonIde::onStackDblClicked(QTreeWidgetItem* item, int)
+{
+    if( item )
+    {
+        const QString source = item->data(3,Qt::UserRole).toString();
+        if( !source.isEmpty() )
+        {
+            const quint32 line = item->data(2,Qt::UserRole).toUInt();
+            if( Ast::Loc::isPacked(line) )
+                showEditor( source, Ast::Loc::unpackRow(line), Ast::Loc::unpackCol(line) );
+            else
+                showEditor( source, line, 1 );
+        }
+        const int level = item->data(0,Qt::UserRole).toInt();
+        d_lua->setActiveLevel(level);
+        fillLocals();
+    }
+}
+
 void OberonIde::onTabChanged()
 {
     const QString path = d_tab->getCurrentDoc().toString();
@@ -812,10 +925,10 @@ void OberonIde::onTabChanged()
 
     if( !path.isEmpty() )
     {
-        QByteArray bc = d_pro->getFiles().value( path ).d_bc;
-        if( !bc.isEmpty() )
+        d_curBc = d_pro->getFiles().value( path ).d_bc;
+        if( !d_curBc.isEmpty() )
         {
-            QBuffer buf( &bc );
+            QBuffer buf( &d_curBc );
             buf.open(QIODevice::ReadOnly);
             d_bcv->loadFrom(&buf);
             onCursor();
@@ -839,6 +952,7 @@ void OberonIde::onEditorChanged()
     for( int i = 0; i < d_tab->count(); i++ )
     {
         Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
+        e->setPositionMarker(-1);
         if( e->isModified() )
             d_filesDirty = true;
         QFileInfo info( d_tab->getDoc(i).toString() );
@@ -888,6 +1002,7 @@ void OberonIde::onErrors()
         Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
         Q_ASSERT( e );
         e->updateExtraSelections();
+        e->setPositionMarker(-1);
     }
 }
 
@@ -941,6 +1056,13 @@ void OberonIde::onRemoveFile()
         qWarning() << "cannot remove module" << m->d_name;
     else
         compile();
+}
+
+void OberonIde::onEnableDebug()
+{
+    CHECKED_IF( true , d_lua->isDebug() );
+
+    d_lua->setDebug( !d_lua->isDebug() );
 }
 
 bool OberonIde::checkSaved(const QString& title)
@@ -1085,7 +1207,7 @@ void OberonIde::addTopCommands(Gui::AutoMenu* pop)
     pop->addAction(tr("Quit"),qApp,SLOT(quit()), tr("CTRL+Q") );
 }
 
-void OberonIde::showEditor(const QString& path, int row, int col)
+void OberonIde::showEditor(const QString& path, int row, int col, bool setMarker )
 {
     if( !d_pro->getFiles().contains(path) )
         return;
@@ -1106,19 +1228,29 @@ void OberonIde::showEditor(const QString& path, int row, int col)
         connect(edit,SIGNAL(sigUpdateLocation(int,int)),this,SLOT(onUpdateLocation(int,int)));
 
         edit->loadFromFile(path);
+
+        const Engine2::Breaks& br = d_lua->getBreaks( path.toUtf8() );
+        Engine2::Breaks::const_iterator j;
+        for( j = br.begin(); j != br.end(); ++j )
+            edit->addBreakPoint((*j) - 1);
+
         d_tab->addDoc(edit,path);
         onEditorChanged();
     }
     if( row > 0 && col > 0 )
+    {
         edit->setCursorPosition( row-1, col-1, false );
+        if( setMarker )
+            edit->setPositionMarker(row-1);
+    }
     edit->setFocus();
 }
 
-void OberonIde::showEditor(Ast::Named* n)
+void OberonIde::showEditor(Ast::Named* n, bool setMarker)
 {
     Ast::Module* mod = n->getModule();
     if( mod )
-        showEditor( mod->d_file, n->d_loc.d_row, n->d_loc.d_col );
+        showEditor( mod->d_file, n->d_loc.d_row, n->d_loc.d_col, setMarker );
 }
 
 void OberonIde::createMenu(OberonIde::Editor* edit)
@@ -1128,6 +1260,10 @@ void OberonIde::createMenu(OberonIde::Editor* edit)
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Abort", this, SLOT(onAbort()) );
+    pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
+    pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr("F9"), false);
+    pop->addSeparator();
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
     pop->addSeparator();
@@ -1154,7 +1290,7 @@ void OberonIde::createMenu(OberonIde::Editor* edit)
     addTopCommands(pop);
 }
 
-void OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
+bool OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
 {
     const int firstColon = msg.indexOf(':');
     if( firstColon != -1 )
@@ -1162,13 +1298,25 @@ void OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
         const int secondColon = msg.indexOf(':',firstColon + 1);
         if( secondColon != -1 )
         {
-            d_pro->getErrs()->error(Errors::Runtime, file,
-                                    msg.mid(firstColon+1, secondColon - firstColon - 1 ).toInt(), 1,
-                                    msg.mid(secondColon+1) );
-            return;
+            QString path = msg.left(firstColon);
+            const int firstTick = path.indexOf('"');
+            if( firstTick != -1 )
+            {
+                const int secondTick = path.indexOf('"',firstTick+1);
+                path = path.mid(firstTick+1,secondTick-firstTick-1);
+            }else
+                path.clear();
+            const quint32 id = msg.mid(firstColon+1, secondColon - firstColon - 1 ).toInt(); // lua deliveres negative numbers
+            const bool packed = Ast::Loc::isPacked(id);
+            const quint32 row = packed ? Ast::Loc::unpackRow(id) : id;
+            const quint32 col = packed ? Ast::Loc::unpackCol(id) : 1;
+
+            d_pro->getErrs()->error(Errors::Runtime, path.isEmpty() ? file : path, row, col, msg.mid(secondColon+1) );
+            return true;
         }
     }
-    qWarning() << "Unknown Lua error message format:" << msg;
+    return false;
+    // qWarning() << "Unknown Lua error message format:" << msg;
 }
 
 static bool sortExList( const Ast::Expression* lhs, Ast::Expression* rhs )
@@ -1309,6 +1457,118 @@ void OberonIde::fillXref(Ast::Named* sym)
     }
 }
 
+void OberonIde::fillStack()
+{
+    d_stack->clear();
+    Engine2::StackLevels ls = d_lua->getStackTrace();
+
+    bool opened = false;
+    foreach( const Engine2::StackLevel& l, ls )
+    {
+        // Level, Name, Pos, Mod
+        QTreeWidgetItem* item = new QTreeWidgetItem(d_stack);
+        item->setText(0,QString::number(l.d_level));
+        item->setData(0,Qt::UserRole,l.d_level);
+        item->setText(1,l.d_name);
+        if( l.d_inC )
+        {
+            item->setText(3,"(native)");
+        }else
+        {
+            const int row = Ast::Loc::unpackRow(l.d_line);
+            const int col = Ast::Loc::unpackCol(l.d_line);
+            item->setText(2,QString("%1:%2").arg(row).arg(col));
+            item->setData(2, Qt::UserRole, l.d_line );
+            item->setText(3, QFileInfo(l.d_source).baseName() );
+            item->setData(3, Qt::UserRole, l.d_source );
+            item->setToolTip(3, l.d_source );
+            if( !opened )
+                showEditor(l.d_source, row, col, true );
+            opened = true;
+        }
+    }
+
+    d_stack->parentWidget()->show();
+}
+
+static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
+{
+    QVariantMap::const_iterator i;
+    for( i = vals.begin(); i != vals.end(); i++ )
+    {
+        QTreeWidgetItem* item = new QTreeWidgetItem(super);
+        item->setText(0, i.key() );
+
+        if( i.value().canConvert<Lua::Engine2::LocalVar::Type>() )
+        {
+            switch( i.value().value<Lua::Engine2::LocalVar::Type>() )
+            {
+            case Engine2::LocalVar::NIL:
+                item->setText(1, "nil");
+                break;
+            case Engine2::LocalVar::FUNC:
+                item->setText(1, "func");
+                break;
+            case Engine2::LocalVar::TABLE:
+                item->setText(1, "table");
+                break;
+            case Engine2::LocalVar::STRUCT:
+                item->setText(1, "struct");
+                break;
+           }
+        }else if( i.value().type() == QMetaType::QVariantMap)
+        {
+            item->setText(1, "table");
+            fillLocalSubs(item,i.value().toMap() );
+        }else if( i.value().type() == QMetaType::QByteArray )
+            item->setText(1, "\"" + i.value().toString() + "\"");
+        else
+            item->setText(1,i.value().toString());
+    }
+}
+
+void OberonIde::fillLocals()
+{
+    d_locals->clear();
+    Engine2::LocalVars vs = d_lua->getLocalVars(true,2);
+    foreach( const Engine2::LocalVar& v, vs )
+    {
+        QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
+        QString name = v.d_name;
+        if( v.d_isUv )
+            name = "(" + name + ")";
+        item->setText(0,name);
+        if( v.d_value.type() == QMetaType::QVariantMap )
+        {
+            item->setText(1, "table");
+            fillLocalSubs(item,v.d_value.toMap() );
+        }else
+        {
+            switch( v.d_type )
+            {
+            case Engine2::LocalVar::NIL:
+                item->setText(1, "nil");
+                break;
+            case Engine2::LocalVar::FUNC:
+                item->setText(1, "func");
+                break;
+            case Engine2::LocalVar::TABLE:
+                item->setText(1, "table");
+                break;
+            case Engine2::LocalVar::STRUCT:
+                item->setText(1, "struct");
+                break;
+            case Engine2::LocalVar::STRING:
+                item->setText(1, "\"" + v.d_value.toString() + "\"");
+                break;
+            default:
+                item->setText(1,v.d_value.toString());
+                break;
+           }
+        }
+    }
+}
+
 void OberonIde::handleGoBack()
 {
     ENABLED_IF( d_backHisto.size() > 1 );
@@ -1347,6 +1607,45 @@ void OberonIde::onXrefDblClicked()
     }
 }
 
+void OberonIde::onToggleBreakPt()
+{
+    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    ENABLED_IF( edit );
+
+    quint32 line;
+    const bool on = edit->toggleBreakPoint(&line);
+    if( on )
+        d_lua->addBreak( edit->getPath().toUtf8(), line + 1 );
+    else
+        d_lua->removeBreak( edit->getPath().toUtf8(), line + 1 );
+}
+
+void OberonIde::onSingleStep()
+{
+    ENABLED_IF( d_lua->isExecuting() && d_lua->isWaiting() );
+
+    d_lua->runToNextLine();
+}
+
+void OberonIde::onContinue()
+{
+    ENABLED_IF( d_lua->isExecuting() && d_lua->isWaiting() );
+
+    d_lua->runToBreakPoint();
+}
+
+void OberonIde::onShowLlBc()
+{
+    ENABLED_IF( d_bcv->topLevelItemCount() );
+
+    BcViewer* bc = new BcViewer();
+    QBuffer buf( &d_curBc );
+    buf.open(QIODevice::ReadOnly);
+    bc->loadFrom( &buf );
+    bc->show();
+    bc->setAttribute(Qt::WA_DeleteOnClose);
+}
+
 void OberonIde::pushLocation(const OberonIde::Location& loc)
 {
     if( d_pushBackLock )
@@ -1363,7 +1662,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.4.1");
+    a.setApplicationVersion("0.5");
     a.setStyle("Fusion");
 
     OberonIde w;

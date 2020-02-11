@@ -1604,8 +1604,7 @@ struct LjbcGenImp : public AstVisitor
         }else if( tag == Thing::T_Const )
         {
             Const* c = Ast::thing_cast<Const*>( id->d_ident.data() );
-            out.d_val = c->d_val;
-            out.d_kind = Value::Val;
+            fetchValue(c->d_val,out, id->d_loc );
         }
     }
 
@@ -2562,6 +2561,7 @@ struct LjbcGenImp : public AstVisitor
         const int off = hasReturn ? 1 : 0;
         bc.CALL( base, off+vpCount, actuals.size(), loc.packed() );
 
+        int n = 0;
         for( int i = 0; i < vp.size(); i++ )
         {
             Value& v = vp[i];
@@ -2569,15 +2569,15 @@ struct LjbcGenImp : public AstVisitor
             {
             case Value::Tmp2:
             case Value::Ref2:
-                bc.TSET( base + off + i, v.d_slot, v.d_idx, actuals[i]->d_loc.packed() );
+                bc.TSET( base + off + n++, v.d_slot, v.d_idx, actuals[i]->d_loc.packed() );
                 break;
             case Value::Tmp2v:
             case Value::Ref2v:
-                bc.TSET( base + off + i, v.d_slot, v.d_val, actuals[i]->d_loc.packed() );
+                bc.TSET( base + off + n++, v.d_slot, v.d_val, actuals[i]->d_loc.packed() );
                 break;
             case Value::Tmp:
             case Value::Ref:
-                bc.MOV(v.d_slot, base + off + i, actuals[i]->d_loc.packed() );
+                bc.MOV(v.d_slot, base + off + n++, actuals[i]->d_loc.packed() );
                 break;
             }
 
@@ -2592,7 +2592,6 @@ struct LjbcGenImp : public AstVisitor
 
     void processCallExpr( CallExpr* e, Value& out )
     {
-
         ProcType* pt = e->getProcType();
 
         if( pt->isBuiltIn() && genBuiltIn( e, out ) )
@@ -2676,6 +2675,7 @@ bool LjbcGen::translate(Ast::Module* m, QIODevice* out, Errors* errs)
         return true;
 
     LjbcGenImp imp;
+    imp.bc.setUseRowColFormat(true); // TEST
     imp.mod = m;
 
     if( errs == 0 )

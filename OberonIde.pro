@@ -24,7 +24,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 TARGET = OberonIDE
 TEMPLATE = app
 
-INCLUDEPATH += .. ../LjTools/luajit-2.0
+INCLUDEPATH += ..
 
 SOURCES += OberonIde.cpp \
     ../GuiTools/CodeEditor.cpp \
@@ -42,7 +42,8 @@ SOURCES += OberonIde.cpp \
     ObLjProject.cpp \
     ../GuiTools/DocSelector.cpp \
     ../GuiTools/DocTabWidget.cpp \
-    ObSysInnerLib.cpp
+    ObSysInnerLib.cpp \
+    ../LjTools/BcViewer.cpp
 
 HEADERS  += OberonIde.h \
     ../GuiTools/CodeEditor.h \
@@ -60,9 +61,10 @@ HEADERS  += OberonIde.h \
     ObLjProject.h \
     ../GuiTools/DocSelector.h \
     ../GuiTools/DocTabWidget.h \
-    ObSysInnerLib.h
+    ObSysInnerLib.h \
+    ../LjTools/BcViewer.h
 
-include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
+include( ../LuaJIT/src/LuaJit.pri ){
     LIBS += -ldl
 } else {
     LIBS += -lluajit
