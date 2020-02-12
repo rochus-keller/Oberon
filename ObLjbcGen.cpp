@@ -869,6 +869,15 @@ struct LjbcGenImp : public AstVisitor
         return uvl;
     }
 
+    void addSlot( JitComposer::VarNameList& sn, quint8 slot, const char* name )
+    {
+        JitComposer::VarName& vn = sn[slot];
+        Q_ASSERT( vn.d_name.isEmpty() );
+        vn.d_name = name;
+        vn.d_from = 0;
+        vn.d_to = bc.getCurPc();
+    }
+
     void visit( Module* m )
     {
         ctx.push_back( Ctx(m) );
@@ -916,8 +925,8 @@ struct LjbcGenImp : public AstVisitor
         bc.RET( modSlot, 1, m->d_end.packed() ); // return module
 
         JitComposer::VarNameList sn = getSlotNames(m);
-        sn[modSlot].d_name = "_mod_";
-        sn[obnlj->d_slot].d_name = "obnlj";
+        addSlot(sn,modSlot,"_mod_");
+        addSlot(sn,obnlj->d_slot,"obnlj");
         bc.setVarNames( sn );
         bc.setUpvals( getUpvals() );
         bc.closeFunction(ctx.back().frameSize);

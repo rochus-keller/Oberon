@@ -248,13 +248,13 @@ public:
     // overrides
     bool isUnsaved(int i)
     {
-        OberonIde::Editor* edit = dynamic_cast<OberonIde::Editor*>( widget(i) );
+        OberonIde::Editor* edit = static_cast<OberonIde::Editor*>( widget(i) );
         return edit->isModified();
     }
 
     bool save(int i)
     {
-        OberonIde::Editor* edit = dynamic_cast<OberonIde::Editor*>( widget(i) );
+        OberonIde::Editor* edit = static_cast<OberonIde::Editor*>( widget(i) );
         if( !edit->saveToFile( edit->getPath(), false ) )
             return false;
         return true;
@@ -667,11 +667,15 @@ void OberonIde::onRun()
             // TODO: abort
         }
         if( d_lua->isAborted() )
+        {
+            onEditorChanged();
             return;
+        }
     }
 
     if( hasErrors )
     {
+        onEditorChanged();
         onErrors();
         return;
     }
@@ -699,6 +703,7 @@ void OberonIde::onRun()
     }
     out.flush();
     d_lua->executeCmd(src,"terminal");
+    onEditorChanged();
 
 }
 
@@ -758,7 +763,7 @@ void OberonIde::onSavePro()
 
 void OberonIde::onSaveFile()
 {
-    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     ENABLED_IF( edit && edit->isModified() );
 
     edit->saveToFile( edit->getPath() );
@@ -803,7 +808,7 @@ void OberonIde::onGotoLnr(quint32 lnr)
     if( d_lock )
         return;
     d_lock = true;
-    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
     {
         if( Ast::Loc::isPacked(lnr) )
@@ -836,7 +841,7 @@ void OberonIde::onCursor()
     if( d_lock )
         return;
     d_lock = true;
-    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
     {
         QTextCursor cur = edit->textCursor();
@@ -951,7 +956,7 @@ void OberonIde::onEditorChanged()
     d_filesDirty = false;
     for( int i = 0; i < d_tab->count(); i++ )
     {
-        Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
+        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         e->setPositionMarker(-1);
         if( e->isModified() )
             d_filesDirty = true;
@@ -999,7 +1004,7 @@ void OberonIde::onErrors()
 
     for( int i = 0; i < d_tab->count(); i++ )
     {
-        Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
+        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         Q_ASSERT( e );
         e->updateExtraSelections();
         e->setPositionMarker(-1);
@@ -1111,7 +1116,7 @@ bool OberonIde::compile(bool generate )
 {
     for( int i = 0; i < d_tab->count(); i++ )
     {
-        Editor* e = dynamic_cast<Editor*>( d_tab->widget(i) );
+        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         if( e->isModified() )
             d_pro->getFc()->addFile( e->getPath(), e->toPlainText().toUtf8() );
         else
@@ -1217,7 +1222,7 @@ void OberonIde::showEditor(const QString& path, int row, int col, bool setMarker
     if( i != -1 )
     {
         d_tab->setCurrentIndex(i);
-        edit = dynamic_cast<Editor*>( d_tab->widget(i) );
+        edit = static_cast<Editor*>( d_tab->widget(i) );
     }else
     {
         edit = new Editor(this,d_pro);
@@ -1333,7 +1338,7 @@ static bool sortExList( const Ast::Expression* lhs, Ast::Expression* rhs )
 
 void OberonIde::fillXref()
 {
-    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit == 0 )
     {
         d_xref->clear();
@@ -1475,8 +1480,8 @@ void OberonIde::fillStack()
             item->setText(3,"(native)");
         }else
         {
-            const int row = Ast::Loc::unpackRow(l.d_line);
-            const int col = Ast::Loc::unpackCol(l.d_line);
+            const int row = Ast::Loc::unpackRow2(l.d_line);
+            const int col = Ast::Loc::unpackCol2(l.d_line);
             item->setText(2,QString("%1:%2").arg(row).arg(col));
             item->setData(2, Qt::UserRole, l.d_line );
             item->setText(3, QFileInfo(l.d_source).baseName() );
@@ -1591,7 +1596,7 @@ void OberonIde::handleGoForward()
 
 void OberonIde::onUpdateLocation(int line, int col)
 {
-    Editor* e = dynamic_cast<Editor*>( sender() );
+    Editor* e = static_cast<Editor*>( sender() );
     e->clearBackHisto();
     pushLocation(Location(e->getPath(), line,col));
 }
@@ -1609,7 +1614,7 @@ void OberonIde::onXrefDblClicked()
 
 void OberonIde::onToggleBreakPt()
 {
-    Editor* edit = dynamic_cast<Editor*>( d_tab->getCurrentTab() );
+    Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     ENABLED_IF( edit );
 
     quint32 line;

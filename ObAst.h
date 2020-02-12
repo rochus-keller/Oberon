@@ -64,7 +64,9 @@ namespace Ob
             quint32 packed() const { return ( d_row << COL_BIT_LEN ) | d_col | MSB; }
             static bool isPacked( quint32 rowCol ) { return rowCol & MSB; }
             static quint32 unpackCol(quint32 rowCol ) { return rowCol & ( 1 << COL_BIT_LEN ) - 1; }
+            static quint32 unpackCol2(quint32 rowCol ) { return isPacked(rowCol) ? unpackCol(rowCol) : 1; }
             static quint32 unpackRow(quint32 rowCol ) { return ( ( rowCol & ~MSB ) >> COL_BIT_LEN ); }
+            static quint32 unpackRow2(quint32 rowCol ) { return isPacked(rowCol) ? unpackRow(rowCol) : rowCol; }
             // NOTE: we cannot use packed yet with Lua/JIT because word length of stored line number is set depending
             // on actual number of bytecodes of function!
             quint32 line() const { return d_row; }
