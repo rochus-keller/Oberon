@@ -483,6 +483,38 @@ struct LjbcGenImp : public AstVisitor
         initMatrix( dims, table, 0, loc );
     }
 
+    bool initScalar( BaseType* t, quint8 slot, const Loc& loc )
+    {
+        switch( t->d_type )
+        {
+        case BaseType::BOOLEAN:
+            bc.KSET(slot,false,loc.packed());
+            return true;
+        case BaseType::INTEGER:
+        case BaseType::REAL:
+        case BaseType::BYTE:
+            bc.KSET(slot,0.0,loc.packed());
+            return true;
+        case BaseType::CHAR:
+            {
+                quint8 tmp = ctx.back().buySlots(2,true);
+                fetchObnljMember(tmp,"Str",loc);
+                bc.KSET(tmp+1, 2, loc.packed() );
+                bc.CALL(tmp,1,1,loc.packed());
+                bc.MOV(slot,tmp,loc.packed());
+                ctx.back().sellSlots(tmp,2);
+            }
+            return true;
+        case BaseType::SET:
+            {
+                fetchObnljMember(slot,"SET",loc);
+                bc.CALL(slot,1,0,loc.packed());
+            }
+            return true;
+        }
+        return false;
+    }
+
     void initRecord( Type* rt, quint8 table, const Loc& loc )
     {
         Q_ASSERT( rt != 0 );
@@ -545,17 +577,22 @@ struct LjbcGenImp : public AstVisitor
                 Type* t = rec->d_fields[i]->d_type.data();
                 Type* td = t->derefed();
                 quint8 field = ctx.back().buySlots(1);
-                if( td->getTag() == Thing::T_Record )
+                switch( td->getTag() )
                 {
+                case Thing::T_Record:
                     // done within initRecord: bc.TNEW( field, 0, 0, loc.packed() );
                     initRecord( t, field, loc );
                     bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.packed() );
-                }
-                else if( td->getTag() == Thing::T_Array )
-                {
+                    break;
+                case Thing::T_Array:
                     // out << ws() << field;
                     initArray( Ast::thing_cast<Array*>(td), field, loc );
                     bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.packed() );
+                    break;
+                case Thing::T_BaseType:
+                    if( initScalar( thing_cast<BaseType*>(td), field, loc) )
+                        bc.TSET(field, table, QVariant::fromValue(rec->d_fields[i]->d_name), loc.packed() );
+                    break;
                 }
                 ctx.back().sellSlots(field);
             }
@@ -569,16 +606,21 @@ struct LjbcGenImp : public AstVisitor
         Q_ASSERT( v->d_slotValid );
 
         Type* td = v->d_type->derefed();
-        const int tag = td->getTag();
-        if( tag == Thing::T_Record )
+
+        switch( td->getTag() )
         {
+        case Thing::T_Record:
             // done within initRecord: bc.TNEW( v->d_slot, 0, 0, v->d_loc.packed() );
             initRecord( v->d_type.data(), v->d_slot, v->d_loc );
-        }else if( tag == Thing::T_Array )
-        {
+            break;
+        case Thing::T_Array:
             initArray( Ast::thing_cast<Array*>( td ), v->d_slot, v->d_loc );
-        }else
-        {
+            break;
+        case Thing::T_BaseType:
+            initScalar( thing_cast<BaseType*>(td), v->d_slot, v->d_loc );
+            break;
+        default:
+            break;
             // unneccessary, already nil: bc.KNIL(v->d_slot, 1, v->d_loc.packed() );
         }
 
@@ -2286,6 +2328,14 @@ struct LjbcGenImp : public AstVisitor
                 ctx.back().sellSlots(tmp,4);
             }
             return true;
+        case BuiltIn::TRAP:
+            {
+                quint8 tmp = ctx.back().buySlots(1,true);
+                fetchObnljMember(tmp,"TRAP",c->d_loc);
+                bc.CALL(tmp,0,1,c->d_loc.packed());
+                ctx.back().sellSlots(tmp,1);
+            }
+            return true;
         case BuiltIn::INCL:
         case BuiltIn::EXCL:
             {
@@ -2587,6 +2637,9 @@ struct LjbcGenImp : public AstVisitor
             case Value::Tmp:
             case Value::Ref:
                 bc.MOV(v.d_slot, base + off + n++, actuals[i]->d_loc.packed() );
+                break;
+            case Value::Uv:
+                bc.USET( v.d_slot, base + off + n++, actuals[i]->d_loc.packed() );
                 break;
             }
 

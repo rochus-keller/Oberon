@@ -56,12 +56,7 @@ namespace Ob
         static int mapToQt(int yOb);
         static int mapToOb(int yQt);
 
-        typedef void (*MouseHandler)(const Ob::_Set& keys, int x, int y);
-        typedef void (*CharHandler)(char ch);
         typedef void (*IdleHandler)();
-        static void registerMouseHandler(MouseHandler h);
-        static void registerCharHandler(CharHandler h);
-        static void registerIdleHandler(IdleHandler h);
 
     protected:
         void paintEvent(QPaintEvent *);
@@ -72,8 +67,10 @@ namespace Ob
         void keyPressEvent(QKeyEvent *);
         void keyReleaseEvent(QKeyEvent *);
         void mapOb( QMouseEvent* );
+        void dispatchMouse(const Ob::_Set& keys, int x, int y);
     private:
         explicit QtDisplay();
+        ~QtDisplay();
     };
 
     struct FileDesc;

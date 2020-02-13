@@ -25,6 +25,7 @@
 #include <QDir>
 #include <QtDebug>
 #include <QSettings>
+#include <QCoreApplication>
 using namespace Ob;
 using namespace Ast;
 
@@ -233,7 +234,8 @@ struct HitTest : public AstVisitor
     }
 };
 
-Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInOakwood(false)
+Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInOakwood(false),
+    d_useBuiltInObSysInner(false)
 {
     d_mdl = new Ast::Model(this);
     d_mdl->setSenseExt(true);
@@ -286,6 +288,12 @@ void Project::setMain(const Project::ModProc& mp)
 void Project::setUseBuiltInOakwood(bool on)
 {
     d_useBuiltInOakwood = on;
+    touch();
+}
+
+void Project::setUseBuiltInObSysInner(bool on)
+{
+    d_useBuiltInObSysInner = on;
     touch();
 }
 
@@ -347,6 +355,25 @@ Ast::Model::ExpList Project::getUsage(Named* n) const
 {
     const Model::XRef& xref = d_mdl->getXref();
     return xref.value(n);
+}
+
+QString Project::getWorkingDir(bool resolved) const
+{
+    if( d_workingDir.isEmpty() )
+        return QFileInfo(d_filePath).dir().path();
+    else if( !resolved )
+        return d_workingDir;
+    // else
+    QString wd = d_workingDir;
+    wd.replace("%PRODIR%", QFileInfo(d_filePath).dir().path() );
+    wd.replace("%APPDIR%", QCoreApplication::applicationDirPath() );
+    return wd;
+}
+
+void Project::setWorkingDir(const QString& wd)
+{
+    d_workingDir = wd;
+    touch();
 }
 
 Errors* Project::getErrs() const
@@ -447,8 +474,10 @@ bool Project::save()
 
     out.setValue("Suffixes", d_suffixes );
     out.setValue("BuiltInOakwood", d_useBuiltInOakwood );
+    out.setValue("BuiltInObSysInner", d_useBuiltInObSysInner );
     out.setValue("MainModule", d_main.first );
     out.setValue("MainProc", d_main.second );
+    out.setValue("WorkingDir", d_workingDir );
 
     out.beginWriteArray("Modules", d_files.size() );
     FileHash::const_iterator i;
@@ -480,8 +509,10 @@ bool Project::loadFrom(const QString& filePath)
 
     d_suffixes = in.value("Suffixes").toStringList();
     d_useBuiltInOakwood = in.value("BuiltInOakwood").toBool();
+    d_useBuiltInObSysInner = in.value("BuiltInObSysInner").toBool();
     d_main.first = in.value("MainModule").toByteArray();
     d_main.second = in.value("MainProc").toByteArray();
+    d_workingDir = in.value("WorkingDir").toString();
 
     const int count = in.beginReadArray("Modules");
 

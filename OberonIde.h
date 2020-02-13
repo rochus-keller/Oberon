@@ -120,9 +120,11 @@ namespace Ob
         void onErrors();
         void onOpenFile();
         void onOakwood();
+        void onObSysInner();
         void onAddFiles();
         void onRemoveFile();
         void onEnableDebug();
+        void onBreak();
         void handleGoBack();
         void handleGoForward();
         void onUpdateLocation(int line, int col );
@@ -131,6 +133,7 @@ namespace Ob
         void onSingleStep();
         void onContinue();
         void onShowLlBc();
+        void onWorkingDir();
 
     private:
         class DocTab;

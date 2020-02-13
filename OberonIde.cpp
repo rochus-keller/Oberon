@@ -48,6 +48,7 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QDesktopWidget>
+#include <QInputDialog>
 #include <GuiTools/AutoMenu.h>
 #include <GuiTools/CodeEditor.h>
 #include <GuiTools/AutoShortcut.h>
@@ -266,15 +267,20 @@ class OberonIde::Debugger : public DbgShell
 public:
     OberonIde* d_ide;
     Debugger(OberonIde* ide):d_ide(ide){}
-    void handleBreak( Engine2* lua, const QByteArray& source, quint32 )
+    void handleBreak( Engine2* lua, const QByteArray& source, quint32 line )
     {
         d_ide->fillStack();
         d_ide->fillLocals();
 
         QByteArray msg = lua->getValueString(1).simplified();
         msg = msg.mid(1,msg.size()-2); // remove ""
-        if( d_ide->luaRuntimeMessage(msg,source) )
-            d_ide->onErrors();
+        if( !lua->isBreakHit() )
+        {
+            if( source == "=[C]" && !msg.startsWith('[') )
+                msg = "[\"=[C]\"]:" + QByteArray::number(line) + ":" + msg;
+            if( d_ide->luaRuntimeMessage(msg,source) )
+                d_ide->onErrors();
+        }
 
         while( lua->isWaiting() )
         {
@@ -283,6 +289,11 @@ public:
         }
         d_ide->d_stack->clear();
         d_ide->d_locals->clear();
+    }
+    void handleAliveSignal(Engine2*)
+    {
+        QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
+        // qDebug() << "alive" << QTime::currentTime().toString();
     }
 };
 
@@ -353,6 +364,7 @@ OberonIde::OberonIde(QWidget *parent)
 
     d_dbg = new Debugger(this);
     d_lua->setDbgShell(d_dbg);
+    // d_lua->setAliveSignal(true); // TEST
 
     Engine2::setInst(d_lua);
 
@@ -475,6 +487,7 @@ void OberonIde::createDumpView()
 
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_bcv, true );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Break", this, SLOT(onBreak()) );
     pop->addCommand( "Abort", this, SLOT(onAbort()) );
     pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
     pop->addSeparator();
@@ -597,10 +610,13 @@ void OberonIde::createMenu()
     pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
+    pop->addCommand( "Built-in Oberon System Inner", this, SLOT(onObSysInner()) );
+    pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
+    pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
-    pop->addSeparator();
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Break", this, SLOT(onBreak()) );
     pop->addCommand( "Abort", this, SLOT(onAbort()) );
     pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
     addTopCommands(pop);
@@ -618,6 +634,7 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("F9"), this, this, SLOT(onToggleBreakPt()) );
     new Gui::AutoShortcut( tr("F11"), this, this, SLOT(onSingleStep()) );
     new Gui::AutoShortcut( tr("F5"), this, this, SLOT(onContinue()) );
+    new Gui::AutoShortcut( tr("CTRL+ESC"), this, this, SLOT(onBreak()) );
 }
 
 void OberonIde::onCompile()
@@ -632,6 +649,8 @@ void OberonIde::onRun()
 
     if( !compile(true) )
         return;
+
+    QDir::setCurrent(d_pro->getWorkingDir(true));
 
     Project::FileList files = d_pro->getFilesInExecOrder();
     if( files.isEmpty() )
@@ -652,7 +671,8 @@ void OberonIde::onRun()
         loadLuaLib(d_lua,"XYPlane");
     }
 
-    SysInnerLib::install(d_lua->getCtx());
+    if( d_pro->useBuiltInObSysInner() )
+        SysInnerLib::install(d_lua->getCtx());
 
     bool hasErrors = false;
     foreach( const Project::File& f, files )
@@ -702,7 +722,8 @@ void OberonIde::onRun()
         out << main.first << "." << main.second << "()" << endl;
     }
     out.flush();
-    d_lua->executeCmd(src,"terminal");
+    if( !src.isEmpty() )
+        d_lua->executeCmd(src,"terminal");
     onEditorChanged();
 
 }
@@ -1023,6 +1044,17 @@ void OberonIde::onOakwood()
     CHECKED_IF( true, d_pro->useBuiltInOakwood() );
 
     d_pro->setUseBuiltInOakwood( !d_pro->useBuiltInOakwood() );
+    if( d_pro->useBuiltInOakwood() )
+        d_pro->setUseBuiltInObSysInner(false);
+}
+
+void OberonIde::onObSysInner()
+{
+    CHECKED_IF( true, d_pro->useBuiltInObSysInner() );
+
+    d_pro->setUseBuiltInObSysInner( !d_pro->useBuiltInObSysInner() );
+    if( d_pro->useBuiltInObSysInner() )
+        d_pro->setUseBuiltInOakwood(false);
 }
 
 void OberonIde::onAddFiles()
@@ -1065,9 +1097,16 @@ void OberonIde::onRemoveFile()
 
 void OberonIde::onEnableDebug()
 {
-    CHECKED_IF( true , d_lua->isDebug() );
+    CHECKED_IF( true, d_lua->isDebug() );
 
     d_lua->setDebug( !d_lua->isDebug() );
+}
+
+void OberonIde::onBreak()
+{
+    ENABLED_IF( d_lua->isExecuting() );
+    // qDebug() << "onBreak" << d_lua->isExecuting() << d_lua->isWaiting();
+    d_lua->runToNextLine();
 }
 
 bool OberonIde::checkSaved(const QString& title)
@@ -1265,6 +1304,7 @@ void OberonIde::createMenu(OberonIde::Editor* edit)
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+    pop->addCommand( "Break", this, SLOT(onBreak()) );
     pop->addCommand( "Abort", this, SLOT(onAbort()) );
     pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr("F9"), false);
@@ -1488,8 +1528,10 @@ void OberonIde::fillStack()
             item->setData(3, Qt::UserRole, l.d_source );
             item->setToolTip(3, l.d_source );
             if( !opened )
+            {
                 showEditor(l.d_source, row, col, true );
-            opened = true;
+                opened = true;
+            }
         }
     }
 
@@ -1547,6 +1589,12 @@ void OberonIde::fillLocals()
         {
             item->setText(1, "table");
             fillLocalSubs(item,v.d_value.toMap() );
+        }else if( !v.d_value.toString().isEmpty() ) // check for string because isNull is false with DummyVar
+        {
+            if( v.d_value.type() == QVariant::ByteArray || v.d_value.type() == QVariant::String )
+                item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
+            else
+                item->setText(1,v.d_value.toString());
         }else
         {
             switch( v.d_type )
@@ -1564,10 +1612,9 @@ void OberonIde::fillLocals()
                 item->setText(1, "struct");
                 break;
             case Engine2::LocalVar::STRING:
-                item->setText(1, "\"" + v.d_value.toString() + "\"");
+                item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
                 break;
             default:
-                item->setText(1,v.d_value.toString());
                 break;
            }
         }
@@ -1651,6 +1698,18 @@ void OberonIde::onShowLlBc()
     bc->setAttribute(Qt::WA_DeleteOnClose);
 }
 
+void OberonIde::onWorkingDir()
+{
+    ENABLED_IF(true);
+
+    bool ok;
+    const QString res = QInputDialog::getText(this,tr("Set Working Directory"), QString(), QLineEdit::Normal,
+                                              d_pro->getWorkingDir(), &ok );
+    if( !ok )
+        return;
+    d_pro->setWorkingDir(res);
+}
+
 void OberonIde::pushLocation(const OberonIde::Location& loc)
 {
     if( d_pushBackLock )
@@ -1667,7 +1726,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.5.1");
+    a.setApplicationVersion("0.5.2");
     a.setStyle("Fusion");
 
     OberonIde w;

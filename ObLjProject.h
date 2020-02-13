@@ -60,6 +60,8 @@ namespace Ob
         const ModProc& getMain() const { return d_main; }
         void setUseBuiltInOakwood(bool);
         bool useBuiltInOakwood() const { return d_useBuiltInOakwood; }
+        void setUseBuiltInObSysInner(bool);
+        bool useBuiltInObSysInner() const { return d_useBuiltInObSysInner; }
         bool addFile( const QString& );
         bool removeFile( const QString& );
         const QString& getFilePath() const { return d_filePath; }
@@ -68,6 +70,8 @@ namespace Ob
         FileList getFilesInExecOrder() const;
         Ast::Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col ) const;
         Ast::Model::ExpList getUsage( Ast::Named* ) const;
+        QString getWorkingDir(bool resolved = false) const;
+        void setWorkingDir( const QString& );
 
         Errors* getErrs() const;
         FileCache* getFc() const;
@@ -84,9 +88,11 @@ namespace Ob
         FileHash d_files;
         QString d_filePath;
         QStringList d_suffixes;
+        QString d_workingDir;
         ModProc d_main;
         bool d_dirty;
         bool d_useBuiltInOakwood;
+        bool d_useBuiltInObSysInner;
     };
 }
 

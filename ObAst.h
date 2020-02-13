@@ -342,6 +342,7 @@ namespace Ob
                         NEW, ASSERT, PACK, UNPK,
                         WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
                         LED, // LED not global proc in Oberon report, but used as such in Project Oberon
+                       TRAP,
                        // SYSTEM
                        ADR, BIT, GET, H, LDREG, PUT, REG, VAL, COPY
                      };

@@ -107,5 +107,6 @@ module.DIV = _lib.DIV
 module.MOD = _lib.MOD
 module.Str = _lib.Str
 module.Char = _lib.Char
+module.TRAP = _lib.TRAP
 
 return module

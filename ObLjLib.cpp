@@ -24,6 +24,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <string.h>
+#include <LjTools/Engine2.h>
 #ifdef _DEBUG
 #include <QtDebug>
 #endif
@@ -103,6 +104,7 @@ static const luaL_Reg Reg[] =
     { "UNPK", LjLib::UNPK },
     { "Str", LjLib::Str },
     { "Char", LjLib::Char },
+    { "TRAP", LjLib::TRAP },
    { NULL,		NULL	}
 };
 
@@ -232,7 +234,7 @@ int LjLib::SET(lua_State* L)
     {
         const lua_Integer a = lua_tointeger(L,1);
         s->bits = std::bitset<32>(a);
-    }else
+    }else if( max > 1 )
     {
         for( int i = 1; i <= max; i += 2 )
         {
@@ -280,6 +282,9 @@ int LjLib::ORD(lua_State* L)
     }else if( lua_type(L,1) == LUA_TNUMBER )
     {
         lua_pushnumber(L, lua_tonumber(L,1) );
+    }else if( lua_type(L,1) == LUA_TTABLE )
+    {
+        lua_pushnumber(L, (int)lua_topointer(L,1) );
     }else
     {
         _Set* a = setCheck(L,1,true);
@@ -403,6 +408,11 @@ int LjLib::Char(lua_State* L)
     s->string.resize(1);
     s->string[0] = c;
     return 1;
+}
+
+int LjLib::TRAP(lua_State* L)
+{
+    return Lua::Engine2::TRAP(L);
 }
 
 int LjLib::setAdd(lua_State* L)

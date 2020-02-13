@@ -19,6 +19,7 @@
 
 #include "ObSysInnerLib.h"
 #include <lua.hpp>
+#include <LjTools/Engine2.h>
 #include <QPainter>
 #include <QKeyEvent>
 #include <QDir>
@@ -28,8 +29,6 @@
 using namespace Ob;
 
 static QtDisplay* s_disp = 0;
-static QtDisplay::MouseHandler s_mh = 0;
-static QtDisplay::CharHandler s_ch = 0;
 static QtDisplay::IdleHandler s_ih = 0;
 
 QtDisplay*QtDisplay::inst()
@@ -49,21 +48,6 @@ int QtDisplay::mapToOb(int yQt)
     return Height - yQt - 1; // yQt runs from zero to Height - 1; yOb zero is therefore at Height - 1
 }
 
-void QtDisplay::registerMouseHandler(QtDisplay::MouseHandler h)
-{
-    s_mh = h;
-}
-
-void QtDisplay::registerCharHandler(QtDisplay::CharHandler h)
-{
-    s_ch = h;
-}
-
-void QtDisplay::registerIdleHandler(QtDisplay::IdleHandler h)
-{
-    s_ih = h;
-}
-
 void QtDisplay::paintEvent(QPaintEvent*)
 {
     QPainter p(this);
@@ -79,30 +63,38 @@ void QtDisplay::timerEvent(QTimerEvent*)
 void QtDisplay::mouseMoveEvent(QMouseEvent* e)
 {
     mapOb(e);
-    if( s_mh && d_lock == 0 )
-        s_mh(d_keys, d_xOb, d_yOb );
+    if( d_lock == 0 )
+        dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void QtDisplay::mousePressEvent(QMouseEvent* e)
 {
 
     mapOb(e);
-    if( s_mh && d_lock == 0 )
-        s_mh(d_keys, d_xOb, d_yOb );
+    if( d_lock == 0 )
+        dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void QtDisplay::mouseReleaseEvent(QMouseEvent* e)
 {
     mapOb(e);
     d_keys.bits.reset();
-    if( s_mh && d_lock == 0 )
-        s_mh(d_keys, d_xOb, d_yOb );
+    if( d_lock == 0 )
+        dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void QtDisplay::keyPressEvent(QKeyEvent* e)
 {
-    if( s_ch )
-        s_ch( e->text().toLatin1()[0] );
+    if( charHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isWaiting() )
+    {
+        lua_State* L = Lua::Engine2::getInst()->getCtx();
+        lua_getref(L, charHandler);
+        _String* str = LjLib::strCreate(L);
+        str->string.resize(2);
+        str->string[0] = e->text().toLatin1()[0];
+        if( !Lua::Engine2::getInst()->runFunction(1,0) )
+            qWarning() << Lua::Engine2::getInst()->getLastError();
+    }
 }
 
 void QtDisplay::keyReleaseEvent(QKeyEvent*)
@@ -127,8 +119,25 @@ void QtDisplay::mapOb(QMouseEvent* p)
     d_keys.bits.set( 0, p->buttons() & Qt::RightButton );
 }
 
+void QtDisplay::dispatchMouse(const _Set& keys, int x, int y)
+{
+    if( mouseHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isWaiting() )
+    {
+        lua_State* L = Lua::Engine2::getInst()->getCtx();
+        lua_getref(L, mouseHandler);
+        _Set* s = LjLib::setCreate(L);
+        s->bits = keys.bits;
+        lua_pushinteger(L,x);
+        lua_pushinteger(L,y);
+        if( !Lua::Engine2::getInst()->runFunction(3,0) )
+            qWarning() << Lua::Engine2::getInst()->getLastError();
+    }
+}
+
 QtDisplay::QtDisplay():d_img(Width,Height,QImage::Format_Mono),d_lock(0)
 {
+    setAttribute(Qt::WA_DeleteOnClose);
+
     d_img.fill(0);
 
     arrow = QByteArray::fromHex("0F0F 0060 0070 0038 001C 000E 0007 8003 C101 E300 7700 3F00 1F00 3F00 7F00 FF00");
@@ -150,6 +159,14 @@ QtDisplay::QtDisplay():d_img(Width,Height,QImage::Format_Mono),d_lock(0)
     setFocusPolicy(Qt::StrongFocus);
     setCursor(Qt::BlankCursor);
     // TODO startTimer(0); // idle timer
+}
+
+QtDisplay::~QtDisplay()
+{
+    lua_unref( Lua::Engine2::getInst()->getCtx(), charHandler );
+    lua_unref( Lua::Engine2::getInst()->getCtx(), mouseHandler );
+    lua_unref( Lua::Engine2::getInst()->getCtx(), idleHandler );
+    s_disp = 0;
 }
 
 /*********************** Tools ************************************/
@@ -310,7 +327,7 @@ static QString getFileSystemPath(lua_State* L)
     if( !path.isEmpty() )
         return path;
     else
-        return qApp->applicationDirPath().toUtf8();
+        return QDir::currentPath().toUtf8();
 }
 
 int FileDesc::Old(lua_State* L)
@@ -767,7 +784,8 @@ static int Display_block(lua_State* L)
     return 1;
 }
 
-enum Display_Operation { Display_replace = 0, Display_paint = 1, Display_invert = 2 };
+enum Display_Operation { Display_replace = 0, Display_paint = 1, Display_invert = 2,
+                       Display_PatternLen = 15 * 15 / 8 + 2 };
 
 static void setPoint( QImage& img, int x, int y, int mode, int color )
 {
@@ -951,6 +969,9 @@ int SysInnerLib::installDisplay(lua_State* L)
     lua_pushliteral(L,"invert");
     lua_pushinteger(L,Display_invert);
     lua_rawset(L, module);
+    lua_pushliteral(L,"PatternLen");
+    lua_pushinteger(L,Display_PatternLen);
+    lua_rawset(L, module);
     lua_pushliteral(L,"Width");
     lua_pushcfunction(L,Display_Width);
     lua_rawset(L, module);
@@ -1046,6 +1067,7 @@ static int Modules_Load(lua_State* L)
         return 1;
     }else
     {
+
         lua_pop(L,1); // module
 
         lua_getref(L,root);
@@ -1059,6 +1081,7 @@ static int Modules_Load(lua_State* L)
                 {
                     lua_pop(L,1); // name
                     res = 0;
+                    imported = str->string;
                     return 1;
                 }
             }
@@ -1071,10 +1094,24 @@ static int Modules_Load(lua_State* L)
         lua_newtable(L);
         const int ModDesc = lua_gettop(L);
 
-        luaL_getmetatable(L,"Modules");
+        lua_getglobal(L, "Modules" );
         lua_getfield(L,-1,"ModDesc");
         lua_remove(L,-2); // modules
         lua_setmetatable(L,ModDesc);
+
+        lua_pushvalue(L,1); // string
+        lua_setfield(L,ModDesc,"name");
+
+        lua_pushliteral(L,"refcnt");
+        lua_pushinteger(L,0);
+        lua_rawset(L, ModDesc);
+
+        lua_pushliteral(L,"code");
+        lua_pushinteger(L,0);
+        lua_rawset(L, ModDesc);
+
+        res = 0;
+        imported = str->string;
 
         lua_getref(L,root);
         lua_unref(L,root);
@@ -1088,12 +1125,21 @@ static int Modules_Load(lua_State* L)
 static int Modules_ThisCommand(lua_State* L)
 {
     // mod: Module; name: ARRAY OF CHAR): Command;
+    res = 5;
     if( !lua_istable(L,1) )
         lua_pushnil(L);
     else
     {
+        lua_getfield(L,1,"name");
+        _String* modName = LjLib::strCheck(L,-1);
+        lua_pop(L,1); // name
+        lua_getglobal(L,modName->string.c_str());
+        const int module = lua_gettop(L);
         _String* str = LjLib::strCheck(L, 2);
-        lua_getfield(L,1, str->string.c_str());
+        lua_getfield(L,module, str->string.c_str());
+        if( !lua_isnil(L,-1) )
+            res = 0;
+        lua_remove(L,module);
     }
     return 1;
 }
@@ -1133,6 +1179,8 @@ int SysInnerLib::installModules(lua_State* L)
     lua_pushcclosure(L, Generic_new, 1 );
     lua_rawset(L, ModDesc);
 
+
+    lua_pop(L, 1); // ModDesc
     return 1;
 }
 
@@ -1261,9 +1309,6 @@ void SysInnerLib::install(lua_State* L)
 void SysInnerLib::quit()
 {
     if( s_disp )
-    {
-        s_disp->deleteLater();
-        s_disp = 0;
-    }
+        s_disp->close();
 }
 
