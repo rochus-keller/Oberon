@@ -269,6 +269,7 @@ public:
     Debugger(OberonIde* ide):d_ide(ide){}
     void handleBreak( Engine2* lua, const QByteArray& source, quint32 line )
     {
+        d_ide->enableDbgMenu();
         d_ide->fillStack();
         d_ide->fillLocals();
 
@@ -287,13 +288,15 @@ public:
             QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
             QApplication::flush();
         }
+        d_ide->removePosMarkers();
+        d_ide->enableDbgMenu();
         d_ide->d_stack->clear();
         d_ide->d_locals->clear();
     }
-    void handleAliveSignal(Engine2*)
+    void handleAliveSignal(Engine2* e)
     {
         QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
-        // qDebug() << "alive" << QTime::currentTime().toString();
+        QApplication::flush();
     }
 };
 
@@ -364,7 +367,8 @@ OberonIde::OberonIde(QWidget *parent)
 
     d_dbg = new Debugger(this);
     d_lua->setDbgShell(d_dbg);
-    // d_lua->setAliveSignal(true); // TEST
+    // d_lua->setAliveSignal(true); // reduces performance by factor 2 to 5
+    connect( d_lua, SIGNAL(onNotify(int,QByteArray,int)),this,SLOT(onLuaNotify(int,QByteArray,int)) );
 
     Engine2::setInst(d_lua);
 
@@ -390,6 +394,21 @@ OberonIde::OberonIde(QWidget *parent)
     setCorner( Qt::BottomLeftCorner, Qt::LeftDockWidgetArea );
     setCorner( Qt::TopRightCorner, Qt::RightDockWidgetArea );
     setCorner( Qt::TopLeftCorner, Qt::LeftDockWidgetArea );
+
+    d_dbgBreak = new QAction(tr("Break"),this);
+    d_dbgBreak->setShortcut(tr("SHIFT+F9"));
+    connect( d_dbgBreak, SIGNAL(triggered(bool)),this,SLOT(onBreak()) );
+    d_dbgAbort = new QAction(tr("Abort"),this);
+    d_dbgAbort->setShortcut(tr("SHIFT+F5"));
+    connect( d_dbgAbort, SIGNAL(triggered(bool)),this,SLOT(onAbort()) );
+    d_dbgContinue = new QAction(tr("Continue"),this);
+    d_dbgContinue->setShortcut(tr("F5"));
+    connect( d_dbgContinue, SIGNAL(triggered(bool)),this,SLOT(onContinue()) );
+    d_dbgStepIn = new QAction(tr("Step In"),this);
+    d_dbgStepIn->setShortcut(tr("F11"));
+    connect( d_dbgStepIn, SIGNAL(triggered(bool)),this,SLOT(onSingleStep()) );
+
+    enableDbgMenu();
 
     createTerminal();
     createDumpView();
@@ -487,9 +506,7 @@ void OberonIde::createDumpView()
 
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_bcv, true );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
-    pop->addCommand( "Break", this, SLOT(onBreak()) );
-    pop->addCommand( "Abort", this, SLOT(onAbort()) );
-    pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
+    addDebugMenu(pop);
     pop->addSeparator();
     pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
@@ -616,9 +633,7 @@ void OberonIde::createMenu()
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
-    pop->addCommand( "Break", this, SLOT(onBreak()) );
-    pop->addCommand( "Abort", this, SLOT(onAbort()) );
-    pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
+    addDebugMenu(pop);
     addTopCommands(pop);
 
     new QShortcut(tr("CTRL+Q"),this,SLOT(close()));
@@ -632,9 +647,6 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("ALT+Left"), this, this, SLOT(handleGoBack()) );
     new Gui::AutoShortcut( tr("ALT+Right"), this, this, SLOT(handleGoForward()) );
     new Gui::AutoShortcut( tr("F9"), this, this, SLOT(onToggleBreakPt()) );
-    new Gui::AutoShortcut( tr("F11"), this, this, SLOT(onSingleStep()) );
-    new Gui::AutoShortcut( tr("F5"), this, this, SLOT(onContinue()) );
-    new Gui::AutoShortcut( tr("CTRL+ESC"), this, this, SLOT(onBreak()) );
 }
 
 void OberonIde::onCompile()
@@ -680,22 +692,18 @@ void OberonIde::onRun()
         qDebug() << "loading" << f.d_mod->d_name;
         if( !d_lua->addSourceLib( f.d_bc, f.d_mod->d_name ) )
         {
-            // QByteArray msg = d_lua->getLastError();
             hasErrors = true;
-            // luaRuntimeMessage(msg.simplified(),f.d_file);
-            // qCritical() << msg.constData();
-            // TODO: abort
         }
         if( d_lua->isAborted() )
         {
-            onEditorChanged();
+            removePosMarkers();
             return;
         }
     }
 
     if( hasErrors )
     {
-        onEditorChanged();
+        removePosMarkers();
         onErrors();
         return;
     }
@@ -724,13 +732,13 @@ void OberonIde::onRun()
     out.flush();
     if( !src.isEmpty() )
         d_lua->executeCmd(src,"terminal");
-    onEditorChanged();
+    removePosMarkers();
 
 }
 
 void OberonIde::onAbort()
 {
-    ENABLED_IF( d_lua->isWaiting() );
+    // ENABLED_IF( d_lua->isWaiting() );
     d_lua->terminate();
 }
 
@@ -978,7 +986,6 @@ void OberonIde::onEditorChanged()
     for( int i = 0; i < d_tab->count(); i++ )
     {
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
-        e->setPositionMarker(-1);
         if( e->isModified() )
             d_filesDirty = true;
         QFileInfo info( d_tab->getDoc(i).toString() );
@@ -1028,7 +1035,6 @@ void OberonIde::onErrors()
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         Q_ASSERT( e );
         e->updateExtraSelections();
-        e->setPositionMarker(-1);
     }
 }
 
@@ -1100,12 +1106,13 @@ void OberonIde::onEnableDebug()
     CHECKED_IF( true, d_lua->isDebug() );
 
     d_lua->setDebug( !d_lua->isDebug() );
+    enableDbgMenu();
 }
 
 void OberonIde::onBreak()
 {
-    ENABLED_IF( d_lua->isExecuting() );
-    // qDebug() << "onBreak" << d_lua->isExecuting() << d_lua->isWaiting();
+    // normal call because called during processEvent which doesn't seem to enable
+    // the functions: ENABLED_IF( d_lua->isExecuting() );
     d_lua->runToNextLine();
 }
 
@@ -1304,10 +1311,7 @@ void OberonIde::createMenu(OberonIde::Editor* edit)
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
-    pop->addCommand( "Break", this, SLOT(onBreak()) );
-    pop->addCommand( "Abort", this, SLOT(onAbort()) );
-    pop->addCommand( "Enable Debugger", this, SLOT(onEnableDebug()) );
-    pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr("F9"), false);
+    addDebugMenu(pop);
     pop->addSeparator();
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
@@ -1333,6 +1337,19 @@ void OberonIde::createMenu(OberonIde::Editor* edit)
     pop->addCommand( "Print...", edit, SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addCommand( "Export PDF...", edit, SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
     addTopCommands(pop);
+}
+
+void OberonIde::addDebugMenu(Gui::AutoMenu* pop)
+{
+    Gui::AutoMenu* sub = new Gui::AutoMenu(tr("Debugger"), this, false );
+    pop->addMenu(sub);
+    sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr("F8"), false );
+    sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr("F9"), false);
+    sub->addAction( d_dbgStepIn );
+    sub->addAction( d_dbgBreak );
+    sub->addAction( d_dbgContinue );
+    sub->addAction( d_dbgAbort );
+
 }
 
 bool OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
@@ -1508,8 +1525,9 @@ void OberonIde::fillStack()
     Engine2::StackLevels ls = d_lua->getStackTrace();
 
     bool opened = false;
-    foreach( const Engine2::StackLevel& l, ls )
+    for( int level = 0; level < ls.size(); level++ )
     {
+        const Engine2::StackLevel& l = ls[level];
         // Level, Name, Pos, Mod
         QTreeWidgetItem* item = new QTreeWidgetItem(d_stack);
         item->setText(0,QString::number(l.d_level));
@@ -1530,6 +1548,7 @@ void OberonIde::fillStack()
             if( !opened )
             {
                 showEditor(l.d_source, row, col, true );
+                d_lua->setActiveLevel(level);
                 opened = true;
             }
         }
@@ -1621,6 +1640,23 @@ void OberonIde::fillLocals()
     }
 }
 
+void OberonIde::removePosMarkers()
+{
+    for( int i = 0; i < d_tab->count(); i++ )
+    {
+        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
+        e->setPositionMarker(-1);
+    }
+}
+
+void OberonIde::enableDbgMenu()
+{
+    d_dbgBreak->setEnabled(!d_lua->isWaiting() && d_lua->isExecuting());
+    d_dbgAbort->setEnabled(d_lua->isWaiting());
+    d_dbgContinue->setEnabled(d_lua->isWaiting());
+    d_dbgStepIn->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
+}
+
 void OberonIde::handleGoBack()
 {
     ENABLED_IF( d_backHisto.size() > 1 );
@@ -1674,14 +1710,14 @@ void OberonIde::onToggleBreakPt()
 
 void OberonIde::onSingleStep()
 {
-    ENABLED_IF( d_lua->isExecuting() && d_lua->isWaiting() );
+    // ENABLED_IF( d_lua->isWaiting() );
 
     d_lua->runToNextLine();
 }
 
 void OberonIde::onContinue()
 {
-    ENABLED_IF( d_lua->isExecuting() && d_lua->isWaiting() );
+    // ENABLED_IF( d_lua->isWaiting() );
 
     d_lua->runToBreakPoint();
 }
@@ -1710,6 +1746,22 @@ void OberonIde::onWorkingDir()
     d_pro->setWorkingDir(res);
 }
 
+void OberonIde::onLuaNotify(int messageType, QByteArray val1, int val2)
+{
+    switch( messageType )
+    {
+    case Engine2::Started:
+    case Engine2::Continued:
+    case Engine2::LineHit:
+    case Engine2::BreakHit:
+    case Engine2::ErrorHit:
+    case Engine2::Finished:
+    case Engine2::Aborted:
+        enableDbgMenu();
+        break;
+    }
+}
+
 void OberonIde::pushLocation(const OberonIde::Location& loc)
 {
     if( d_pushBackLock )
@@ -1726,7 +1778,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.5.2");
+    a.setApplicationVersion("0.6.0");
     a.setStyle("Fusion");
 
     OberonIde w;
@@ -1734,13 +1786,5 @@ int main(int argc, char *argv[])
     if( a.arguments().size() > 1 )
         w.loadFile(a.arguments()[1] );
 
-#if 0
-    // TEST
-    Ast::Loc l;
-    l.d_col = 1234;
-    l.d_row = 56789;
-    quint32 p = l.packed();
-    qDebug() << QByteArray::number(p,2) << Ast::Loc::isPacked(p) << Ast::Loc::unpackCol(p) << Ast::Loc::unpackRow(p);
-#endif
     return a.exec();
 }

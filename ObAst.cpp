@@ -46,7 +46,7 @@ const char* Ast::BuiltIn::s_typeName[] =
     "ABS", "ODD", "LEN", "LSL", "ASR", "ROR", "FLOOR", "FLT", "ORD",
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
     "WriteInt", "WriteReal", "WriteChar", "WriteLn",
-    "LED", "TRAP",
+    "LED", "TRAP", "TRAPIF",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY"
 };
 
@@ -325,6 +325,9 @@ void Ast::Model::clear()
     d_global->d_names.insert(bi->d_name.constData(),bi.data());
 
     bi = new BuiltIn(BuiltIn::TRAP, new ProcType());
+    d_global->d_names.insert(bi->d_name.constData(),bi.data());
+
+    bi = new BuiltIn(BuiltIn::TRAPIF, new ProcType( Type::List() << d_boolType.data() ) );
     d_global->d_names.insert(bi->d_name.constData(),bi.data());
 
     bi = new BuiltIn(BuiltIn::WriteInt, new ProcType( Type::List() << d_intType.data() ) );

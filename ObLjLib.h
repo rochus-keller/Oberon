@@ -58,6 +58,7 @@ namespace Ob
         static int Str(lua_State *L);
         static int Char(lua_State *L);
         static int TRAP(lua_State *L);
+        static int Copy(lua_State *L);
 
         static _String* strCreate(lua_State* L);
         static _String* strCheck(lua_State *L, int narg = 1 );

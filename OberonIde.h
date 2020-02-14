@@ -78,11 +78,14 @@ namespace Ob
         void showEditor( const QString& path, int row = -1, int col = -1, bool setMarker = false );
         void showEditor(Ast::Named* , bool setMarker = false);
         void createMenu( Editor* );
+        void addDebugMenu(Gui::AutoMenu * pop);
         bool luaRuntimeMessage(const QByteArray&, const QString& file);
         void fillXref();
         void fillXref(Ast::Named*);
         void fillStack();
         void fillLocals();
+        void removePosMarkers();
+        void enableDbgMenu();
         struct Location
         {
             // Qt-Koordinaten
@@ -134,7 +137,7 @@ namespace Ob
         void onContinue();
         void onShowLlBc();
         void onWorkingDir();
-
+        void onLuaNotify( int messageType, QByteArray val1, int val2 );
     private:
         class DocTab;
         class Debugger;
@@ -153,6 +156,10 @@ namespace Ob
         Highlighter* d_hl;
         QList<Location> d_backHisto; // d_backHisto.last() ist aktuell angezeigtes Objekt
         QList<Location> d_forwardHisto;
+        QAction* d_dbgBreak;
+        QAction* d_dbgAbort;
+        QAction* d_dbgContinue;
+        QAction* d_dbgStepIn;
         QByteArray d_curBc;
         bool d_lock;
         bool d_filesDirty;

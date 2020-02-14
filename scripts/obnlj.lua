@@ -108,5 +108,6 @@ module.MOD = _lib.MOD
 module.Str = _lib.Str
 module.Char = _lib.Char
 module.TRAP = _lib.TRAP
+module.Copy = _lib.Copy
 
 return module

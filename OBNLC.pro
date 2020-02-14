@@ -60,7 +60,7 @@ HAVE_LUAJIT {
     INCLUDEPATH += .. ../LjTools/luajit-2.0
     DEFINES += OBNLC_USING_LUAJIT LUA_ENGINE_USE_DEFAULT_PRINT
 
-    include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
+    include( ../LuaJIT/src/LuaJit.pri ){
         LIBS += -ldl
     } else {
         LIBS += -lluajit

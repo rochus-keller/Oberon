@@ -105,6 +105,7 @@ static const luaL_Reg Reg[] =
     { "Str", LjLib::Str },
     { "Char", LjLib::Char },
     { "TRAP", LjLib::TRAP },
+    { "Copy", LjLib::Copy },
    { NULL,		NULL	}
 };
 
@@ -413,6 +414,26 @@ int LjLib::Char(lua_State* L)
 int LjLib::TRAP(lua_State* L)
 {
     return Lua::Engine2::TRAP(L);
+}
+
+int LjLib::Copy(lua_State* L)
+{
+    const int lhs = 1;
+    const int rhs = 2;
+    luaL_checktype(L,lhs,LUA_TTABLE);
+    luaL_checktype(L,rhs,LUA_TTABLE);
+
+    /* table is in the stack at index 't' */
+    lua_pushnil(L);  /* first key */
+    while (lua_next(L, rhs) != 0)
+    {
+        lua_pushvalue(L,-2); // key value key
+        lua_pushvalue(L,-2); // key value key value
+        lua_rawset(L, lhs);
+        /* removes 'value'; keeps 'key' for next iteration */
+        lua_pop(L, 1);
+    }
+    return 0;
 }
 
 int LjLib::setAdd(lua_State* L)

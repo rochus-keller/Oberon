@@ -5,7 +5,7 @@ TEMPLATE = lib
 
 DEFINES += OBNLJLIB_LIBRARY
 
-INCLUDEPATH += .. ../LjTools/luajit-2.0
+INCLUDEPATH += .. ../LuaJIT/src
 
 SOURCES += ObLjLib.cpp
 

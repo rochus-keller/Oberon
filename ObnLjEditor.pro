@@ -60,7 +60,7 @@ HEADERS  += ObnLjEditor.h \
     ObLjbcGen.h \
     ../LjTools/BcViewer2.h
 
-include( /home/me/Desktop/LuaJIT-2.0.5/src/LuaJit.pri ){
+include( ../LuaJIT/src/LuaJit.pri ){
     LIBS += -ldl
 } else {
     LIBS += -lluajit

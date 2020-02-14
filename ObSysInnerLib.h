@@ -66,7 +66,7 @@ namespace Ob
         void mouseReleaseEvent(QMouseEvent *);
         void keyPressEvent(QKeyEvent *);
         void keyReleaseEvent(QKeyEvent *);
-        void mapOb( QMouseEvent* );
+        bool mapOb( QMouseEvent* );
         void dispatchMouse(const Ob::_Set& keys, int x, int y);
     private:
         explicit QtDisplay();

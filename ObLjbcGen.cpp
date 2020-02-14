@@ -507,8 +507,12 @@ struct LjbcGenImp : public AstVisitor
             return true;
         case BaseType::SET:
             {
-                fetchObnljMember(slot,"SET",loc);
-                bc.CALL(slot,1,0,loc.packed());
+                // don't directly use slot for CALL because there are succeeding slots in use
+                quint8 tmp = ctx.back().buySlots(1,true);
+                fetchObnljMember(tmp,"SET",loc);
+                bc.CALL(tmp,1,0,loc.packed());
+                bc.MOV(slot,tmp,loc.packed());
+                ctx.back().sellSlots(tmp,1);
             }
             return true;
         }
@@ -1045,6 +1049,81 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
+    void deepCopy( quint8 lhs, quint8 rhs, Type* t , const Loc& loc )
+    {
+        int tag = t->getTag();
+        Q_ASSERT( tag == Thing::T_Record || tag == Thing::T_Array );
+
+        if( tag == Thing::T_Array )
+        {
+            Array* a = Ast::thing_cast<Array*>(t);
+            Type* at = a->d_type->derefed();
+            tag = at->getTag();
+            if( tag == Thing::T_BaseType && Ast::thing_cast<BaseType*>( at )->d_type == BaseType::CHAR )
+            {
+                quint8 tmp = ctx.back().buySlots(3,true);
+                bc.TGET(tmp, lhs, QVariant::fromValue(QByteArray("assig")), loc.packed() );
+                bc.MOV(tmp+1, lhs, loc.packed() );
+                bc.MOV(tmp+2,rhs, loc.packed() );
+                bc.CALL(tmp,0,2,loc.packed());
+                ctx.back().sellSlots(tmp,3);
+            }else if( tag == Thing::T_Array || tag == Thing::T_Record )
+            {
+                quint8 base = ctx.back().buySlots(4);
+                quint8 tmp = ctx.back().buySlots(2);
+                bc.KSET(base,1,loc.packed());
+                bc.TGET(base+1, rhs, QVariant::fromValue(QByteArray("n")), loc.packed() ); // use dynamic len
+                bc.KSET(base+2,1,loc.packed());
+                bc.FORI(base,0,loc.packed());
+                const quint32 pc = bc.getCurPc();
+
+                bc.TGET( tmp, lhs, base, loc.packed() );
+                bc.TGET( tmp+1, rhs, base, loc.packed() );
+                deepCopy(tmp,tmp+1, at, loc );
+
+                bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
+                bc.patch(pc,bc.getCurPc() - pc);
+
+                ctx.back().sellSlots(tmp,2);
+                ctx.back().sellSlots(base,4);
+            }else
+            {
+                quint8 tmp = ctx.back().buySlots(3,true);
+                fetchObnljMember( tmp, "Copy", loc );
+                bc.MOV( tmp+1, lhs, loc.packed() );
+                bc.MOV( tmp+2, rhs, loc.packed() );
+                bc.CALL(tmp,0,2,loc.packed() );
+                ctx.back().sellSlots(tmp,3);
+            }
+        }else
+        {
+            quint8 tmp = ctx.back().buySlots(1);
+            Record* r = Ast::thing_cast<Record*>(t);
+            for( int i = 0; i < r->d_fields.size(); i++ )
+            {
+                Type* tf = r->d_fields[i]->d_type->derefed();
+                switch( tf->getTag() )
+                {
+                case Thing::T_Array:
+                case Thing::T_Record:
+                    {
+                        quint8 tmp2 = ctx.back().buySlots(1);
+                        bc.TGET( tmp, lhs, QVariant::fromValue(r->d_fields[i]->d_name ), loc.packed() );
+                        bc.TGET( tmp2, rhs, QVariant::fromValue(r->d_fields[i]->d_name ), loc.packed() );
+                        deepCopy(tmp,tmp2, tf, loc );
+                        ctx.back().sellSlots(tmp2,1);
+                    }
+                    break;
+                default:
+                    bc.TGET( tmp, rhs, QVariant::fromValue(r->d_fields[i]->d_name ), loc.packed() );
+                    bc.TSET( tmp, lhs, QVariant::fromValue(r->d_fields[i]->d_name ), loc.packed() );
+                    break;
+                }
+            }
+            ctx.back().sellSlots(tmp,1);
+        }
+    }
+
     void copyImpl( Value& lhs, Value& rhs, const Loc& loc )
     {
         Q_ASSERT( lhs.d_type );
@@ -1061,26 +1140,7 @@ struct LjbcGenImp : public AstVisitor
         derefIndexed(lhs, loc);
         Q_ASSERT( lhs.d_kind == Value::Ref || lhs.d_kind == Value::Tmp );
 
-        if( tag == Thing::T_Array )
-        {
-            Array* a = Ast::thing_cast<Array*>(t);
-            Type* at = a->d_type->derefed();
-            if( at->getTag() == Thing::T_BaseType && Ast::thing_cast<BaseType*>( at )->d_type == BaseType::CHAR )
-            {
-                quint8 tmp = ctx.back().buySlots(3,true);
-                bc.TGET(tmp, lhs.d_slot, QVariant::fromValue(QByteArray("assig")), loc.packed() );
-                bc.MOV(tmp+1, lhs.d_slot, loc.packed() );
-                bc.MOV(tmp+2,rhs.d_slot, loc.packed() );
-                bc.CALL(tmp,0,2,loc.packed());
-                ctx.back().sellSlots(tmp,3);
-            }else
-                qWarning() << "array deep copy not implemented" << loc.packed() << loc.d_col; // TODO
-
-        }else
-        {
-            // TODO
-            qWarning() << "record deep copy not implemented" << loc.packed() << loc.d_col;
-        }
+        deepCopy( lhs.d_slot, rhs.d_slot, t, loc );
     }
 
     void assignImpl( const Value& lhs, Value& rhs, const Loc& loc )
@@ -1188,7 +1248,7 @@ struct LjbcGenImp : public AstVisitor
             Q_ASSERT( rhs.d_kind != Value::Pre );
 
             jumpToBooleanValue( rhs, loc );
-            if( isArrayOfChar(lhs.d_type) && isStructuredAssigByValue(lhs) ) // TODO for all records and arrays
+            if( isStructuredAssigByValue(lhs) )
                 copyImpl( lhs, rhs, loc );
             else
                 assignImpl( lhs, rhs, loc );
@@ -2332,8 +2392,20 @@ struct LjbcGenImp : public AstVisitor
             {
                 quint8 tmp = ctx.back().buySlots(1,true);
                 fetchObnljMember(tmp,"TRAP",c->d_loc);
-                bc.CALL(tmp,0,1,c->d_loc.packed());
+                bc.CALL(tmp,0,0,c->d_loc.packed());
                 ctx.back().sellSlots(tmp,1);
+            }
+            return true;
+        case BuiltIn::TRAPIF:
+            {
+                quint8 tmp = ctx.back().buySlots(2,true);
+                fetchObnljMember(tmp,"TRAP",c->d_loc); // same implementation as TRAP, checks for arg
+                Value lhs;
+                lhs.d_slot = tmp + 1;
+                lhs.d_kind = Value::Ref;
+                assignExpr(lhs, c->d_actuals.first().data() );
+                bc.CALL(tmp,0,1,c->d_loc.packed());
+                ctx.back().sellSlots(tmp,2);
             }
             return true;
         case BuiltIn::INCL:

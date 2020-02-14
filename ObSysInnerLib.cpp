@@ -69,31 +69,26 @@ void QtDisplay::mouseMoveEvent(QMouseEvent* e)
 
 void QtDisplay::mousePressEvent(QMouseEvent* e)
 {
-
-    mapOb(e);
-    if( d_lock == 0 )
+    if( mapOb(e) && d_lock == 0 )
         dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void QtDisplay::mouseReleaseEvent(QMouseEvent* e)
 {
-    mapOb(e);
-    d_keys.bits.reset();
-    if( d_lock == 0 )
+    if( mapOb(e) && d_lock == 0 )
         dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void QtDisplay::keyPressEvent(QKeyEvent* e)
 {
-    if( charHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isWaiting() )
+    if( charHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
         lua_getref(L, charHandler);
         _String* str = LjLib::strCreate(L);
         str->string.resize(2);
         str->string[0] = e->text().toLatin1()[0];
-        if( !Lua::Engine2::getInst()->runFunction(1,0) )
-            qWarning() << Lua::Engine2::getInst()->getLastError();
+        Lua::Engine2::getInst()->runFunction(1,0);
     }
 }
 
@@ -102,26 +97,32 @@ void QtDisplay::keyReleaseEvent(QKeyEvent*)
     // NOP
 }
 
-void QtDisplay::mapOb(QMouseEvent* p)
+bool QtDisplay::mapOb(QMouseEvent* p)
 {
     if( !rect().contains(p->pos()) )
-        return;
-    d_xOb = p->pos().x();
-    d_yOb = mapToOb(p->pos().y());
-    d_keys.bits.reset();
-    d_keys.bits.set( 2, p->buttons() & Qt::LeftButton );
-    d_keys.bits.set( 1, p->buttons() & Qt::MidButton );
+        return false;
+    const int x = p->pos().x();
+    const int y = mapToOb(p->pos().y());
+    std::bitset<32> bits;
+    bits.set( 2, p->buttons() & Qt::LeftButton );
+    bits.set( 1, p->buttons() & Qt::MidButton );
     if( p->modifiers() == Qt::ControlModifier && ( p->buttons() & Qt::LeftButton ) )
     {
-        d_keys.bits.set( 1, true ); // mid button == CTRL + left button
-        d_keys.bits.set( 2, false );
+        bits.set( 1, true ); // mid button == CTRL + left button
+        bits.set( 2, false );
     }
-    d_keys.bits.set( 0, p->buttons() & Qt::RightButton );
+    bits.set( 0, p->buttons() & Qt::RightButton );
+
+    const bool modified = d_xOb != x || d_yOb != y || d_keys.bits != bits;
+    d_xOb = x;
+    d_yOb = y;
+    d_keys.bits = bits;
+    return modified;
 }
 
 void QtDisplay::dispatchMouse(const _Set& keys, int x, int y)
 {
-    if( mouseHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isWaiting() )
+    if( mouseHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
         lua_getref(L, mouseHandler);
@@ -129,8 +130,7 @@ void QtDisplay::dispatchMouse(const _Set& keys, int x, int y)
         s->bits = keys.bits;
         lua_pushinteger(L,x);
         lua_pushinteger(L,y);
-        if( !Lua::Engine2::getInst()->runFunction(3,0) )
-            qWarning() << Lua::Engine2::getInst()->getLastError();
+        Lua::Engine2::getInst()->runFunction(3,0);
     }
 }
 
@@ -815,6 +815,8 @@ static int Display_ReplConst(lua_State* L)
     const int h = luaL_checkinteger(L,5);
     const int mode = luaL_checkinteger(L,6);
 
+    // qDebug() << "ReplConst" << color << x << y << w << h << mode;
+
     QtDisplay* d = QtDisplay::inst();
 
     y = QtDisplay::mapToQt(y);
@@ -892,6 +894,7 @@ static int Display_CopyPattern(lua_State* L)
     int y = luaL_checkinteger(L,4);
     const int mode = luaL_checkinteger(L,5);
 
+    //qDebug() << "CopyPattern" << color << x << y << mode;
     QtDisplay* d = QtDisplay::inst();
 
     QImage img = patternToImage(pattern);
@@ -919,6 +922,7 @@ static int Display_CopyBlock(lua_State* L)
     int dy = luaL_checkinteger(L,6);
     const int mode = luaL_checkinteger(L,7);
 
+    //qDebug() << "CopyBlock" << sx << sy << w << h << dx << dy << mode;
     QtDisplay* d = QtDisplay::inst();
 
     sy = QtDisplay::mapToQt(sy);
