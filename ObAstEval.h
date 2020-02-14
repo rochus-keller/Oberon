@@ -29,8 +29,8 @@ namespace Ob
 {
 namespace Ast
 {
-    class Expression;
-    class Thing;
+    struct Expression;
+    struct Thing;
 
     class Eval : public QObject
     {

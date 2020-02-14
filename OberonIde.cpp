@@ -396,16 +396,24 @@ OberonIde::OberonIde(QWidget *parent)
     setCorner( Qt::TopLeftCorner, Qt::LeftDockWidgetArea );
 
     d_dbgBreak = new QAction(tr("Break"),this);
+    d_dbgBreak->setShortcutContext(Qt::ApplicationShortcut);
     d_dbgBreak->setShortcut(tr("SHIFT+F9"));
+    addAction(d_dbgBreak);
     connect( d_dbgBreak, SIGNAL(triggered(bool)),this,SLOT(onBreak()) );
     d_dbgAbort = new QAction(tr("Abort"),this);
+    d_dbgAbort->setShortcutContext(Qt::ApplicationShortcut);
     d_dbgAbort->setShortcut(tr("SHIFT+F5"));
+    addAction(d_dbgAbort);
     connect( d_dbgAbort, SIGNAL(triggered(bool)),this,SLOT(onAbort()) );
     d_dbgContinue = new QAction(tr("Continue"),this);
+    d_dbgContinue->setShortcutContext(Qt::ApplicationShortcut);
     d_dbgContinue->setShortcut(tr("F5"));
+    addAction(d_dbgContinue);
     connect( d_dbgContinue, SIGNAL(triggered(bool)),this,SLOT(onContinue()) );
     d_dbgStepIn = new QAction(tr("Step In"),this);
+    d_dbgStepIn->setShortcutContext(Qt::ApplicationShortcut);
     d_dbgStepIn->setShortcut(tr("F11"));
+    addAction(d_dbgStepIn);
     connect( d_dbgStepIn, SIGNAL(triggered(bool)),this,SLOT(onSingleStep()) );
 
     enableDbgMenu();
@@ -647,6 +655,7 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("ALT+Left"), this, this, SLOT(handleGoBack()) );
     new Gui::AutoShortcut( tr("ALT+Right"), this, this, SLOT(handleGoForward()) );
     new Gui::AutoShortcut( tr("F9"), this, this, SLOT(onToggleBreakPt()) );
+    new Gui::AutoShortcut( tr("F8"), this, this, SLOT(onEnableDebug()) );
 }
 
 void OberonIde::onCompile()
@@ -1354,7 +1363,10 @@ void OberonIde::addDebugMenu(Gui::AutoMenu* pop)
 
 bool OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
 {
-    const int firstColon = msg.indexOf(':');
+    const int rbrack = msg.indexOf(']'); // cannot directly search for ':' because Windows "C:/"
+    if( rbrack == -1 )
+        return false;
+    const int firstColon = msg.indexOf(':', rbrack);
     if( firstColon != -1 )
     {
         const int secondColon = msg.indexOf(':',firstColon + 1);
@@ -1651,7 +1663,7 @@ void OberonIde::removePosMarkers()
 
 void OberonIde::enableDbgMenu()
 {
-    d_dbgBreak->setEnabled(!d_lua->isWaiting() && d_lua->isExecuting());
+    d_dbgBreak->setEnabled(!d_lua->isWaiting() && d_lua->isExecuting() && d_lua->isDebug() );
     d_dbgAbort->setEnabled(d_lua->isWaiting());
     d_dbgContinue->setEnabled(d_lua->isWaiting());
     d_dbgStepIn->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
@@ -1778,7 +1790,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.6.0");
+    a.setApplicationVersion("0.6.1");
     a.setStyle("Fusion");
 
     OberonIde w;

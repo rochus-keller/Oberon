@@ -44,8 +44,8 @@ namespace Ob
     class Project;
     namespace Ast
     {
-        class Named;
-        class Expression;
+        struct Named;
+        struct Expression;
     }
 
     class OberonIde : public QMainWindow

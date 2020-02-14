@@ -1,10 +1,11 @@
-## Welcome to the Oberon-07 C++ parser and code model/browser/generator
+## Welcome to the Oberon-07 C++ parser, code model/browser/generator and IDE
 
 This is an Oberon-07 parser, code model and generator written in C++ and Qt. See http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf for more information about the language. The syntax was modified for Coco/R compatibility using https://github.com/rochus-keller/EbnfStudio. 
 
 One goal of this project is to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries and with no dependencies to the Oberon System. The C++ based Lola-2 compiler will be integrated in https://github.com/rochus-keller/LolaCreator.
 
-Another goal of this project is to study the feasibility of reusing LuaJIT (see http://luajit.org/) as a backend for statically typed programming languages like Oberon. As it turned out, Oberon is an ideal object of study for this question because it is sufficiently simple and representative as it supports pointers, static and stack based data structures and call by reference which are not usually available with scripting languages. The current implementation is able to map full Oberon to Lua source code or LuaJIT bytecode and run with decent performance on LuaJIT; the generators are work in progress.
+Another goal of this project is to study the feasibility of reusing LuaJIT (see http://luajit.org/) as a backend for statically typed programming languages like Oberon. As it turned out, Oberon is an ideal object of study for this question because it is sufficiently simple and representative as it supports pointers, static and stack based data structures and call by reference which are not usually available with scripting languages. The current implementation is able to map full Oberon to Lua source code or LuaJIT bytecode and run with decent performance on LuaJIT. There is also a compatible version of the Oberon System (see https://github.com/rochus-keller/OberonSystem, work in progress).
+
 
 ### Parser and code model features
 
@@ -35,7 +36,8 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Full support for VAR parameters (call by reference, using thunks or multiple return values) and strings as ARRAY OF CHAR with element access
 - Oberon idents conflicting with Lua keywords and standard names are postfixed with underscores
 - The generated Lua source code is formatted for readability; Oberon comments are not included
-- Restrictions: assignments of records and arrays doesn't make a copy yet; code generator has prototype status; SYSTEM module is not supported
+- The bytecode generator is nearly feature complete; the generated code of the adapted Oberon System works quite good (whereas still work in progress) 
+- SYSTEM module is not supported.
 
 ### Code browser features
 
@@ -48,7 +50,7 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 
 ![OberonViewer Screenshot](http://software.rochus-keller.info/oberonviewer_screenshot_1.png)
 
-### IDE features
+### Oberon IDE features
 
 Same as code browser, in addition
 
@@ -58,12 +60,23 @@ Same as code browser, in addition
 - Bytecode view (LuaJIT assembler syntax), synchronized to source
 - Optional Oakwood or Oberon System backend
 - Integrated source level debugger with breakpoints, stack trace and locals view
+- A stack trace is also shown if TRACE or TRACEIF( exp: BOOLEAN ) evaluating to TRUE is executed
 
 
-![Oberon IDE Screenshot](http://software.rochus-keller.info/screenshot_oberon_ide_0.5.1.png)
+![Oberon IDE Screenshot](http://software.rochus-keller.info/screenshot_oberon_system_in_debugger.png)
+
+
+Here is another [screenshot](http://software.rochus-keller.info/screenshot_oberon_ide_0.5.1.png).
+
 
 
 ### Binary version
+
+Here is a binary version of the Oberon IDE for Windows: http://software.rochus-keller.info/OberonIDE_win32.zip.
+Just unpack the ZIP somewhere on your drive and double-click OberonIDE.exe; Qt libraries are included as well as the demo Oberon System (open the project using CTRL+O and then run it using CTRL+R, or right-click to open context menus and select the commands from there).
+And here is a version for Linux x86: http://software.rochus-keller.info/OberonIDE_linux_i368.tar.gz
+It requires a preinstalled Qt version >= 5.4.
+
 
 Here is a binary version of OberonViewer for Windows: http://software.rochus-keller.info/OberonViewer_win32.zip
 Just download, unpack and run it; no installer is needed. The ZIP includes the needed Qt libraries.
@@ -71,8 +84,10 @@ Just download, unpack and run it; no installer is needed. The ZIP includes the n
 Here is a binary version of OberonViewer for Linux x86: http://software.rochus-keller.info/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
+
 Here is a binary version of OBNLC (Lua source code and bytecode generator) for Linux x86: http://software.rochus-keller.info/OBNLC_linux_x86.tar.gz. 
 libQt5Core.so is required to run the binary.
+
 
 ### Build Steps
 
@@ -88,7 +103,7 @@ Alternatively you can open OberonViewer.pro using QtCreator and build it there.
 The library makes use of a parser generated by Coco/R based on input from EbnfStudio. There is no other dependency than the Qt Core library.
 The repository already contains the generated files. In order to regenerate ObParser.cpp/h you have to use this version of Coco/R: https://github.com/rochus-keller/Coco
 
-Note that this procedure in principle also applies to the Lua code generator OBNLC.pro and ObnLjEditor.pro, but https://github.com/rochus-keller/GuiTools/archive/master.zip and https://github.com/rochus-keller/LjTools/archive/master.zip have to be downloaded and unpacked to the same directory and the LuaJIT 2.0 library is needed as well.
+Note that this procedure also applies to OberonIde.pro, OBNLC.pro, and ObnLjEditor.pro, but https://github.com/rochus-keller/GuiTools/archive/master.zip and https://github.com/rochus-keller/LjTools/archive/master.zip have to be downloaded and unpacked to the same directory. The LuaJIT 2.0 library is needed as well; please use the LjTools branch of https://github.com/rochus-keller/LuaJIT/tree/LjTools.
 
 ## Support
 If you need support or would like to post issues or feature requests please use the Github issue list at https://github.com/rochus-keller/Oberon/issues or send an email to the author.

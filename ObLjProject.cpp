@@ -27,7 +27,7 @@
 #include <QSettings>
 #include <QCoreApplication>
 using namespace Ob;
-using namespace Ast;
+using namespace Ob::Ast;
 
 struct HitTest : public AstVisitor
 {

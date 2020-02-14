@@ -31,7 +31,8 @@ namespace Ob
     {
         Q_OBJECT
     public:
-        enum { Width = 1024, Height = 768 };
+        // enum { Width = 1024, Height = 768 };
+        enum { Width = 1000, Height = 600 };
 
         QImage d_img;
         int d_xOb, d_yOb;

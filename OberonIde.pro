@@ -24,7 +24,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 TARGET = OberonIDE
 TEMPLATE = app
 
-INCLUDEPATH += ..
+INCLUDEPATH += .. ../LuaJIT/src
 
 SOURCES += OberonIde.cpp \
     ../GuiTools/CodeEditor.cpp \
@@ -64,10 +64,15 @@ HEADERS  += OberonIde.h \
     ObSysInnerLib.h \
     ../LjTools/BcViewer.h
 
-include( ../LuaJIT/src/LuaJit.pri ){
-    LIBS += -ldl
-} else {
-    LIBS += -lluajit
+win32 {
+    LIBS += -L../LuaJIT/src -llua51
+} else
+{
+    include( ../LuaJIT/src/LuaJit.pri ){
+        LIBS += -ldl
+    } else {
+        LIBS += -lluajit
+    }
 }
 
 include( Oberon.pri )

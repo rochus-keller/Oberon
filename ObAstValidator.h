@@ -28,7 +28,7 @@ namespace Ob
 
 namespace Ast
 {
-    class Module;
+    struct Module;
     class Model;
 
     class Validator : public QObject

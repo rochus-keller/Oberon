@@ -206,6 +206,7 @@ namespace Ob
                 quint32 d_len;  // zero for open arrays
                 Ref<Expression> d_lenExpr;
                 Ref<Type> d_type;
+                Array():d_len(0) {}
                 int getTag() const { return T_Array; }
                 void accept(AstVisitor* v) { v->visit(this); }
                 bool isStructured() const { return true; }
