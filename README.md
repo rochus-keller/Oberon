@@ -1,4 +1,4 @@
-## Welcome to the Oberon-07 C++ parser, code model/browser/generator and IDE
+## Welcome to the Oberon-07 C++ parser, code model/browser/generator/IDE
 
 This is an Oberon-07 parser, code model and generator written in C++ and Qt. See http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf for more information about the language. The syntax was modified for Coco/R compatibility using https://github.com/rochus-keller/EbnfStudio. 
 

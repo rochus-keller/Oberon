@@ -333,7 +333,7 @@ Project::FileList Project::getFilesInExecOrder() const
 Ast::Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
 {
     FileHash::const_iterator i = d_files.find(file);
-    if( i == d_files.end() || i.value().d_mod->d_hasErrors )
+    if( i == d_files.end() || i.value().d_mod.isNull() || i.value().d_mod->d_hasErrors )
         return 0;
     try
     {

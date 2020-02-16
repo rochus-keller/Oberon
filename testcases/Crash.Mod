@@ -1,0 +1,12 @@
+MODULE Crash;
+
+TYPE T1 = RECORD END;
+  T2 = RECORD q: INTEGER END;
+
+PROCEDURE Foo*;
+VAR v: T1;
+BEGIN v(T2).q:
+TRAPIF(TRUE)
+END Foo;
+
+END Crash.

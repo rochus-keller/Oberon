@@ -306,13 +306,13 @@ FileDesc* FileDesc::create(lua_State* L)
     return s;
 }
 
-int FileDesc::__new(lua_State* L)
+int FileDesc::_new(lua_State* L)
 {
     create(L);
     return 1;
 }
 
-int FileDesc::__gc(lua_State* L)
+int FileDesc::_gc(lua_State* L)
 {
     FileDesc* s = check(L,1);
     s->~FileDesc();  // call destructor
@@ -412,7 +412,7 @@ int FileDesc::Length(lua_State* L)
 
 void FileDesc::install(lua_State* L)
 {
-    installRecord(L,FileDesc_METANAME,"FileDesc","Files",__gc, __new);
+    installRecord(L,FileDesc_METANAME,"FileDesc","Files",_gc, _new);
 }
 
 #define Rider_METANAME "ObnRider"
@@ -428,7 +428,7 @@ Rider* Rider::check(lua_State *L, int narg)
     return static_cast<Rider*>( luaL_checkudata( L, narg, Rider_METANAME ) );
 }
 
-int Rider::__new(lua_State* L)
+int Rider::_new(lua_State* L)
 {
     void* buf = lua_newuserdata( L, sizeof(Rider) );
     Rider* s = ::new( buf ) Rider();
@@ -444,7 +444,7 @@ int Rider::__new(lua_State* L)
     return 1;
 }
 
-int Rider::__gc(lua_State* L)
+int Rider::_gc(lua_State* L)
 {
     Rider* s = check(L,1);
     lua_unref(L, s->d_file );
@@ -452,7 +452,7 @@ int Rider::__gc(lua_State* L)
     return 0;
 }
 
-int Rider::__index(lua_State* L)
+int Rider::_index(lua_State* L)
 {
     Rider* s = check(L,1);
     QByteArray name = lua_tostring(L,2);
@@ -486,6 +486,7 @@ int Rider::Set(lua_State* L)
         r->d_buf.setBuffer( &f->d_data );
         r->d_buf.open( QIODevice::ReadWrite );
     }
+    Q_ASSERT( r->d_buf.isOpen() );
     if( pos < 0 )
         pos = 0;
     r->d_buf.seek(pos);
@@ -498,6 +499,7 @@ int Rider::Set(lua_State* L)
 int Rider::Pos(lua_State* L)
 {
     Rider* r = check(L,1);
+    Q_ASSERT( r->d_buf.isOpen() );
     lua_pushinteger( L,r->d_buf.pos() );
     lua_pushvalue(L,1);
     return 2;
@@ -531,6 +533,7 @@ void Rider::ReadByte(quint8& x)
         x = 0;
         return;
     }
+    Q_ASSERT( d_buf.isOpen() );
     if( !d_buf.getChar( (char*)&x ) )
         res = 1; // num of bytes not read
 }
@@ -654,7 +657,7 @@ int Rider::RestoreList(lua_State* L)
 
 void Rider::install(lua_State* L)
 {
-    installRecord(L,Rider_METANAME,"Rider","Files",__gc,__new,__index);
+    installRecord(L,Rider_METANAME,"Rider","Files",_gc,_new,_index);
 }
 
 static const luaL_Reg Files_Reg[] =
@@ -691,9 +694,51 @@ int SysInnerLib::installFiles(lua_State* L)
 
 /***************** MODULE FileDir ********************************/
 
+static int FileDir_Enumerate(lua_State* L)
+{
+    // prefix: ARRAY OF CHAR; proc: EntryHandler;
+
+    // TODO: not sure yet how this is supposed to work; currently just return all files
+    _String* prefix = LjLib::strCheck(L,1);
+    luaL_checktype( L,2,LUA_TFUNCTION );
+
+    lua_newtable(L);
+    const int fh = lua_gettop(L);
+
+    QDir dir( getFileSystemPath( L ) );
+    QFileInfoList files = dir.entryInfoList( QDir::Files | QDir::Readable | QDir::Writable );
+
+    bool run = true;
+    foreach( const QFileInfo& f, files )
+    {
+        lua_pushliteral(L,"leng");
+        lua_pushinteger(L,f.size());
+        lua_rawset(L,fh);
+
+        lua_pushliteral(L,"clock");
+        lua_pushinteger(L, f.created().toTime_t());
+        lua_rawset(L,fh);
+
+        lua_pushvalue(L,2);
+        _String* name = LjLib::strCreate(L);
+        name->string = f.fileName().left(31).toUtf8().constData();
+        lua_pushvalue(L,fh);
+        lua_pushboolean(L,run);
+        lua_call(L, 3, 1 );
+        run = lua_toboolean(L,-1);
+        lua_pop(L,1);
+        if( !run )
+            break;
+    }
+
+    lua_pop(L,1); // fh
+
+    return 0;
+}
+
 static const luaL_Reg FileDir_Reg[] =
 {
-    // TODO
+    { "Enumerate", FileDir_Enumerate },
     { NULL,		NULL	}
 };
 

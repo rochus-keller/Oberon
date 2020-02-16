@@ -31,8 +31,8 @@ namespace Ob
     {
         Q_OBJECT
     public:
-        // enum { Width = 1024, Height = 768 };
-        enum { Width = 1000, Height = 600 };
+        enum { Width = 1024, Height = 768 };
+        // enum { Width = 1000, Height = 600 };
 
         QImage d_img;
         int d_xOb, d_yOb;
@@ -87,10 +87,10 @@ namespace Ob
         int d_file; // luaL_ref value
 
         static void install(lua_State* L);
-        static int __new(lua_State* L);
+        static int _new(lua_State* L);
         static Rider* check(lua_State *L, int narg = 1 );
-        static int __gc(lua_State* L);
-        static int __index(lua_State* L);
+        static int _gc(lua_State* L);
+        static int _index(lua_State* L);
 
         static int Set(lua_State* L);
         static int Pos(lua_State* L);
@@ -115,9 +115,9 @@ namespace Ob
 
         static void install(lua_State* L);
         static FileDesc* create(lua_State* L);
-        static int __new(lua_State* L);
+        static int _new(lua_State* L);
         static FileDesc* check(lua_State *L, int narg = 1, bool nilAllowed = false );
-        static int __gc(lua_State* L);
+        static int _gc(lua_State* L);
 
         static int Old(lua_State* L);
         static int New(lua_State* L);
