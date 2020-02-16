@@ -83,8 +83,11 @@ namespace Ob
         int res;
 
         // c++ implementation:
-        QBuffer d_buf;
-        int d_file; // luaL_ref value
+        int d_fileRef; // luaL_ref value
+        File d_file;
+        int d_pos;
+
+        Rider():d_file(0),d_pos(0){}
 
         static void install(lua_State* L);
         static int _new(lua_State* L);
@@ -110,8 +113,8 @@ namespace Ob
     struct FileDesc {
 
         // c++ implementation:
-        QByteArray d_data;
         QByteArray d_name;
+        QBuffer d_buf;
 
         static void install(lua_State* L);
         static FileDesc* create(lua_State* L);

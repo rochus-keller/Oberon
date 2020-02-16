@@ -339,7 +339,8 @@ int FileDesc::Old(lua_State* L)
         f.open(QIODevice::ReadOnly);
         FileDesc* res = FileDesc::create(L);
         res->d_name = name->string.c_str();
-        res->d_data = f.readAll();
+        res->d_buf.setData(f.readAll());
+        res->d_buf.open( QIODevice::ReadWrite );
     }else
         lua_pushnil(L);
     return 1;
@@ -350,6 +351,7 @@ int FileDesc::New(lua_State* L)
     FileDesc* res = create(L);
     _String* name = LjLib::strCheck(L, 1);
     res->d_name = name->string.c_str();
+    res->d_buf.open( QIODevice::ReadWrite );
     return 1;
 }
 
@@ -359,7 +361,9 @@ int FileDesc::Register(lua_State* L)
     QDir dir(getFileSystemPath(L));
     QFile out( dir.absoluteFilePath(f->d_name.data()) );
     out.open(QIODevice::WriteOnly);
-    out.write(f->d_data);
+    f->d_buf.close();
+    out.write(f->d_buf.data());
+    f->d_buf.open(QIODevice::ReadWrite );
     return 0;
 }
 
@@ -405,7 +409,7 @@ int FileDesc::Rename(lua_State* L)
 int FileDesc::Length(lua_State* L)
 {
     FileDesc* f = check(L,1);
-    lua_pushinteger(L, f->d_data.size() );
+    lua_pushinteger(L, f->d_buf.size() );
     return 1;
 }
 
@@ -434,7 +438,7 @@ int Rider::_new(lua_State* L)
 
     s->eof = false;
     s->res = 0;
-    s->d_file = LUA_REFNIL;
+    s->d_fileRef = LUA_REFNIL;
 
     luaL_getmetatable( L, Rider_METANAME );
     if( !lua_istable(L, -1 ) )
@@ -446,7 +450,7 @@ int Rider::_new(lua_State* L)
 int Rider::_gc(lua_State* L)
 {
     Rider* s = check(L,1);
-    lua_unref(L, s->d_file );
+    lua_unref(L, s->d_fileRef );
     s->~Rider();  // call destructor
     return 0;
 }
@@ -472,26 +476,20 @@ int Rider::Set(lua_State* L)
 
     r->eof = false;
     r->res = 0;
+    r->d_file = f;
     if( f == 0 )
     {
-        r->d_buf.close();
-        lua_unref(L,r->d_file);
-        r->d_file = LUA_REFNIL;
+        lua_unref(L,r->d_fileRef);
+        r->d_fileRef = LUA_REFNIL;
         lua_pushvalue(L,1);
         return 1;
     }
-    if( !r->d_buf.isOpen() )
-    {
-        r->d_buf.setBuffer( &f->d_data );
-        r->d_buf.open( QIODevice::ReadWrite );
-    }
-    Q_ASSERT( r->d_buf.isOpen() );
+    Q_ASSERT( r->d_file->d_buf.isOpen() );
     if( pos < 0 )
         pos = 0;
-    const bool res = r->d_buf.seek(pos);
-    Q_ASSERT( res );
+    r->d_pos = pos;
     lua_pushvalue(L,2);
-    r->d_file = lua_ref(L,1);
+    r->d_fileRef = lua_ref(L,1);
     lua_pushvalue(L,1);
     return 1;
 }
@@ -499,8 +497,7 @@ int Rider::Set(lua_State* L)
 int Rider::Pos(lua_State* L)
 {
     Rider* r = check(L,1);
-    Q_ASSERT( r->d_buf.isOpen() );
-    lua_pushinteger( L,r->d_buf.pos() );
+    lua_pushinteger( L,r->d_pos );
     lua_pushvalue(L,1);
     return 2;
 }
@@ -508,7 +505,7 @@ int Rider::Pos(lua_State* L)
 int Rider::Base(lua_State* L)
 {
     Rider* r = check(L,1);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, r->d_file);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, r->d_fileRef);
     lua_pushvalue(L,1);
     return 2;
 }
@@ -527,15 +524,17 @@ void Rider::ReadByte(quint8& x)
 {
     eof = false;
     res = 0;
-    if( d_buf.atEnd() || !d_buf.isOpen() )
+    Q_ASSERT( d_file );
+    d_file->d_buf.seek( d_pos );
+    if( d_file->d_buf.atEnd() )
     {
         eof = true;
         x = 0;
         return;
     }
-    Q_ASSERT( d_buf.isOpen() );
-    if( !d_buf.getChar( (char*)&x ) )
+    if( !d_file->d_buf.getChar( (char*)&x ) )
         res = 1; // num of bytes not read
+    d_pos = d_file->d_buf.pos();
 }
 
 int Rider::Read(lua_State* L)
@@ -585,8 +584,11 @@ int Rider::ReadString(lua_State* L)
 
 void Rider::WriteByte(quint8 x)
 {
-    if( !d_buf.putChar((char)x) )
+    Q_ASSERT( d_file );
+    d_file->d_buf.seek(d_pos);
+    if( !d_file->d_buf.putChar((char)x) )
         res++;
+    d_pos = d_file->d_buf.pos();
 }
 
 int Rider::WriteByte(lua_State* L)
