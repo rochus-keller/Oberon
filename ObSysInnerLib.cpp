@@ -85,8 +85,7 @@ void QtDisplay::keyPressEvent(QKeyEvent* e)
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
         lua_getref(L, charHandler);
-        _String* str = LjLib::strCreate(L);
-        str->string.resize(2);
+        _String* str = LjLib::strCreate(L, 2);
         str->string[0] = e->text().toLatin1()[0];
         Lua::Engine2::getInst()->runFunction(1,0);
     }
@@ -489,7 +488,8 @@ int Rider::Set(lua_State* L)
     Q_ASSERT( r->d_buf.isOpen() );
     if( pos < 0 )
         pos = 0;
-    r->d_buf.seek(pos);
+    const bool res = r->d_buf.seek(pos);
+    Q_ASSERT( res );
     lua_pushvalue(L,2);
     r->d_file = lua_ref(L,1);
     lua_pushvalue(L,1);
@@ -544,8 +544,7 @@ int Rider::Read(lua_State* L)
     quint8 x;
     r->ReadByte(x);
     lua_pushvalue(L,1);
-    _String* s2 = LjLib::strCreate(L);
-    s2->string.resize(2);
+    _String* s2 = LjLib::strCreate(L, 2);
     s2->string[0] = x;
     return 2;
 }
@@ -700,6 +699,7 @@ static int FileDir_Enumerate(lua_State* L)
 
     // TODO: not sure yet how this is supposed to work; currently just return all files
     _String* prefix = LjLib::strCheck(L,1);
+    qDebug() << "FileDir_Enumerate prefix:" << prefix->string.c_str();
     luaL_checktype( L,2,LUA_TFUNCTION );
 
     lua_newtable(L);
@@ -720,8 +720,8 @@ static int FileDir_Enumerate(lua_State* L)
         lua_rawset(L,fh);
 
         lua_pushvalue(L,2);
-        _String* name = LjLib::strCreate(L);
-        name->string = f.fileName().left(31).toUtf8().constData();
+        _String* name = LjLib::strCreate(L, 32);
+        name->assign( f.fileName().left(31).toUtf8() );
         lua_pushvalue(L,fh);
         lua_pushboolean(L,run);
         lua_call(L, 3, 1 );
@@ -1079,15 +1079,15 @@ static int res = 0;
 
 static int Modules_importing(lua_State* L)
 {
-    _String* str = LjLib::strCreate(L);
-    str->string = importing;
+    _String* str = LjLib::strCreate(L, 32);
+    str->assign(importing);
     return 1;
 }
 
 static int Modules_imported(lua_State* L)
 {
-    _String* str = LjLib::strCreate(L);
-    str->string = imported;
+    _String* str = LjLib::strCreate(L, 32);
+    str->assign(imported);
     return 1;
 }
 
@@ -1272,8 +1272,7 @@ static int Input_Available(lua_State* L)
 static int Input_Read(lua_State* L)
 {
     // obsolete
-    _String* s2 = LjLib::strCreate(L);
-    s2->string.resize(2);
+    _String* s2 = LjLib::strCreate(L, 2);
     s2->string[0] = 0;
     return 1;
 }

@@ -75,10 +75,17 @@ _String* LjLib::strCheck(lua_State *L, int narg )
     return static_cast<_String*>( luaL_checkudata( L, narg, STRING_METANAME ) );
 }
 
-_String* LjLib::strCreate(lua_State* L)
+_String* LjLib::strCreate(lua_State* L, int len)
 {
     void* buf = lua_newuserdata( L, sizeof(_String) );
     _String* s = ::new( buf ) _String();
+
+    if( len != -1 )
+    {
+        s->string.resize(len);
+        for( int i = 0; i < len; i++ )
+            s->string[i] = 0;
+    }
 
     luaL_getmetatable( L, STRING_METANAME );
     if( !lua_istable(L, -1 ) )
@@ -703,3 +710,25 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 #endif
+
+
+bool _String::assign(const QByteArray& rhs)
+{
+    if( rhs.size() > string.size() - 1 )
+        return false;
+    const char* str = rhs.constData();
+    for( int i = 0; i < rhs.size(); i++ )
+        string[i] = str[i];
+    string[rhs.size()] = 0;
+    return true;
+}
+
+bool _String::assign(const std::string& rhs)
+{
+    if( rhs.size() > string.size() - 1 )
+        return false;
+    for( int i = 0; i < rhs.size(); i++ )
+        string[i] = rhs[i];
+    string[rhs.size()] = 0;
+    return true;
+}

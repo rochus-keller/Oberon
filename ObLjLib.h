@@ -24,6 +24,7 @@
 #include <string>
 
 typedef struct lua_State lua_State;
+class QByteArray;
 
 namespace Ob
 {
@@ -35,6 +36,8 @@ namespace Ob
     struct _String
     {
         std::string string;
+        bool assign( const QByteArray& rhs );
+        bool assign( const std::string& rhs );
     };
 
     class LjLib
@@ -60,7 +63,7 @@ namespace Ob
         static int TRAP(lua_State *L);
         static int Copy(lua_State *L);
 
-        static _String* strCreate(lua_State* L);
+        static _String* strCreate(lua_State* L, int len = -1);
         static _String* strCheck(lua_State *L, int narg = 1 );
         static _Set* setCreate(lua_State* L);
         static _Set* setCheck(lua_State *L, int narg = 1, bool justPeek = false );

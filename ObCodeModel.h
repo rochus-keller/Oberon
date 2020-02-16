@@ -30,6 +30,7 @@
 #include <QVariant>
 
 class QTextStream;
+class QIODevice;
 
 namespace Ob
 {

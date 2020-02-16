@@ -1569,38 +1569,57 @@ void OberonIde::fillStack()
     d_stack->parentWidget()->show();
 }
 
+static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
+{
+    if( val.canConvert<Lua::Engine2::VarAddress>() )
+    {
+        Lua::Engine2::VarAddress addr = val.value<Lua::Engine2::VarAddress>();
+        if( addr.d_addr )
+            item->setToolTip(1, QString("address 0x%1").arg(quint32(addr.d_addr),8,16,QChar('0')));
+        switch( addr.d_type )
+        {
+        case Engine2::LocalVar::NIL:
+            item->setText(1, "nil");
+            break;
+        case Engine2::LocalVar::FUNC:
+            item->setText(1, "func");
+            break;
+        case Engine2::LocalVar::TABLE:
+            item->setText(1, "table");
+            break;
+        case Engine2::LocalVar::STRUCT:
+            item->setText(1, "struct");
+            break;
+        }
+    }else if( val.type() == QMetaType::QVariantMap)
+    {
+        QVariantMap map = val.toMap();
+        typeAddr( item, map.value(QString()) );
+    }
+}
+
 static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
 {
     QVariantMap::const_iterator i;
     for( i = vals.begin(); i != vals.end(); i++ )
     {
+        if( i.key().isEmpty() )
+            continue;
         QTreeWidgetItem* item = new QTreeWidgetItem(super);
         item->setText(0, i.key() );
 
-        if( i.value().canConvert<Lua::Engine2::DummyVar>() )
+        if( i.value().canConvert<Lua::Engine2::VarAddress>() )
         {
-            switch( i.value().value<Lua::Engine2::DummyVar>().d_type )
-            {
-            case Engine2::LocalVar::NIL:
-                item->setText(1, "nil");
-                break;
-            case Engine2::LocalVar::FUNC:
-                item->setText(1, "func");
-                break;
-            case Engine2::LocalVar::TABLE:
-                item->setText(1, "table");
-                break;
-            case Engine2::LocalVar::STRUCT:
-                item->setText(1, "struct");
-                break;
-           }
+            typeAddr(item,i.value());
         }else if( i.value().type() == QMetaType::QVariantMap)
         {
-            item->setText(1, "table");
+            typeAddr(item,i.value());
             fillLocalSubs(item,i.value().toMap() );
         }else if( i.value().type() == QMetaType::QByteArray )
-            item->setText(1, "\"" + i.value().toString() + "\"");
-        else
+        {
+            item->setText(1, "\"" + i.value().toString().simplified() + "\"");
+            item->setToolTip(1, i.value().toString());
+        }else
             item->setText(1,i.value().toString());
     }
 }
@@ -1616,17 +1635,20 @@ void OberonIde::fillLocals()
         if( v.d_isUv )
             name = "(" + name + ")";
         item->setText(0,name);
-        if( v.d_value.type() == QMetaType::QVariantMap )
+        if( v.d_value.canConvert<Lua::Engine2::VarAddress>() )
         {
-            item->setText(1, "table");
+            typeAddr(item,v.d_value);
+        }else if( v.d_value.type() == QMetaType::QVariantMap )
+        {
+            typeAddr(item,v.d_value);
             fillLocalSubs(item,v.d_value.toMap() );
-        }else if( !v.d_value.toString().isEmpty() ) // check for string because isNull is false with DummyVar
+        }else if( JitBytecode::isString(v.d_value) )
         {
-            if( v.d_value.type() == QVariant::ByteArray || v.d_value.type() == QVariant::String )
-                item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
-            else
-                item->setText(1,v.d_value.toString());
-        }else
+            item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
+            item->setToolTip(1, v.d_value.toString() );
+        }else if( !v.d_value.isNull() )
+            item->setText(1,v.d_value.toString());
+        else
         {
             switch( v.d_type )
             {
@@ -1790,7 +1812,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.6.2");
+    a.setApplicationVersion("0.6.3");
     a.setStyle("Fusion");
 
     OberonIde w;

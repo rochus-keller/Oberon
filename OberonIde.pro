@@ -66,8 +66,8 @@ HEADERS  += OberonIde.h \
 
 win32 {
     LIBS += -L../LuaJIT/src -llua51
-} else
-{
+}
+!win32 {
     include( ../LuaJIT/src/LuaJit.pri ){
         LIBS += -ldl
     } else {
