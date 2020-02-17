@@ -56,8 +56,12 @@ void QtDisplay::paintEvent(QPaintEvent*)
 
 void QtDisplay::timerEvent(QTimerEvent*)
 {
-    if( s_ih )
-        ; // TODO s_ih();
+    if( idleHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
+    {
+        lua_State* L = Lua::Engine2::getInst()->getCtx();
+        lua_getref(L, idleHandler);
+        Lua::Engine2::getInst()->runFunction(0,0);
+    }
 }
 
 void QtDisplay::mouseMoveEvent(QMouseEvent* e)
@@ -157,7 +161,7 @@ QtDisplay::QtDisplay():d_img(Width,Height,QImage::Format_Mono),d_lock(0)
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setCursor(Qt::BlankCursor);
-    // TODO startTimer(0); // idle timer
+    startTimer(30); // idle timer
 }
 
 QtDisplay::~QtDisplay()
@@ -229,6 +233,9 @@ static int MOD(int a, int b) // Source: http://lists.inf.ethz.ch/pipermail/obero
     else
         return a % b;
 }
+
+static int ASR(int x, int n) { return ((int64_t)(x)>>(n)); }
+static int ROR(int x, int n) { return ((int64_t)(x)>>(n)); } // TODO: stimmt das?
 
 struct BitStream
 {
@@ -561,6 +568,30 @@ int Rider::ReadInt(lua_State* L)
     return 2;
 }
 
+int Rider::ReadNum(lua_State* L)
+{
+    Rider* r = check(L,1);
+
+    int n = 32;
+    int y = 0;
+    quint8 b;
+    r->ReadByte(b);
+    while( b >= 0x80 )
+    {
+        y = ROR( y + b-0x80, 7);
+        n -= 7;
+        r->ReadByte(b);
+    }
+    int x;
+    if( n <= 4 )
+        x = ROR( MOD(y + b, 0x10), 4);
+    else
+        x = ASR( ROR(y + b, 7), n-7 );
+    lua_pushvalue(L,1);
+    lua_pushinteger(L,x);
+    return 2;
+}
+
 int Rider::ReadString(lua_State* L)
 {
     Rider* r = check(L,1);
@@ -631,6 +662,21 @@ int Rider::WriteInt(lua_State* L)
     return 1;
 }
 
+int Rider::WriteNum(lua_State* L)
+{
+    Rider* r = check(L,1);
+    int x = luaL_checkinteger(L,2);
+    while( x < -0x40 || x >= 0x40 )
+    {
+        r->WriteByte( MOD( x, 0x80 + 0x80) );
+        x = ASR(x, 7);
+    }
+    r->WriteByte( MOD( x, 0x80 ) );
+
+    lua_pushvalue(L,1);
+    return 1;
+}
+
 int Rider::WriteString(lua_State* L)
 {
     Rider* r = check(L,1);
@@ -666,9 +712,11 @@ static const luaL_Reg Files_Reg[] =
     { "RestoreList", Rider::RestoreList },
     { "WriteString", Rider::WriteString },
     { "WriteInt", Rider::WriteInt },
+    { "WriteNum", Rider::WriteNum },
     { "Write", Rider::Write },
     { "WriteByte", Rider::WriteByte },
     { "ReadString", Rider::ReadString },
+    { "ReadNum", Rider::ReadNum },
     { "ReadInt", Rider::ReadInt },
     { "Read", Rider::Read },
     { "ReadByte", Rider::ReadByte },
@@ -908,6 +956,21 @@ static void setPoint( QImage& img, int x, int y, int mode, int src, int color )
         Q_ASSERT(false);
 }
 
+static int Display_Dot(lua_State* L)
+{
+    const int color = luaL_checkinteger(L,1);
+    const int x = luaL_checkinteger(L,2);
+    int y = luaL_checkinteger(L,3);
+    const int mode = luaL_checkinteger(L,4);
+
+    QtDisplay* d = QtDisplay::inst();
+
+    y = QtDisplay::mapToQt(y);
+    setPoint( d->d_img, x, y, mode, color );
+    d->update();
+    return 0;
+}
+
 static int Display_CopyPattern(lua_State* L)
 {
     const int color = luaL_checkinteger(L,1);
@@ -994,6 +1057,7 @@ static int Display_CopyBlock(lua_State* L)
 
 static const luaL_Reg Display_Reg[] =
 {
+    { "Dot", Display_Dot },
     { "ReplConst", Display_ReplConst },
     { "CopyPattern", Display_CopyPattern },
     { "CopyBlock", Display_CopyBlock },
@@ -1059,6 +1123,9 @@ int SysInnerLib::installDisplay(lua_State* L)
     lua_newtable(L);
     const int FrameDesc = lua_gettop(L);
     lua_pushliteral(L,"FrameDesc");
+    lua_pushvalue(L,FrameDesc);
+    lua_rawset(L, module);
+    lua_pushliteral(L,"Frame");
     lua_pushvalue(L,FrameDesc);
     lua_rawset(L, module);
 

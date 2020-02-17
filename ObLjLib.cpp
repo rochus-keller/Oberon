@@ -289,7 +289,7 @@ int LjLib::ORD(lua_State* L)
         lua_pushinteger(L,lua_toboolean(L,1));
     }else if( lua_type(L,1) == LUA_TNUMBER )
     {
-        lua_pushnumber(L, lua_tonumber(L,1) );
+        lua_pushinteger(L, lua_tonumber(L,1) + 0.5 );
     }else if( lua_type(L,1) == LUA_TTABLE )
     {
         lua_pushnumber(L, (int)lua_topointer(L,1) );

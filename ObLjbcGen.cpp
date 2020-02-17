@@ -1044,6 +1044,8 @@ struct LjbcGenImp : public AstVisitor
             // all other assignment cases
             Value rhs;
             process( rhsEx, rhs );
+            if( rhs.d_kind == 0 )
+                return; // error already reported
             rhs.d_type = rhsEx->d_type.data();
             assign(lhs,rhs, rhsEx->d_loc);
         }
@@ -2601,6 +2603,13 @@ struct LjbcGenImp : public AstVisitor
             if( out.d_kind == Value::Val )
                 out.d_val = double(out.d_val.toInt() );
             return true;
+
+            // TODO: consider for ORG and ORS
+        // case BuiltIn::VAL:
+            // INTEGER to SET
+            // SET to INTEGER
+            // INTEGER to REAL
+            // REAL to INTEGER
 
         // Not supported:
         case BuiltIn::LED:

@@ -102,11 +102,13 @@ namespace Ob
         void ReadByte(quint8& x);
         static int Read(lua_State* L);
         static int ReadInt(lua_State* L);
+        static int ReadNum(lua_State* L);
         static int ReadString(lua_State* L);
         void WriteByte(quint8 x);
         static int WriteByte(lua_State* L);
         static int Write(lua_State* L);
         static int WriteInt(lua_State* L);
+        static int WriteNum(lua_State* L);
         static int WriteString(lua_State* L);
         static int RestoreList(lua_State* L);
   };
