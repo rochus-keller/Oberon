@@ -18,9 +18,11 @@
 ]]--
 
 local _lib = require 'obnljlib'
+local ffi = require 'ffi'
+local C = ffi.C
 
 local module = {}
-
+module.C = ffi.C
 
 function module.instance( class )
 	local obj = {}
@@ -36,26 +38,6 @@ function module.is_a( obj, class )
 		meta = getmetatable(meta)
 	end
 	return meta == class
-end
-
-function module.DIV( a, b )
-	-- source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
-        -- doesn't work for negative numbers yet
-	if a < 0 then
-		return (a - b + 1) / b;
-	else
-		return a / b;
-	end
-end
-
-function module.MOD( a, b )
-	-- source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
-        -- works
-	if a < 0 then
-                return (b - 1) + (a - b + 1) % b;
-	else
-		return a % b;
-	end
 end
 
 local function runThunk( table, set, val )
@@ -96,6 +78,14 @@ function module.Arr(n)
     return t
 end
 
+ffi.cdef[[
+    int LjLibFfi_DIV( int a, int b );
+    int LjLibFfi_MOD( int a, int b );
+]]
+
+module.DIV = C.LjLibFfi_DIV
+module.MOD = C.LjLibFfi_MOD
+
 module.SET = _lib.SET
 module.IN = _lib.IN
 module.ORD = _lib.ORD
@@ -103,8 +93,6 @@ module.ASSERT = _lib.ASSERT
 module.TRACE = _lib.TRACE
 module.INCL = _lib.INCL
 module.EXCL = _lib.EXCL
-module.DIV = _lib.DIV
-module.MOD = _lib.MOD
 module.Str = _lib.Str
 module.Char = _lib.Char
 module.TRAP = _lib.TRAP

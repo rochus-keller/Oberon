@@ -54,3 +54,19 @@ Tree       37
 FFT       21
 Nonfloating point composite is 2.761253e+02
 Floating point composite is 4.117424e+02
+
+**** Bytecode (multi-return) based on 2020-02-17 :
+
+Perm       11
+Towers       13
+Queens       17
+Intmm       13
+Mm       16
+Quick  Error in Quick.
+      41
+Bubble Error3 in Bubble.
+      27
+Tree       36
+FFT       22
+Nonfloating point composite is 3.165042e+02
+Floating point composite is 4.600209e+02

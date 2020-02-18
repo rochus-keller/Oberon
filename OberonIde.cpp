@@ -361,6 +361,7 @@ OberonIde::OberonIde(QWidget *parent)
     d_lua->addLibrary(Engine2::IO);
     d_lua->addLibrary(Engine2::BIT);
     d_lua->addLibrary(Engine2::JIT);
+    d_lua->addLibrary(Engine2::FFI);
     d_lua->addLibrary(Engine2::OS);
     LjLib::install(d_lua->getCtx());
     loadLuaLib( d_lua, "obnlj" );
@@ -1812,7 +1813,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.6.4");
+    a.setApplicationVersion("0.6.5");
     a.setStyle("Fusion");
 
     OberonIde w;

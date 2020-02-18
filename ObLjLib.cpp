@@ -98,8 +98,6 @@ static const luaL_Reg Reg[] =
 {
     { "instance", LjLib::instance },
     { "is_a", LjLib::is_a },
-    { "DIV", LjLib::DIV },
-    { "MOD", LjLib::MOD },
     { "SET", LjLib::SET },
     { "IN", LjLib::IN },
     { "ORD", LjLib::ORD },
@@ -203,34 +201,6 @@ int LjLib::is_a(lua_State* L)
         }
     }else
         lua_pushboolean(L,0);
-    return 1;
-}
-
-int LjLib::DIV(lua_State* L)
-{
-    const lua_Integer a = lua_tointeger(L,1);
-    const lua_Integer b = lua_tointeger(L,2);
-    if( b == 0 )
-        luaL_argerror(L,1,"may not be zero");
-    // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
-    if (a < 0)
-        lua_pushinteger( L, (a - b + 1) / b );
-    else
-        lua_pushinteger( L, a / b );
-    return 1;
-}
-
-int LjLib::MOD(lua_State* L)
-{
-    const lua_Integer a = lua_tointeger(L,1);
-    const lua_Integer b = lua_tointeger(L,2);
-    if( b == 0 )
-        luaL_argerror(L,1,"may not be zero");
-    // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
-    if (a < 0)
-        lua_pushinteger( L, (b - 1) + (a - b + 1) % b );
-    else
-        lua_pushinteger( L, a % b );
     return 1;
 }
 

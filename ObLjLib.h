@@ -47,8 +47,6 @@ namespace Ob
 
         static int instance(lua_State *L);
         static int is_a(lua_State *L);
-        static int DIV(lua_State *L);
-        static int MOD(lua_State *L);
         static int SET(lua_State *L);
         static int IN(lua_State *L);
         static int ORD(lua_State *L);

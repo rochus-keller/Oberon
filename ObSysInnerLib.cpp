@@ -234,8 +234,8 @@ static int MOD(int a, int b) // Source: http://lists.inf.ethz.ch/pipermail/obero
         return a % b;
 }
 
-static int ASR(int x, int n) { return ((int64_t)(x)>>(n)); }
-static int ROR(int x, int n) { return ((int64_t)(x)>>(n)); } // TODO: stimmt das?
+static int ASR(int x, int n) { return ((qint64)(x)>>(n)); }
+static int ROR(int x, int n) { return ((qint64)(x)>>(n)); } // TODO: stimmt das?
 
 struct BitStream
 {

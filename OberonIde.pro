@@ -43,7 +43,8 @@ SOURCES += OberonIde.cpp \
     ../GuiTools/DocSelector.cpp \
     ../GuiTools/DocTabWidget.cpp \
     ObSysInnerLib.cpp \
-    ../LjTools/BcViewer.cpp
+    ../LjTools/BcViewer.cpp \
+    ObLjLibFfi.c
 
 HEADERS  += OberonIde.h \
     ../GuiTools/CodeEditor.h \
@@ -73,6 +74,8 @@ win32 {
     } else {
         LIBS += -lluajit
     }
+    QMAKE_LFLAGS += -rdynamic -ldl
+    #rdynamic is required so that the LjLibFfi functions are visible to LuaJIT FFI
 }
 
 include( Oberon.pri )
