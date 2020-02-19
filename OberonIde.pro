@@ -68,7 +68,7 @@ HEADERS  += OberonIde.h \
 win32 {
     LIBS += -L../LuaJIT/src -llua51
 }
-!win32 {
+linux {
     include( ../LuaJIT/src/LuaJit.pri ){
         LIBS += -ldl
     } else {
@@ -76,6 +76,10 @@ win32 {
     }
     QMAKE_LFLAGS += -rdynamic -ldl
     #rdynamic is required so that the LjLibFfi functions are visible to LuaJIT FFI
+}
+macx {
+    include( ../LuaJIT/src/LuaJit.pri )
+    QMAKE_LFLAGS += -rdynamic -ldl -pagezero_size 10000 -image_base 100000000
 }
 
 include( Oberon.pri )
