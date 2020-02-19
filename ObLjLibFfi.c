@@ -21,7 +21,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int LjLibFfi_DIV( int a, int b )
+#ifdef _WIN32
+#define DllExport __declspec(dllexport)
+#else
+#define DllExport export
+#endif
+
+DllExport int LjLibFfi_DIV( int a, int b )
 {
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     assert( b != 0 );
@@ -31,7 +37,7 @@ extern int LjLibFfi_DIV( int a, int b )
         return a / b;
 }
 
-extern int LjLibFfi_MOD( int a, int b )
+DllExport int LjLibFfi_MOD( int a, int b )
 {
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     assert( b != 0 );
@@ -45,42 +51,42 @@ typedef struct {
     char str[0];
 } ArrayOfChar;
 
-extern void LjLibFfi_strAssign( ArrayOfChar* lhs, int lhsLen,  const char rhs[] )
+DllExport void LjLibFfi_strAssign( ArrayOfChar* lhs, int lhsLen,  const char rhs[] )
 {
     const int rhsLen = strlen(rhs);
     assert( lhsLen > rhsLen );
     strcpy( lhs->str, rhs );
 }
 
-extern const char* LjLibFfi_toCstr(ArrayOfChar* str)
+DllExport const char* LjLibFfi_toCstr(ArrayOfChar* str)
 {
     return str->str;
 }
 
-extern int LjLibFfi_strIndex(ArrayOfChar* str, int strLen, int index )
+DllExport int LjLibFfi_strIndex(ArrayOfChar* str, int strLen, int index )
 {
     assert( index > 0 && index <= strLen );
     return str->str[index-1];
 }
 
-extern void LjLibFfi_strNewindex(ArrayOfChar* str, int strLen, int index, int ch )
+DllExport void LjLibFfi_strNewindex(ArrayOfChar* str, int strLen, int index, int ch )
 {
     assert( index > 0 && index <= strLen );
     assert( ch >= 0 && ch <= 255 );
     str->str[index-1] = ch;
 }
 
-extern int LjLibFfi_strEq(ArrayOfChar* lhs, ArrayOfChar* rhs )
+DllExport int LjLibFfi_strEq(ArrayOfChar* lhs, ArrayOfChar* rhs )
 {
     return strcmp( lhs->str, rhs->str ) == 0;
 }
 
-extern int LjLibFfi_strLe(ArrayOfChar* lhs, ArrayOfChar* rhs )
+DllExport int LjLibFfi_strLe(ArrayOfChar* lhs, ArrayOfChar* rhs )
 {
     return strcmp( lhs->str, rhs->str ) <= 0;
 }
 
-extern int LjLibFfi_strLt(ArrayOfChar* lhs, ArrayOfChar* rhs )
+DllExport int LjLibFfi_strLt(ArrayOfChar* lhs, ArrayOfChar* rhs )
 {
     return strcmp( lhs->str, rhs->str ) < 0;
 }

@@ -86,6 +86,17 @@ ffi.cdef[[
 module.DIV = C.LjLibFfi_DIV
 module.MOD = C.LjLibFfi_MOD
 
+function module.BOUNDS( index, table, file, line )
+    -- _lib.TRACE( "bounds at "..file.." "..tonumber(line) )
+    local len = table.n
+    if len == nil then
+        return -- only interested in Oberon arrays
+    end
+    if index > len or index < 1 then
+        error( "array bounds violation at "..tostring(file).." line "..tostring(line) )
+    end
+end
+
 module.SET = _lib.SET
 module.IN = _lib.IN
 module.ORD = _lib.ORD

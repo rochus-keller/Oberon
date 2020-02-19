@@ -299,14 +299,14 @@ int LjLib::ASSERT(lua_State* L)
 int LjLib::TRACE(lua_State* L)
 {
 #ifdef _DEBUG
-    std::string str;
+    QByteArray str;
     for( int i = 1; i <= lua_gettop(L); i++ )
     {
         if( i != 0 )
             str += "\t";
         str += lua_tostring(L,i);
     }
-    qDebug() << "TRACE:" << str.c_str();
+    qDebug() << "TRACE:" << str.constData();
 #endif
     return 0;
 }

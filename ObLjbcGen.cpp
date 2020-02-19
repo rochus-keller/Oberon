@@ -2182,6 +2182,35 @@ struct LjbcGenImp : public AstVisitor
             sell(rhs);
     }
 
+    void emitBoundsCheck( Type* t, const Value& idx, const Loc& loc )
+    {
+        // crashes in Hennessy when run without _lib.TRACE call in BOUNDS
+        // worked in isolated Puzzle and indicated the bounds violation
+        Q_ASSERT( t->getTag() == Thing::T_Array );
+        Array* a = thing_cast<Array*>(t);
+        quint8 tmp = ctx.back().buySlots(5, true );
+        fetchObnljMember(tmp,"BOUNDS",loc);
+        switch( idx.d_kind )
+        {
+        case Value::Ref2:
+        case Value::Tmp2:
+            bc.MOV(tmp+1,idx.d_idx, loc.packed() );
+            break;
+        case Value::Tmp2v:
+        case Value::Ref2v:
+            bc.KSET(tmp+1,idx.d_val, loc.packed() );
+            break;
+        default:
+            Q_ASSERT( false );
+            break;
+        }
+        bc.MOV(tmp + 2, idx.d_slot, loc.packed() );
+        bc.KSET(tmp + 3, QVariant::fromValue(mod->d_name),loc.packed() );
+        bc.KSET(tmp + 4, loc.d_row, loc.packed() );
+        bc.CALL( tmp, 0, 4, loc.packed());
+        ctx.back().sellSlots(tmp,5);
+    }
+
     void processIndexOp( BinExpr* e, Value& out, Value& lhs, Value& rhs )
     {
         Q_ASSERT( e->d_op == BinExpr::Index );
@@ -2226,6 +2255,7 @@ struct LjbcGenImp : public AstVisitor
             out.d_slot = lhs.d_slot;
             out.d_val = rhs.d_val;
         }
+        // emitBoundsCheck( e->d_lhs->d_type->derefed(), out, e->d_loc );
     }
 
     void processUnExpr( UnExpr* e, Value& out )

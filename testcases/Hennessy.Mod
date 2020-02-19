@@ -451,6 +451,7 @@ END Mm;
 		k := 0; res := TRUE;
 		WHILE k <= piecemax[i] DO
 			IF ( p[i][k] ) THEN 
+				ASSERT( j+k < size+1 ); (* fails on trial j=365 with k=192 *)
 				IF ( puzzl[j+k] ) THEN 
 					res := FALSE 
 				END;
@@ -1006,7 +1007,7 @@ BEGIN
 	Time("Queens ", Queens, queensbase, queensbase);
 	Time("Intmm ", Intmm, intmmbase, intmmbase);
 	Time("Mm ", Mm, mmbase, fpmmbase);
-	Time("Puzzle ", Puzzle, puzzlebase, puzzlebase); (* TODO: this one has still an issue *)
+	(* Time("Puzzle ", Puzzle, puzzlebase, puzzlebase); *) (* TODO: this one has still a bounds violation in Fit() *)
 	Time("Quick ", Quick, quickbase, quickbase);
 	Time("Bubble ", Bubble, bubblebase, bubblebase);
 	Time("Tree ", Trees, treebase, treebase);
