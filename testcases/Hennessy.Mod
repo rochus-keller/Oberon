@@ -488,13 +488,14 @@ END Mm;
 	
 	PROCEDURE Trial (j: LONGINT): BOOLEAN;
 		VAR i, k: LONGINT; res: BOOLEAN;
-	BEGIN i := 0; res := FALSE;
+	BEGIN i := 0; 
 		kount := kount + 1;
-		WHILE i <= typemax DO
+		res := FALSE;
+		WHILE ( i <= typemax ) & ~res DO
 			IF ( piececount[class[i]] # 0 ) THEN
 				IF ( Fit (i, j) ) THEN
 					k := Place (i, j);
-					IF Trial(k) OR (k = 0) THEN res := TRUE;
+					IF Trial(k) OR (k = 0) THEN res := TRUE
 					ELSE Remove (i, j)
 					END;
 				END
@@ -705,7 +706,8 @@ BEGIN
 	IF Fit(0, m) THEN n := Place(0, m)
 	ELSE Str("Error1 in Puzzle$")
 	END;
-	IF ~ Trial(n) THEN Str("Error2 in Puzzle.$")
+	IF ~ Trial(n) THEN 
+		Str("Error2 in Puzzle.$")
 	ELSIF kount # 2005 THEN Str("Error3 in Puzzle.$")
 	END
 END Puzzle;

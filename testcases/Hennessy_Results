@@ -11,7 +11,7 @@ FFT       24
 Nonfloating point composite is 1.420000E+02
 Floating point composite is 2.894400E+02
 
-**** Thunk based :
+**** Thunk based : 3 x OBNC
 
 Perm      236
 Towers       12
@@ -25,7 +25,7 @@ FFT       24
 Nonfloating point composite is 7.565425e+02
 Floating point composite is 1.031284e+03
 
-**** Multi-return based :
+**** Multi-return based : 1.7 x OBNC
 
 Perm       17
 Towers       13
@@ -39,8 +39,8 @@ FFT       17
 Nonfloating point composite is 4.727587e+02
 Floating point composite is 5.912426e+02
 
-**** Bytecode (multi-return) based on 2020-01-12 :
-
+**** Bytecode (multi-return) based on 2020-01-12 : 1.4 x OBNC
+(assign structured types by reference, DIV and MOD Lua API)
 Perm       21
 Towers       13
 Queens        4
@@ -55,8 +55,8 @@ FFT       21
 Nonfloating point composite is 2.761253e+02
 Floating point composite is 4.117424e+02
 
-**** Bytecode (multi-return) based on 2020-02-17 :
-
+**** Bytecode (multi-return) based on 2020-02-17 : 1.3 x OBNC
+(assign structured types by value, DIV and MOD via FFI)
 Perm       11
 Towers       13
 Queens       17
@@ -70,3 +70,17 @@ Tree       36
 FFT       22
 Nonfloating point composite is 3.165042e+02
 Floating point composite is 4.600209e+02
+
+**** Bytecode (multi-return) based on 2020-02-18 : 1.1 x OBNC
+(fixed error in TGET and TSET)
+Perm       10
+Towers       14
+Queens       18
+Intmm        6
+Mm        7
+Quick       15
+Bubble       16
+Tree       23
+FFT       21
+Nonfloating point composite is 2.107487e+02
+Floating point composite is 3.250239e+02

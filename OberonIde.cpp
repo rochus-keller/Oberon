@@ -1628,7 +1628,7 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
 void OberonIde::fillLocals()
 {
     d_locals->clear();
-    Engine2::LocalVars vs = d_lua->getLocalVars(true,2);
+    Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50);
     foreach( const Engine2::LocalVar& v, vs )
     {
         QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
@@ -1813,7 +1813,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.6.5");
+    a.setApplicationVersion("0.6.6");
     a.setStyle("Fusion");
 
     OberonIde w;
