@@ -1,7 +1,7 @@
 #/*
-#* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+#* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 #*
-#* This file is part of the Oberon LuaJIT IDE application.
+#* This file is part of the Oberon IDE application.
 #*
 #* The following is the license that applies to this copy of the
 #* application. For a license to use the application under conditions
@@ -64,6 +64,12 @@ HEADERS  += OberonIde.h \
     ../GuiTools/DocTabWidget.h \
     ObSysInnerLib.h \
     ../LjTools/BcViewer.h
+
+# NOTE on LuaJIT: to make use of the line:column position information used in
+# OberonIDE please use this version: https://github.com/rochus-keller/LuaJIT/tree/LjTools
+# LuaJIT is separately built using make on Linux, "make clean && make -j4" on Mac and msvcbuild.bat
+# on Windows; even if the Qt project includes LuaJIT by source the original build has to be run so 
+# all required files are generated.
 
 win32 {
     LIBS += -L../LuaJIT/src -llua51
