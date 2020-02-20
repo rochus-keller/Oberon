@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/compiler library.
 *
@@ -24,7 +24,7 @@
 #ifdef _WIN32
 #define DllExport __declspec(dllexport)
 #else
-#define DllExport export
+#define DllExport
 #endif
 
 DllExport int LjLibFfi_DIV( int a, int b )

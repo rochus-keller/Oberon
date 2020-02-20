@@ -69,6 +69,7 @@ namespace Ob
         void createStack();
         void createLocals();
         void createMenu();
+        void createMenuBar();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
         bool compile(bool generate = false);
@@ -138,6 +139,8 @@ namespace Ob
         void onShowLlBc();
         void onWorkingDir();
         void onLuaNotify( int messageType, QByteArray val1, int val2 );
+        void onAbout();
+        void onQt();
     private:
         class DocTab;
         class Debugger;

@@ -79,7 +79,7 @@ And here is a version of the Oberon IDE for Linux x86: http://software.rochus-ke
 It requires a preinstalled Qt version >= 5.4.
 
 Here is a version of the Oberon IDE for macOS x86_64 (>= El Capitan): http://software.rochus-keller.info/OberonIDE_macOS_x64.dmg.
-The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; unfortunately the debugger shortcuts (F8, F9 etc.) don't seem to work.
+The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
 
 
 Here is a binary version of OberonViewer for Windows: http://software.rochus-keller.info/OberonViewer_win32.zip

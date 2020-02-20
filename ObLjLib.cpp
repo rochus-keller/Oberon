@@ -262,7 +262,7 @@ int LjLib::ORD(lua_State* L)
         lua_pushinteger(L, lua_tonumber(L,1) + 0.5 );
     }else if( lua_type(L,1) == LUA_TTABLE )
     {
-        lua_pushnumber(L, (int)lua_topointer(L,1) );
+        lua_pushnumber(L, (ptrdiff_t)lua_topointer(L,1) );
     }else
     {
         _Set* a = setCheck(L,1,true);
@@ -344,8 +344,8 @@ int LjLib::PACK(lua_State* L)
 
 int LjLib::UNPK(lua_State* L)
 {
-    lua_Number x = lua_tonumber(L,1);
-    lua_Integer n = lua_tointeger(L,2);
+    double x = lua_tonumber(L,1);
+    int n = lua_tointeger(L,2);
     x = frexp(x, &n);
     x += x;
     (n)--;

@@ -56,6 +56,30 @@
 using namespace Ob;
 using namespace Lua;
 
+#ifdef Q_OS_MAC
+#define OBN_BREAK_SC "SHIFT+F8"
+#define OBN_ABORT_SC "CTRL+SHIFT+Y"
+#define OBN_CONTINUE_SC "CTRL+Y"
+#define OBN_STEPIN_SC "CTRL+SHIFT+I"
+#define OBN_ENDBG_SC "F4"
+#define OBN_TOGBP_SC "F8"
+#define OBN_GOBACK_SC "ALT+CTRL+Left"
+#define OBN_GOFWD_SC "ALT+CTRL+Right"
+#define OBN_NEXTDOC_SC "ALT+TAB"
+#define OBN_PREVDOC_SC "ALT+SHIFT+TAB"
+#else
+#define OBN_BREAK_SC "SHIFT+F9"
+#define OBN_ABORT_SC "SHIFT+F5"
+#define OBN_CONTINUE_SC "F5"
+#define OBN_STEPIN_SC "F11"
+#define OBN_ENDBG_SC "F8"
+#define OBN_TOGBP_SC "F9"
+#define OBN_GOBACK_SC "ALT+Left"
+#define OBN_GOFWD_SC "ALT+Right"
+#define OBN_NEXTDOC_SC "CTRL+TAB"
+#define OBN_PREVDOC_SC "CTRL+SHIFT+TAB"
+#endif
+
 struct ScopeRef : public Ast::Ref<Ast::Scope>
 {
     ScopeRef(Ast::Scope* s = 0):Ref(s) {}
@@ -376,15 +400,15 @@ OberonIde::OberonIde(QWidget *parent)
     d_tab = new DocTab(this);
     d_tab->setCloserIcon( ":/images/close.png" );
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_tab, true );
-    pop->addCommand( tr("Forward Tab"), d_tab, SLOT(onDocSelect()), tr("CTRL+TAB") );
-    pop->addCommand( tr("Backward Tab"), d_tab, SLOT(onDocSelect()), tr("CTRL+SHIFT+TAB") );
+    pop->addCommand( tr("Forward Tab"), d_tab, SLOT(onDocSelect()), tr(OBN_NEXTDOC_SC) );
+    pop->addCommand( tr("Backward Tab"), d_tab, SLOT(onDocSelect()), tr(OBN_PREVDOC_SC) );
     pop->addCommand( tr("Close Tab"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
     pop->addCommand( tr("Close All"), d_tab, SLOT(onCloseAll()) );
     pop->addCommand( tr("Close All Others"), d_tab, SLOT(onCloseAllButThis()) );
     addTopCommands( pop );
 
-    new Gui::AutoShortcut( tr("CTRL+TAB"), this, d_tab, SLOT(onDocSelect()) );
-    new Gui::AutoShortcut( tr("CTRL+SHIFT+TAB"), this, d_tab, SLOT(onDocSelect()) );
+    new Gui::AutoShortcut( tr(OBN_NEXTDOC_SC), this, d_tab, SLOT(onDocSelect()) );
+    new Gui::AutoShortcut( tr(OBN_PREVDOC_SC), this, d_tab, SLOT(onDocSelect()) );
     new Gui::AutoShortcut( tr("CTRL+W"), this, d_tab, SLOT(onCloseDoc()) );
 
     connect( d_tab, SIGNAL( currentChanged(int) ), this, SLOT(onTabChanged() ) );
@@ -398,22 +422,22 @@ OberonIde::OberonIde(QWidget *parent)
 
     d_dbgBreak = new QAction(tr("Break"),this);
     d_dbgBreak->setShortcutContext(Qt::ApplicationShortcut);
-    d_dbgBreak->setShortcut(tr("SHIFT+F9"));
+    d_dbgBreak->setShortcut(tr(OBN_BREAK_SC));
     addAction(d_dbgBreak);
     connect( d_dbgBreak, SIGNAL(triggered(bool)),this,SLOT(onBreak()) );
     d_dbgAbort = new QAction(tr("Abort"),this);
     d_dbgAbort->setShortcutContext(Qt::ApplicationShortcut);
-    d_dbgAbort->setShortcut(tr("SHIFT+F5"));
+    d_dbgAbort->setShortcut(tr(OBN_ABORT_SC));
     addAction(d_dbgAbort);
     connect( d_dbgAbort, SIGNAL(triggered(bool)),this,SLOT(onAbort()) );
     d_dbgContinue = new QAction(tr("Continue"),this);
     d_dbgContinue->setShortcutContext(Qt::ApplicationShortcut);
-    d_dbgContinue->setShortcut(tr("F5"));
+    d_dbgContinue->setShortcut(tr(OBN_CONTINUE_SC));
     addAction(d_dbgContinue);
     connect( d_dbgContinue, SIGNAL(triggered(bool)),this,SLOT(onContinue()) );
     d_dbgStepIn = new QAction(tr("Step In"),this);
     d_dbgStepIn->setShortcutContext(Qt::ApplicationShortcut);
-    d_dbgStepIn->setShortcut(tr("F11"));
+    d_dbgStepIn->setShortcut(tr(OBN_STEPIN_SC));
     addAction(d_dbgStepIn);
     connect( d_dbgStepIn, SIGNAL(triggered(bool)),this,SLOT(onSingleStep()) );
 
@@ -429,6 +453,8 @@ OberonIde::OberonIde(QWidget *parent)
     createMenu();
 
     setCentralWidget(d_tab);
+
+    createMenuBar();
 
     s_oldHandler = qInstallMessageHandler(messageHander);
 
@@ -645,7 +671,6 @@ void OberonIde::createMenu()
     addDebugMenu(pop);
     addTopCommands(pop);
 
-    new QShortcut(tr("CTRL+Q"),this,SLOT(close()));
     new Gui::AutoShortcut( tr("CTRL+O"), this, this, SLOT(onOpenPro()) );
     new Gui::AutoShortcut( tr("CTRL+N"), this, this, SLOT(onNewPro()) );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+S"), this, this, SLOT(onSavePro()) );
@@ -653,10 +678,91 @@ void OberonIde::createMenu()
     new Gui::AutoShortcut( tr("CTRL+R"), this, this, SLOT(onRun()) );
     new Gui::AutoShortcut( tr("CTRL+T"), this, this, SLOT(onCompile()) );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+T"), this, this, SLOT(onGenerate()) );
-    new Gui::AutoShortcut( tr("ALT+Left"), this, this, SLOT(handleGoBack()) );
-    new Gui::AutoShortcut( tr("ALT+Right"), this, this, SLOT(handleGoForward()) );
-    new Gui::AutoShortcut( tr("F9"), this, this, SLOT(onToggleBreakPt()) );
-    new Gui::AutoShortcut( tr("F8"), this, this, SLOT(onEnableDebug()) );
+    new Gui::AutoShortcut( tr(OBN_GOBACK_SC), this, this, SLOT(handleGoBack()) );
+    new Gui::AutoShortcut( tr(OBN_GOFWD_SC), this, this, SLOT(handleGoForward()) );
+    new Gui::AutoShortcut( tr(OBN_TOGBP_SC), this, this, SLOT(onToggleBreakPt()) );
+    new Gui::AutoShortcut( tr(OBN_ENDBG_SC), this, this, SLOT(onEnableDebug()) );
+}
+
+void OberonIde::createMenuBar()
+{
+    Gui::AutoMenu* pop = new Gui::AutoMenu( tr("File"), this );
+    pop->addCommand( "New Project", this, SLOT(onNewPro()), tr("CTRL+N"), false );
+    pop->addCommand( "Open Project...", this, SLOT(onOpenPro()), tr("CTRL+O"), false );
+    pop->addCommand( "Save Project", this, SLOT(onSavePro()), tr("CTRL+SHIFT+S"), false );
+    pop->addCommand( "Save Project as...", this, SLOT(onSaveAs()) );
+    pop->addSeparator();
+    pop->addCommand( "Save", this, SLOT(onSaveFile()), tr("CTRL+S"), false );
+    pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
+    pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
+    pop->addSeparator();
+    pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
+    pop->addSeparator();
+    pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
+    pop->addAutoCommand( "Export PDF...", SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
+    pop->addSeparator();
+    pop->addAction(tr("Quit"),qApp,SLOT(quit()), tr("CTRL+Q") );
+
+    pop = new Gui::AutoMenu( tr("Edit"), this );
+    pop->addAutoCommand( "Undo", SLOT(handleEditUndo()), tr("CTRL+Z"), true );
+    pop->addAutoCommand( "Redo", SLOT(handleEditRedo()), tr("CTRL+Y"), true );
+    pop->addSeparator();
+    pop->addAutoCommand( "Cut", SLOT(handleEditCut()), tr("CTRL+X"), true );
+    pop->addAutoCommand( "Copy", SLOT(handleEditCopy()), tr("CTRL+C"), true );
+    pop->addAutoCommand( "Paste", SLOT(handleEditPaste()), tr("CTRL+V"), true );
+    pop->addSeparator();
+    pop->addAutoCommand( "Find...", SLOT(handleFind()), tr("CTRL+F"), true );
+    pop->addAutoCommand( "Find again", SLOT(handleFindAgain()), tr("F3"), true );
+    pop->addAutoCommand( "Replace...", SLOT(handleReplace()) );
+    pop->addSeparator();
+    pop->addAutoCommand( "&Go to line...", SLOT(handleGoto()), tr("CTRL+G"), true );
+    pop->addSeparator();
+    pop->addAutoCommand( "Indent", SLOT(handleIndent()) );
+    pop->addAutoCommand( "Unindent", SLOT(handleUnindent()) );
+    pop->addAutoCommand( "Fix Indents", SLOT(handleFixIndent()) );
+    pop->addAutoCommand( "Set Indentation Level...", SLOT(handleSetIndent()) );
+
+    pop = new Gui::AutoMenu( tr("Project"), this );
+    pop->addCommand( "Add Modules...", this, SLOT(onAddFiles()) );
+    pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
+    pop->addSeparator();
+    pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
+    pop->addCommand( "Built-in Oberon System Inner", this, SLOT(onObSysInner()) );
+    pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
+
+    pop = new Gui::AutoMenu( tr("Build && Run"), this );
+    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
+    pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
+
+    pop = new Gui::AutoMenu( tr("Debug"), this );
+    pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
+    pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
+    pop->addAction( d_dbgStepIn );
+    pop->addAction( d_dbgBreak );
+    pop->addAction( d_dbgContinue );
+    pop->addAction( d_dbgAbort );
+
+
+    pop = new Gui::AutoMenu( tr("Window"), this );
+    pop->addCommand( tr("Next Tab"), d_tab, SLOT(onDocSelect()), tr(OBN_NEXTDOC_SC) );
+    pop->addCommand( tr("Previous Tab"), d_tab, SLOT(onDocSelect()), tr(OBN_PREVDOC_SC) );
+    pop->addSeparator();
+    pop->addCommand( "Go Back", this, SLOT(handleGoBack()), tr(OBN_GOBACK_SC), false );
+    pop->addCommand( "Go Forward", this, SLOT(handleGoForward()), tr(OBN_GOFWD_SC), false );
+    pop->addSeparator();
+    pop->addAutoCommand( "Set &Font...", SLOT(handleSetFont()) );
+    pop->addAutoCommand( "Show &Linenumbers", SLOT(handleShowLinenumbers()) );
+    pop->addCommand( "Show Fullscreen", this, SLOT(onFullScreen()) );
+    pop->addSeparator();
+    QMenu* sub2 = createPopupMenu();
+    sub2->setTitle( tr("Show Window") );
+    pop->addMenu( sub2 );
+
+    Gui::AutoMenu* help = new Gui::AutoMenu( tr("Help"), this, true );
+    help->addCommand( "&About this application...", this, SLOT(onAbout()) );
+    help->addCommand( "&About Qt...", this, SLOT(onQt()) );
 }
 
 void OberonIde::onCompile()
@@ -911,12 +1017,8 @@ void OberonIde::onExportBc()
 
 void OberonIde::onExportAsm()
 {
-    ENABLED_IF(d_tab->getCurrentTab() != 0);
-
-    if( d_bcv->topLevelItemCount() == 0 )
-        onCompile();
-    if( d_bcv->topLevelItemCount() == 0 )
-        return;
+    const QString curPath = d_tab->getCurrentDoc().toString();
+    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath).d_bc.isEmpty() );
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Assembler"),
                                                           d_tab->getCurrentDoc().toString(),
@@ -1258,14 +1360,14 @@ void OberonIde::addTopCommands(Gui::AutoMenu* pop)
 {
     Q_ASSERT( pop != 0 );
     pop->addSeparator();
-    pop->addCommand( "Go Back", this, SLOT(handleGoBack()), tr("ALT+Left"), false );
-    pop->addCommand( "Go Forward", this, SLOT(handleGoForward()), tr("ALT+Right"), false );
+    pop->addCommand( "Go Back", this, SLOT(handleGoBack()), tr(OBN_GOBACK_SC), false );
+    pop->addCommand( "Go Forward", this, SLOT(handleGoForward()), tr(OBN_GOFWD_SC), false );
     pop->addSeparator();
     pop->addAutoCommand( "Set &Font...", SLOT(handleSetFont()) );
     pop->addAutoCommand( "Show &Linenumbers", SLOT(handleShowLinenumbers()) );
     pop->addCommand( "Show Fullscreen", this, SLOT(onFullScreen()) );
     pop->addSeparator();
-    pop->addAction(tr("Quit"),qApp,SLOT(quit()), tr("CTRL+Q") );
+    pop->addAction(tr("Quit"),qApp,SLOT(quit()) );
 }
 
 void OberonIde::showEditor(const QString& path, int row, int col, bool setMarker )
@@ -1353,8 +1455,8 @@ void OberonIde::addDebugMenu(Gui::AutoMenu* pop)
 {
     Gui::AutoMenu* sub = new Gui::AutoMenu(tr("Debugger"), this, false );
     pop->addMenu(sub);
-    sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr("F8"), false );
-    sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr("F9"), false);
+    sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
+    sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     sub->addAction( d_dbgStepIn );
     sub->addAction( d_dbgBreak );
     sub->addAction( d_dbgContinue );
@@ -1576,7 +1678,7 @@ static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
     {
         Lua::Engine2::VarAddress addr = val.value<Lua::Engine2::VarAddress>();
         if( addr.d_addr )
-            item->setToolTip(1, QString("address 0x%1").arg(quint32(addr.d_addr),8,16,QChar('0')));
+            item->setToolTip(1, QString("address 0x%1").arg(ptrdiff_t(addr.d_addr),8,16,QChar('0')));
         switch( addr.d_type )
         {
         case Engine2::LocalVar::NIL:
@@ -1807,13 +1909,36 @@ void OberonIde::pushLocation(const OberonIde::Location& loc)
     d_backHisto.push_back( loc );
 }
 
+void OberonIde::onAbout()
+{
+    ENABLED_IF(true);
+
+    QMessageBox::about( this, qApp->applicationName(),
+      tr("<html>Release: %1   Date: %2<br><br>"
+
+      "Welcome to the Oberon IDE.<br>"
+      "See <a href=\"https://github.com/rochus-keller/Oberon\">"
+         "here</a> for more information.<br><br>"
+
+      "Author: Rochus Keller, me@rochus-keller.ch<br><br>"
+
+      "Licese: <a href=\"https://www.gnu.org/licenses/license-list.html#GNUGPL\">GNU GPL v2 or v3</a>"
+      "</html>" ).arg( qApp->applicationVersion() ).arg( QDateTime::currentDateTime().toString("yyyy-MM-dd") ));
+}
+
+void OberonIde::onQt()
+{
+    ENABLED_IF(true);
+    QMessageBox::aboutQt(this,tr("About the Qt Framework") );
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.6.6");
+    a.setApplicationVersion("0.6.7");
     a.setStyle("Fusion");
 
     OberonIde w;
