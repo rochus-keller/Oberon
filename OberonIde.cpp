@@ -1938,7 +1938,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon IDE");
-    a.setApplicationVersion("0.6.7");
+    a.setApplicationVersion("0.6.8");
     a.setStyle("Fusion");
 
     OberonIde w;

@@ -50,6 +50,16 @@ namespace Ob
             bool isNull() const { return QExplicitlySharedDataPointer<T>::constData() == 0; }
         };
 
+        template <class T>
+        struct NoRef
+        {
+            T* d_ptr;
+            NoRef(T* t = 0):d_ptr(t){}
+            bool isNull() const { return d_ptr == 0; }
+            T* data() const { return d_ptr; }
+            T* operator->() const { return d_ptr; }
+        };
+
         struct Loc
         {
             enum { ROW_BIT_LEN = 19, COL_BIT_LEN = 32 - ROW_BIT_LEN - 1, MSB = 0x80000000 };
@@ -78,11 +88,18 @@ namespace Ob
             enum Tag { T_Thing, T_Module, T_Import, T_Pointer, T_Record, T_BaseType, T_Array, T_ProcType, T_NamedType,
                         T_CallExpr, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr, T_Field,
                         T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure, T_Variable, T_LocalVar, T_TypeRef,
-                       T_QualiType,
+                       T_QualiType, T_Call, T_Assign, T_IfLoop, T_ForLoop, T_CaseStmt, T_Scope,
                      T_MAX };
+            static const char* s_tagName[];
             // QVariantMap user; // Not used so far; For any use; only eats 4 bytes if not used (QVariant eats 12 instead)
+#ifdef _DEBUG
+            static QSet<Thing*> insts;
+            Thing();
+            virtual ~Thing();
+#else
             Thing() {}
             virtual ~Thing() {}
+#endif
             virtual bool isScope() const { return false; }
             virtual bool isNamed() const { return false; }
             virtual int getTag() const { return T_Thing; }
@@ -218,7 +235,7 @@ namespace Ob
                 Pointer* d_binding; // points back to pointer type in case of anonymous record
                 QList< Ref<Field> > d_fields;
 
-                Record():d_binding(0),d_base(0) {}
+                Record():d_binding(0) {}
                 Field* find(const QByteArray& name , bool recursive ) const;
                 int getTag() const { return T_Record; }
                 void accept(AstVisitor* v) { v->visit(this); }
@@ -364,6 +381,7 @@ namespace Ob
                 Loc d_end;
 
                 bool isScope() const { return true; }
+                int getTag() const { return T_Scope; }
 
                 Named* find( const QByteArray&, bool recursive = true ) const;
             };
@@ -396,6 +414,7 @@ namespace Ob
                 Ref<Expression> d_what;
                 void accept(AstVisitor* v) { v->visit(this); }
                 CallExpr* getCallExpr() const;
+                int getTag() const { return T_Call; }
             };
 
             struct Return : public Statement
@@ -410,6 +429,7 @@ namespace Ob
                 Ref<Expression> d_lhs;
                 Ref<Expression> d_rhs;
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_Assign; }
             };
 
             struct IfLoop : public Statement
@@ -420,6 +440,7 @@ namespace Ob
                 QList<StatSeq> d_then;
                 StatSeq d_else;
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_IfLoop; }
             };
 
             struct ForLoop : public Statement
@@ -428,6 +449,7 @@ namespace Ob
                 QVariant d_byVal;
                 StatSeq d_do;
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_ForLoop; }
             };
 
             struct CaseStmt : public Statement
@@ -442,11 +464,12 @@ namespace Ob
                 bool d_typeCase;
                 CaseStmt():d_typeCase(false){}
                 void accept(AstVisitor* v) { v->visit(this); }
+                int getTag() const { return T_CaseStmt; }
             };
 
         struct Expression : public Thing
         {
-            Ref<Type> d_type;
+            NoRef<Type> d_type;
             Loc d_loc;
             virtual Named* getIdent() const { return 0; }
             virtual Module* getModule() const { return 0; }
@@ -469,7 +492,7 @@ namespace Ob
 
             struct IdentLeaf : public Expression
             {
-                Ref<Named> d_ident;
+                NoRef<Named> d_ident;
                 Module* d_mod;
                 IdentLeaf():d_mod(0) {}
                 IdentLeaf( Named* id, SynTree* loc, Module* mod, Type* t );
@@ -495,7 +518,7 @@ namespace Ob
 
             struct IdentSel : public UnExpr
             {
-                Ref<Named> d_ident;
+                NoRef<Named> d_ident;
                 Named* getIdent() const { return d_ident.data(); }
                 IdentSel():UnExpr(SEL) {}
                 int getTag() const { return T_IdentSel; }
@@ -537,6 +560,7 @@ namespace Ob
             ~Model();
 
             void clear();
+            void clearclear();
             void setEnableExt( bool b ) { d_enableExt = b; }
             void setSenseExt( bool b ) { d_senseExt = b; }
             void setFillXref( bool b ) { d_fillXref = b; }

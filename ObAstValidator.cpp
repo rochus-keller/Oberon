@@ -501,7 +501,7 @@ struct ValidatorImp : public AstVisitor
         if( !t.isNull() && t->isSelfRef() && t->getTag() == Thing::T_QualiType )
         {
             QualiType* q = Ast::thing_cast<QualiType*>( t.data() );
-            q->d_quali->d_type = q->d_quali->getIdent()->d_type;
+            q->d_quali->d_type = q->d_quali->getIdent()->d_type.data();
             q->d_selfRef = false;
         }
     }

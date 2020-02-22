@@ -157,7 +157,7 @@ struct TransformIndexFunctionToStats : public AstVisitor
         tmp->d_synthetic = true;
         curScope->d_names.insert( tmp->d_name,tmp.data() );
         curScope->d_order.append(tmp.data());
-        tmp->d_type = e->d_type;
+        tmp->d_type = e->d_type.data();
         tmp->d_liveFrom = 1;
         if( !bodies.back().isEmpty() )
             tmp->d_liveFrom = bodies.back().back()->d_loc.d_row;

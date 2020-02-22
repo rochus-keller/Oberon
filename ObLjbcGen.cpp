@@ -2367,7 +2367,7 @@ struct LjbcGenImp : public AstVisitor
 
         Named* subId = e->d_sub->getIdent();
         const int subTag = subId ? subId->getTag() : 0;
-        const int tag = e->d_ident ? e->d_ident->getTag() : 0;
+        const int tag = e->d_ident.data() ? e->d_ident->getTag() : 0;
         if( subTag == Thing::T_Import && tag != Thing::T_Procedure && !e->d_ident->d_type->isStructured() &&
                 tag != Thing::T_NamedType && tag != Thing::T_Const )
         {

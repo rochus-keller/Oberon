@@ -36,6 +36,14 @@ using namespace Ob;
 #include "ObCodeModel.h"
 #endif
 
+const char* Ast::Thing::s_tagName[] =
+{
+    "Thing", "Module", "Import", "Pointer", "Record", "BaseType", "Array", "ProcType", "NamedType",
+    "CallExpr", "Literal", "SetExpr", "IdentLeaf", "UnExpr", "IdentSel", "BinExpr", "Field",
+    "Const", "BuiltIn", "Parameter", "Return", "Procedure", "Variable", "LocalVar", "TypeRef",
+    "QualiType", "Call", "Assign", "IfLoop", "ForLoop", "CaseStmt", "Scope"
+};
+
 const char* Ast::BaseType::s_typeName[] =
 {
     "ANY", "ANYNUM", "NIL", "STRING", "BOOLEAN", "CHAR", "INTEGER", "REAL", "BYTE", "SET"
@@ -169,6 +177,27 @@ Ast::Model::Model(QObject*p):QObject(p),d_enableExt(false),d_senseExt(false),d_c
 Ast::Model::~Model()
 {
     unbindFromGlobal();
+}
+
+void Ast::Model::clearclear()
+{
+    d_errs->clear();
+
+    d_depOrder.clear();
+    d_xref.clear();
+    d_global = 0;
+    d_globalLc = 0;
+    d_depOrder.clear();
+    d_boolType = 0;
+    d_charType = 0;
+    d_byteType = 0;
+    d_intType = 0;
+    d_realType = 0;
+    d_setType = 0;
+    d_stringType = 0;
+    d_nilType = 0;
+    d_anyType = 0;
+    d_anyNum = 0;
 }
 
 void Ast::Model::clear()
@@ -1014,7 +1043,7 @@ Ast::Ref<Ast::Type> Ast::Model::recordType(Ast::Scope* s, SynTree* st, Pointer* 
             if( base->isSelfRef() )
                 error(baseSt,tr("record cannot be the base of itself"));
             else
-                rec->d_base = base;
+                rec->d_base = base.data();
         }
     }
     SynTree* fls = findFirstChild(st,SynTree::R_FieldListSequence, 1 );
@@ -1081,7 +1110,7 @@ bool Ast::Model::constDeclaration(Ast::Scope* m, SynTree* st)
 
     c->d_constExpr = expression(m,st->d_children.last());
     if( !c->d_constExpr.isNull() ) // prev errors
-        c->d_type = c->d_constExpr->d_type;
+        c->d_type = c->d_constExpr->d_type.data();
     QString msg;
     c->d_val = Eval::evalConstExpr(c->d_constExpr.data(), &msg);
     c->d_loc = Loc(st);
@@ -1831,6 +1860,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 if( f == 0 )
                 {
                     error(first,tr("record field doesn't exist") );
+                    Named* f = r->find(first->d_tok.d_val, true);
                     return 0;
                 }
                 if( sourceMod != d_curModule && !sourceMod->d_isDef && !( f->d_public || f->d_isDef ) )
@@ -2046,7 +2076,7 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
     }
 
     Q_ASSERT( ident != 0 );
-    Q_ASSERT( ident->d_type == cur->d_type );
+    Q_ASSERT( ident->d_type == cur->d_type.data() );
 
     return cur.data();
 }
@@ -2162,6 +2192,8 @@ bool Ast::Model::error(Ast::Named* n, const QString& str) const
 
 void Ast::Model::unbindFromGlobal()
 {
+    if( d_global.isNull() )
+        return;
     Scope::Names::const_iterator i;
     for( i = d_global->d_names.begin(); i != d_global->d_names.end(); ++i )
     {
@@ -2686,3 +2718,19 @@ Ast::IdentLeaf::IdentLeaf(Ast::Named* id, SynTree* loc, Ast::Module* mod, Ast::T
     d_loc = Loc(loc);
     d_type = t;
 }
+
+#ifdef _DEBUG
+
+QSet<Ast::Thing*> Ast::Thing::insts;
+
+Ast::Thing::Thing()
+{
+    insts.insert(this);
+}
+
+Ast::Thing::~Thing()
+{
+    insts.remove(this);
+}
+
+#endif

@@ -256,7 +256,20 @@ int main(int argc, char *argv[])
 #endif
 
     if( run.isEmpty() )
+    {
+#ifdef _DEBUG
+        qDebug() << "things count before clear" << Ob::Ast::Thing::insts.size();
+        astm.clearclear();
+        qDebug() << "things count after clear" << Ob::Ast::Thing::insts.size();
+        QHash<int,int> counts; // tag -> inst count
+        foreach( Ob::Ast::Thing* t, Ob::Ast::Thing::insts )
+            counts[t->getTag()]++;
+        QHash<int,int>::const_iterator i;
+        for( i = counts.begin(); i != counts.end(); ++i )
+            qDebug() << Ob::Ast::Thing::s_tagName[i.key()] << i.value();
+#endif
         return 0;
+    }
 
 #ifdef OBNLC_USING_LUAJIT
     if( gen == 1 )
