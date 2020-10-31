@@ -1466,6 +1466,7 @@ void OberonIde::addDebugMenu(Gui::AutoMenu* pop)
 
 bool OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
 {
+    // TODO use Engine2::decodeRuntimeMessage
     const int rbrack = msg.indexOf(']'); // cannot directly search for ':' because Windows "C:/"
     if( rbrack == -1 )
         return false;

@@ -41,41 +41,20 @@ struct LjbcGenImp : public AstVisitor
         JitComposer::SlotPool pool;
         typedef QHash<Named*,quint16> Upvals;
         Upvals upvals;
-        quint8 frameSize;
         bool returnFound;
-        Ctx(Scope* s = 0):frameSize(0),returnFound(false),scope(s) { }
-        QList<quint8> callSlots; // stack of call bases
-
-        int startFrom() const
-        {
-            if( callSlots.isEmpty() )
-                return -1;
-            else
-                return callSlots.back();
-        }
+        Ctx(Scope* s = 0):returnFound(false),scope(s) { }
 
         int buySlots(int len = 1, bool call = false )
         {
-            const int tmp = JitComposer::nextFreeSlot(pool,len, startFrom() );
+            const int tmp = JitComposer::nextFreeSlot(pool,len, call );
             if( tmp < 0 )
                 throw NoMoreFreeSlots();
-            // qDebug() << "buy" << tmp << len;
-            const int max = tmp + len;
-            if( max > int(frameSize) )
-                frameSize = max;
-            if( call )
-                // in case of a call take care that slots used to evaluate the arguments are higher than
-                // the allocated call base; otherwise it could happen that an argument executes yet another
-                // call to which a base lower than the waiting one is allocated resulting in random modifications
-                // of the waiting call base;
-                callSlots.push_back(tmp);
             return tmp;
         }
         void sellSlots(quint8 base, int len = 1 )
         {
             // qDebug() << "sell" << base << len;
             JitComposer::releaseSlot(pool,base, len );
-            callSlots.removeAll(base);
         }
         quint16 resolveUpval(Named* n)
         {
@@ -791,8 +770,8 @@ struct LjbcGenImp : public AstVisitor
                 rb->d_slotValid = true;
             }
             const int max = JitComposer::highestUsedSlot(c.pool) + 1;
-            if( !vals.isEmpty() && max > c.frameSize )
-                c.frameSize = max;
+            if( !vals.isEmpty() && max > c.pool.d_frameSize )
+                c.pool.d_frameSize = max;
         }else
             return error( s->d_loc, QString("out of free slots") );
         return true;
@@ -858,7 +837,7 @@ struct LjbcGenImp : public AstVisitor
         JitComposer::VarNameList sn = getSlotNames(p);
         bc.setVarNames( sn );
         bc.setUpvals( getUpvals() );
-        bc.closeFunction(ctx.back().frameSize);
+        bc.closeFunction(ctx.back().pool.d_frameSize);
         ctx.pop_back();
         Q_ASSERT( p->d_slotValid );
         bc.FNEW( p->d_slot, id, p->d_end.packed() );
@@ -868,7 +847,7 @@ struct LjbcGenImp : public AstVisitor
 
     JitComposer::VarNameList getSlotNames( Scope* m )
     {
-        JitComposer::VarNameList vnl(ctx.back().frameSize);
+        JitComposer::VarNameList vnl(ctx.back().pool.d_frameSize);
         for( int i = 0; i < m->d_order.size(); i++ )
         {
             if( m->d_order[i]->d_slotValid )
@@ -975,7 +954,7 @@ struct LjbcGenImp : public AstVisitor
         addSlot(sn,obnlj->d_slot,"obnlj");
         bc.setVarNames( sn );
         bc.setUpvals( getUpvals() );
-        bc.closeFunction(ctx.back().frameSize);
+        bc.closeFunction(ctx.back().pool.d_frameSize);
         ctx.pop_back();
     }
 
@@ -1261,7 +1240,7 @@ struct LjbcGenImp : public AstVisitor
             out.d_kind = Value::Tmp;
             bc.KSET(out.d_slot, false, loc.packed() );
             backpatch( out.falseList, bc.getCurPc() );
-            bc.JMP( ctx.back().frameSize, 1, loc.packed() );
+            bc.JMP( ctx.back().pool.d_frameSize, 1, loc.packed() );
             bc.KSET(out.d_slot, true, loc.packed() );
             backpatch( out.trueList, bc.getCurPc() );
         }
@@ -1281,7 +1260,7 @@ struct LjbcGenImp : public AstVisitor
             {
                 bc.KSET(lhs.d_slot, false, loc.packed() );
                 backpatch( rhs.falseList, bc.getCurPc() );
-                bc.JMP( ctx.back().frameSize, 1, loc.packed() );
+                bc.JMP( ctx.back().pool.d_frameSize, 1, loc.packed() );
                 bc.KSET(lhs.d_slot, true, loc.packed() );
                 backpatch( rhs.trueList, bc.getCurPc() );
             }// else assignment implicitly happened by evaluating rhs expr to lhs slot
@@ -1333,7 +1312,7 @@ struct LjbcGenImp : public AstVisitor
         for( int i = 0; i < l->d_then[0].size(); i++ )
             l->d_then[0][i]->accept(this);
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() );
+        bc.JMP(ctx.back().pool.d_frameSize, 0, l->d_loc.packed() );
         after << bc.getCurPc();
 
         backpatch( if0.falseList, bc.getCurPc() + 1 );
@@ -1350,7 +1329,7 @@ struct LjbcGenImp : public AstVisitor
             for( int j = 0; j < l->d_then[i].size(); j++ )
                 l->d_then[i][j]->accept(this);
 
-            bc.JMP(ctx.back().frameSize, 0, l->d_if[i]->d_loc.packed() );
+            bc.JMP(ctx.back().pool.d_frameSize, 0, l->d_if[i]->d_loc.packed() );
             after << bc.getCurPc();
 
             backpatch( ifn.falseList, bc.getCurPc() + 1 );
@@ -1369,7 +1348,7 @@ struct LjbcGenImp : public AstVisitor
     {
         QList<quint32> loop, after;
 
-        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.packed() ); // while true do
+        bc.LOOP( ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // while true do
         const quint32 start = bc.getCurPc();
         loop << start;
 
@@ -1383,7 +1362,7 @@ struct LjbcGenImp : public AstVisitor
         for( int i = 0; i < l->d_then[0].size(); i++ ) // then start
             l->d_then[0][i]->accept(this);
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // then complete, stay in loop
+        bc.JMP(ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // then complete, stay in loop
         loop << bc.getCurPc();
 
         backpatch( if0.falseList, bc.getCurPc() + 1 );
@@ -1400,16 +1379,16 @@ struct LjbcGenImp : public AstVisitor
             for( int j = 0; j < l->d_then[i].size(); j++ ) // then start
                 l->d_then[i][j]->accept(this);
 
-            bc.JMP( ctx.back().frameSize, 0, l->d_if[i]->d_loc.packed() ); // then complete, stay in loop
+            bc.JMP( ctx.back().pool.d_frameSize, 0, l->d_if[i]->d_loc.packed() ); // then complete, stay in loop
             loop << bc.getCurPc();
 
             backpatch( ifn.falseList, bc.getCurPc() + 1 );
         }
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // else quit loop
+        bc.JMP(ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // else quit loop
         after << bc.getCurPc();
 
-        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
+        bc.JMP( ctx.back().pool.d_frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
         backpatch( loop, bc.getCurPc() );
 
         backpatch( after, bc.getCurPc() + 1 );
@@ -1419,7 +1398,7 @@ struct LjbcGenImp : public AstVisitor
     {
         QList<quint32> loop;
 
-        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.packed() ); // repeat
+        bc.LOOP( ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // repeat
         const quint32 start = bc.getCurPc();
         loop << start;
 
@@ -1431,7 +1410,7 @@ struct LjbcGenImp : public AstVisitor
         derefIndexed(cond, l->d_if.first()->d_loc);
         assureJump(cond, l->d_if.first()->d_loc);
 
-        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
+        bc.JMP( ctx.back().pool.d_frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
         backpatch( loop, bc.getCurPc() );
         backpatch( cond.falseList, bc.getCurPc() );
 
@@ -1477,7 +1456,7 @@ struct LjbcGenImp : public AstVisitor
 
         QList<quint32> loop, after;
 
-        bc.LOOP( ctx.back().frameSize, 0, l->d_loc.packed() ); // while true do
+        bc.LOOP( ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // while true do
         const quint32 start = bc.getCurPc();
         loop << start;
 
@@ -1493,9 +1472,9 @@ struct LjbcGenImp : public AstVisitor
         else
             bc.ISGE(id.d_slot,to.d_slot,l->d_loc.packed()); // id >= to
 
-        bc.JMP( ctx.back().frameSize, 0, l->d_loc.packed() );
+        bc.JMP( ctx.back().pool.d_frameSize, 0, l->d_loc.packed() );
         if0.trueList << bc.getCurPc();
-        bc.JMP( ctx.back().frameSize, 0, l->d_loc.packed() );
+        bc.JMP( ctx.back().pool.d_frameSize, 0, l->d_loc.packed() );
         if0.falseList << bc.getCurPc();
         if0.d_kind = Value::Jump;
 
@@ -1505,15 +1484,15 @@ struct LjbcGenImp : public AstVisitor
             l->d_do[i]->accept(this);
         bc.ADD(id.d_slot,id.d_slot,l->d_byVal, l->d_loc.packed() ); // id += inc
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // do complete, stay in loop
+        bc.JMP(ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // do complete, stay in loop
         loop << bc.getCurPc();
 
         backpatch( if0.falseList, bc.getCurPc() + 1 );
 
-        bc.JMP(ctx.back().frameSize, 0, l->d_loc.packed() ); // else quit loop
+        bc.JMP(ctx.back().pool.d_frameSize, 0, l->d_loc.packed() ); // else quit loop
         after << bc.getCurPc();
 
-        bc.JMP( ctx.back().frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
+        bc.JMP( ctx.back().pool.d_frameSize, start - bc.getCurPc() - 2, l->d_loc.packed() ); // end while true
         backpatch( loop, bc.getCurPc() );
 
         backpatch( after, bc.getCurPc() + 1 );
@@ -1837,9 +1816,9 @@ struct LjbcGenImp : public AstVisitor
             bc.IST(out.d_slot,loc.packed());
             sell(out);
             out.d_kind = Value::Jump;
-            bc.JMP( ctx.back().frameSize, 0, loc.packed() );
+            bc.JMP( ctx.back().pool.d_frameSize, 0, loc.packed() );
             out.trueList << bc.getCurPc();
-            bc.JMP( ctx.back().frameSize, 0, loc.packed() );
+            bc.JMP( ctx.back().pool.d_frameSize, 0, loc.packed() );
             out.falseList << bc.getCurPc();
         }
     }
@@ -2008,9 +1987,9 @@ struct LjbcGenImp : public AstVisitor
             break;
         }
 
-        bc.JMP( ctx.back().frameSize, 0, e->d_loc.packed() );
+        bc.JMP( ctx.back().pool.d_frameSize, 0, e->d_loc.packed() );
         out.trueList << bc.getCurPc();
-        bc.JMP( ctx.back().frameSize, 0, e->d_loc.packed() );
+        bc.JMP( ctx.back().pool.d_frameSize, 0, e->d_loc.packed() );
         out.falseList << bc.getCurPc();
         out.d_kind = Value::Jump;
 

@@ -659,6 +659,7 @@ namespace Ob
             Ref<Expression> simpleExpression( Scope*, SynTree* );
             Ref<Expression> term( Scope*, SynTree* );
             Ref<Expression> factor( Scope*, SynTree* );
+            Ref<Expression> literal( Scope*, SynTree* );
             Ref<Expression> designator( Scope*, SynTree* );
             Ref<Expression> qualident( Scope*, SynTree* );
             Ref<Expression> set( Scope*, SynTree* );

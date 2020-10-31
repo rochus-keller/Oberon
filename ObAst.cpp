@@ -1688,6 +1688,38 @@ Ast::Ref<Ast::Expression> Ast::Model::factor(Ast::Scope* s, SynTree* st)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_factor && !st->d_children.isEmpty() );
 
+    SynTree* first = st->d_children.first();
+    switch( first->d_tok.d_type )
+    {
+    case SynTree::R_literal:
+        return literal(s,st->d_children[0]);
+    case Tok_Lpar:
+        return expression(s,st->d_children[1]);
+    case Tok_Tilde:
+        {
+            Ref<Expression> f = factor(s,st->d_children[1]);
+            // TODO: simplify if const
+            if( f.isNull() )
+                return 0;
+            Ref<Expression> res = new UnExpr(UnExpr::NOT,f.data() );
+            res->d_loc = Loc(first);
+            res->d_type = f->d_type;
+            return res;
+        }
+        break;
+    case SynTree::R_variableOrFunctionCall:
+        Q_ASSERT( !st->d_children.first()->d_children.isEmpty() );
+        return designator(s,st->d_children.first()->d_children.first());
+    default:
+        Q_ASSERT(false);
+    }
+    return 0;
+}
+
+Ast::Ref<Ast::Expression> Ast::Model::literal(Ast::Scope* s, SynTree* st)
+{
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_literal && !st->d_children.isEmpty() );
+
     QVariant val;
     SynTree* first = st->d_children.first();
     switch( first->d_tok.d_type )
@@ -1725,23 +1757,6 @@ Ast::Ref<Ast::Expression> Ast::Model::factor(Ast::Scope* s, SynTree* st)
         return new Literal(d_boolType.data(), Loc(first), true);
     case Tok_FALSE:
         return new Literal(d_boolType.data(), Loc(first), false);
-    case Tok_Lpar:
-        return expression(s,st->d_children[1]);
-    case Tok_Tilde:
-        {
-            Ref<Expression> f = factor(s,st->d_children[1]);
-            // TODO: simplify if const
-            if( f.isNull() )
-                return 0;
-            Ref<Expression> res = new UnExpr(UnExpr::NOT,f.data() );
-            res->d_loc = Loc(first);
-            res->d_type = f->d_type;
-            return res;
-        }
-        break;
-    case SynTree::R_variableOrFunctionCall:
-        Q_ASSERT( !st->d_children.first()->d_children.isEmpty() );
-        return designator(s,st->d_children.first()->d_children.first());
     case SynTree::R_set:
         return set(s,st->d_children.first());
     default:

@@ -16,8 +16,17 @@
 // - added hexchar and hexstring
 // - added Elsif/ElseStatement for easier traversal
 // - integrated DEFINITION syntax
+// - made LengthList optional in ArrayType
+// - added generic types, like Roe & Szypersky with modifications
+// - added type-bound procedures
 
 /// Top
+
+#define OBNX
+
+#ifdef OBNX
+#define OBN2
+#endif
 
 Oberon ::= module | definition
 
@@ -59,15 +68,37 @@ ConstExpression* ::= expression
 
 /// 6. Type declarations
 
-TypeDeclaration ::= identdef '=' type
+TypeDeclaration ::= identdef 
+#ifdef OBNX
+	[ TypeParams_ ] 
+#endif 
+	'=' type
 
-type ::= qualident | ArrayType | RecordType | PointerType | ProcedureType
+type ::= qualident 
+#ifdef OBNX
+	[ TypeActuals_ ] 
+#endif 
+	| ArrayType | RecordType | PointerType | ProcedureType
+
+#ifdef OBNX
+TypeParams_ ::= '<' [ ident { ',' ident } ] '>'
+
+TypeActuals_ ::= '<' [ TypeActual { ',' TypeActual } ] '>' 
+
+TypeActual ::= type | literal
+#endif
 
 /// 6.1. Basic types
 
 /// 6.2. Array types
 
-ArrayType ::= ARRAY LengthList OF type
+ArrayType ::= ARRAY 
+#ifdef OBN2
+	[ LengthList ]
+#else
+	LengthList
+#endif
+	 OF type 
 
 LengthList ::= length {',' length}
 
@@ -124,11 +155,12 @@ term ::= factor {MulOperator factor}
 
 MulOperator ::= '*' | '/' | DIV | MOD | '&'
 
-factor ::= number | string | hexstring | hexchar | NIL | TRUE | FALSE |
-	set 
+literal ::= number | string | hexstring | hexchar | NIL | TRUE | FALSE | set 
+
+factor ::= literal
 	| variableOrFunctionCall // replaces: designator [ActualParameters]
 	| '(' expression ')' | '~' factor
-	
+
 variableOrFunctionCall ::= designator // designator enthält neu auch: [ ActualParameters ] 
 	
 set ::= '{' [ element {',' element} ] '}'
@@ -202,7 +234,19 @@ ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
 /// 10. Procedure declarations
 ProcedureDeclaration ::= ProcedureHeading ';'  ProcedureBody ident
 
-ProcedureHeading ::= PROCEDURE identdef [ FormalParameters ]
+ProcedureHeading ::= PROCEDURE
+#ifdef OBN2
+	[Receiver]
+#endif
+	 identdef [ FormalParameters ]
+
+#ifdef OBN2
+Receiver ::= '(' [VAR] ident ':' ident
+#ifdef OBNX
+	[ TypeActuals_ ] 
+#endif 
+	')'
+#endif
 
 ProcedureBody ::= DeclarationSequence 
 	[ BEGIN StatementSequence ]
@@ -220,13 +264,13 @@ DeclarationSequence2 ::=
 	[ CONST { ConstDeclaration ';' } ]
 	[ TYPE { TypeDeclaration ';' } ]
 	[ VAR { VariableDeclaration ';' } ]
-	{ ProcedureHeading ';' }
+	{ ProcedureHeading ';' } // difference to DeclarationSequence
 
 /// 10.1. Formal parameters
 
 FormalParameters ::= '(' [ FPSection { ';' FPSection } ] ')' [ ':' qualident ]
 
-FPSection ::= [ VAR ] ident { ',' ident } ':' FormalType
+FPSection ::= [ VAR ] ident { ',' ident } ':' FormalType // type in OB-2, not done here
 
 FormalType ::= { ARRAY OF } qualident
 
@@ -239,7 +283,7 @@ module ::= MODULE ident ';' [ ImportList ] DeclarationSequence
 	
 ImportList ::= IMPORT import { ',' import } ';'
 
-import ::= ident [ ':=' ident ]
+import ::= ident [ ':=' ident ] // TODO: ident chain instead of simple ident?
 
 /// 11.1 The Module SYSTEM
 

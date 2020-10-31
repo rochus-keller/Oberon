@@ -294,6 +294,7 @@ namespace Ob
         QVariant evalSimpleExpression(const Unit*, SynTree* expr) const;
         QVariant evalTerm(const Unit*, SynTree* expr) const;
         QVariant evalFactor(const Unit*, SynTree* expr) const;
+        QVariant evalLiteral(const Unit*, SynTree* expr) const;
         void index( const SynTree* idUse, const NamedThing* decl );
         void addLowerCaseGlobals();
 

@@ -344,6 +344,35 @@ void CppGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
     const SynTree* first = st->d_children.first();
     switch( first->d_tok.d_type )
     {
+    case SynTree::R_literal:
+        emitLiteral(ds,first,out, level);
+        break;
+    case Tok_Lpar:
+        out << "(";
+        Q_ASSERT(st->d_children.size() == 3);
+        emitExpression(ds,st->d_children[1],out,level);
+        out << ")";
+        break;
+    case Tok_Tilde:
+        out << "!";
+        Q_ASSERT(st->d_children.size() == 2 );
+        emitFactor(ds,st->d_children[1], out, level );
+        break;
+    case SynTree::R_variableOrFunctionCall:
+        emitDesig(ds,first->d_children.first(), false, out,level);
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
+    }
+}
+
+void CppGen::emitLiteral(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level )
+{
+    Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_literal && !st->d_children.isEmpty() );
+    const SynTree* first = st->d_children.first();
+    switch( first->d_tok.d_type )
+    {
     case SynTree::R_set:
         emitSet(ds,first,out, level);
         break;
@@ -364,17 +393,6 @@ void CppGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
     case Tok_NIL:
         out << "0";
         break;
-    case Tok_Lpar:
-        out << "(";
-        Q_ASSERT(st->d_children.size() == 3);
-        emitExpression(ds,st->d_children[1],out,level);
-        out << ")";
-        break;
-    case Tok_Tilde:
-        out << "!";
-        Q_ASSERT(st->d_children.size() == 2 );
-        emitFactor(ds,st->d_children[1], out, level );
-        break;
     case Tok_string:
         if( first->d_tok.d_val.size() == 3 )
             out << "'" << ( first->d_tok.d_val[1] == '\'' ? "\\" : "" ) << first->d_tok.d_val[1] << "'"; // CHAR
@@ -386,9 +404,6 @@ void CppGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
         break;
     case Tok_hexstring:
         out << "\"" << first->d_tok.d_val << "\"";
-        break;
-    case SynTree::R_variableOrFunctionCall:
-        emitDesig(ds,first->d_children.first(), false, out,level);
         break;
     default:
         Q_ASSERT( false );

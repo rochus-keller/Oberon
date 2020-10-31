@@ -350,6 +350,7 @@ int main(int argc, char *argv[])
             QDir::setCurrent(outPath);
 
         Lua::Engine2 lua;
+        Lua::Engine2::setInst(&lua);
         lua.setPrintToStdout(true);
         lua.addStdLibs();
         lua.addLibrary(Lua::Engine2::PACKAGE);
@@ -371,7 +372,6 @@ int main(int argc, char *argv[])
             loadLuaLib(lua,"Coroutines");
             loadLuaLib(lua,"XYPlane");
         }
-        Lua::Engine2::setInst(&lua);
         QByteArray src;
         QTextStream out(&src);
         out << "print(\">>> starting \".._VERSION..\" on \"..jit.version)" << endl;

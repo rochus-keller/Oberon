@@ -1968,6 +1968,63 @@ QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
     SynTree* first = expr->d_children.first();
     switch( first->d_tok.d_type )
     {
+    case SynTree::R_literal:
+        return evalLiteral( u, expr->d_children[0]);
+    case SynTree::R_variableOrFunctionCall:
+        {
+            Q_ASSERT( first->d_children.size() == 1 && first->d_children.first()->d_tok.d_type
+                      == SynTree::R_designator );
+            DesigOpList dopl = derefDesignator(u,first->d_children.first());
+            if( dopl.isEmpty() || dopl.size() > 2 || dopl[0].d_op != CodeModel::IdentOp ||
+                    ( dopl.size() == 2 && dopl[1].d_op != CodeModel::IdentOp ) )
+            {
+                if( dopl.size() == 2 && dopl[1].d_op == CodeModel::ProcedureOp )
+                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("procedure calls not supported in const") );
+                else
+                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
+                break;
+            }
+            const CodeModel::Element* e;
+            if( dopl.size() == 2 )
+                e = dynamic_cast<const CodeModel::Element*>( dopl[1].d_sym );
+            else
+                e = dynamic_cast<const CodeModel::Element*>( dopl[0].d_sym );
+            if( e == 0 || e->d_kind != Element::Constant )
+            {
+                d_errs->error(Errors::Semantics, first->d_children.first(), tr("designator must reference a constant") );
+                break;
+            }
+            return e->d_const;
+        }
+        break;
+    case Tok_Lpar: // '(' expression ')'
+        Q_ASSERT( expr->d_children.size() == 3 );
+        return evalExpression( u, expr->d_children[1]);
+    case Tok_Tilde: // '~' factor
+        {
+            Q_ASSERT( expr->d_children.size() == 2 );
+            QVariant v = evalFactor( u, expr->d_children.last() );
+            if( v.type() == QVariant::Bool )
+                return !v.toBool();
+            else
+                d_errs->error(Errors::Semantics, first, tr("operator ~ can only be applied to boolean") );
+        }
+        break;
+    default:
+        d_errs->error(Errors::Semantics, first, tr("invalid constant expression") );
+        break;
+    }
+
+    return QVariant();
+}
+
+QVariant CodeModel::evalLiteral(const CodeModel::Unit* u, SynTree* expr) const
+{
+    Q_ASSERT( expr->d_tok.d_type == SynTree::R_literal );
+    Q_ASSERT( !expr->d_children.isEmpty() );
+    SynTree* first = expr->d_children.first();
+    switch( first->d_tok.d_type )
+    {
     case SynTree::R_number:
         Q_ASSERT( expr->d_children.size() == 1 );
         if( first->d_children.first()->d_tok.d_type == Tok_real )
@@ -2026,46 +2083,6 @@ QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
                    res.set( from.toULongLong() );
            }
            return QVariant::fromValue(res);
-        }
-        break;
-    case SynTree::R_variableOrFunctionCall:
-        {
-            Q_ASSERT( first->d_children.size() == 1 && first->d_children.first()->d_tok.d_type
-                      == SynTree::R_designator );
-            DesigOpList dopl = derefDesignator(u,first->d_children.first());
-            if( dopl.isEmpty() || dopl.size() > 2 || dopl[0].d_op != CodeModel::IdentOp ||
-                    ( dopl.size() == 2 && dopl[1].d_op != CodeModel::IdentOp ) )
-            {
-                if( dopl.size() == 2 && dopl[1].d_op == CodeModel::ProcedureOp )
-                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("procedure calls not supported in const") );
-                else
-                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
-                break;
-            }
-            const CodeModel::Element* e;
-            if( dopl.size() == 2 )
-                e = dynamic_cast<const CodeModel::Element*>( dopl[1].d_sym );
-            else
-                e = dynamic_cast<const CodeModel::Element*>( dopl[0].d_sym );
-            if( e == 0 || e->d_kind != Element::Constant )
-            {
-                d_errs->error(Errors::Semantics, first->d_children.first(), tr("designator must reference a constant") );
-                break;
-            }
-            return e->d_const;
-        }
-        break;
-    case Tok_Lpar: // '(' expression ')'
-        Q_ASSERT( expr->d_children.size() == 3 );
-        return evalExpression( u, expr->d_children[1]);
-    case Tok_Tilde: // '~' factor
-        {
-            Q_ASSERT( expr->d_children.size() == 2 );
-            QVariant v = evalFactor( u, expr->d_children.last() );
-            if( v.type() == QVariant::Bool )
-                return !v.toBool();
-            else
-                d_errs->error(Errors::Semantics, first, tr("operator ~ can only be applied to boolean") );
         }
         break;
     default:
