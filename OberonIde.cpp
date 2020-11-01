@@ -956,8 +956,8 @@ void OberonIde::onGotoLnr(quint32 lnr)
     Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
     {
-        if( Ast::Loc::isPacked(lnr) )
-            edit->setCursorPosition(Ast::Loc::unpackRow(lnr)-1,Ast::Loc::unpackCol(lnr)-1);
+        if( RowCol::isPacked(lnr) )
+            edit->setCursorPosition(RowCol::unpackRow(lnr)-1,RowCol::unpackCol(lnr)-1);
         else
             edit->setCursorPosition(lnr-1,0);
         edit->setFocus();
@@ -991,7 +991,7 @@ void OberonIde::onCursor()
     {
         QTextCursor cur = edit->textCursor();
         const int line = cur.blockNumber() + 1;
-        d_bcv->gotoLine(Ast::Loc(line,cur.positionInBlock() + 1).packed());
+        d_bcv->gotoLine(RowCol(line,cur.positionInBlock() + 1).packed());
     }
     d_lock = false;
 }
@@ -1052,8 +1052,8 @@ void OberonIde::onStackDblClicked(QTreeWidgetItem* item, int)
         if( !source.isEmpty() )
         {
             const quint32 line = item->data(2,Qt::UserRole).toUInt();
-            if( Ast::Loc::isPacked(line) )
-                showEditor( source, Ast::Loc::unpackRow(line), Ast::Loc::unpackCol(line) );
+            if( RowCol::isPacked(line) )
+                showEditor( source, RowCol::unpackRow(line), RowCol::unpackCol(line) );
             else
                 showEditor( source, line, 1 );
         }
@@ -1485,9 +1485,9 @@ bool OberonIde::luaRuntimeMessage(const QByteArray& msg, const QString& file )
             }else
                 path.clear();
             const quint32 id = msg.mid(firstColon+1, secondColon - firstColon - 1 ).toInt(); // lua deliveres negative numbers
-            const bool packed = Ast::Loc::isPacked(id);
-            const quint32 row = packed ? Ast::Loc::unpackRow(id) : id;
-            const quint32 col = packed ? Ast::Loc::unpackCol(id) : 1;
+            const bool packed = RowCol::isPacked(id);
+            const quint32 row = packed ? RowCol::unpackRow(id) : id;
+            const quint32 col = packed ? RowCol::unpackCol(id) : 1;
 
             d_pro->getErrs()->error(Errors::Runtime, path.isEmpty() ? file : path, row, col, msg.mid(secondColon+1) );
             return true;
@@ -1654,8 +1654,8 @@ void OberonIde::fillStack()
             item->setText(3,"(native)");
         }else
         {
-            const int row = Ast::Loc::unpackRow2(l.d_line);
-            const int col = Ast::Loc::unpackCol2(l.d_line);
+            const int row = RowCol::unpackRow2(l.d_line);
+            const int col = RowCol::unpackCol2(l.d_line);
             item->setText(2,QString("%1:%2").arg(row).arg(col));
             item->setData(2, Qt::UserRole, l.d_line );
             item->setText(3, QFileInfo(l.d_source).baseName() );

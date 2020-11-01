@@ -103,6 +103,8 @@ LjEditor::LjEditor(QWidget *parent)
     d_lua->addLibrary(Engine2::OS);
     LjLib::install(d_lua->getCtx());
 
+    Engine2::setInst(d_lua);
+
     loadLuaLib( d_lua, "obnlj" );
     loadLuaLib(d_lua,"In");
     loadLuaLib(d_lua,"Out");
@@ -113,7 +115,6 @@ LjEditor::LjEditor(QWidget *parent)
     loadLuaLib(d_lua,"Coroutines");
     loadLuaLib(d_lua,"XYPlane");
 
-    Engine2::setInst(d_lua);
 
     d_eng = new JitEngine(this);
 
@@ -388,8 +389,8 @@ void LjEditor::onGotoLnr(quint32 lnr)
     if( d_lock )
         return;
     d_lock = true;
-    if( Ast::Loc::isPacked(lnr) )
-        d_edit->setCursorPosition(Ast::Loc::unpackRow(lnr)-1,Ast::Loc::unpackCol(lnr)-1);
+    if( RowCol::isPacked(lnr) )
+        d_edit->setCursorPosition(RowCol::unpackRow(lnr)-1,RowCol::unpackCol(lnr)-1);
     else
         d_edit->setCursorPosition(lnr-1,0);
     d_lock = false;
@@ -417,7 +418,7 @@ void LjEditor::onCursor()
     d_lock = true;
     QTextCursor cur = d_edit->textCursor();
     const int line = cur.blockNumber() + 1;
-    d_bcv->gotoLine(Ast::Loc(line,cur.positionInBlock() + 1).packed());
+    d_bcv->gotoLine(RowCol(line,cur.positionInBlock() + 1).packed());
     d_lock = false;
 }
 

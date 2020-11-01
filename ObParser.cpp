@@ -1122,6 +1122,12 @@ void Parser::import() {
 			addTerminal(); 
 			Expect(_T_ident,__FUNCTION__);
 			addTerminal(); 
+			while (la->kind == _T_Slash) {
+				Get();
+				addTerminal(); 
+				Expect(_T_ident,__FUNCTION__);
+				addTerminal(); 
+			}
 		}
 		d_stack.pop(); 
 }

@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon to Lua (OBNLC) transpiler.
 *
@@ -359,6 +359,7 @@ int main(int argc, char *argv[])
         lua.addLibrary(Lua::Engine2::BIT);
         lua.addLibrary(Lua::Engine2::JIT);
         lua.addLibrary(Lua::Engine2::OS);
+        lua.addLibrary(Lua::Engine2::FFI);
         Ob::LjLib::install(lua.getCtx());
         loadLuaLib( lua, "obnlj" );
         if( useOakwood )

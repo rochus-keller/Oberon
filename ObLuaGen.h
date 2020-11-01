@@ -2,7 +2,7 @@
 #define OBLUAGEN_H
 
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -42,6 +42,7 @@ namespace Ob
         void emitTerm(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level );
         void emitTerm(const CodeModel::Unit* ds,const QList<SynTree*> st, int i, QTextStream& out, int level );
         void emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level );
+        void emitLiteral(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level );
         bool emitDesigList(const CodeModel::Unit*,const CodeModel::DesigOpList&, bool procCall, QTextStream&, int level);
         void emitAssig(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         bool emitAssig(const CodeModel::Unit* ds, const SynTree* lhs, const SynTree* rhs,QTextStream& out, int level);
@@ -68,6 +69,8 @@ namespace Ob
         void initArray(const CodeModel::Unit*, QTextStream& out, const CodeModel::Type* arr, const QByteArray& name, int level , bool label);
         typedef QPair<const CodeModel::Type*,const CodeModel::Type*> RecRef; // ref -> rec
         RecRef getRecRefFrom( const CodeModel::Unit* ds, SynTree* );
+        bool error(Errors::Source s, const SynTree*, const QString& msg);
+        bool warning(Errors::Source s, const SynTree*, const QString& msg);
     private:
         CodeModel* d_mdl;
         Errors* d_errs;

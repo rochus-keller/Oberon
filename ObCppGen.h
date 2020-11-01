@@ -72,6 +72,8 @@ namespace Ob
         void emitLabel(const CodeModel::Unit*, const SynTree*,QTextStream& out, int level);
         static bool isSimpleType( const CodeModel::Type* );
         static QByteArray escape( const QByteArray& );
+        bool error(Errors::Source s, const SynTree*, const QString& msg);
+        bool warning(Errors::Source s, const SynTree*, const QString& msg);
     private:
         CodeModel* d_mdl;
         Errors* d_errs;

@@ -48,6 +48,18 @@ CppGen::CppGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true)
     d_errs = mdl->getErrs();
 }
 
+bool CppGen::error(Errors::Source s, const SynTree* st, const QString& msg)
+{
+    d_errs->error( s, st->d_tok.toLoc(), msg );
+    return false;
+}
+
+bool CppGen::warning(Errors::Source s, const SynTree* st, const QString& msg)
+{
+    d_errs->warning( s, st->d_tok.toLoc(), msg );
+    return false;
+}
+
 bool CppGen::emitModules(const QString& outdir, const QString& ns, const QString& mod)
 {
     d_ns = ns;
@@ -797,7 +809,7 @@ void CppGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             break;
         default:
             out << ws(level) << "; // unknown statement " << SynTree::rToStr(s->d_tok.d_type) << endl;
-            d_mdl->getErrs()->warning( Errors::Generator, s,
+            warning( Errors::Generator, s,
                                        tr("'%1' not yet supported").arg(SynTree::rToStr(s->d_tok.d_type)) );
             break;
         }
@@ -815,9 +827,8 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     Q_ASSERT( pp != 0 && pp->isPredefProc() );
     if( dopl.size() != 2 || dopl.last().d_op != CodeModel::ProcedureOp )
     {
-        d_errs->error( Errors::Semantics, dopl.first().d_arg, tr("invalid call of built-in procedure '%1'").
+        return error( Errors::Semantics, dopl.first().d_arg, tr("invalid call of built-in procedure '%1'").
                        arg(dopl.first().d_sym->d_name.data()) );
-        return false;
     }
     Q_ASSERT( dopl.last().d_arg->d_tok.d_type == SynTree::R_ExpList );
     QList<SynTree*> args = dopl.last().d_arg->d_children;
@@ -829,8 +840,7 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             const SynTree* desig = ( args.isEmpty() ? 0 : CodeModel::flatten(args.first(), SynTree::R_designator ) );
             if( args.size() != 1 || desig == 0 )
             {
-                d_errs->error( Errors::Semantics, dopl.last().d_arg, tr("invalid arguments of 'NEW()'") );
-                return false;
+                return error( Errors::Semantics, dopl.last().d_arg, tr("invalid arguments of 'NEW()'") );
             }
             CodeModel::DesigOpList arg = d_mdl->derefDesignator( ds, desig );
             const CodeModel::Element* id = 0;
@@ -841,7 +851,7 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                     ( ptr = derefed( id->d_type ) ) == 0 || ptr->d_kind != CodeModel::Type::Pointer ||
                     ( rec = derefed( ptr->d_type ) ) == 0 || rec->d_kind != CodeModel::Type::Record )
             {
-                d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'NEW()' expects a POINTER to RECORD") );
+                error( Errors::Semantics, dopl.last().d_arg, tr("'NEW()' expects a POINTER to RECORD") );
                 return false;
             }
             emitDesig(ds, desig, false, out, level );
@@ -867,7 +877,7 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             emitExpression( ds, args.last(), out , level );
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'INC()' with invalid arguments") );
+        error( Errors::Semantics, pp->d_def, tr("'INC()' with invalid arguments") );
         break;
     case CodeModel::Element::DEC:
         if( args.size() == 1 )
@@ -882,7 +892,7 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             emitExpression( ds, args.last(), out , level );
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'DEC()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'DEC()' with invalid arguments") );
         break;
     case CodeModel::Element::ORD:
         if( args.size() == 1 )
@@ -902,7 +912,7 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                 return true;
             }
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ORD()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ORD()' with invalid arguments") );
         break;
     case CodeModel::Element::CHR:
         if( args.size() == 1 )
@@ -912,7 +922,7 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " )";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'CHR()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'CHR()' with invalid arguments") );
         break;
     case CodeModel::Element::ODD:
         if( args.size() == 1 )
@@ -921,10 +931,10 @@ bool CppGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " % 2 == 1";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ODD()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ODD()' with invalid arguments") );
         break;
     default:
-        d_mdl->getErrs()->warning( Errors::Generator, dopl.last().d_arg,
+        warning( Errors::Generator, dopl.last().d_arg,
                                    tr("built-in '%1()' not yet supported").arg(pp->d_name.data()) );
         break;
     }
@@ -1017,7 +1027,7 @@ void CppGen::emitWhileStatement(const CodeModel::Unit* ds, const SynTree* st, QT
         out << "}";
     out << endl;
     if( CodeModel::findFirstChild( st, SynTree::R_ElsifStatement ) != 0 )
-        d_errs->warning(Errors::Generator, st, tr("ELSIF statement in WHILE statement not supported") );
+        warning(Errors::Generator, st, tr("ELSIF statement in WHILE statement not supported") );
 }
 
 void CppGen::emitRepeatStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)

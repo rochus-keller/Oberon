@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -192,7 +192,7 @@ struct LjbcGenImp : public AstVisitor
         return res;
     }
 
-    void fetchClass( QualiType::ModItem quali, Value& out, const Loc& loc )
+    void fetchClass( QualiType::ModItem quali, Value& out, const RowCol& loc )
     {
         Q_ASSERT( quali.second != 0 );
         const quint32 rowCol = loc.packed();
@@ -261,7 +261,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    void fetchClass( Type* t, Value& out, const Loc& loc )
+    void fetchClass( Type* t, Value& out, const RowCol& loc )
     {
         fetchClass( findClass(t), out, loc );
     }
@@ -319,7 +319,7 @@ struct LjbcGenImp : public AstVisitor
         deferred.clear();
     }
 
-    quint16 resolveUpval( Named* n, const Loc& loc )
+    quint16 resolveUpval( Named* n, const RowCol& loc )
     {
         Q_ASSERT( n->d_scope != ctx.back().scope );
         // get the upval id from the present context
@@ -342,7 +342,7 @@ struct LjbcGenImp : public AstVisitor
         return res;
     }
 
-    void genArray( int len, quint8 out, const Loc& loc )
+    void genArray( int len, quint8 out, const RowCol& loc )
     {
         quint8 tmp = ctx.back().buySlots(2,true);
         fetchObnljMember(tmp,"Arr",loc);
@@ -352,7 +352,7 @@ struct LjbcGenImp : public AstVisitor
         ctx.back().sellSlots(tmp,2);
     }
 
-    void initMatrix( const QList<Array*>& dims, quint8 table, int curDim, const Loc& loc )
+    void initMatrix( const QList<Array*>& dims, quint8 table, int curDim, const RowCol& loc )
     {
         // We need to create the arrays for each matrix dimension besides the highest one, unless it is of record value.
         // If a matrix has only one dimension (i.e. it is an array), no initialization is required, unless it is of record value
@@ -444,7 +444,7 @@ struct LjbcGenImp : public AstVisitor
         return false;
     }
 
-    void initArray(Array* arr, quint8 table, const Loc& loc )
+    void initArray(Array* arr, quint8 table, const RowCol& loc )
     {
         // table is the slot where the new array will be stored
 
@@ -462,7 +462,7 @@ struct LjbcGenImp : public AstVisitor
         initMatrix( dims, table, 0, loc );
     }
 
-    bool initScalar( BaseType* t, quint8 slot, const Loc& loc )
+    bool initScalar( BaseType* t, quint8 slot, const RowCol& loc )
     {
         switch( t->d_type )
         {
@@ -498,7 +498,7 @@ struct LjbcGenImp : public AstVisitor
         return false;
     }
 
-    void initRecord( Type* rt, quint8 table, const Loc& loc )
+    void initRecord( Type* rt, quint8 table, const RowCol& loc )
     {
         Q_ASSERT( rt != 0 );
 
@@ -658,7 +658,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    int emitImport( const QByteArray& modName, const Loc& loc )
+    int emitImport( const QByteArray& modName, const RowCol& loc )
     {
         int tmp = ctx.back().buySlots(2,true);
         bc.GGET( tmp, "require", loc.packed() );
@@ -777,7 +777,7 @@ struct LjbcGenImp : public AstVisitor
         return true;
     }
 
-    bool inline error( const Loc& l, const QString& msg )
+    bool inline error( const RowCol& l, const QString& msg )
     {
         err->error(Errors::Semantics, mod->d_file, l.d_row, l.d_col, msg );
         return false;
@@ -1030,7 +1030,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    void deepCopy( quint8 lhs, quint8 rhs, Type* t , const Loc& loc )
+    void deepCopy( quint8 lhs, quint8 rhs, Type* t , const RowCol& loc )
     {
         int tag = t->getTag();
         Q_ASSERT( tag == Thing::T_Record || tag == Thing::T_Array );
@@ -1105,7 +1105,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    void copyImpl( Value& lhs, Value& rhs, const Loc& loc )
+    void copyImpl( Value& lhs, Value& rhs, const RowCol& loc )
     {
         Q_ASSERT( lhs.d_type );
 
@@ -1124,7 +1124,7 @@ struct LjbcGenImp : public AstVisitor
         deepCopy( lhs.d_slot, rhs.d_slot, t, loc );
     }
 
-    void TGET( quint8 to, quint8 table, const QVariant& index, const Loc& loc)
+    void TGET( quint8 to, quint8 table, const QVariant& index, const RowCol& loc)
     {
         if( JitBytecode::isNumber(index) )
         {
@@ -1144,7 +1144,7 @@ struct LjbcGenImp : public AstVisitor
             Q_ASSERT( false );
     }
 
-    void TSET( quint8 value, quint8 table, const QVariant& index, const Loc& loc)
+    void TSET( quint8 value, quint8 table, const QVariant& index, const RowCol& loc)
     {
         if( JitBytecode::isNumber(index) )
         {
@@ -1164,7 +1164,7 @@ struct LjbcGenImp : public AstVisitor
             Q_ASSERT( false );
     }
 
-    void assignImpl( const Value& lhs, Value& rhs, const Loc& loc )
+    void assignImpl( const Value& lhs, Value& rhs, const RowCol& loc )
     {
         if( lhs.d_kind == Value::Ref || lhs.d_kind == Value::Tmp )
         {
@@ -1232,7 +1232,7 @@ struct LjbcGenImp : public AstVisitor
         return false;
     }
 
-    void jumpToBooleanValue( Value& out, const Loc& loc )
+    void jumpToBooleanValue( Value& out, const RowCol& loc )
     {
         if( out.d_kind == Value::Jump )
         {
@@ -1246,7 +1246,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    void assign( Value& lhs, Value& rhs, const Loc& loc, bool keepRhs = false )
+    void assign( Value& lhs, Value& rhs, const RowCol& loc, bool keepRhs = false )
     {
         Q_ASSERT( lhs.d_kind == Value::Ref || lhs.d_kind == Value::Tmp || lhs.d_kind == Value::Uv
                   || lhs.d_kind == Value::Ref2 || lhs.d_kind == Value::Tmp2
@@ -1652,7 +1652,7 @@ struct LjbcGenImp : public AstVisitor
         processExpr(ex,out);
     }
 
-    void fetchValue( const QVariant& v, Value& out, const Loc& loc )
+    void fetchValue( const QVariant& v, Value& out, const RowCol& loc )
     {
         if( v.canConvert<Ast::Set>() )
         {
@@ -1807,7 +1807,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    void assureJump( Value& out, const Loc& loc )
+    void assureJump( Value& out, const RowCol& loc )
     {
         if( out.d_kind != Value::Jump )
         {
@@ -1860,7 +1860,7 @@ struct LjbcGenImp : public AstVisitor
         out.d_kind = Value::Jump;
     }
 
-    void fetchObnljMember( quint8 to, const QByteArray& index, const Loc& loc )
+    void fetchObnljMember( quint8 to, const QByteArray& index, const RowCol& loc )
     {
         if( ctx.back().scope != mod ) // obnlj->d_scope == mod
         {
@@ -1997,7 +1997,7 @@ struct LjbcGenImp : public AstVisitor
         sell(rhs);
     }
 
-    void derefIndexed( Value& v, const Loc& loc )
+    void derefIndexed( Value& v, const RowCol& loc )
     {
         switch( v.d_kind )
         {
@@ -2037,7 +2037,7 @@ struct LjbcGenImp : public AstVisitor
         }
     }
 
-    void storeConst( Value& v, const Loc& loc )
+    void storeConst( Value& v, const RowCol& loc )
     {
         if( v.d_kind == Value::Val )
         {
@@ -2161,7 +2161,7 @@ struct LjbcGenImp : public AstVisitor
             sell(rhs);
     }
 
-    void emitBoundsCheck( Type* t, const Value& idx, const Loc& loc )
+    void emitBoundsCheck( Type* t, const Value& idx, const RowCol& loc )
     {
         // crashes in Hennessy when run without _lib.TRACE call in BOUNDS
         // worked in isolated Puzzle and indicated the bounds violation
@@ -2677,7 +2677,7 @@ struct LjbcGenImp : public AstVisitor
         return false;
     }
 
-    void emitEndOfCall(quint8 base, int baseLen, Value& out, const Loc& loc )
+    void emitEndOfCall(quint8 base, int baseLen, Value& out, const RowCol& loc )
     {
         if( out.d_kind == Value::Pre )
         {
@@ -2714,14 +2714,14 @@ struct LjbcGenImp : public AstVisitor
     }
 
     void emitCall( quint8 base, bool hasReturn, Value& out,
-                   const CallExpr::Actuals& actuals, const Loc& loc )
+                   const CallExpr::Actuals& actuals, const RowCol& loc )
     {
         VarParams vp;
         emitCall(base, hasReturn, out, actuals, vp, loc );
     }
 
     void emitCall( quint8 base, bool hasReturn, Value& out,
-                   const CallExpr::Actuals& actuals, VarParams& vp, const Loc& loc )
+                   const CallExpr::Actuals& actuals, VarParams& vp, const RowCol& loc )
     {
         Q_ASSERT( vp.isEmpty() || vp.size() == actuals.size() );
 
@@ -2823,7 +2823,7 @@ struct LjbcGenImp : public AstVisitor
 bool LjbcGen::translate(Ast::Model* mdl, const QString& outdir, const QString& mod, Errors* err)
 {
     Q_ASSERT( mdl );
-    Q_ASSERT( Loc::COL_BIT_LEN == JitComposer::COL_BIT_LEN && Loc::ROW_BIT_LEN == JitComposer::ROW_BIT_LEN );
+    Q_ASSERT( RowCol::COL_BIT_LEN == JitComposer::COL_BIT_LEN && RowCol::ROW_BIT_LEN == JitComposer::ROW_BIT_LEN );
 
     QDir dir(outdir);
     if( !mod.isEmpty() )

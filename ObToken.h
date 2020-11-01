@@ -2,7 +2,7 @@
 #define OBTOKEN_H
 
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -22,6 +22,7 @@
 
 #include <QString>
 #include <Oberon/ObTokenType.h>
+#include <Oberon/ObRowCol.h>
 
 namespace Ob
 {
@@ -34,10 +35,14 @@ namespace Ob
         TokenType d_tokenType;
         };
 #else
-        uint d_type : 16; // TokenType
+        quint16 d_type : 16; // TokenType
 #endif
-        quint32 d_lineNr;
-        quint16 d_colNr, d_len;
+        quint16 d_len;
+
+        uint d_lineNr : RowCol::ROW_BIT_LEN; // supports 524k lines
+        uint d_colNr : RowCol::COL_BIT_LEN; // supports 4k chars per line
+        uint unused : 1;
+
         QByteArray d_val;
         QString d_sourcePath;
         Token(quint16 t = Tok_Invalid, quint32 line = 0, quint16 col = 0, quint16 len = 0, const QByteArray& val = QByteArray() ):
@@ -46,6 +51,8 @@ namespace Ob
         bool isEof() const;
         const char* getName() const;
         const char* getString() const;
+        RowCol toRowCol() const { return RowCol(d_lineNr,d_colNr); }
+        Loc toLoc() const { return Loc(d_lineNr,d_colNr,d_sourcePath); }
     };
 }
 

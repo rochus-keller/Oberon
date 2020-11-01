@@ -1,5 +1,5 @@
 #/*
-#* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+#* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 #*
 #* This file is part of the Oberon parser/code model library.
 #*
@@ -30,7 +30,8 @@ SOURCES += \
     $$PWD/ObCodeModel.cpp \
     $$PWD/ObAst.cpp \
     $$PWD/ObAstEval.cpp \
-    $$PWD/ObAstValidator.cpp
+    $$PWD/ObAstValidator.cpp \
+    $$PWD/ObRowCol.cpp
 
 HEADERS  += \
     $$PWD/ObSynTree.h \
@@ -43,5 +44,6 @@ HEADERS  += \
     $$PWD/ObCodeModel.h \
     $$PWD/ObAst.h \
     $$PWD/ObAstEval.h \
-    $$PWD/ObAstValidator.h
+    $$PWD/ObAstValidator.h \
+    $$PWD/ObRowCol.h
 

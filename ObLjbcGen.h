@@ -2,7 +2,7 @@
 #define OBLJBCGEN_H
 
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *

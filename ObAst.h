@@ -2,7 +2,7 @@
 #define OBAST_H
 
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -26,6 +26,7 @@
 #include <QVariant>
 #include <memory>
 #include <bitset>
+#include <Oberon/ObRowCol.h>
 
 class QIODevice;
 
@@ -58,29 +59,6 @@ namespace Ob
             bool isNull() const { return d_ptr == 0; }
             T* data() const { return d_ptr; }
             T* operator->() const { return d_ptr; }
-        };
-
-        struct Loc
-        {
-            enum { ROW_BIT_LEN = 19, COL_BIT_LEN = 32 - ROW_BIT_LEN - 1, MSB = 0x80000000 };
-            uint d_row : ROW_BIT_LEN; // supports 524k lines
-            uint d_col : COL_BIT_LEN; // supports 4k chars per line
-            uint unused : 1;
-            Loc():d_row(0),d_col(0) {}
-            Loc(SynTree*);
-            Loc( quint32 row, quint32 col );
-            bool setRowCol( quint32 row, quint32 col );
-            bool isValid() const { return d_row > 0 && d_col > 0; } // valid lines and cols start with 1; 0 is invalid
-            quint32 packed() const { return ( d_row << COL_BIT_LEN ) | d_col | MSB; }
-            static bool isPacked( quint32 rowCol ) { return rowCol & MSB; }
-            static quint32 unpackCol(quint32 rowCol ) { return rowCol & ( 1 << COL_BIT_LEN ) - 1; }
-            static quint32 unpackCol2(quint32 rowCol ) { return isPacked(rowCol) ? unpackCol(rowCol) : 1; }
-            static quint32 unpackRow(quint32 rowCol ) { return ( ( rowCol & ~MSB ) >> COL_BIT_LEN ); }
-            static quint32 unpackRow2(quint32 rowCol ) { return isPacked(rowCol) ? unpackRow(rowCol) : rowCol; }
-            // NOTE: we cannot use packed yet with Lua/JIT because word length of stored line number is set depending
-            // on actual number of bytecodes of function!
-            quint32 line() const { return d_row; }
-            bool operator==( const Loc& rhs ) const { return d_row == rhs.d_row && d_col == rhs.d_col; }
         };
 
         struct Thing : public QSharedData
@@ -278,7 +256,7 @@ namespace Ob
         struct Named : public Thing
         {
             QByteArray d_name;
-            Loc d_loc;
+            RowCol d_loc;
             Ref<Type> d_type;
             Scope* d_scope; // owning scope
 
@@ -378,7 +356,7 @@ namespace Ob
                 QList<Named*> d_order;
                 QList< Ref<IdentLeaf> > d_helper; // filled with all decls when fillXref
                 StatSeq d_body;
-                Loc d_end;
+                RowCol d_end;
 
                 bool isScope() const { return true; }
                 int getTag() const { return T_Scope; }
@@ -406,7 +384,7 @@ namespace Ob
 
         struct Statement : public Thing
         {
-            Loc d_loc;
+            RowCol d_loc;
         };
 
             struct Call : public Statement
@@ -470,7 +448,7 @@ namespace Ob
         struct Expression : public Thing
         {
             NoRef<Type> d_type;
-            Loc d_loc;
+            RowCol d_loc;
             virtual Named* getIdent() const { return 0; }
             virtual Module* getModule() const { return 0; }
         };
@@ -478,7 +456,7 @@ namespace Ob
             struct Literal : public Expression
             {
                 QVariant d_val;
-                Literal( Type* t = 0, Loc l = Loc(), const QVariant& v = QVariant() ):d_val(v){d_type = t; d_loc = l; }
+                Literal( Type* t = 0, RowCol l = RowCol(), const QVariant& v = QVariant() ):d_val(v){d_type = t; d_loc = l; }
                 int getTag() const { return T_Literal; }
                 void accept(AstVisitor* v) { v->visit(this); }
             };

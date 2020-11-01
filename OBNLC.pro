@@ -1,5 +1,5 @@
 #/*
-#* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+#* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 #*
 #* This file is part of the Oberon to Lua compiler.
 #*
@@ -34,7 +34,8 @@ SOURCES += \
     ObLuaGen2.cpp \
     ObLjbcGen.cpp \
     ../LjTools/LuaJitComposer.cpp \
-    ../LjTools/LuaJitBytecode.cpp
+    ../LjTools/LuaJitBytecode.cpp \
+    ObLjLibFfi.c
 
 include( Oberon.pri )
 
@@ -65,6 +66,10 @@ HAVE_LUAJIT {
     } else {
         LIBS += -lluajit
     }
+
+    QMAKE_LFLAGS += -rdynamic -ldl
+    #rdynamic is required so that the LjLibFfi functions are visible to LuaJIT FFI
+
     SOURCES += \
         ../LjTools/Engine2.cpp \
         ObLjLib.cpp

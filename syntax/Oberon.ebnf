@@ -19,6 +19,7 @@
 // - made LengthList optional in ArrayType
 // - added generic types, like Roe & Szypersky with modifications
 // - added type-bound procedures
+// - added paths to import; most right element of the path is the module name
 
 /// Top
 
@@ -283,7 +284,7 @@ module ::= MODULE ident ';' [ ImportList ] DeclarationSequence
 	
 ImportList ::= IMPORT import { ',' import } ';'
 
-import ::= ident [ ':=' ident ] // TODO: ident chain instead of simple ident?
+import ::= ident [ ':=' ident { '/' ident } ] // NOTE: paths are not case sensitive 
 
 /// 11.1 The Module SYSTEM
 

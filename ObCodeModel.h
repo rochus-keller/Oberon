@@ -2,7 +2,7 @@
 #define OBCODEMODEL_H
 
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -22,6 +22,7 @@
 
 #include <QObject>
 #include <Oberon/ObSynTree.h>
+#include <Oberon/ObErrors.h>
 #include <QMap>
 #include <QStringList>
 #include <QVector>
@@ -297,6 +298,7 @@ namespace Ob
         QVariant evalLiteral(const Unit*, SynTree* expr) const;
         void index( const SynTree* idUse, const NamedThing* decl );
         void addLowerCaseGlobals();
+        bool error(Errors::Source s, const SynTree*, const QString& msg) const;
 
         static QPair<SynTree*,bool> getIdentFromIdentDef(SynTree*);
         static DesigOp getSelectorOp( SynTree* );

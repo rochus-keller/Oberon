@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -72,6 +72,15 @@ const char* Ast::BinExpr::s_opName[] =
     "ADD", "SUB", "OR",
     "MUL", "FDIV", "DIV", "MOD", "AND"
 };
+
+static inline RowCol toRowCol(SynTree* st)
+{
+    Q_ASSERT( st != 0 );
+    RowCol res;
+    if( !res.setRowCol( st->d_tok.d_lineNr, st->d_tok.d_colNr ) )
+        qWarning() << "exceeding maximum row or column number at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
+    return res;
+}
 
 static SynTree* findFirstChild(const SynTree* st, int type , int startWith = 0)
 {
@@ -593,7 +602,7 @@ bool Ast::Model::module(Ast::Module* m, SynTree* st)
             statementSequence(m, m->d_body, sub );
             break;
         case Tok_END:
-            m->d_end = Loc(sub);
+            m->d_end = toRowCol(sub);
             break;
         case Tok_BEGIN:
             break;
@@ -628,7 +637,7 @@ bool Ast::Model::importList(Ast::Module* m, SynTree* st)
             Module* mi = Ast::thing_cast<Module*>(n);
             Ref<Import> ii = new Import();
             ii->d_mod = mi;
-            ii->d_loc = Loc(imp);
+            ii->d_loc = toRowCol(imp);
             ii->d_name = nickname->d_tok.d_val;
             ii->d_scope = m;
             if( d_fillXref )
@@ -700,7 +709,7 @@ bool Ast::Model::procedureDeclaration(Ast::Scope* m, SynTree* st, bool headingOn
     Q_ASSERT( st->d_children.size() >= 1 );
 
     Ref<Procedure> p = new Procedure();
-    p->d_loc = Loc(st);
+    p->d_loc = toRowCol(st);
     p->d_scope = m;
     SynTree* id = procedureHeading(p.data(), headingOnly ? st : st->d_children.first() );
     addToScope(m,p.data()); // body needs to reference this procedure if recursively called
@@ -771,7 +780,7 @@ bool Ast::Model::procedureBody(Ast::Procedure* p, SynTree* st)
         case Tok_BEGIN:
             break;
         case Tok_END:
-            p->d_end = Loc(st->d_children[i]);
+            p->d_end = toRowCol(st->d_children[i]);
             break;
         default:
             Q_ASSERT( false );
@@ -801,7 +810,7 @@ void Ast::Model::deferredBody(Ast::Procedure* p, SynTree* st)
             SynTree* rs = st;
             Q_ASSERT( rs->d_children.size() == 2 );
             Ref<Return> r = new Return();
-            r->d_loc = Loc(rs);
+            r->d_loc = toRowCol(rs);
             r->d_what = expression(p,rs->d_children.last());
             p->d_body << r.data();
         }
@@ -834,7 +843,7 @@ Ast::Named* Ast::Model::typeDeclaration(Scope* m, SynTree* st)
     Ref<NamedType> nt = new NamedType();
     d_curTypeDecl = nt.data();
     nt->d_name = name;
-    nt->d_loc = Loc(idef);
+    nt->d_loc = toRowCol(idef);
     nt->d_public = pub;
     nt->d_isDef = d_curModule->d_isDef;
     nt->d_scope = m;
@@ -946,14 +955,14 @@ static quint32 evalLen( Errors* errs, Ast::Expression* e, SynTree* st )
     const QVariant v = Ast::Eval::evalConstExpr( e, &msg );
     if( !v.isValid() )
     {
-        errs->error(Errors::Semantics, st, msg);
+        errs->error(Errors::Semantics, st->d_tok.toLoc(), msg);
         return 0;
     }
     qint64 len = v.toLongLong();
     if( v.type() != QVariant::LongLong || len <= 0 )
-        errs->error(Errors::Semantics, st, Ast::Model::tr("expecting positive integer") );
+        errs->error(Errors::Semantics, st->d_tok.toLoc(), Ast::Model::tr("expecting positive integer") );
     else if( len > UINT_MAX )
-        errs->error(Errors::Semantics, st, Ast::Model::tr("maximum supported array lenght is 2^32") );
+        errs->error(Errors::Semantics, st->d_tok.toLoc(), Ast::Model::tr("maximum supported array lenght is 2^32") );
     else
         return len;
     return 0;
@@ -1074,7 +1083,7 @@ bool Ast::Model::variableDeclaration(Ast::Scope* ds, SynTree* t)
         v->d_public = pub;
         v->d_isDef = d_curModule->d_isDef;
         v->d_type = tp;
-        v->d_loc = Loc(id);
+        v->d_loc = toRowCol(id);
         v->d_scope = ds;
 
         if( d_fillXref )
@@ -1113,7 +1122,7 @@ bool Ast::Model::constDeclaration(Ast::Scope* m, SynTree* st)
         c->d_type = c->d_constExpr->d_type.data();
     QString msg;
     c->d_val = Eval::evalConstExpr(c->d_constExpr.data(), &msg);
-    c->d_loc = Loc(st);
+    c->d_loc = toRowCol(st);
     if( !c->d_val.isValid() )
         error(st->d_children.last(),msg);
 
@@ -1168,7 +1177,7 @@ bool Ast::Model::fpSection(Scope* s, Ast::ProcType* p, SynTree* st)
             Ref<Parameter> v = new Parameter();
             v->d_type = t;
             v->d_name = st->d_children[i]->d_tok.d_val;
-            v->d_loc = Loc(st->d_children[i]);
+            v->d_loc = toRowCol(st->d_children[i]);
             v->d_scope = s;
             v->d_var = var;
             if( p->find( v->d_name ) != 0 )
@@ -1221,7 +1230,7 @@ bool Ast::Model::fieldList(Scope* s, Ast::Record* rec, SynTree* st )
                 continue;
             }
             Ref<Field> f = new Field();
-            f->d_loc = Loc(idef);
+            f->d_loc = toRowCol(idef);
             f->d_name = name;
             f->d_public = pub;
             f->d_isDef = d_curModule->d_isDef;
@@ -1298,7 +1307,7 @@ Ast::Ref<Ast::Statement> Ast::Model::assignmentOrProcedureCall(Ast::Scope* s, Sy
             if( !p->d_formals.isEmpty() )
                 error( st, tr("cannot call procedure without actual arguments") );
             Ref<CallExpr> call = new CallExpr();
-            call->d_loc = Loc(st);
+            call->d_loc = toRowCol(st);
             call->d_sub = d.data();
             d = call.data();
         }
@@ -1323,7 +1332,7 @@ Ast::Ref<Ast::Statement> Ast::Model::assignmentOrProcedureCall(Ast::Scope* s, Sy
             error( st->d_children.first(), tr("left side of assignment cannot be a procedure call") );
         Ref<Expression> rhs = expression(s,st->d_children.last());
         Ref<Assign> a = new Assign();
-        a->d_loc = Loc(st);
+        a->d_loc = toRowCol(st);
         a->d_lhs = d;
         a->d_rhs = rhs;
         return a.data();
@@ -1344,7 +1353,7 @@ Ast::Ref<Ast::Statement> Ast::Model::ifStatement(Ast::Scope* s, SynTree* st)
     Q_ASSERT( st->d_tok.d_type == SynTree::R_IfStatement && st->d_children.size() >= 5 );
     Ref<IfLoop> c = new IfLoop();
     c->d_op = IfLoop::IF;
-    c->d_loc = Loc(st);
+    c->d_loc = toRowCol(st);
     c->d_if << expression(s, st->d_children[1]);
     StatSeq seq;
     statementSequence(s,seq,st->d_children[3]);
@@ -1380,7 +1389,7 @@ Ast::Ref<Ast::Statement> Ast::Model::whileStatement(Ast::Scope* s, SynTree* st)
     Q_ASSERT( st->d_tok.d_type == SynTree::R_WhileStatement && st->d_children.size() >= 5 );
     Ref<IfLoop> c = new IfLoop();
     c->d_op = IfLoop::WHILE;
-    c->d_loc = Loc(st);
+    c->d_loc = toRowCol(st);
     c->d_if << expression(s, st->d_children[1]);
     StatSeq seq;
     statementSequence(s,seq,st->d_children[3]);
@@ -1411,7 +1420,7 @@ Ast::Ref<Ast::Statement> Ast::Model::repeatStatement(Ast::Scope* s, SynTree* st)
     Q_ASSERT( st->d_tok.d_type == SynTree::R_RepeatStatement && st->d_children.size() == 4 );
     Ref<IfLoop> c = new IfLoop();
     c->d_op = IfLoop::REPEAT;
-    c->d_loc = Loc(st);
+    c->d_loc = toRowCol(st);
     c->d_if << expression(s, st->d_children[3]);
     StatSeq seq;
     statementSequence(s,seq,st->d_children[1]);
@@ -1424,7 +1433,7 @@ Ast::Ref<Ast::Statement> Ast::Model::forStatement(Ast::Scope* s, SynTree* st)
     Q_ASSERT( st->d_tok.d_type == SynTree::R_ForStatement && st->d_children.size() >= 9 );
 
     Ref<ForLoop> f = new ForLoop();
-    f->d_loc = Loc(st);
+    f->d_loc = toRowCol(st);
     Q_ASSERT( st->d_children[1]->d_tok.d_type == Tok_ident );
     Named* id = s->find(st->d_children[1]->d_tok.d_val );
     if( id == 0 )
@@ -1447,9 +1456,9 @@ Ast::Ref<Ast::Statement> Ast::Model::forStatement(Ast::Scope* s, SynTree* st)
             error(st->d_children[7],err);
     }else
     {
-        f->d_by = new Literal(d_intType.data(), Loc(st), 1);
+        f->d_by = new Literal(d_intType.data(), toRowCol(st), 1);
         f->d_byVal = 1;
-        f->d_loc = Loc(st);
+        f->d_loc = toRowCol(st);
     }
 
     SynTree* ss = findFirstChild( st, SynTree::R_StatementSequence, 6 );
@@ -1478,7 +1487,7 @@ Ast::Ref<Ast::Statement> Ast::Model::caseStatement(Ast::Scope* s, SynTree* st)
         // normal case statement
 
     Ref<CaseStmt> cs = new CaseStmt();
-    cs->d_loc = Loc(st);
+    cs->d_loc = toRowCol(st);
     cs->d_exp = caseExpr;
     cs->d_typeCase = caseId != 0;
     for( int i = 3; i < st->d_children.size(); i++ )
@@ -1595,7 +1604,7 @@ Ast::Ref<Ast::Expression> Ast::Model::expression(Ast::Scope* s, SynTree* st)
         res->d_rhs = rhs;
         Q_ASSERT(st->d_children[1]->d_tok.d_type == SynTree::R_relation && !st->d_children[1]->d_children.isEmpty() );
         res->d_op = relationToBinOp(st->d_children[1]->d_children.first()->d_tok.d_type);
-        res->d_loc = Loc(st->d_children[1]->d_children.first());
+        res->d_loc = toRowCol(st->d_children[1]->d_children.first());
         res->d_type = d_boolType.data();
         lhs = res.data();
     }
@@ -1628,7 +1637,7 @@ Ast::Ref<Ast::Expression> Ast::Model::simpleExpression(Ast::Scope* s, SynTree* s
         // TODO: simplify if const
         Ref<UnExpr> u = new UnExpr();
         u->d_op = UnExpr::NEG;
-        u->d_loc = Loc(st->d_children.first());
+        u->d_loc = toRowCol(st->d_children.first());
         u->d_sub = lhs;
         u->d_type = lhs->d_type;
         lhs = u.data();
@@ -1647,7 +1656,7 @@ Ast::Ref<Ast::Expression> Ast::Model::simpleExpression(Ast::Scope* s, SynTree* s
             res->d_rhs = rhs;
             Q_ASSERT( st->d_children[i]->d_tok.d_type == SynTree::R_AddOperator && !st->d_children[i]->d_children.isEmpty() );
             res->d_op = addOpToBinOp( st->d_children[i]->d_children.first()->d_tok.d_type );
-            res->d_loc = Loc(st->d_children[i]->d_children.first());
+            res->d_loc = toRowCol(st->d_children[i]->d_children.first());
             if( !rhs.isNull() )
                 res->d_type = rhs->d_type;
             lhs = res.data();
@@ -1675,7 +1684,7 @@ Ast::Ref<Ast::Expression> Ast::Model::term(Ast::Scope* s, SynTree* st)
             Q_ASSERT( st->d_children[i]->d_tok.d_type == SynTree::R_MulOperator &&
                       !st->d_children[i]->d_children.isEmpty() );
             res->d_op = mulOpToBinOp( st->d_children[i]->d_children.first()->d_tok.d_type );
-            res->d_loc = Loc(st->d_children[i]->d_children.first());
+            res->d_loc = toRowCol(st->d_children[i]->d_children.first());
             if( !rhs.isNull() )
                 res->d_type = rhs->d_type;
             lhs = res.data();
@@ -1702,7 +1711,7 @@ Ast::Ref<Ast::Expression> Ast::Model::factor(Ast::Scope* s, SynTree* st)
             if( f.isNull() )
                 return 0;
             Ref<Expression> res = new UnExpr(UnExpr::NOT,f.data() );
-            res->d_loc = Loc(first);
+            res->d_loc = toRowCol(first);
             res->d_type = f->d_type;
             return res;
         }
@@ -1730,33 +1739,33 @@ Ast::Ref<Ast::Expression> Ast::Model::literal(Ast::Scope* s, SynTree* st)
         {
         case Tok_real:
             val = first->d_children.first()->d_tok.d_val.toDouble();
-            return new Literal(d_realType.data(),Loc(first->d_children.first()),val);
+            return new Literal(d_realType.data(), toRowCol(first->d_children.first()),val);
         case Tok_integer:
             if( first->d_children.first()->d_tok.d_val.endsWith('H') )
                 val = first->d_children.first()->d_tok.d_val.
                                            left(first->d_children.first()->d_tok.d_val.size()-1).toLongLong(0,16);
             else
                 val = first->d_children.first()->d_tok.d_val.toLongLong();
-            return new Literal(d_intType.data(),Loc(first->d_children.first()),val);
+            return new Literal(d_intType.data(), toRowCol(first->d_children.first()),val);
         default:
             Q_ASSERT(false);
             break;
         }
         break;
     case Tok_string:
-        return new Literal(d_stringType.data(),Loc(first),first->d_tok.d_val.mid(1,first->d_tok.d_val.size()-2));
+        return new Literal(d_stringType.data(), toRowCol(first),first->d_tok.d_val.mid(1,first->d_tok.d_val.size()-2));
     case Tok_hexstring:
-        return new Literal(d_stringType.data(), Loc(first), QByteArray::fromHex(
+        return new Literal(d_stringType.data(), toRowCol(first), QByteArray::fromHex(
                                first->d_tok.d_val.mid(1, first->d_tok.d_val.size() - 2)));
     case Tok_hexchar:
-        return new Literal(d_charType.data(), Loc(first), QByteArray::fromHex(
+        return new Literal(d_charType.data(), toRowCol(first), QByteArray::fromHex(
                                first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ));
     case Tok_NIL:
-        return new Literal(d_nilType.data(), Loc(first));
+        return new Literal(d_nilType.data(), toRowCol(first));
     case Tok_TRUE:
-        return new Literal(d_boolType.data(), Loc(first), true);
+        return new Literal(d_boolType.data(), toRowCol(first), true);
     case Tok_FALSE:
-        return new Literal(d_boolType.data(), Loc(first), false);
+        return new Literal(d_boolType.data(), toRowCol(first), false);
     case SynTree::R_set:
         return set(s,st->d_children.first());
     default:
@@ -1788,7 +1797,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
         }
         Ref<IdentLeaf> id = new IdentLeaf();
         id->d_ident = n;
-        id->d_loc = Loc(quali->d_children.first());
+        id->d_loc = toRowCol(quali->d_children.first());
         id->d_mod = d_curModule;
         cur = id.data();
         extendLiveRange( s, n, quali->d_children.first() );
@@ -1840,7 +1849,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 Ref<IdentSel> id = new IdentSel();
                 id->d_sub = cur.data();
                 id->d_ident = v;
-                id->d_loc = Loc(first);
+                id->d_loc = toRowCol(first);
                 cur = id.data();
                 type = v->d_type.data();
                 cur->d_type = type;
@@ -1858,7 +1867,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 Ref<UnExpr> deref = new UnExpr();
                 deref->d_op = UnExpr::DEREF;
                 deref->d_sub = cur.data();
-                deref->d_loc = Loc(first);
+                deref->d_loc = toRowCol(first);
                 cur = deref.data();
                 Pointer* p = Ast::thing_cast<Pointer*>(td);
                 type = p->d_to.data();
@@ -1884,7 +1893,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 Ref<IdentSel> id = new IdentSel();
                 id->d_sub = cur.data();
                 id->d_ident = f;
-                id->d_loc = Loc(first);
+                id->d_loc = toRowCol(first);
                 cur = id.data();
                 type = f->d_type.data();
                 cur->d_type = type;
@@ -1920,7 +1929,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                         Array* a = Ast::thing_cast<Array*>(td);
                         Ref<BinExpr> ex = new BinExpr();
                         ex->d_op = BinExpr::Index;
-                        ex->d_loc = Loc(argsSt[j]);
+                        ex->d_loc = toRowCol(argsSt[j]);
                         ex->d_rhs = args[j];
                         ex->d_lhs = cur.data();
                         cur = ex.data();
@@ -1943,7 +1952,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 Ref<UnExpr> deref = new UnExpr();
                 deref->d_op = UnExpr::DEREF;
                 deref->d_sub = cur.data();
-                deref->d_loc = Loc(first);
+                deref->d_loc = toRowCol(first);
                 cur = deref.data();
                 Pointer* p = Ast::thing_cast<Pointer*>(td);
                 type = p->d_to.data();
@@ -1983,7 +1992,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                     Ref<UnExpr> tg = new UnExpr();
                     tg->d_op = UnExpr::CAST;
                     tg->d_sub = cur.data();
-                    tg->d_loc = Loc(sts.first());
+                    tg->d_loc = toRowCol(sts.first());
                     cur = tg.data();
                     type = id->d_type.data();
                     cur->d_type = type;
@@ -1994,7 +2003,7 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                     Ref<CallExpr> call = new CallExpr();
                     call->d_actuals = args;
                     call->d_sub = cur.data();
-                    call->d_loc = Loc(first);
+                    call->d_loc = toRowCol(first);
                     ProcType* p = Ast::thing_cast<ProcType*>(td);
                     if( cur->getIdent() && cur->getIdent()->getTag() == Thing::T_BuiltIn )
                     {
@@ -2048,7 +2057,7 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
         }
         Ref<IdentLeaf> id = new IdentLeaf();
         id->d_ident = ident;
-        id->d_loc = Loc(quali->d_children.first());
+        id->d_loc = toRowCol(quali->d_children.first());
         id->d_mod = d_curModule;
         cur = id.data();
         extendLiveRange( s, ident, quali->d_children.first() );
@@ -2081,7 +2090,7 @@ Ast::Ref<Ast::Expression> Ast::Model::qualident(Ast::Scope* s, SynTree* quali)
         Ref<IdentSel> id = new IdentSel();
         id->d_sub = cur.data();
         id->d_ident = ident;
-        id->d_loc = Loc(st);
+        id->d_loc = toRowCol(st);
         cur = id.data();
         cur->d_type = ident->d_type.data();
         if( d_fillXref )
@@ -2100,7 +2109,7 @@ Ast::Ref<Ast::Expression> Ast::Model::set(Ast::Scope* s, SynTree* st)
 {
     Q_ASSERT( st->d_tok.d_type == SynTree::R_set );
     Ref<SetExpr> set = new SetExpr();
-    set->d_loc = Loc(st);
+    set->d_loc = toRowCol(st);
     set->d_type = d_setType.data();
     for( int i = 1; i < st->d_children.size(); i++ )
     {
@@ -2114,7 +2123,7 @@ Ast::Ref<Ast::Expression> Ast::Model::set(Ast::Scope* s, SynTree* st)
                 Ref<Expression> rhs = expression(s, elem->d_children.last());
                 Ref<BinExpr> range = new BinExpr();
                 range->d_op = BinExpr::Range;
-                range->d_loc = Loc(elem->d_children[1]);
+                range->d_loc = toRowCol(elem->d_children[1]);
                 if( !rhs.isNull() )
                     range->d_type = rhs->d_type;
                 range->d_lhs = lhs;
@@ -2137,7 +2146,7 @@ Ast::Ref<Ast::Expression> Ast::Model::labelRange(Ast::Scope* s, SynTree* st)
         Ref<Expression> rhs = label(s,st->d_children.last());
         Ref<BinExpr> bin = new BinExpr();
         bin->d_op = BinExpr::Range;
-        bin->d_loc = Loc(st->d_children[1]);
+        bin->d_loc = toRowCol(st->d_children[1]);
         bin->d_lhs = lhs;
         bin->d_rhs = rhs;
         if( !rhs.isNull() )
@@ -2160,15 +2169,15 @@ Ast::Ref<Ast::Expression> Ast::Model::label(Ast::Scope* s, SynTree* st)
             val = first->d_tok.d_val.left(first->d_tok.d_val.size()-1).toLongLong(0,16);
         else
             val = first->d_tok.d_val.toLongLong();
-        return new Literal(d_intType.data(),Loc(first),val);
+        return new Literal(d_intType.data(),toRowCol(first),val);
         break;
     case Tok_string:
-        return new Literal(d_stringType.data(),Loc(first),first->d_tok.d_val.mid(1,first->d_tok.d_val.size()-2));
+        return new Literal(d_stringType.data(),toRowCol(first),first->d_tok.d_val.mid(1,first->d_tok.d_val.size()-2));
     case Tok_hexstring:
-        return new Literal(d_stringType.data(),Loc(first),QByteArray::fromHex(
+        return new Literal(d_stringType.data(),toRowCol(first),QByteArray::fromHex(
                                first->d_tok.d_val.mid(1, first->d_tok.d_val.size() - 2)));
     case Tok_hexchar:
-        return new Literal(d_stringType.data(),Loc(first), QByteArray::fromHex(
+        return new Literal(d_stringType.data(),toRowCol(first), QByteArray::fromHex(
                                first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ));
     case SynTree::R_qualident:
         {
@@ -2183,7 +2192,7 @@ Ast::Ref<Ast::Expression> Ast::Model::label(Ast::Scope* s, SynTree* st)
 
 bool Ast::Model::error(SynTree* st, const QString& msg) const
 {
-    d_errs->error(Errors::Semantics, st, msg );
+    d_errs->error(Errors::Semantics, st->d_tok.toLoc(), msg );
     return false;
 }
 
@@ -2259,7 +2268,7 @@ void Ast::Model::createModules(Mods& mods, ParseResultList& prl)
             d_xref[m.data()].append( m->d_helper.back().data() );
         }
         m->d_name = pr.d_modName->d_tok.d_val;
-        m->d_loc = Loc(pr.d_modName);
+        m->d_loc = toRowCol(pr.d_modName);
         m->d_file = pr.d_modName->d_tok.d_sourcePath;
         m->d_useExt = pr.d_isExt;
         m->d_isDef = modRoot->d_tok.d_type == SynTree::R_definition;
@@ -2538,39 +2547,6 @@ bool Ast::Model::addToScope(Ast::Scope* s, Ast::Named* n)
     return true;
 }
 
-Ast::Loc::Loc(SynTree* st)
-{
-    Q_ASSERT( st != 0 );
-    if( !setRowCol( st->d_tok.d_lineNr, st->d_tok.d_colNr ) )
-        qWarning() << "exceeding maximum row or column number at" << st->d_tok.d_sourcePath << st->d_tok.d_lineNr;
-}
-
-Ast::Loc::Loc(quint32 row, quint32 col)
-{
-    if( !setRowCol(row,col) )
-        qWarning() << "exceeding maximum row or column number";
-}
-
-bool Ast::Loc::setRowCol(quint32 row, quint32 col)
-{
-    static const quint32 maxRow = ( 1 << ROW_BIT_LEN ) - 1;
-    static const quint32 maxCol = ( 1 << COL_BIT_LEN ) - 1;
-    int err = 0;
-    if( row > maxRow )
-    {
-        d_row = maxRow;
-        err++;
-    }else
-        d_row = row;
-    if( col > maxCol )
-    {
-        d_col = maxCol;
-        err++;
-    }else
-        d_col = col;
-    return err == 0;
-}
-
 Ast::Model::ParseResult::~ParseResult()
 {
     if( d_modRoot )
@@ -2730,7 +2706,7 @@ Ast::Type*Ast::QualiType::derefed()
 
 Ast::IdentLeaf::IdentLeaf(Ast::Named* id, SynTree* loc, Ast::Module* mod, Ast::Type* t):d_mod(mod),d_ident(id)
 {
-    d_loc = Loc(loc);
+    d_loc = toRowCol(loc);
     d_type = t;
 }
 

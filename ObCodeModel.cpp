@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -355,7 +355,7 @@ void CodeModel::checkModuleDependencies()
                     {
                         if( nt != 0 )
                         {
-                            d_errs->error( Errors::Semantics, i, tr("'%1' is not a module").arg(globalName.data()));
+                            error( Errors::Semantics, i, tr("'%1' is not a module").arg(globalName.data()));
                             continue;
                         }
 
@@ -379,7 +379,7 @@ void CodeModel::checkModuleDependencies()
                             d_scope.d_mods.append( other );
                             d_scope.addToScope( other );
                         }else
-                            d_errs->error( Errors::Semantics, i,
+                            error( Errors::Semantics, i,
                                            tr("imported module '%1' not found").arg(globalName.data()));
                     }
                     if( other != 0 )
@@ -594,11 +594,11 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
         if( m->d_isDef )
         {
             if( pb != 0 )
-                d_errs->error(Errors::Semantics, t, tr("procedure body not allowed in definitions") );
+                error(Errors::Semantics, t, tr("procedure body not allowed in definitions") );
             return;
         }else if( pb == 0 )
         {
-            d_errs->error(Errors::Semantics, t, tr("procedure body is missing") );
+            error(Errors::Semantics, t, tr("procedure body is missing") );
             return;
         }
     }
@@ -616,7 +616,7 @@ bool CodeModel::checkNameNotInScope(Scope* scope, SynTree* id)
     const QByteArray name = id->d_tok.d_val;
     if( scope->d_names.contains(name) )
     {
-        d_errs->error( Errors::Semantics, id, tr("duplicate name: '%1'").arg(name.data()));
+        error( Errors::Semantics, id, tr("duplicate name: '%1'").arg(name.data()));
         return false;
     }else
         return true;
@@ -628,7 +628,7 @@ bool CodeModel::checkNameNotInRecord(Type* scope, SynTree* id)
     const QByteArray name = id->d_tok.d_val;
     if( scope->d_vals.contains(name) )
     {
-        d_errs->error( Errors::Semantics, id, tr("duplicate name: '%1'").arg(name.data()));
+        error( Errors::Semantics, id, tr("duplicate name: '%1'").arg(name.data()));
         return false;
     }else
         return true;
@@ -660,7 +660,7 @@ void CodeModel::checkTypeRules(CodeModel::Unit* ds)
             {
                 SynTree* st = r->d_def;
                 Q_ASSERT(st!=0);
-                d_errs->error( Errors::Semantics, st, tr("base type not a RECORD type"));
+                error( Errors::Semantics, st, tr("base type not a RECORD type"));
             }
         }else if( r->d_kind == Type::Pointer )
         {
@@ -669,7 +669,7 @@ void CodeModel::checkTypeRules(CodeModel::Unit* ds)
             {
                 SynTree* st = r->d_def;
                 Q_ASSERT(st!=0);
-                d_errs->error( Errors::Semantics, st, tr("POINTER type not pointing to RECORD"));
+                error( Errors::Semantics, st, tr("POINTER type not pointing to RECORD"));
             }
         }
     }
@@ -829,7 +829,7 @@ void CodeModel::checkAssig(CodeModel::Unit* ds, const CodeModel::DesigOpList& lh
     Q_ASSERT( !lhs.isEmpty() && lhs.first().d_arg != 0 );
     if( lhs.last().d_sym == 0 )
     {
-        d_errs->error(Errors::Semantics, lhs.first().d_arg, tr("cannot assign to '%1'").arg(toString(lhs) ) );
+        error(Errors::Semantics, lhs.first().d_arg, tr("cannot assign to '%1'").arg(toString(lhs) ) );
         return;
     }
 
@@ -837,7 +837,7 @@ void CodeModel::checkAssig(CodeModel::Unit* ds, const CodeModel::DesigOpList& lh
     {
         if( lhs[i].d_op == ProcedureOp )
         {
-            d_errs->error(Errors::Semantics, lhs[i].d_arg, tr("procedure call cannot be left of assignment" ) );
+            error(Errors::Semantics, lhs[i].d_arg, tr("procedure call cannot be left of assignment" ) );
             return;
         }
     }
@@ -902,7 +902,7 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
             var = ds->findByName( id->d_tok.d_val ) ;
         if( var == 0 )
         {
-            d_errs->error(Errors::Semantics,st,tr("only simple type case variables supported"));
+            error(Errors::Semantics,st,tr("only simple type case variables supported"));
             goto NormalCaseStatement;
         }
         for( int i = 3; i < st->d_children.size(); i++ )
@@ -1051,7 +1051,7 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
     bool ok;
     res->d_len = evalExpression( ds, res->d_st ).toUInt(&ok);
     if( !ok || res->d_len == 0 )
-        d_errs->error(Errors::Semantics, res->d_st, tr("invalid array size") );
+        error(Errors::Semantics, res->d_st, tr("invalid array size") );
     ds->d_types.append(res);
     Type* last = res;
     for( int i = 1; i < ll->d_children.size(); i++ )
@@ -1065,7 +1065,7 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
         cur->d_st = ll->d_children[i];
         cur->d_len = evalExpression( ds, cur->d_st ).toUInt(&ok);
         if( !ok || cur->d_len == 0 )
-            d_errs->error(Errors::Semantics, cur->d_st, tr("invalid array size") );
+            error(Errors::Semantics, cur->d_st, tr("invalid array size") );
         ds->d_types.append(cur);
         last = cur;
     }
@@ -1156,7 +1156,7 @@ void CodeModel::resolveTypeRefs(CodeModel::Unit* ds)
         const Type* tp = dynamic_cast<const Type*>(q.second.first);
         if( tp == 0 )
         {
-            d_errs->error( Errors::Semantics, r->d_st, tr("qualident doesn't reference a type") );
+            error( Errors::Semantics, r->d_st, tr("qualident doesn't reference a type") );
         }else
             r->d_type = tp;
     }
@@ -1182,7 +1182,7 @@ CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool
         if( nt == 0 )
         {
             if( report )
-                d_errs->error( Errors::Semantics, id1, tr("module '%1' not imported").arg(id1->d_tok.d_val.data()) );
+                error( Errors::Semantics, id1, tr("module '%1' not imported").arg(id1->d_tok.d_val.data()) );
             Q_ASSERT( m == 0 && id1 != 0 && nt == 0 && id2 == 0 );
             return Quali(qMakePair(m,id1),qMakePair(nt,id2));
         }
@@ -1191,7 +1191,7 @@ CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool
         if( m == 0 )
         {
             if( report )
-                d_errs->error( Errors::Semantics, id1, tr("referenced '%1' is not a module").arg(id1->d_tok.d_val.data()) );
+                error( Errors::Semantics, id1, tr("referenced '%1' is not a module").arg(id1->d_tok.d_val.data()) );
             nt = 0;
             Q_ASSERT( m == 0 && id1 != 0 && nt == 0 && id2 == 0 );
             return Quali(qMakePair(m,id1),qMakePair(nt,id2));
@@ -1211,7 +1211,7 @@ CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool
             nt = s;
         }else if( nt == 0 && report )
         {
-            d_errs->error( Errors::Semantics, id1, tr("ident '%2' not found in module '%1'").arg(id1->d_tok.d_val.data())
+            error( Errors::Semantics, id1, tr("ident '%2' not found in module '%1'").arg(id1->d_tok.d_val.data())
                            .arg(id2->d_tok.d_val.data()) );
         }
         Q_ASSERT( m != 0 && id1 != 0 && id2 != 0 );
@@ -1228,7 +1228,7 @@ CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool
         nt = ds->findByName(id2->d_tok.d_val);
         if( nt == 0 && report )
         {
-            d_errs->error( Errors::Semantics, id2, tr("local ident '%1' not found").arg(id2->d_tok.d_val.data()) );
+            error( Errors::Semantics, id2, tr("local ident '%1' not found").arg(id2->d_tok.d_val.data()) );
         }
         Q_ASSERT( m == 0 && id1 == 0 && id2 != 0 );
         if( report && nt != 0 )
@@ -1269,7 +1269,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
     {
         SynTree* dP = desig[0].d_arg;
         if( report )
-            d_errs->error( Errors::Semantics, dP, tr("ident '%1' not found").arg(toString(desig.mid(0,1))) );
+            error( Errors::Semantics, dP, tr("ident '%1' not found").arg(toString(desig.mid(0,1))) );
         return desig;
     }
     Q_ASSERT( desig.first().d_sym != 0 );
@@ -1283,7 +1283,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         if( dynamic_cast<const Module*>( desig[i-1].d_sym ) && i-1 > 0 )
         {
             if( report )
-                d_errs->error( Errors::Semantics, dP,
+                error( Errors::Semantics, dP,
                                tr("modules cannot be idirectly designated '%1'").arg(toString(desig.mid(0,i))) );
             break;
         }
@@ -1293,7 +1293,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         if( err == InvalidOperation )
         {
             if( report )
-                d_errs->error( Errors::Semantics, dP, tr("invalid operation '%1' on designator '%2'")
+                error( Errors::Semantics, dP, tr("invalid operation '%1' on designator '%2'")
                            .arg(toString(desig.mid(i,1),true)).arg(toString(desig.mid(0,i))) );
             break;
         }else if( err == MissingType )
@@ -1302,7 +1302,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         }else if( err == NotFound )
         {
             if( report )
-                d_errs->error( Errors::Semantics, dP, tr("ident '%1' not found").arg(toString(desig.mid(0,i+1))) );
+                error( Errors::Semantics, dP, tr("ident '%1' not found").arg(toString(desig.mid(0,i+1))) );
             break;
         }else
         {
@@ -1326,7 +1326,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
             }
         }
         if( n > 1 || ( n > 0 && hit != ( desig.size() -1 ) ) )
-            d_errs->error( Errors::Semantics, t, tr("invalid procedure call embedded in designator" ) );
+            error( Errors::Semantics, t, tr("invalid procedure call embedded in designator" ) );
     }
     return desig;
 }
@@ -1813,7 +1813,7 @@ QVariant CodeModel::evalSimpleExpression(const CodeModel::Unit* u, SynTree* expr
         else if( lhs.canConvert<Set>() )
             lhs = QVariant::fromValue( ~lhs.value<Set>());
         else
-            d_errs->error(Errors::Semantics, expr, tr("invalid sign for expression type"));
+            error(Errors::Semantics, expr, tr("invalid sign for expression type"));
     }
 
     if( expr->d_children.size() == termIdx )
@@ -1839,7 +1839,7 @@ QVariant CodeModel::evalSimpleExpression(const CodeModel::Unit* u, SynTree* expr
             else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
                 return QVariant::fromValue( lhs.value<Set>() | rhs.value<Set>() );
             else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         case Tok_Minus:
             if( res.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -1855,13 +1855,13 @@ QVariant CodeModel::evalSimpleExpression(const CodeModel::Unit* u, SynTree* expr
                     res.set( a.test(j) && !b.test(j) );
                 return QVariant::fromValue( res );
             }else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         case Tok_OR:
             if( res.type() == QVariant::Bool && rhs.type() == QVariant::Bool )
                 res = res.toBool() || rhs.toBool();
             else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         default:
             Q_ASSERT(false);
@@ -1898,7 +1898,7 @@ QVariant CodeModel::evalTerm(const CodeModel::Unit* u, SynTree* expr) const
             else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
                 return QVariant::fromValue( lhs.value<Set>() & rhs.value<Set>() );
             else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         case Tok_Slash:
             if( res.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -1914,7 +1914,7 @@ QVariant CodeModel::evalTerm(const CodeModel::Unit* u, SynTree* expr) const
                     res.set( a.test(j) || b.test(j) && !( a.test(j) && b.test(j) ) );
                 return QVariant::fromValue( res );
             }else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         case Tok_DIV:
             if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
@@ -1929,7 +1929,7 @@ QVariant CodeModel::evalTerm(const CodeModel::Unit* u, SynTree* expr) const
                     res = a / b;
             }
             else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         case Tok_MOD:
             if( res.type() == QVariant::LongLong && rhs.type() == QVariant::LongLong )
@@ -1944,13 +1944,13 @@ QVariant CodeModel::evalTerm(const CodeModel::Unit* u, SynTree* expr) const
                     res = a % b;
             }
             else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         case Tok_Amp:
             if( res.type() == QVariant::Bool && rhs.type() == QVariant::Bool )
                 res = res.toBool() && rhs.toBool();
             else
-                d_errs->error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
+                error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");
             break;
         default:
             qCritical() << "unexpected operator" << SynTree::rToStr(expr->d_children[i]->d_tok.d_type);
@@ -1979,9 +1979,9 @@ QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
                     ( dopl.size() == 2 && dopl[1].d_op != CodeModel::IdentOp ) )
             {
                 if( dopl.size() == 2 && dopl[1].d_op == CodeModel::ProcedureOp )
-                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("procedure calls not supported in const") );
+                    error(Errors::Semantics, first->d_children.first(), tr("procedure calls not supported in const") );
                 else
-                    d_errs->error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
+                    error(Errors::Semantics, first->d_children.first(), tr("invalid designator") );
                 break;
             }
             const CodeModel::Element* e;
@@ -1991,7 +1991,7 @@ QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
                 e = dynamic_cast<const CodeModel::Element*>( dopl[0].d_sym );
             if( e == 0 || e->d_kind != Element::Constant )
             {
-                d_errs->error(Errors::Semantics, first->d_children.first(), tr("designator must reference a constant") );
+                error(Errors::Semantics, first->d_children.first(), tr("designator must reference a constant") );
                 break;
             }
             return e->d_const;
@@ -2007,11 +2007,11 @@ QVariant CodeModel::evalFactor(const CodeModel::Unit* u, SynTree* expr) const
             if( v.type() == QVariant::Bool )
                 return !v.toBool();
             else
-                d_errs->error(Errors::Semantics, first, tr("operator ~ can only be applied to boolean") );
+                error(Errors::Semantics, first, tr("operator ~ can only be applied to boolean") );
         }
         break;
     default:
-        d_errs->error(Errors::Semantics, first, tr("invalid constant expression") );
+        error(Errors::Semantics, first, tr("invalid constant expression") );
         break;
     }
 
@@ -2046,7 +2046,7 @@ QVariant CodeModel::evalLiteral(const CodeModel::Unit* u, SynTree* expr) const
     case Tok_hexchar:
         return QByteArray::fromHex( first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) );
     case Tok_NIL:
-        d_errs->error(Errors::Semantics, first, tr("NIL not allowed as a constant value") );
+        error(Errors::Semantics, first, tr("NIL not allowed as a constant value") );
         break;
     case Tok_TRUE:
         return true;
@@ -2064,7 +2064,7 @@ QVariant CodeModel::evalLiteral(const CodeModel::Unit* u, SynTree* expr) const
                const QVariant from = evalExpression(u,e->d_children.first() );
                if( from.type() != QVariant::LongLong || from.toLongLong() >= res.size() )
                {
-                   d_errs->error(Errors::Semantics, e->d_children.first(), tr("invalid set element") );
+                   error(Errors::Semantics, e->d_children.first(), tr("invalid set element") );
                    continue;
                }
                if( e->d_children.size() > 1 )
@@ -2074,7 +2074,7 @@ QVariant CodeModel::evalLiteral(const CodeModel::Unit* u, SynTree* expr) const
                    if( to.type() != QVariant::LongLong || to.toLongLong() >= res.size() ||
                            to.toLongLong() <= from.toLongLong() )
                    {
-                       d_errs->error(Errors::Semantics, e->d_children.last(), tr("invalid set element range") );
+                       error(Errors::Semantics, e->d_children.last(), tr("invalid set element range") );
                        continue;
                    }
                    for( int j = from.toLongLong(); j <= to.toLongLong(); j++ )
@@ -2086,7 +2086,7 @@ QVariant CodeModel::evalLiteral(const CodeModel::Unit* u, SynTree* expr) const
         }
         break;
     default:
-        d_errs->error(Errors::Semantics, first, tr("invalid constant expression") );
+        error(Errors::Semantics, first, tr("invalid constant expression") );
         break;
     }
 
@@ -2118,7 +2118,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
         else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
             return lhs.value<Set>() == rhs.value<Set>();
         else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_Hash:
         if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -2132,7 +2132,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
         else if( lhs.canConvert<Set>() && rhs.canConvert<Set>() )
             return lhs.value<Set>() != rhs.value<Set>();
         else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_Lt:
         if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -2142,7 +2142,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
         else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
             return lhs.toByteArray() < rhs.toByteArray();
         else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_Leq:
         if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -2152,7 +2152,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
         else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
             return lhs.toByteArray() <= rhs.toByteArray();
         else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_Geq:
         if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -2162,7 +2162,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
         else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
             return lhs.toByteArray() >= rhs.toByteArray();
         else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_Gt:
         if( lhs.type() == QVariant::Double && rhs.type() == QVariant::Double )
@@ -2172,7 +2172,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
         else if( lhs.type() == QVariant::ByteArray && rhs.type() == QVariant::ByteArray )
             return lhs.toByteArray() > rhs.toByteArray();
         else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_IN:
         if( lhs.type() == QVariant::LongLong && rhs.canConvert<Set>() )
@@ -2184,10 +2184,10 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
             else
                 return false;
         }else
-            d_errs->error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
+            error(Errors::Semantics, expr->d_children[1], "relation not compatible with value types");
         break;
     case Tok_IS:
-        d_errs->error(Errors::Semantics, expr->d_children[1], tr("relation not supported in a constant") );
+        error(Errors::Semantics, expr->d_children[1], tr("relation not supported in a constant") );
         break;
     default:
         Q_ASSERT(false);
@@ -2212,6 +2212,12 @@ void CodeModel::addLowerCaseGlobals()
     Scope::Names::const_iterator i;
     for( i = names.begin(); i != names.end(); ++i )
         d_scope.d_names.insert( Lexer::getSymbol( i.key() ).toLower(), i.value() );
+}
+
+bool CodeModel::error(Errors::Source s, const SynTree* st, const QString& msg) const
+{
+    d_errs->error( s, st->d_tok.toLoc(), msg );
+    return false;
 }
 
 CodeModel::GlobalScope::~GlobalScope()

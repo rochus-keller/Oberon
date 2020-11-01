@@ -2,7 +2,7 @@
 #define OBERRORS_H
 
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -24,11 +24,10 @@
 #include <QReadWriteLock>
 #include <QHash>
 #include <QSet>
+#include <Oberon/ObRowCol.h>
 
 namespace Ob
 {
-    class SynTree;
-
     class Errors : public QObject
     {
         // class is thread-safe
@@ -50,9 +49,9 @@ namespace Ob
 
         explicit Errors(QObject *parent = 0, bool threadExclusive = false );
 
-        bool error( Source, const SynTree*, const QString& msg );
+        bool error( Source, const Loc&, const QString& msg );
         bool error( Source, const QString& file, int line, int col, const QString& msg );
-        void warning( Source, const SynTree*, const QString& msg );
+        void warning( Source, const Loc&, const QString& msg );
         void warning( Source, const QString& file, int line, int col, const QString& msg );
 
         bool showWarnings() const;

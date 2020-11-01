@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -32,10 +32,9 @@ Errors::Errors(QObject *parent, bool threadExclusive) :
 
 }
 
-bool Errors::error(Errors::Source s, const SynTree* st, const QString& msg)
+bool Errors::error(Errors::Source s, const Loc& l, const QString& msg)
 {
-    Q_ASSERT( st != 0 );
-    return error( s, st->d_tok.d_sourcePath, st->d_tok.d_lineNr, st->d_tok.d_colNr, msg );
+    return error( s, l.d_file, l.d_row, l.d_col, msg );
 }
 
 bool Errors::error(Errors::Source s, const QString& file, int line, int col, const QString& msg)
@@ -69,10 +68,9 @@ bool Errors::error(Errors::Source s, const QString& file, int line, int col, con
     return false;
 }
 
-void Errors::warning(Errors::Source s, const SynTree* st, const QString& msg)
+void Errors::warning(Errors::Source s, const Loc& l, const QString& msg)
 {
-    Q_ASSERT( st != 0 );
-    warning( s, st->d_tok.d_sourcePath, st->d_tok.d_lineNr, st->d_tok.d_colNr, msg );
+    warning( s, l.d_file, l.d_row, l.d_col, msg );
 }
 
 void Errors::warning(Errors::Source s, const QString& file, int line, int col, const QString& msg)

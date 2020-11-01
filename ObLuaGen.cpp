@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -267,6 +267,36 @@ void LuaGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
     const SynTree* first = st->d_children.first();
     switch( first->d_tok.d_type )
     {
+    case SynTree::R_literal:
+        emitLiteral(ds,first,out,level);
+        break;
+    case Tok_Lpar:
+        out << "(";
+        Q_ASSERT(st->d_children.size() == 3);
+        emitExpression(ds,st->d_children[1],out,level);
+        out << ")";
+        break;
+    case Tok_Tilde:
+        out << "not (";
+        Q_ASSERT(st->d_children.size() == 2 );
+        emitFactor(ds,st->d_children[1], out, level );
+        out << ")";
+        break;
+    case SynTree::R_variableOrFunctionCall:
+        emitDesigList(ds,d_mdl->derefDesignator( ds, first->d_children.first() ), false, out,level);
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
+    }
+}
+
+void LuaGen::emitLiteral(const CodeModel::Unit* ds,const SynTree* st, QTextStream& out, int level )
+{
+    Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_literal && !st->d_children.isEmpty() );
+    const SynTree* first = st->d_children.first();
+    switch( first->d_tok.d_type )
+    {
     case SynTree::R_set:
         emitSet(ds,first,out, level);
         break;
@@ -287,25 +317,10 @@ void LuaGen::emitFactor(const CodeModel::Unit* ds,const SynTree* st, QTextStream
     case Tok_NIL:
         out << "nil";
         break;
-    case Tok_Lpar:
-        out << "(";
-        Q_ASSERT(st->d_children.size() == 3);
-        emitExpression(ds,st->d_children[1],out,level);
-        out << ")";
-        break;
-    case Tok_Tilde:
-        out << "not (";
-        Q_ASSERT(st->d_children.size() == 2 );
-        emitFactor(ds,st->d_children[1], out, level );
-        out << ")";
-        break;
     case Tok_string:
     case Tok_hexchar:
     case Tok_hexstring:
         renderString(out, first );
-        break;
-    case SynTree::R_variableOrFunctionCall:
-        emitDesigList(ds,d_mdl->derefDesignator( ds, first->d_children.first() ), false, out,level);
         break;
     default:
         Q_ASSERT( false );
@@ -454,7 +469,7 @@ bool LuaGen::emitDesig(const CodeModel::Unit* ds, const CodeModel::NamedThing* p
             const QList<CodeModel::Element*> params = prev->getParams();
             if( dop.d_arg && dop.d_arg->d_children.size() != params.size() )
             {
-                d_errs->error(Errors::Semantics, dop.d_arg, tr("missmatch between formal and actual params") );
+                error(Errors::Semantics, dop.d_arg, tr("missmatch between formal and actual params") );
                 break;
             }
             out << "(";
@@ -469,7 +484,7 @@ bool LuaGen::emitDesig(const CodeModel::Unit* ds, const CodeModel::NamedThing* p
                     emitActualParam(ds,dop.d_arg->d_children[j], params[j]->d_var, out, level );
                 }
             }else if( !params.isEmpty() )
-                d_errs->error(Errors::Semantics, params.first()->d_def, tr("missmatch between formal and actual params") );
+                error(Errors::Semantics, params.first()->d_def, tr("missmatch between formal and actual params") );
             out << ")";
             printedSomething = true;
         }
@@ -663,6 +678,18 @@ LuaGen::RecRef LuaGen::getRecRefFrom(const CodeModel::Unit* ds, SynTree* st)
     return qMakePair( recRef, rec );
 }
 
+bool LuaGen::error(Errors::Source s, const SynTree* st, const QString& msg)
+{
+    d_errs->error( s, st->d_tok.toLoc(), msg );
+    return false;
+}
+
+bool LuaGen::warning(Errors::Source s, const SynTree* st, const QString& msg)
+{
+    d_errs->warning( s, st->d_tok.toLoc(), msg );
+    return false;
+}
+
 void LuaGen::emitVarDecl(const CodeModel::Unit* ds, const CodeModel::Element* v, QTextStream& out, int level)
 {
     const CodeModel::Type* t = v->d_type;
@@ -828,8 +855,7 @@ void LuaGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             break;
         default:
             out << ws(level) << "-- unknown statement " << SynTree::rToStr(s->d_tok.d_type) << endl;
-            d_mdl->getErrs()->warning( Errors::Generator, s,
-                                       tr("'%1' not yet supported").arg(SynTree::rToStr(s->d_tok.d_type)) );
+            warning( Errors::Generator, s, tr("'%1' not yet supported").arg(SynTree::rToStr(s->d_tok.d_type)) );
             break;
         }
     }
@@ -844,9 +870,8 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
     Q_ASSERT( pp != 0 && pp->isPredefProc() );
     if( dopl.size() != 2 || dopl.last().d_op != CodeModel::ProcedureOp )
     {
-        d_errs->error( Errors::Semantics, dopl.first().d_arg, tr("invalid call of built-in procedure '%1'").
+        return error( Errors::Semantics, dopl.first().d_arg, tr("invalid call of built-in procedure '%1'").
                        arg(dopl.first().d_sym->d_name.data()) );
-        return false;
     }
     Q_ASSERT( dopl.last().d_arg->d_tok.d_type == SynTree::R_ExpList );
     QList<SynTree*> args = dopl.last().d_arg->d_children;
@@ -859,8 +884,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             RecRef rr = getRecRefFrom(ds,args.first());
             if( rr.second == 0 )
             {
-                d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'NEW()' expects a POINTER to RECORD") );
-                return false;
+                return error( Errors::Semantics, dopl.last().d_arg, tr("'NEW()' expects a POINTER to RECORD") );
             }
             QByteArray name;
             {
@@ -872,8 +896,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             const SynTree* d = CodeModel::flatten(const_cast<SynTree*>(args.first()), SynTree::R_designator);
             if( d == 0 )
             {
-                d_mdl->getErrs()->error( Errors::Semantics, args.first(), tr("expecting designator as actual argument") );
-                return false;
+                return error( Errors::Semantics, args.first(), tr("expecting designator as actual argument") );
             }
             CodeModel::DesigOpList dopl = d_mdl->derefDesignator( ds, d );
             const bool var = countPrintable(dopl) == 1 && dopl.first().d_op == CodeModel::IdentOp && dopl.first().d_sym->d_var;
@@ -885,7 +908,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                 initRecord( ds, out, 0, name, var, level, true );
             return true;
         }else
-            d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'NEW()' expects one argument") );
+            error( Errors::Semantics, pp->d_def, tr("'NEW()' expects one argument") );
         break;
     case CodeModel::Element::INC:
         if( args.size() == 1 )
@@ -914,7 +937,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                 return true;
             }
         }
-        d_mdl->getErrs()->error( Errors::Semantics, pp->d_def, tr("'INC()' with invalid arguments") );
+        error( Errors::Semantics, pp->d_def, tr("'INC()' with invalid arguments") );
         break;
     case CodeModel::Element::DEC:
         if( args.size() == 1 )
@@ -943,7 +966,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
                 return true;
             }
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'DEC()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'DEC()' with invalid arguments") );
         break;
     case CodeModel::Element::ORD:
         if( args.size() == 1 )
@@ -953,7 +976,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " )";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ORD()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ORD()' with invalid arguments") );
         break;
     case CodeModel::Element::CHR:
         if( args.size() == 1 )
@@ -963,7 +986,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " )";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'CHR()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'CHR()' with invalid arguments") );
         break;
     case CodeModel::Element::ODD:
         if( args.size() == 1 )
@@ -974,7 +997,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             d_suppressVar = false;
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ODD()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ODD()' with invalid arguments") );
         break;
     case CodeModel::Element::ASSERT:
         if( args.size() == 1 )
@@ -984,7 +1007,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ",\"" << args.first()->d_tok.d_sourcePath << "\"," << args.first()->d_tok.d_lineNr << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ASSERT()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ASSERT()' with invalid arguments") );
         break;
     case CodeModel::Element::ABS:
         if( args.size() == 1 )
@@ -994,7 +1017,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " )";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ABS()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ABS()' with invalid arguments") );
         break;
     case CodeModel::Element::INCL:
         if( args.size() == 2 )
@@ -1006,7 +1029,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'INCL()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'INCL()' with invalid arguments") );
         break;
     case CodeModel::Element::EXCL:
         if( args.size() == 2 )
@@ -1018,7 +1041,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
         break;
     case CodeModel::Element::PACK:
         if( args.size() == 2 )
@@ -1030,7 +1053,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " )";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
         break;
     case CodeModel::Element::UNPK:
         if( args.size() == 2 )
@@ -1042,7 +1065,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << " )";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'EXCL()' with invalid arguments") );
         break;
     case CodeModel::Element::LEN:
         if( args.size() == 1 )
@@ -1051,7 +1074,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ".n ";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'LEN()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'LEN()' with invalid arguments") );
         break;
     case CodeModel::Element::LSL:
         if( args.size() == 2 )
@@ -1063,7 +1086,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'LSL()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'LSL()' with invalid arguments") );
         break;
     case CodeModel::Element::ASR:
         if( args.size() == 2 )
@@ -1075,7 +1098,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ASR()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ASR()' with invalid arguments") );
         break;
     case CodeModel::Element::ROR:
         if( args.size() == 2 )
@@ -1087,7 +1110,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'ROR()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'ROR()' with invalid arguments") );
         break;
     case CodeModel::Element::FLOOR:
         if( args.size() == 1 )
@@ -1097,7 +1120,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'FLOOR()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'FLOOR()' with invalid arguments") );
         break;
     case CodeModel::Element::FLT:
         if( args.size() == 1 )
@@ -1105,7 +1128,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             emitExpression(ds, args.first(), out, level );
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'FLT()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'FLT()' with invalid arguments") );
         break;
     case CodeModel::Element::WriteChar:
         if( args.size() == 1 )
@@ -1115,7 +1138,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ")";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteChar()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'WriteChar()' with invalid arguments") );
         break;
     case CodeModel::Element::WriteInt:
         if( args.size() == 1 )
@@ -1125,7 +1148,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ",4)";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteInt()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'WriteInt()' with invalid arguments") );
         break;
     case CodeModel::Element::WriteReal:
         if( args.size() == 1 )
@@ -1135,7 +1158,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << ",0)";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteReal()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'WriteReal()' with invalid arguments") );
         break;
     case CodeModel::Element::WriteLn:
         if( args.size() == 0 )
@@ -1143,11 +1166,10 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
             out << "Out.Ln()";
             return true;
         }
-        d_mdl->getErrs()->error( Errors::Semantics, dopl.last().d_arg, tr("'WriteLn()' with invalid arguments") );
+        error( Errors::Semantics, dopl.last().d_arg, tr("'WriteLn()' with invalid arguments") );
         break;
     default:
-        d_mdl->getErrs()->warning( Errors::Generator, dopl.last().d_arg,
-                                   tr("built-in '%1()' not yet supported").arg(pp->d_name.data()) );
+        warning( Errors::Generator, dopl.last().d_arg, tr("built-in '%1()' not yet supported").arg(pp->d_name.data()) );
         break;
     }
     return false;
@@ -1217,7 +1239,7 @@ void LuaGen::emitWhileStatement(const CodeModel::Unit* ds, const SynTree* st, QT
     out << ws(level+1) << "end" << endl;
     out << ws(level) << "end" << endl;
     if( CodeModel::findFirstChild( st, SynTree::R_ElsifStatement ) != 0 )
-        d_errs->warning(Errors::Generator, st, tr("ELSIF statement in WHILE statement not supported") );
+        warning(Errors::Generator, st, tr("ELSIF statement in WHILE statement not supported") );
 }
 
 void LuaGen::emitCaseStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
@@ -1253,7 +1275,7 @@ void LuaGen::emitCaseStatement(const CodeModel::Unit* ds, const SynTree* st, QTe
             SynTree* q = CodeModel::flatten(cll,SynTree::R_qualident);
             if( q == 0 )
             {
-                d_mdl->getErrs()->error( Errors::Semantics, cll,
+                error( Errors::Semantics, cll,
                                          tr("in type case statements only qualidents supported as case labels") );
                 continue;
             }
@@ -1474,7 +1496,7 @@ void LuaGen::emitActualParam(const CodeModel::Unit* ds, const SynTree* st, bool 
     const SynTree* d = CodeModel::flatten(const_cast<SynTree*>(st), SynTree::R_designator);
     if( d == 0 )
     {
-        d_mdl->getErrs()->error( Errors::Semantics, st, tr("expecting designator as actual var argument") );
+        error( Errors::Semantics, st, tr("expecting designator as actual var argument") );
         return;
     }
     CodeModel::DesigOpList dopl = d_mdl->derefDesignator(ds,d);
@@ -1576,7 +1598,7 @@ void LuaGen::emitVarThunk(const CodeModel::Unit* ds, const SynTree* st, QTextStr
     const SynTree* d = CodeModel::flatten(const_cast<SynTree*>(st), SynTree::R_designator);
     if( d == 0 )
     {
-        d_mdl->getErrs()->error( Errors::Semantics, st, tr("expecting designator as actual var argument") );
+        error( Errors::Semantics, st, tr("expecting designator as actual var argument") );
         return;
     }
     CodeModel::DesigOpList dopl = d_mdl->derefDesignator(ds,d);

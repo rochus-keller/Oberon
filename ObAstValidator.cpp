@@ -1,5 +1,5 @@
 /*
-* Copyright 2019 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2019, 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the Oberon parser/code model library.
 *
@@ -619,13 +619,13 @@ struct ValidatorImp : public AstVisitor
         return false;
     }
 
-    bool inline error( const Loc& l, const QString& msg )
+    bool inline error( const RowCol& l, const QString& msg )
     {
         err->error(Errors::Semantics, mod->d_file, l.d_row, l.d_col, msg );
         return false;
     }
 
-    bool inline warning( const Loc& l, const QString& msg )
+    bool inline warning( const RowCol& l, const QString& msg )
     {
         err->warning(Errors::Semantics, mod->d_file, l.d_row, l.d_col, msg );
         return true;

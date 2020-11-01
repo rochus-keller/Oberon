@@ -5,8 +5,8 @@
 
 #include <QByteArray>
 
-#define OB_OBNX
 #define OB_OBN2
+#define OB_OBNX
 
 namespace Ob {
 	enum TokenType {
