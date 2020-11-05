@@ -61,6 +61,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_definition: return "definition";
 		case R_designator: return "designator";
 		case R_element: return "element";
+		case R_enumeration: return "enumeration";
 		case R_expression: return "expression";
 		case R_factor: return "factor";
 		case R_identdef: return "identdef";

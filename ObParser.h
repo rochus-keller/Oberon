@@ -157,6 +157,7 @@ Ob::SynTree d_root;
 	void TypeParams_();
 	void type();
 	void TypeActuals_();
+	void enumeration();
 	void ArrayType();
 	void RecordType();
 	void PointerType();

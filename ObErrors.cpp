@@ -34,7 +34,7 @@ Errors::Errors(QObject *parent, bool threadExclusive) :
 
 bool Errors::error(Errors::Source s, const Loc& l, const QString& msg)
 {
-    return error( s, l.d_file, l.d_row, l.d_col, msg );
+    return error( s, l.d_file, qMax(int(l.d_row),1), l.d_col, msg );
 }
 
 bool Errors::error(Errors::Source s, const QString& file, int line, int col, const QString& msg)

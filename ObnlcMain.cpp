@@ -28,6 +28,7 @@
 #include "ObErrors.h"
 #include "ObAst.h"
 #include "ObAstEval.h"
+#include "ObxParser.h"
 #ifdef OBNLC_USING_LUAJIT
 #include <LjTools/Engine2.h>
 #include "ObLjLib.h"
@@ -89,6 +90,253 @@ static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
         qCritical() << "compiling" << name << ":" << lua.getLastError();
 }
 #endif
+
+static int docompile1(const QStringList& files, int gen, const QString& run, const QString& mod,
+                      const QString& outPath, bool forceObnExt, bool useOakwood, bool dump)
+{
+    Ob::Ast::Model astm;
+    astm.getErrs()->setReportToConsole(true);
+
+    if( forceObnExt )
+        astm.setEnableExt(true);
+    else
+        astm.setSenseExt(true);
+    if( useOakwood )
+    {
+        preloadLib(astm,"In");
+        preloadLib(astm,"Out");
+        preloadLib(astm,"Files");
+        preloadLib(astm,"Input");
+        preloadLib(astm,"Math");
+        preloadLib(astm,"Strings");
+        preloadLib(astm,"Coroutines");
+        preloadLib(astm,"XYPlane");
+    }
+    astm.parseFiles(files);
+
+    if( dump )
+    {
+        qDebug() << "dumping module syntax trees to files...";
+        Ob::Ast::Model::Modules mods = astm.getModules();
+        for( int m = 0; m < mods.size(); m++ )
+        {
+            QFileInfo fi(mods[m]->d_file );
+            QDir dir = fi.dir();
+            if( !mod.isEmpty() )
+            {
+                dir.mkpath(mod);
+                dir.cd(mod);
+            }
+            QFile out( dir.absoluteFilePath( fi.baseName() + ".txt") );
+            if( !out.open(QIODevice::WriteOnly) )
+            {
+                qDebug() << "error: cannot open dump file for writing" << out.fileName();
+                continue;
+            }
+            QTextStream ts(&out);
+            Ob::Ast::Eval::render(ts,mods[m].data());
+        }
+    }
+
+    if( astm.getErrs()->getErrCount() == 0 && astm.getErrs()->getWrnCount() == 0 )
+        qDebug() << "files successfully parsed";
+    else
+    {
+        qDebug() << "completed with" << astm.getErrs()->getErrCount() << "errors and" <<
+                    astm.getErrs()->getWrnCount() << "warnings";
+        return -1;
+    }
+
+#if 0
+    Ob::Ast::Model::Modules mods = astm.getModules();
+    for( int i = 0; i < mods.size(); i++ )
+    {
+        if( mods[i]->d_file.isEmpty() )
+            continue;
+        QFileInfo info(mods[i]->d_file);
+        QFile f( info.absoluteDir().absoluteFilePath("dump.lua") );
+        f.open(QIODevice::WriteOnly);
+        Ob::LuaGen2::translate(mods[i].data(),&f,0);
+    }
+#endif
+
+#ifdef _DEBUG
+    if( run.isEmpty() )
+    {
+        qDebug() << "things count before clear" << Ob::Ast::Thing::insts.size();
+        astm.clearclear();
+        qDebug() << "things count after clear" << Ob::Ast::Thing::insts.size();
+        QHash<int,int> counts; // tag -> inst count
+        foreach( Ob::Ast::Thing* t, Ob::Ast::Thing::insts )
+            counts[t->getTag()]++;
+        QHash<int,int>::const_iterator i;
+        for( i = counts.begin(); i != counts.end(); ++i )
+            qDebug() << Ob::Ast::Thing::s_tagName[i.key()] << i.value();
+        return 0;
+    }
+#endif
+
+#ifdef OBNLC_USING_LUAJIT
+    if( gen == 1 )
+    {
+        Ob::CodeModel m;
+        m.getErrs()->setRecord(false);
+        m.setSynthesize(false);
+        if( forceObnExt )
+            m.setEnableExt(true);
+        else
+            m.setSenseExt(true);
+        if( useOakwood )
+        {
+            preloadLib(m,"In");
+            preloadLib(m,"Out");
+            preloadLib(m,"Files");
+            preloadLib(m,"Input");
+            preloadLib(m,"Math");
+            preloadLib(m,"Strings");
+            preloadLib(m,"Coroutines");
+            preloadLib(m,"XYPlane");
+        }
+        bool ok = m.parseFiles(files);
+
+        if( ok )
+        {
+            qDebug() << "generating files using gen=1 ...";
+            Ob::LuaGen g(&m);
+            g.emitModules(outPath,mod);
+        }else
+            return -1;
+    }else if( gen == 2 )
+    {
+        qDebug() << "generating files using gen=2 ...";
+        Ob::LuaGen2::translate(&astm, outPath,mod);
+    }else if( gen == 3 )
+    {
+        qDebug() << "generating files using gen=3 ...";
+        Ob::LjbcGen::translate(&astm, outPath,mod);
+    }else
+    {
+        qCritical() << "invalid generator selected (see -h for more information):" << gen;
+        return -1;
+    }
+#endif
+    return 0;
+}
+
+static int docompile2(const QStringList& files, const QString& mod,
+                      const QString& outPath, bool forceObnExt, bool useOakwood, bool dump)
+{
+    Ob::Errors errs;
+    errs.setReportToConsole(true);
+
+    foreach( const QString& f, files )
+    {
+        Ob::Lexer lex;
+        lex.setErrors(&errs);
+        lex.setIgnoreComments(true);
+        lex.setPackComments(true);
+        lex.setSensExt(true);
+        lex.setStream( f );
+        Obx::Parser p(&lex,&errs);
+        p.parse();
+    }
+
+    if( errs.getErrCount() == 0 && errs.getWrnCount() == 0 )
+        qDebug() << "files successfully parsed";
+    else
+    {
+        qDebug() << "completed with" << errs.getErrCount() << "errors and" <<
+                    errs.getWrnCount() << "warnings";
+    }
+
+    return errs.getErrCount() ? -1 : 0;
+}
+
+static int dorun( const QStringList& files, QString run, const QString& mod,
+                  const QString& outPath, bool useOakwood, int n )
+{
+#ifdef OBNLC_USING_LUAJIT
+    if( run == "?" )
+    {
+        if( files.size() > 1 )
+        {
+            qCritical() << "cannot apply -run without module name because more than one file was compiled";
+            return -1;
+        }
+        run = QFileInfo(files.first()).baseName();
+    }
+
+    if( !run.isEmpty() )
+    {
+        QByteArrayList modProc = run.toUtf8().split('.');
+        Q_ASSERT( !modProc.isEmpty() );
+        for( int i = 0; i < modProc.size(); i++ )
+            modProc[i] = Ob::LuaGen::escape(modProc[i]);
+
+        /*
+        if( dynamic_cast<const Ob::CodeModel::Module*>(
+                    m.getGlobalScope().findByName(modProc.first())) == 0 )
+        {
+            qCritical() << "cannot run" << run << ", unknown module";
+            return -1;
+        }
+        */
+
+        qDebug() << "";
+        qDebug() << "running" << run << flush;
+
+        if( !mod.isEmpty() )
+            QDir::setCurrent(QDir(outPath).absoluteFilePath(mod) );
+        else
+            QDir::setCurrent(outPath);
+
+        Lua::Engine2 lua;
+        Lua::Engine2::setInst(&lua);
+        lua.setPrintToStdout(true);
+        lua.addStdLibs();
+        lua.addLibrary(Lua::Engine2::PACKAGE);
+        lua.addLibrary(Lua::Engine2::IO);
+        // lua.addLibrary(Lua::Engine2::DBG);
+        lua.addLibrary(Lua::Engine2::BIT);
+        lua.addLibrary(Lua::Engine2::JIT);
+        lua.addLibrary(Lua::Engine2::OS);
+        lua.addLibrary(Lua::Engine2::FFI);
+        Ob::LjLib::install(lua.getCtx());
+        loadLuaLib( lua, "obnlj" );
+        if( useOakwood )
+        {
+            loadLuaLib(lua,"In");
+            loadLuaLib(lua,"Out");
+            loadLuaLib(lua,"Files");
+            loadLuaLib(lua,"Input");
+            loadLuaLib(lua,"Math");
+            loadLuaLib(lua,"Strings");
+            loadLuaLib(lua,"Coroutines");
+            loadLuaLib(lua,"XYPlane");
+        }
+        QByteArray src;
+        QTextStream out(&src);
+        out << "print(\">>> starting \".._VERSION..\" on \"..jit.version)" << endl;
+
+        //out << "jit.off()" << endl;
+        //out << "jit.opt.start(3)" << endl;
+        //out << "jit.opt.start(\"-abc\")" << endl;
+        //out << "jit.opt.start(\"-fuse\")" << endl;
+        //out << "jit.opt.start(\"hotloop=10\", \"hotexit=2\")" << endl;
+
+        out << "print(\"LuaJIT status:\",jit.status())" << endl;
+        out << "local " << modProc.first() << " = require '" << modProc.first() << "'" << endl;
+        for( int i = 0; i < n; i++ )
+        {
+            if( modProc.size() > 1 )
+                out << modProc.join('.') << "()" << endl;
+        }
+        out.flush();
+        lua.executeCmd(src,"terminal");
+        printf(">>> finished\n");
+    }
+#endif
+}
 
 int main(int argc, char *argv[])
 {
@@ -189,212 +437,21 @@ int main(int argc, char *argv[])
 
     qDebug() << "processing" << files.size() << "files...";
 
-    Ob::Ast::Model astm;
-    astm.getErrs()->setReportToConsole(true);
-
-    if( forceObnExt )
-        astm.setEnableExt(true);
-    else
-        astm.setSenseExt(true);
-    if( useOakwood )
+    if( gen < 4 )
     {
-        preloadLib(astm,"In");
-        preloadLib(astm,"Out");
-        preloadLib(astm,"Files");
-        preloadLib(astm,"Input");
-        preloadLib(astm,"Math");
-        preloadLib(astm,"Strings");
-        preloadLib(astm,"Coroutines");
-        preloadLib(astm,"XYPlane");
-    }
-    astm.parseFiles(files);
-
-    if( dump )
-    {
-        qDebug() << "dumping module syntax trees to files...";
-        Ob::Ast::Model::Modules mods = astm.getModules();
-        for( int m = 0; m < mods.size(); m++ )
-        {
-            QFileInfo fi(mods[m]->d_file );
-            QDir dir = fi.dir();
-            if( !mod.isEmpty() )
-            {
-                dir.mkpath(mod);
-                dir.cd(mod);
-            }
-            QFile out( dir.absoluteFilePath( fi.baseName() + ".txt") );
-            if( !out.open(QIODevice::WriteOnly) )
-            {
-                qDebug() << "error: cannot open dump file for writing" << out.fileName();
-                continue;
-            }
-            QTextStream ts(&out);
-            Ob::Ast::Eval::render(ts,mods[m].data());
-        }
-    }
-
-    if( astm.getErrs()->getErrCount() == 0 && astm.getErrs()->getWrnCount() == 0 )
-        qDebug() << "files successfully parsed";
-    else
-    {
-        qDebug() << "completed with" << astm.getErrs()->getErrCount() << "errors and" <<
-                    astm.getErrs()->getWrnCount() << "warnings";
-        return -1;
-    }
-
-#if 0
-    Ob::Ast::Model::Modules mods = astm.getModules();
-    for( int i = 0; i < mods.size(); i++ )
-    {
-        if( mods[i]->d_file.isEmpty() )
-            continue;
-        QFileInfo info(mods[i]->d_file);
-        QFile f( info.absoluteDir().absoluteFilePath("dump.lua") );
-        f.open(QIODevice::WriteOnly);
-        Ob::LuaGen2::translate(mods[i].data(),&f,0);
-    }
-#endif
-
-    if( run.isEmpty() )
-    {
-#ifdef _DEBUG
-        qDebug() << "things count before clear" << Ob::Ast::Thing::insts.size();
-        astm.clearclear();
-        qDebug() << "things count after clear" << Ob::Ast::Thing::insts.size();
-        QHash<int,int> counts; // tag -> inst count
-        foreach( Ob::Ast::Thing* t, Ob::Ast::Thing::insts )
-            counts[t->getTag()]++;
-        QHash<int,int>::const_iterator i;
-        for( i = counts.begin(); i != counts.end(); ++i )
-            qDebug() << Ob::Ast::Thing::s_tagName[i.key()] << i.value();
-#endif
-        return 0;
-    }
-
-#ifdef OBNLC_USING_LUAJIT
-    if( gen == 1 )
-    {
-        Ob::CodeModel m;
-        m.getErrs()->setRecord(false);
-        m.setSynthesize(false);
-        if( forceObnExt )
-            m.setEnableExt(true);
-        else
-            m.setSenseExt(true);
-        if( useOakwood )
-        {
-            preloadLib(m,"In");
-            preloadLib(m,"Out");
-            preloadLib(m,"Files");
-            preloadLib(m,"Input");
-            preloadLib(m,"Math");
-            preloadLib(m,"Strings");
-            preloadLib(m,"Coroutines");
-            preloadLib(m,"XYPlane");
-        }
-        ok = m.parseFiles(files);
-
-        if( ok )
-        {
-            qDebug() << "generating files using gen=1 ...";
-            Ob::LuaGen g(&m);
-            g.emitModules(outPath,mod);
-        }else
+        if( docompile1(files,gen,run,mod,outPath,forceObnExt,useOakwood,dump) < 0 )
             return -1;
-    }else if( gen == 2 )
+    }else if( gen == 4 )
     {
-        qDebug() << "generating files using gen=2 ...";
-        Ob::LuaGen2::translate(&astm, outPath,mod);
-    }else if( gen == 3 )
-    {
-        qDebug() << "generating files using gen=3 ...";
-        Ob::LjbcGen::translate(&astm, outPath,mod);
+        if( docompile2(files,mod,outPath,forceObnExt,useOakwood,dump) < 0 )
+            return -1;
     }else
     {
         qCritical() << "invalid generator selected (see -h for more information):" << gen;
         return -1;
     }
 
-    if( run == "?" )
-    {
-        if( files.size() > 1 )
-        {
-            qCritical() << "cannot apply -run without module name because more than one file was compiled";
-            return -1;
-        }
-        run = QFileInfo(files.first()).baseName();
-    }
-
-    if( !run.isEmpty() )
-    {
-        QByteArrayList modProc = run.toUtf8().split('.');
-        Q_ASSERT( !modProc.isEmpty() );
-        for( int i = 0; i < modProc.size(); i++ )
-            modProc[i] = Ob::LuaGen::escape(modProc[i]);
-
-        /*
-        if( dynamic_cast<const Ob::CodeModel::Module*>(
-                    m.getGlobalScope().findByName(modProc.first())) == 0 )
-        {
-            qCritical() << "cannot run" << run << ", unknown module";
-            return -1;
-        }
-        */
-
-        qDebug() << "";
-        qDebug() << "running" << run << flush;
-
-        if( !mod.isEmpty() )
-            QDir::setCurrent(QDir(outPath).absoluteFilePath(mod) );
-        else
-            QDir::setCurrent(outPath);
-
-        Lua::Engine2 lua;
-        Lua::Engine2::setInst(&lua);
-        lua.setPrintToStdout(true);
-        lua.addStdLibs();
-        lua.addLibrary(Lua::Engine2::PACKAGE);
-        lua.addLibrary(Lua::Engine2::IO);
-        // lua.addLibrary(Lua::Engine2::DBG);
-        lua.addLibrary(Lua::Engine2::BIT);
-        lua.addLibrary(Lua::Engine2::JIT);
-        lua.addLibrary(Lua::Engine2::OS);
-        lua.addLibrary(Lua::Engine2::FFI);
-        Ob::LjLib::install(lua.getCtx());
-        loadLuaLib( lua, "obnlj" );
-        if( useOakwood )
-        {
-            loadLuaLib(lua,"In");
-            loadLuaLib(lua,"Out");
-            loadLuaLib(lua,"Files");
-            loadLuaLib(lua,"Input");
-            loadLuaLib(lua,"Math");
-            loadLuaLib(lua,"Strings");
-            loadLuaLib(lua,"Coroutines");
-            loadLuaLib(lua,"XYPlane");
-        }
-        QByteArray src;
-        QTextStream out(&src);
-        out << "print(\">>> starting \".._VERSION..\" on \"..jit.version)" << endl;
-
-        //out << "jit.off()" << endl;
-        //out << "jit.opt.start(3)" << endl;
-        //out << "jit.opt.start(\"-abc\")" << endl;
-        //out << "jit.opt.start(\"-fuse\")" << endl;
-        //out << "jit.opt.start(\"hotloop=10\", \"hotexit=2\")" << endl;
-
-        out << "print(\"LuaJIT status:\",jit.status())" << endl;
-        out << "local " << modProc.first() << " = require '" << modProc.first() << "'" << endl;
-        for( int i = 0; i < n; i++ )
-        {
-            if( modProc.size() > 1 )
-                out << modProc.join('.') << "()" << endl;
-        }
-        out.flush();
-        lua.executeCmd(src,"terminal");
-        printf(">>> finished\n");
-    }
-#endif
+    return dorun( files, run, mod, outPath, useOakwood, n );
 
     return 0;
 }

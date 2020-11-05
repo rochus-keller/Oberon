@@ -62,6 +62,7 @@ namespace Ob {
 			R_definition,
 			R_designator,
 			R_element,
+			R_enumeration,
 			R_expression,
 			R_factor,
 			R_identdef,

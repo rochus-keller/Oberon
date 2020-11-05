@@ -231,15 +231,13 @@ void Parser::TypeParams_() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_TypeParams_, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_Lt,__FUNCTION__);
 		addTerminal(); 
-		if (la->kind == _T_ident) {
+		Expect(_T_ident,__FUNCTION__);
+		addTerminal(); 
+		while (la->kind == _T_Comma) {
 			Get();
 			addTerminal(); 
-			while (la->kind == _T_Comma) {
-				Get();
-				addTerminal(); 
-				Expect(_T_ident,__FUNCTION__);
-				addTerminal(); 
-			}
+			Expect(_T_ident,__FUNCTION__);
+			addTerminal(); 
 		}
 		Expect(_T_Gt,__FUNCTION__);
 		addTerminal(); 
@@ -248,20 +246,36 @@ void Parser::TypeParams_() {
 
 void Parser::type() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_type, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (la->kind == _T_ident) {
+		switch (la->kind) {
+		case _T_ident: {
 			qualident();
 			if (la->kind == _T_Lt) {
 				TypeActuals_();
 			}
-		} else if (la->kind == _T_ARRAY) {
+			break;
+		}
+		case _T_Lpar: {
+			enumeration();
+			break;
+		}
+		case _T_ARRAY: {
 			ArrayType();
-		} else if (la->kind == _T_RECORD) {
+			break;
+		}
+		case _T_RECORD: {
 			RecordType();
-		} else if (la->kind == _T_POINTER) {
+			break;
+		}
+		case _T_POINTER: {
 			PointerType();
-		} else if (la->kind == _T_PROCEDURE) {
+			break;
+		}
+		case _T_PROCEDURE: {
 			ProcedureType();
-		} else SynErr(79,__FUNCTION__);
+			break;
+		}
+		default: SynErr(79,__FUNCTION__); break;
+		}
 		d_stack.pop(); 
 }
 
@@ -269,15 +283,30 @@ void Parser::TypeActuals_() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_TypeActuals_, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_Lt,__FUNCTION__);
 		addTerminal(); 
-		if (StartOf(2)) {
+		TypeActual();
+		while (la->kind == _T_Comma) {
+			Get();
+			addTerminal(); 
 			TypeActual();
-			while (la->kind == _T_Comma) {
-				Get();
-				addTerminal(); 
-				TypeActual();
-			}
 		}
 		Expect(_T_Gt,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::enumeration() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_enumeration, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_Lpar,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_ident,__FUNCTION__);
+		addTerminal(); 
+		while (la->kind == _T_Comma) {
+			Get();
+			addTerminal(); 
+			Expect(_T_ident,__FUNCTION__);
+			addTerminal(); 
+		}
+		Expect(_T_Rpar,__FUNCTION__);
 		addTerminal(); 
 		d_stack.pop(); 
 }
@@ -286,7 +315,7 @@ void Parser::ArrayType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ArrayType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_ARRAY,__FUNCTION__);
 		addTerminal(); 
-		if (StartOf(3)) {
+		if (StartOf(2)) {
 			LengthList();
 		}
 		Expect(_T_OF,__FUNCTION__);
@@ -336,9 +365,9 @@ void Parser::ProcedureType() {
 
 void Parser::TypeActual() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_TypeActual, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(4)) {
+		if (StartOf(3)) {
 			type();
-		} else if (StartOf(5)) {
+		} else if (StartOf(4)) {
 			literal();
 		} else SynErr(80,__FUNCTION__);
 		d_stack.pop(); 
@@ -478,7 +507,7 @@ void Parser::VariableDeclaration() {
 void Parser::designator() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_designator, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		qualident();
-		while (StartOf(6)) {
+		while (StartOf(5)) {
 			selector();
 		}
 		d_stack.pop(); 
@@ -503,7 +532,7 @@ void Parser::selector() {
 		} else if (la->kind == _T_Lpar) {
 			Get();
 			addTerminal(); 
-			if (StartOf(3)) {
+			if (StartOf(2)) {
 				ExpList();
 			}
 			Expect(_T_Rpar,__FUNCTION__);
@@ -593,7 +622,7 @@ void Parser::relation() {
 void Parser::term() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_term, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		factor();
-		while (StartOf(7)) {
+		while (StartOf(6)) {
 			MulOperator();
 			factor();
 		}
@@ -617,7 +646,7 @@ void Parser::AddOperator() {
 
 void Parser::factor() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_factor, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(5)) {
+		if (StartOf(4)) {
 			literal();
 		} else if (la->kind == _T_ident) {
 			variableOrFunctionCall();
@@ -660,7 +689,7 @@ void Parser::set() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_set, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_Lbrace,__FUNCTION__);
 		addTerminal(); 
-		if (StartOf(3)) {
+		if (StartOf(2)) {
 			element();
 			while (la->kind == _T_Comma) {
 				Get();
@@ -692,7 +721,7 @@ void Parser::element() {
 
 void Parser::statement() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_statement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(8)) {
+		if (StartOf(7)) {
 			switch (la->kind) {
 			case _T_ident: {
 				assignmentOrProcedureCall();
@@ -855,7 +884,7 @@ void Parser::ElseStatement() {
 
 void Parser::Case() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Case, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(9)) {
+		if (StartOf(8)) {
 			CaseLabelList();
 			Expect(_T_Colon,__FUNCTION__);
 			addTerminal(); 
@@ -1115,19 +1144,19 @@ void Parser::ImportList() {
 
 void Parser::import() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_import, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		if (peek(1) == _T_ident && peek(2) == _T_ColonEq ) {
+			Expect(_T_ident,__FUNCTION__);
+			addTerminal(); 
+			Expect(_T_ColonEq,__FUNCTION__);
+			addTerminal(); 
+		}
 		Expect(_T_ident,__FUNCTION__);
 		addTerminal(); 
-		if (la->kind == _T_ColonEq) {
+		while (la->kind == _T_Slash) {
 			Get();
 			addTerminal(); 
 			Expect(_T_ident,__FUNCTION__);
 			addTerminal(); 
-			while (la->kind == _T_Slash) {
-				Get();
-				addTerminal(); 
-				Expect(_T_ident,__FUNCTION__);
-				addTerminal(); 
-			}
 		}
 		d_stack.pop(); 
 }
@@ -1246,12 +1275,11 @@ bool Parser::StartOf(int s) {
 	const bool T = true;
 	const bool x = false;
 
-	static bool set[10][78] = {
+	static bool set[9][78] = {
 		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
 		{x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,T, x,x,T,T, T,x,x,x, x,T,x,x, x,x,x,T, T,T,T,T, T,x,x,x, x,x},
 		{x,x,x,x, T,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,T, T,T,T,T, T,x,x,x, x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x},
 		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, T,T,T,T, T,x,x,x, x,x},
 		{x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
 		{x,x,x,T, x,x,x,T, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},

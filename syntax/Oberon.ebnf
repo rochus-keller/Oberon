@@ -18,8 +18,9 @@
 // - integrated DEFINITION syntax
 // - made LengthList optional in ArrayType
 // - added generic types, like Roe & Szypersky with modifications
-// - added type-bound procedures
+// - added type-bound procedures from Oberon-2
 // - added paths to import; most right element of the path is the module name
+// - added enumerations, adopted from Modula-2
 
 /// Top
 
@@ -77,16 +78,19 @@ TypeDeclaration ::= identdef
 
 type ::= qualident 
 #ifdef OBNX
-	[ TypeActuals_ ] 
+		[ TypeActuals_ ] 
+	| enumeration
 #endif 
 	| ArrayType | RecordType | PointerType | ProcedureType
 
 #ifdef OBNX
-TypeParams_ ::= '<' [ ident { ',' ident } ] '>'
+TypeParams_ ::= '<' ident { ',' ident } '>'
 
-TypeActuals_ ::= '<' [ TypeActual { ',' TypeActual } ] '>' 
+TypeActuals_ ::= '<' TypeActual { ',' TypeActual } '>' 
 
 TypeActual ::= type | literal
+
+enumeration ::= '('  ident { ',' ident } ')' 
 #endif
 
 /// 6.1. Basic types
@@ -111,7 +115,7 @@ RecordType ::= RECORD ['(' BaseType ')'] [FieldListSequence]  END
 
 BaseType ::= qualident
 
-FieldListSequence ::= FieldList {';' [FieldList]} // added support for empty ';' due to PO code
+FieldListSequence ::= FieldList {';' [FieldList] } // added support for empty ';' due to PO code
 
 FieldList ::= IdentList ':' type
 
@@ -284,7 +288,7 @@ module ::= MODULE ident ';' [ ImportList ] DeclarationSequence
 	
 ImportList ::= IMPORT import { ',' import } ';'
 
-import ::= ident [ ':=' ident { '/' ident } ] // NOTE: paths are not case sensitive 
+import ::= [ \LL:2\ ident ':=' ] ident { '/' ident } // NOTE: paths are not case sensitive 
 
 /// 11.1 The Module SYSTEM
 

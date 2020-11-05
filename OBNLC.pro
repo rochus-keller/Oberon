@@ -35,7 +35,8 @@ SOURCES += \
     ObLjbcGen.cpp \
     ../LjTools/LuaJitComposer.cpp \
     ../LjTools/LuaJitBytecode.cpp \
-    ObLjLibFfi.c
+    ObLjLibFfi.c \
+    ObxParser.cpp
 
 include( Oberon.pri )
 
@@ -44,7 +45,8 @@ HEADERS += \
     ObLuaGen2.h \
     ObLjbcGen.h \
     ../LjTools/LuaJitComposer.h \
-    ../LjTools/LuaJitBytecode.h
+    ../LjTools/LuaJitBytecode.h \
+    ObxParser.h
 
 !win32 {
     QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
