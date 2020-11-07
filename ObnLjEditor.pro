@@ -41,7 +41,8 @@ SOURCES += ObnLjEditor.cpp \
     ../LjTools/LjDisasm.cpp \
     ObLuaGen2.cpp \
     ObLjbcGen.cpp \
-    ../LjTools/BcViewer2.cpp
+    ../LjTools/BcViewer2.cpp \
+    ObLjLibFfi.c
 
 HEADERS  += ObnLjEditor.h \
     ../GuiTools/CodeEditor.h \
@@ -75,6 +76,9 @@ CONFIG(debug, debug|release) {
 
 !win32 {
     QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable
+    QMAKE_LFLAGS += -rdynamic -ldl
+    #rdynamic is required so that the LjLibFfi functions are visible to LuaJIT FFI
+
 }
 
 RESOURCES += \

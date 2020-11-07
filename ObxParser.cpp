@@ -1,7 +1,7 @@
 /*
 * Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the Oberon+ parser/code model library.
+* This file is part of the OBX parser/code model library.
 *
 * The following is the license that applies to this copy of the
 * library. For a license to use the library under conditions
@@ -32,6 +32,7 @@ using namespace Ob;
     }
 
 struct MaximumErrorCountExceeded {};
+struct ForceEndOfFile {};
 
 Parser::Parser(Ob::Lexer* l, Ob::Errors* e, QObject *parent) : QObject(parent),d_lex(l),d_errs(e),
     d_errCount(0)
@@ -45,22 +46,29 @@ bool Parser::parse()
     next();
     try
     {
-        switch( d_la )
+        while( d_la == Tok_MODULE || d_la == Tok_DEFINITION )
         {
-        case Tok_MODULE:
-            module();
-            break;
-        case Tok_DEFINITION:
-            definition();
-            break;
-        default:
-            syntaxError( tr("expecting MODULE or DEFINITION keyword"));
-            break;
+            switch( d_la )
+            {
+            case Tok_MODULE:
+                module();
+                break;
+            case Tok_DEFINITION:
+                definition();
+                break;
+            default:
+                syntaxError( tr("expecting MODULE or DEFINITION keyword"));
+                break;
+            }
         }
-        // ignore text after '.'
     }catch( const MaximumErrorCountExceeded& )
     {
         d_errs->error( Errors::Syntax, d_cur.toLoc(), tr("maximum number of errors exceeded, stop parsing") );
+    }catch( const ForceEndOfFile& )
+    {
+        // ok
+        if( peek(1) != Tok_Eof )
+            d_errs->warning( Errors::Syntax, d_cur.toLoc(), tr("ignoring text after first terminating '.'") );
     }
     return d_errCount == 0;
 }
@@ -70,11 +78,12 @@ void Parser::module()
     next();
     MATCH( Tok_ident, tr("expecting module name after MODULE keyword") );
     const Token id = d_cur;
-    MATCH( Tok_Semi, tr("expecting ';' after module identifier '%1'").arg(id.d_val.constData()) );
+    if( d_la == Tok_Semi )
+        next();
     if( d_la == Tok_IMPORT )
         importList();
     declarationSequence(false);
-    if( d_la == Tok_BEGIN )
+    if( d_la == Tok_BEGIN || d_la == Tok_DO )
     {
         next();
         statementSequence();
@@ -84,8 +93,11 @@ void Parser::module()
     if( d_cur.d_val != id.d_val )
         semanticError( tr("the ident '%1' after the END keyword must be equal "
                           "to the module name").arg(d_cur.d_val.constData()));
-    MATCH( Tok_Dot, tr("expecting '.' at the end of a module") );
-
+    if( d_la == Tok_Dot )
+    {
+        next();
+        throw ForceEndOfFile();
+    }
 }
 
 void Parser::definition()
@@ -93,7 +105,8 @@ void Parser::definition()
     next();
     MATCH( Tok_ident, tr("expecting module name after MODULE keyword") );
     const Token id = d_cur;
-    MATCH( Tok_Semi, tr("expecting ';' after identifier '%1'").arg(id.d_val.constData()) );
+    if( d_la == Tok_Semi )
+        next();
     if( d_la == Tok_IMPORT )
         importList();
     declarationSequence(true);
@@ -102,7 +115,11 @@ void Parser::definition()
     if( d_cur.d_val != id.d_val )
         semanticError( tr("the ident '%1' after the END keyword must be equal "
                           "to the definition name").arg(d_cur.d_val.constData()));
-    MATCH( Tok_Dot, tr("expecting '.' at the end of a definition") );
+    if( d_la == Tok_Dot )
+    {
+        next();
+        throw ForceEndOfFile();
+    }
 }
 
 void Parser::number()
@@ -188,7 +205,6 @@ void Parser::typeDeclaration()
     identdef(id);
     if( d_la == Tok_Lt )
     {
-        next();
         typeParams();
     }
     MATCH( Tok_Eq, tr("expecting '=' after ident in type declaration") );
@@ -214,21 +230,24 @@ void Parser::type()
     switch( d_la )
     {
     case Tok_ident:
-        qualident();
+        namedType();
         break;
     case Tok_Lpar:
         enumeration();
         break;
     case Tok_ARRAY:
+    case Tok_Lbrack:
         arrayType();
         break;
     case Tok_RECORD:
         recordType();
         break;
     case Tok_POINTER:
+    case Tok_Hat:
         pointerType();
         break;
     case Tok_PROCEDURE:
+    case Tok_PROC:
         procedureType();
         break;
     default:
@@ -261,14 +280,34 @@ void Parser::enumeration()
     MATCH( Tok_Gt, tr("expecting ')' to end enumeration") );
 }
 
+void Parser::namedType()
+{
+    qualident();
+    if( d_la == Tok_Lt )
+    {
+        typeActuals();
+    }
+}
+
 void Parser::arrayType()
 {
-    MATCH( Tok_ARRAY, tr("expecting the ARRAY keyword") );
-    if( d_la != Tok_OF )
+    if( d_la == Tok_ARRAY )
     {
-        lengthList();
+        MATCH( Tok_ARRAY, tr("expecting the ARRAY keyword") );
+        if( d_la != Tok_OF )
+        {
+            lengthList();
+        }
+        MATCH( Tok_OF, tr("expecting OF after ARRAY keyword or length list") );
+    }else
+    {
+        MATCH( Tok_Lbrack, tr("expecting '['") );
+        if( d_la != Tok_Rbrack )
+        {
+            lengthList();
+        }
+        MATCH( Tok_Rbrack, tr("expecting ']'") );
     }
-    MATCH( Tok_OF, tr("expecting OF after ARRAY keyword or length list") );
     type();
 }
 
@@ -288,14 +327,26 @@ void Parser::recordType()
 
 void Parser::pointerType()
 {
-    MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
-    MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
+    if( d_la == Tok_Hat )
+    {
+        next();
+    }else
+    {
+        MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
+        MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
+    }
     type();
 }
 
 void Parser::procedureType()
 {
-    MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
+    if( d_la == Tok_PROC )
+    {
+        MATCH( Tok_PROC, tr("expecting the PROCEDURE keyword") );
+    }else
+    {
+        MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
+    }
     if( d_la == Tok_Lpar )
     {
         formalParameters();
@@ -309,9 +360,12 @@ void Parser::typeActual()
     case Tok_ident:
     case Tok_Lpar:
     case Tok_ARRAY:
+    case Tok_Lbrack:
     case Tok_RECORD:
     case Tok_POINTER:
+    case Tok_Hat:
     case Tok_PROCEDURE:
+    case Tok_PROC:
         type();
         break;
     case Tok_integer:
@@ -379,12 +433,16 @@ void Parser::baseType()
 void Parser::fieldListSequence()
 {
     fieldList();
-    while( d_la == Tok_Semi )
+    if( d_la == Tok_Semi )
     {
         next();
-        if( d_la == Tok_ident )
+    }
+    while( d_la == Tok_ident )
+    {
+        fieldList();
+        if( d_la == Tok_Semi )
         {
-            fieldList();
+            next();
         }
     }
 }
@@ -413,9 +471,10 @@ void Parser::formalParameters()
     if( d_la != Tok_Rpar )
     {
         fPSection();
-        while( d_la == Tok_Semi )
+        while( d_la != Tok_Rpar )
         {
-            next();
+            if( d_la == Tok_Semi )
+                next();
             fPSection();
         }
     }
@@ -591,18 +650,6 @@ void Parser::statement()
     case Tok_FOR:
         forStatement();
         break;
-
-    // following symbols
-    case Tok_Semi:
-    case Tok_Bar:
-    case Tok_ELSE:
-    case Tok_ELSIF:
-    case Tok_END:
-    case Tok_RETURN:
-    case Tok_UNTIL:
-        // this case represents the epsilon
-        break;
-
     default:
         syntaxError( tr( "invalid statement" ) );
         break;
@@ -689,14 +736,37 @@ void Parser::forStatement()
     MATCH( Tok_END, tr("expecting a closing END in an FOR statement") );
 }
 
+static inline bool firstOfStatement( quint8 t )
+{
+    switch(t)
+    {
+    case Tok_ident:
+    case Tok_IF:
+    case Tok_CASE:
+    case Tok_WHILE:
+    case Tok_REPEAT:
+    case Tok_FOR:
+        return true;
+    default:
+        return false;
+    }
+}
+
 void Parser::statementSequence()
 {
     // TODO sync at start if no statement first token read
-    statement();
+
     while( d_la == Tok_Semi )
     {
         next();
+    }
+    while( firstOfStatement(d_la) )
+    {
         statement();
+        while( d_la == Tok_Semi )
+        {
+            next();
+        }
     }
 }
 
@@ -793,7 +863,10 @@ void Parser::procedureDeclaration()
 {
     Token id;
     procedureHeading(id);
-    MATCH( Tok_Semi, tr("expecting ';' after a procedure heading") );
+    if( d_la == Tok_Semi )
+    {
+        next();
+    }
     procedureBody();
     MATCH( Tok_ident, tr("expecting procedure name after END keyword") );
     if( d_cur.d_val != id.d_val )
@@ -803,7 +876,17 @@ void Parser::procedureDeclaration()
 
 void Parser::procedureHeading(Token& id)
 {
-    MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
+    if( d_la == Tok_PROC )
+    {
+        MATCH( Tok_PROC, tr("expecting the PROCEDURE keyword") );
+    }else
+    {
+        MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
+    }
+    if( d_la == Tok_Lt )
+    {
+        typeParams();
+    }
     if( d_la == Tok_Lpar )
     {
         receiver();
@@ -818,7 +901,7 @@ void Parser::procedureHeading(Token& id)
 void Parser::procedureBody()
 {
     declarationSequence(false);
-    if( d_la == Tok_BEGIN )
+    if( d_la == Tok_BEGIN || d_la == Tok_DO )
     {
         next();
         statementSequence();
@@ -857,7 +940,8 @@ void Parser::declarationSequence(bool definition)
         while( d_la == Tok_ident )
         {
             constDeclaration();
-            MATCH( Tok_Semi, tr("expecting ';' after constant declaration") );
+            if( d_la == Tok_Semi )
+                next();
         }
     }
     if( d_la == Tok_TYPE )
@@ -866,7 +950,8 @@ void Parser::declarationSequence(bool definition)
         while( d_la == Tok_ident )
         {
             typeDeclaration();
-            MATCH( Tok_Semi, tr("expecting ';' after type declaration") );
+            if( d_la == Tok_Semi )
+                next();
         }
     }
     if( d_la == Tok_VAR )
@@ -875,17 +960,19 @@ void Parser::declarationSequence(bool definition)
         while( d_la == Tok_ident )
         {
             variableDeclaration();
-            MATCH( Tok_Semi, tr("expecting ';' after variable declaration") );
+            if( d_la == Tok_Semi )
+                next();
         }
     }
-    while( d_la == Tok_PROCEDURE )
+    while( d_la == Tok_PROCEDURE || d_la == Tok_PROC )
     {
         Token id;
         if( definition )
             procedureHeading(id);
         else
             procedureDeclaration();
-        MATCH( Tok_Semi, tr("expecting ';' after procedure declaration") );
+        if( d_la == Tok_Semi )
+            next();
     }
 }
 
@@ -899,7 +986,7 @@ void Parser::returnStatement()
 
 void Parser::fPSection()
 {
-    if( d_la == Tok_VAR )
+    if( d_la == Tok_VAR || d_la == Tok_IN )
     {
         next();
     }
@@ -915,10 +1002,20 @@ void Parser::fPSection()
 
 void Parser::formalType()
 {
-    while( d_la == Tok_ARRAY )
+    if( d_la == Tok_Lbrack )
     {
-        next();
-        MATCH( Tok_OF, tr("expecting the OF keyword after ARRAY") );
+        while( d_la == Tok_Lbrack )
+        {
+            next();
+            MATCH( Tok_Rbrack, tr("expecting ']' after '['") );
+        }
+    }else
+    {
+        while( d_la == Tok_ARRAY )
+        {
+            next();
+            MATCH( Tok_OF, tr("expecting the OF keyword after ARRAY") );
+        }
     }
     qualident();
 }
@@ -932,7 +1029,8 @@ void Parser::importList()
         next();
         import();
     }
-    MATCH( Tok_Semi, tr("expecting ';' after import list") );
+    if( d_la == Tok_Semi )
+        next();
 }
 
 void Parser::import()

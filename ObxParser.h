@@ -4,7 +4,7 @@
 /*
 * Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the Oberon+ parser/code model library.
+* This file is part of the OBX parser/code model library.
 *
 * The following is the license that applies to this copy of the
 * library. For a license to use the library under conditions
@@ -26,6 +26,9 @@
 
 namespace Obx
 {
+    // This is the "Oberon-07 with extensions" (OBX, spoken as "obex") parser.
+    // Called it "Oberon+" before, still a decent name, but not a good ident in C++.
+
     class Parser : public QObject
     {
     public:
@@ -46,6 +49,7 @@ namespace Obx
         void type();
         void typeActuals();
         void enumeration();
+        void namedType();
         void arrayType();
         void recordType();
         void pointerType();

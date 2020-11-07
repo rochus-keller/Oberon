@@ -101,6 +101,7 @@ LjEditor::LjEditor(QWidget *parent)
     d_lua->addLibrary(Engine2::BIT);
     d_lua->addLibrary(Engine2::JIT);
     d_lua->addLibrary(Engine2::OS);
+    d_lua->addLibrary(Engine2::FFI);
     LjLib::install(d_lua->getCtx());
 
     Engine2::setInst(d_lua);
@@ -120,7 +121,9 @@ LjEditor::LjEditor(QWidget *parent)
 
     d_edit = new CodeEditor(this);
     d_edit->setCharPerTab(3);
+    d_edit->setPaintIndents(false);
     d_hl = new Highlighter( d_edit->document() );
+    d_hl->setEnableExt(true); // TODO TEST
     d_edit->updateTabWidth();
 
     setDockNestingEnabled(true);
@@ -521,6 +524,7 @@ bool LjEditor::checkSaved(const QString& title)
 
 void LjEditor::compile()
 {
+    return; // TODO
     QString path = d_edit->getPath();
     if( path.isEmpty() )
         path = "<unnamed>";

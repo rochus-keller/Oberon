@@ -5,8 +5,8 @@
 
 #include <QByteArray>
 
-#define OB_OBN2
 #define OB_OBNX
+#define OB_OBN2
 
 namespace Ob {
 	enum TokenType {
@@ -67,6 +67,7 @@ namespace Ob {
 		Tok_OF,
 		Tok_OR,
 		Tok_POINTER,
+		Tok_PROC,
 		Tok_PROCEDURE,
 		Tok_RECORD,
 		Tok_REPEAT,

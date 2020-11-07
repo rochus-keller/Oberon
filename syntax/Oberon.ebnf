@@ -21,6 +21,7 @@
 // - added type-bound procedures from Oberon-2
 // - added paths to import; most right element of the path is the module name
 // - added enumerations, adopted from Modula-2
+// - BEGIN or DO, PROCEDURE or PROC, POINTER TO or '^', ARRAY OF or '[]', all ';' optional
 
 /// Top
 
@@ -30,7 +31,12 @@
 #define OBN2
 #endif
 
-Oberon ::= module | definition
+Oberon ::= 
+#ifdef OBNX
+	{ module | definition }
+#else
+	module | definition
+#endif
 
 /// 3. Vocabulary
 
@@ -55,6 +61,7 @@ hexchar ::=
 hexstring ::=
 
 comment- ::= '(*' '*)' '//'
+// line comments like in BCPL and Delphi/Free Pascal
 
 /// 4. Declarations and scope rules
 
@@ -104,6 +111,9 @@ ArrayType ::= ARRAY
 	LengthList
 #endif
 	 OF type 
+#ifdef OBNX
+	 | '[' [ LengthList ] ']' type
+#endif
 
 LengthList ::= length {',' length}
 
@@ -115,7 +125,12 @@ RecordType ::= RECORD ['(' BaseType ')'] [FieldListSequence]  END
 
 BaseType ::= qualident
 
-FieldListSequence ::= FieldList {';' [FieldList] } // added support for empty ';' due to PO code
+FieldListSequence ::= FieldList 
+#ifdef OBNX
+	[ ';' ] { FieldList [ ';' ] }
+#else
+	{';' [FieldList] } // added support for empty ';' due to PO code
+#endif
 
 FieldList ::= IdentList ':' type
 
@@ -123,11 +138,19 @@ IdentList ::= identdef {',' identdef}
 
 /// 6.4. Pointer types
 
-PointerType ::= POINTER TO type
+PointerType ::= ( POINTER TO
+#ifdef OBNX
+	| '^' 
+#endif
+	 ) type
 
 /// 6.5. Procedure types
 
-ProcedureType ::= PROCEDURE [FormalParameters]
+ProcedureType ::= ( PROCEDURE 
+#ifdef OBNX
+	| PROC 
+#endif 
+	) [FormalParameters]
 
 /// 7. Variable declarations
 
@@ -176,10 +199,10 @@ ActualParameters- ::= '(' [ ExpList ] ')'
 
 /// 9. Statements
 
-statement ::= [ 
+statement ::=
 	assignmentOrProcedureCall
 	| IfStatement | CaseStatement |
-	WhileStatement | RepeatStatement | ForStatement ]
+	WhileStatement | RepeatStatement | ForStatement
 	
 /// 9.1. Assignments
 
@@ -199,7 +222,12 @@ ProcedureCall- ::= designator [ ActualParameters ]
 
 /// 9.3. Statement sequences
 
-StatementSequence ::= statement { ';' statement }
+StatementSequence ::= 
+#ifdef OBNX
+	{ ';' } { statement { ';' } }  // in OS/OR we find things like "BEGIN;" or "statement;;"
+#else
+	[ statement ] { ';' [ statement ] }
+#endif
 
 /// 9.4. If statements
 
@@ -237,10 +265,11 @@ ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
 	DO StatementSequence END
 
 /// 10. Procedure declarations
-ProcedureDeclaration ::= ProcedureHeading ';'  ProcedureBody ident
+ProcedureDeclaration ::= ProcedureHeading [ ';' ] ProcedureBody ident
 
-ProcedureHeading ::= PROCEDURE
+ProcedureHeading ::= ( PROCEDURE | PROC )
 #ifdef OBN2
+	[ TypeParams_ ]
 	[Receiver]
 #endif
 	 identdef [ FormalParameters ]
@@ -254,39 +283,51 @@ Receiver ::= '(' [VAR] ident ':' ident
 #endif
 
 ProcedureBody ::= DeclarationSequence 
-	[ BEGIN StatementSequence ]
+	[ ( BEGIN | DO ) StatementSequence ]
 	[ ReturnStatement ] END
 	
 DeclarationSequence ::= 
-	[ CONST { ConstDeclaration ';' } ]
-	[ TYPE { TypeDeclaration ';' } ]
-	[ VAR { VariableDeclaration ';' } ]
-	{ ProcedureDeclaration ';' }
+	[ CONST { ConstDeclaration [';'] } ]
+	[ TYPE { TypeDeclaration [';'] } ]
+	[ VAR { VariableDeclaration [';'] } ]
+	{ ProcedureDeclaration [';'] }
 	
 ReturnStatement ::= RETURN expression [ ';' ]
 
 DeclarationSequence2 ::= 
-	[ CONST { ConstDeclaration ';' } ]
-	[ TYPE { TypeDeclaration ';' } ]
-	[ VAR { VariableDeclaration ';' } ]
-	{ ProcedureHeading ';' } // difference to DeclarationSequence
+	[ CONST { ConstDeclaration [';'] } ]
+	[ TYPE { TypeDeclaration [';'] } ]
+	[ VAR { VariableDeclaration [';'] } ]
+	{ ProcedureHeading [';'] } // difference to DeclarationSequence
 
 /// 10.1. Formal parameters
 
-FormalParameters ::= '(' [ FPSection { ';' FPSection } ] ')' [ ':' qualident ]
+FormalParameters ::= '(' [ FPSection { [';'] FPSection } ] ')' [ ':' qualident ]
 
-FPSection ::= [ VAR ] ident { ',' ident } ':' FormalType // type in OB-2, not done here
+FPSection ::= [ VAR 
+#ifdef OBNX
+	| IN 
+#endif
+	] ident { ',' ident } ':' FormalType // type in OB-2, not done here
 
-FormalType ::= { ARRAY OF } qualident
+FormalType ::= { ARRAY OF
+#ifdef OBNX
+	| '[' ']'
+#endif
+	 } qualident
 
 /// 10.2. Predefined procedures
 
 /// 11. Modules
 
-module ::= MODULE ident ';' [ ImportList ] DeclarationSequence
-	[ BEGIN StatementSequence ] END ident '.' 
-	
-ImportList ::= IMPORT import { ',' import } ';'
+module ::= MODULE ident [';'] [ ImportList ] DeclarationSequence
+	[ ( BEGIN 
+#ifdef OBNX
+	| DO 
+#endif
+	) StatementSequence ] END ident ['.']
+
+ImportList ::= IMPORT import { ',' import } [';']
 
 import ::= [ \LL:2\ ident ':=' ] ident { '/' ident } // NOTE: paths are not case sensitive 
 
@@ -294,7 +335,7 @@ import ::= [ \LL:2\ ident ':=' ] ident { '/' ident } // NOTE: paths are not case
 
 /// Definitions
 
-definition ::= DEFINITION ident ';'  [ ImportList ] DeclarationSequence2 END ident '.' 
+definition ::= DEFINITION ident [';']  [ ImportList ] DeclarationSequence2 END ident ['.']
 
 /// Helper Tokens
 Comment ::=

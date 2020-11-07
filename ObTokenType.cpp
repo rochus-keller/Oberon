@@ -57,6 +57,7 @@ namespace Ob {
 			case Tok_OF: return "OF";
 			case Tok_OR: return "OR";
 			case Tok_POINTER: return "POINTER";
+			case Tok_PROC: return "PROC";
 			case Tok_PROCEDURE: return "PROCEDURE";
 			case Tok_RECORD: return "RECORD";
 			case Tok_REPEAT: return "REPEAT";
@@ -134,6 +135,7 @@ namespace Ob {
 			case Tok_OF: return "Tok_OF";
 			case Tok_OR: return "Tok_OR";
 			case Tok_POINTER: return "Tok_POINTER";
+			case Tok_PROC: return "Tok_PROC";
 			case Tok_PROCEDURE: return "Tok_PROCEDURE";
 			case Tok_RECORD: return "Tok_RECORD";
 			case Tok_REPEAT: return "Tok_REPEAT";
@@ -448,6 +450,8 @@ namespace Ob {
 									}
 								}
 							}
+						} else {
+							res = Tok_PROC; i += 4;
 						}
 					}
 				}

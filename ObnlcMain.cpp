@@ -46,6 +46,7 @@ static QStringList collectFiles( const QDir& dir )
 
     files = dir.entryList( QStringList() << QString("*.Mod")
                                            << QString("*.mod")
+                           << QString("*.obx")
                            << QString("*.Def")
                            << QString("*.def")
                                             << QString("*.obn"),
