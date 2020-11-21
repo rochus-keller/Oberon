@@ -272,7 +272,7 @@ namespace Ob
 
             uint d_public : 1;
             uint d_synthetic: 1;
-            uint d_isDef;
+            uint d_isDef : 1;
 
             Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
                 d_public(false),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
@@ -617,6 +617,7 @@ namespace Ob
             bool procedureBody(Procedure*,SynTree*);
             Named* typeDeclaration(Scope*,SynTree*);
             Ref<Type> type(Scope* s, Named* id, SynTree*, Pointer* binding = 0);
+            Ref<Type> namedType(Scope* s, Named* id, SynTree*, Pointer* binding = 0);
             Ref<Type> arrayType(Scope*,SynTree*);
             Ref<Type> pointerType(Scope*, SynTree*);
             Ast::Ref<ProcType> formalParameters(Scope*,SynTree*);

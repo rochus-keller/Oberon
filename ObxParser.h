@@ -22,6 +22,7 @@
 
 #include <QObject>
 #include <Oberon/ObLexer.h>
+#include <Oberon/ObxAst.h>
 #include <bitset>
 
 namespace Obx
@@ -34,67 +35,70 @@ namespace Obx
     public:
         explicit Parser(Ob::Lexer*, Ob::Errors*, QObject *parent = 0);
 
-        bool parse();
+        Ref<Module> parse();
     protected:
-        void module();
-        void definition();
-        void number();
-        void qualident();
-        void identdef(Ob::Token& id);
-        void constDeclaration();
-        void constExpression();
-        void expression();
-        void typeDeclaration();
-        void typeParams();
-        void type();
-        void typeActuals();
-        void enumeration();
-        void namedType();
-        void arrayType();
-        void recordType();
-        void pointerType();
-        void procedureType();
-        void typeActual();
-        void literal();
-        void lengthList();
-        void length();
-        void baseType();
-        void fieldListSequence();
-        void fieldList();
-        void identList();
-        void formalParameters();
-        void variableDeclaration();
-        void designator();
-        void selector();
-        void expList();
-        void simpleExpression();
-        void term();
-        void factor();
-        void set();
-        void variableOrFunctionCall();
-        void element();
-        void statement();
-        void assignmentOrProcedureCall();
-        void ifStatement();
-        void caseStatement();
-        void whileStatement();
-        void repeatStatement();
-        void forStatement();
-        void statementSequence();
-        void elsifStatement(bool inWhile);
-        void elseStatement();
-        void case_();
-        void caseLabelList();
-        void labelRange();
-        void label();
-        void procedureDeclaration();
-        void procedureHeading(Ob::Token& id);
-        void procedureBody();
-        void receiver();
-        void declarationSequence(bool definition);
-        void returnStatement();
-        void fPSection();
-        void formalType();
+        bool module(bool definition);
+        Ref<Literal> number();
+        Ref<Expression> qualident();
+        void identdef(Named* n, Scope* scope);
+        void constDeclaration(Scope* scope);
+        Ref<Expression> constExpression();
+        Ref<Expression> expression();
+        Ref<NamedType> typeDeclaration(Scope* scope);
+        MetaParams typeParams();
+        Ref<Type> type(Scope* scope, Named* id, Pointer* binding = 0);
+        MetaActuals typeActuals();
+        Ref<Type> enumeration(Scope* scope, Named* id);
+        Ref<QualiType> namedType(Named* id);
+        Ref<Type> arrayType(Scope* scope, Named* id);
+        Ref<Type> recordType(Scope* scope, Named* id, Pointer* binding);
+        Ref<Type> pointerType(Scope* scope, Named* id);
+        Ref<Type> procedureType(Scope* scope, Named* id);
+        Ref<Thing> typeActual();
+        Ref<Expression> literal();
+        QList< Ref<Expression> > lengthList();
+        Ref<Expression> length();
+        Ref<QualiType> baseType();
+        void fieldListSequence(Scope* scope, Record*);
+        void fieldList(Scope* scope, Record* r);
+        void formalParameters(Scope*,ProcType* p);
+        void variableDeclaration(Scope* scope);
+        Ref<Expression> designator();
+        Ref<UnExpr> selector();
+        ExpList expList();
+        Ref<Expression> simpleExpression();
+        Ref<Expression> term();
+        Ref<Expression> factor();
+        Ref<Expression> set();
+        Ref<Expression> variableOrFunctionCall();
+        Ref<Expression> element();
+        Ref<Statement> statement(Scope* scope);
+        Ref<Statement> assignmentOrProcedureCall();
+        Ref<Statement> ifStatement(Scope* scope);
+        Ref<Statement> caseStatement(Scope* scope);
+        Ref<Statement> whileStatement(Scope* scope);
+        Ref<Statement> repeatStatement(Scope* scope);
+        Ref<Statement> forStatement(Scope* scope);
+        Ref<Statement> withStatement(Scope* scope);
+        Ref<Statement> loopStatement(Scope* scope);
+        Ref<Statement> exitStatement(Scope* scope);
+        StatSeq statementSequence(Scope* scope);
+        Ref<Expression> elsifStatement(Scope* scope, bool inWhile, StatSeq& seq);
+        Ref<Expression> guard();
+        void elseStatement(Scope* scope, StatSeq& seq);
+        bool case_(Scope* scope, CaseStmt::Case& c);
+        ExpList caseLabelList();
+        Ref<Expression> labelRange();
+        Ref<Expression> label();
+        Ref<Procedure> procedureDeclaration(bool headingOnly, Scope* scope);
+        enum { ProcNormal, ProcForward, ProcCImp };
+        int procedureHeading(Procedure* proc, Scope* scope);
+        void procedureBody(Procedure* p);
+        Ref<Parameter> receiver();
+        void declarationSequence(bool definition, Scope* scope);
+        Ref<Statement> returnStatement(Scope* scope);
+        bool fPSection(Scope* scope, ProcType* p);
+        Ref<Type> formalType(Scope* scope);
         void importList();
         void import();
 
@@ -112,22 +116,37 @@ namespace Obx
             }
         };
         bool sync( const TokSet& );
-        bool match(quint8 tokenType, const QString& err );
         quint8 peek(quint16 la);
 
         void syntaxError( const QString& err );
-        void semanticError( const QString& err );
+        void semanticError(const Ob::Loc&, const QString& err );
+        void semanticError(const Ob::RowCol&, const QString& err );
+
+
+        BaseType* intType() const { return 0; }
+        BaseType* realType() const { return 0; }
+        BaseType* boolType() const { return 0; }
+        BaseType* stringType() const { return 0; }
+        BaseType* charType() const { return 0; }
+        BaseType* nilType() const { return 0; }
+        BaseType* setType() const { return 0; }
+        Module* findModule( const QByteArrayList& ) const { return new Module(); }
+        QVariant eval( Expression*, bool constExpr ) const { return QVariant(); }
+
+        void addEnum( Scope* scope, Enumeration* e, const Ob::Token& t );
     private:
         Ob::Lexer* d_lex;
         Ob::Errors* d_errs;
         quint32 d_errCount;
         Ob::Token d_cur;
         Ob::Token d_next;
+        Ref<Module> d_mod;
 #ifdef _DEBUG
         Ob::TokenType d_la;
 #else
         quint8 d_la; // Ob::TokenType
 #endif
+        bool d_sync;
     };
 }
 

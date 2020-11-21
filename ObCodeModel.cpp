@@ -36,6 +36,13 @@ static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
     return ( t != 0 ? t->deref() : 0 );
 }
 
+static inline SynTree* namedTypeToQualident(SynTree* st )
+{
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_NamedType && st->d_children.size() == 1 &&
+              st->d_children.first()->d_tok.d_type == SynTree::R_qualident );
+    return st->d_children.first();
+}
+
 CodeModel::CodeModel(QObject *parent) : QObject(parent),d_synthesize(false),d_trackIds(false),
     d_enableExt(false),d_fc(0), d_senseExt(false)
 {
@@ -949,8 +956,8 @@ CodeModel::Type*CodeModel::parseType(CodeModel::Unit* ds, SynTree* t)
     Q_ASSERT( t->d_tok.d_type == SynTree::R_type && !t->d_children.isEmpty() );
     switch( t->d_children.first()->d_tok.d_type )
     {
-    case SynTree::R_qualident:
-        return parseTypeRef(ds,t->d_children.first());
+    case SynTree::R_NamedType:
+        return parseTypeRef(ds,namedTypeToQualident(t->d_children.first()));
     case SynTree::R_ArrayType:
         return parseArrayType(ds,t->d_children.first());
     case SynTree::R_RecordType:
@@ -994,8 +1001,8 @@ CodeModel::Type*CodeModel::parseRecordType(CodeModel::Unit* ds, SynTree* t)
     Type* bt = 0;
     if( st )
     {
-        Q_ASSERT( !st->d_children.isEmpty() && st->d_children.first()->d_tok.d_type == SynTree::R_qualident );
-        bt = parseTypeRef(ds,st->d_children.first());
+        Q_ASSERT( !st->d_children.isEmpty() && st->d_children.first()->d_tok.d_type == SynTree::R_NamedType );
+        bt = parseTypeRef(ds,namedTypeToQualident(st->d_children.first()));
     }
 
     Type* res = new Type();
@@ -1094,8 +1101,8 @@ CodeModel::Type*CodeModel::parseFormalParams(CodeModel::Unit* ds, SynTree* fp, Q
     if( fp != 0 )
     {
         Q_ASSERT( fp->d_tok.d_type == SynTree::R_FormalParameters && !fp->d_children.isEmpty() );
-        if( fp->d_children.last()->d_tok.d_type == SynTree::R_qualident )
-            res = parseTypeRef(ds,fp->d_children.last());
+        if( fp->d_children.last()->d_tok.d_type == SynTree::R_NamedType )
+            res = parseTypeRef(ds,namedTypeToQualident(fp->d_children.last()));
 
         foreach( SynTree* sec, fp->d_children )
         {
@@ -1103,8 +1110,8 @@ CodeModel::Type*CodeModel::parseFormalParams(CodeModel::Unit* ds, SynTree* fp, Q
             {
                 Q_ASSERT( !sec->d_children.isEmpty() && sec->d_children.last()->d_tok.d_type == SynTree::R_FormalType &&
                           !sec->d_children.last()->d_children.isEmpty() &&
-                          sec->d_children.last()->d_children.last()->d_tok.d_type == SynTree::R_qualident );
-                Type* tp = parseTypeRef(ds,sec->d_children.last()->d_children.last());
+                          sec->d_children.last()->d_children.last()->d_tok.d_type == SynTree::R_NamedType );
+                Type* tp = parseTypeRef(ds,namedTypeToQualident(sec->d_children.last()->d_children.last()));
 
                 const bool var = sec->d_children.first()->d_tok.d_type == Tok_VAR;
 
@@ -1911,7 +1918,7 @@ QVariant CodeModel::evalTerm(const CodeModel::Unit* u, SynTree* expr) const
                 const Set b = rhs.value<Set>();
                 Set res;
                 for( int j = 0; j < a.size(); j++ )
-                    res.set( a.test(j) || b.test(j) && !( a.test(j) && b.test(j) ) );
+                    res.set( a.test(j) || ( b.test(j) && !( a.test(j) && b.test(j) ) ) );
                 return QVariant::fromValue( res );
             }else
                 error(Errors::Semantics, expr->d_children[i], "operator not compatible with value types");

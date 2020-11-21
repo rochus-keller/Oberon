@@ -27,6 +27,7 @@
 #include "ObAstEval.h"
 #include "ObLuaGen2.h"
 #include "ObLjbcGen.h"
+#include "ObLexer.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
@@ -177,7 +178,18 @@ static bool preloadLib( Ast::Model& mdl, const QByteArray& name )
 
 void LjEditor::loadFile(const QString& path)
 {
-    d_edit->loadFromFile(path);
+    QFile in(path);
+    if( !in.open(QIODevice::ReadOnly) )
+        return;
+    if( Ob::Lexer::skipOberonHeader(&in) )
+    {
+        QBuffer buf;
+        buf.buffer() = in.readAll();
+        buf.buffer().replace( '\r', '\n' );
+        buf.open(QIODevice::ReadOnly);
+        d_edit->loadFromFile(&buf,path);
+    }else
+        d_edit->loadFromFile(&in,path);
     QDir::setCurrent(QFileInfo(path).absolutePath());
     onCaption();
 

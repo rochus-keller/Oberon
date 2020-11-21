@@ -27,7 +27,8 @@ const char* Thing::s_tagName[] =
     "Thing", "Module", "Import", "Pointer", "Record", "BaseType", "Array", "ProcType", "NamedType",
     "CallExpr", "Literal", "SetExpr", "IdentLeaf", "UnExpr", "IdentSel", "BinExpr", "Field",
     "Const", "BuiltIn", "Parameter", "Return", "Procedure", "Variable", "LocalVar", "TypeRef",
-    "QualiType", "Call", "Assign", "IfLoop", "ForLoop", "CaseStmt", "Scope"
+    "QualiType", "Call", "Assign", "IfLoop", "ForLoop", "CaseStmt", "Scope",
+    "Enumeration", "Generic", "Exit"
 };
 
 const char* BaseType::s_typeName[] =
@@ -101,6 +102,11 @@ static void markUsed( Type* t )
 
 Named*Scope::find(const QByteArray& name, bool recursive) const
 {
+    for( int j = 0; j < d_tempNamed.size(); j++ )
+    {
+        if( d_tempNamed[j]->d_name.constData() == name.constData() )
+            return d_tempNamed[j];
+    }
     Names::const_iterator i = d_names.find( name.constData() );
     if( i != d_names.end() )
         return i.value().data();
@@ -108,6 +114,18 @@ Named*Scope::find(const QByteArray& name, bool recursive) const
         return d_scope->find(name);
     else
         return 0;
+}
+
+bool Scope::add(Named* n)
+{
+    Q_ASSERT( n != 0 );
+    if( find(n->d_name,false) )
+        return false;
+    // else
+    d_names[n->d_name.constData()] = n;
+    d_order.append(n);
+    n->d_scope = this;
+    return true;
 }
 
 BuiltIn::BuiltIn(quint8 f, ProcType* pt):d_func(f)
@@ -121,24 +139,12 @@ BuiltIn::BuiltIn(quint8 f, ProcType* pt):d_func(f)
     d_type->d_ident = this;
 }
 
-ProcType::ProcType(const Type::List& f, Type* r):d_return(r)
+ProcType::ProcType(const Type::List& f, QualiType* r):d_return(r)
 {
     for( int i = 0; i < f.size(); i++ )
     {
         Ref<Parameter> p = new Parameter();
         p->d_type = f[i];
-        d_formals.append(p);
-    }
-}
-
-ProcType::ProcType(const Type::List& f, const Vars& var, Type* r)
-{
-    Q_ASSERT( f.size() == var.size() );
-    for( int i = 0; i < f.size(); i++ )
-    {
-        Ref<Parameter> p = new Parameter();
-        p->d_type = f[i];
-        p->d_var = var[i];
         d_formals.append(p);
     }
 }
@@ -160,16 +166,16 @@ bool ProcType::isBuiltIn() const
     return d_ident && d_ident->getTag() == Thing::T_BuiltIn;
 }
 
-ProcType*CallExpr::getProcType() const
+ProcType*ArgExpr::getProcType() const
 {
     Q_ASSERT( !d_sub.isNull() && !d_sub->d_type.isNull() && d_sub->d_type->derefed()->getTag() == Thing::T_ProcType );
     return cast<ProcType*>( d_sub->d_type->derefed() );
 }
 
-CallExpr*Call::getCallExpr() const
+ArgExpr*Call::getCallExpr() const
 {
-    Q_ASSERT( !d_what.isNull() && d_what->getTag() == Thing::T_CallExpr );
-    return cast<CallExpr*>( d_what.data() );
+    Q_ASSERT( !d_what.isNull() && d_what->getTag() == Thing::T_ArgExpr );
+    return cast<ArgExpr*>( d_what.data() );
 }
 
 Module* Named::getModule()
@@ -239,3 +245,14 @@ Thing::~Thing()
 }
 
 #endif
+
+
+Field*Record::find(const QByteArray& name) const
+{
+    for( int i = 0; i < d_fields.size(); i++ )
+    {
+        if( d_fields[i]->d_name.constData() == name.constData() )
+            return d_fields[i].data();
+    }
+    return 0;
+}

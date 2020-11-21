@@ -60,40 +60,43 @@ private:
 		_T_ELSE=40,
 		_T_ELSIF=41,
 		_T_END=42,
-		_T_FALSE=43,
-		_T_FOR=44,
-		_T_IF=45,
-		_T_IMPORT=46,
-		_T_IN=47,
-		_T_IS=48,
-		_T_MOD=49,
-		_T_MODULE=50,
-		_T_NIL=51,
-		_T_OF=52,
-		_T_OR=53,
-		_T_POINTER=54,
-		_T_PROC=55,
-		_T_PROCEDURE=56,
-		_T_RECORD=57,
-		_T_REPEAT=58,
-		_T_RETURN=59,
-		_T_THEN=60,
-		_T_TO=61,
-		_T_TRUE=62,
-		_T_TYPE=63,
-		_T_UNTIL=64,
-		_T_VAR=65,
-		_T_WHILE=66,
-		_T_Specials_=67,
-		_T_ident=68,
-		_T_integer=69,
-		_T_real=70,
-		_T_string=71,
-		_T_hexchar=72,
-		_T_hexstring=73,
-		_T_Comment=74,
-		_T_Eof=75,
-		_T_MaxToken_=76
+		_T_EXIT=43,
+		_T_FALSE=44,
+		_T_FOR=45,
+		_T_IF=46,
+		_T_IMPORT=47,
+		_T_IN=48,
+		_T_IS=49,
+		_T_LOOP=50,
+		_T_MOD=51,
+		_T_MODULE=52,
+		_T_NIL=53,
+		_T_OF=54,
+		_T_OR=55,
+		_T_POINTER=56,
+		_T_PROC=57,
+		_T_PROCEDURE=58,
+		_T_RECORD=59,
+		_T_REPEAT=60,
+		_T_RETURN=61,
+		_T_THEN=62,
+		_T_TO=63,
+		_T_TRUE=64,
+		_T_TYPE=65,
+		_T_UNTIL=66,
+		_T_VAR=67,
+		_T_WHILE=68,
+		_T_WITH=69,
+		_T_Specials_=70,
+		_T_ident=71,
+		_T_integer=72,
+		_T_real=73,
+		_T_string=74,
+		_T_hexchar=75,
+		_T_hexstring=76,
+		_T_Comment=77,
+		_T_Eof=78,
+		_T_MaxToken_=79
 	};
 	int maxT;
 
@@ -155,16 +158,12 @@ Ob::SynTree d_root;
 	void ConstExpression();
 	void expression();
 	void TypeDeclaration();
-	void TypeParams_();
 	void type();
-	void TypeActuals_();
-	void enumeration();
+	void NamedType();
 	void ArrayType();
 	void RecordType();
 	void PointerType();
 	void ProcedureType();
-	void TypeActual();
-	void literal();
 	void LengthList();
 	void length();
 	void BaseType();
@@ -182,6 +181,7 @@ Ob::SynTree d_root;
 	void AddOperator();
 	void factor();
 	void MulOperator();
+	void literal();
 	void set();
 	void variableOrFunctionCall();
 	void element();
@@ -203,7 +203,6 @@ Ob::SynTree d_root;
 	void ProcedureDeclaration();
 	void ProcedureHeading();
 	void ProcedureBody();
-	void Receiver();
 	void DeclarationSequence();
 	void ReturnStatement();
 	void DeclarationSequence2();

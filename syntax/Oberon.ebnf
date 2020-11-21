@@ -1,6 +1,6 @@
 // Source: The Programming Language Oberon, Revision 1.10.2013 / 3.5.2016, Niklaus Wirth
 // Download: https://www.inf.ethz.ch/personal/wirth/Oberon/Oberon07.Report.pdf
-// Adapted and modified 2019 by Rochus Keller <mailto:me@rochus-keller.ch>
+// Adapted and modified 2019, 2020 by Rochus Keller <mailto:me@rochus-keller.ch>
 
 // Modification Steps:
 // - manually copied all productions from PDF to EbnfStudio and adapted syntax
@@ -11,32 +11,28 @@
 // - modified selector and removed ActualParams so parser needs no type info 
 // - added variableOrFunctionCall to remind that factor can include ActualParams
 // - allow FieldListSequence to have trailing ';' as seen in the ProjectOberon source 
-// - added ReturnStatement to support older Oberon versions if need be; optional semi after RETURN
-// - added LengthList for easier array parsing
+// - added explicit ReturnStatement with optional closing semi
+// - added explicit LengthList 
 // - added hexchar and hexstring
-// - added Elsif/ElseStatement for easier traversal
+// - added explicit Elsif/ElseStatement 
 // - integrated DEFINITION syntax
-// - made LengthList optional in ArrayType
-// - added generic types, like Roe & Szypersky with modifications
+// - made LengthList optional in ArrayType (like Oberon-2)
+// - added generic types, like Roe & Szypersky, with modifications
 // - added type-bound procedures from Oberon-2
 // - added paths to import; most right element of the path is the module name
-// - added enumerations, adopted from Modula-2
-// - BEGIN or DO, PROCEDURE or PROC, POINTER TO or '^', ARRAY OF or '[]', all ';' optional
+// - added enumerations, adopted from Pascal scalar type
+// - added shortcuts: BEGIN or DO, PROCEDURE or PROC, POINTER TO or '^', ARRAY n OF or '[n]'
+// - made all semicolons ';' optional
+// - added const VAR params using the IN keyword
+// - allow more than one TYPE, CONST, VAR in declaration sequence in arbitrary order interleaved with procedures
+// - added '-' to identdef as in Oberon-2 (only effective on RECORD level, MODULE level als '*' is read-only)
+// - added WITH, LOOP, EXIT statements from Oberon-2 for backward compatibility
+
+//#define OBNX
+//#define OBN2
 
 /// Top
-
-#define OBNX
-
-#ifdef OBNX
-#define OBN2
-#endif
-
-Oberon ::= 
-#ifdef OBNX
-	{ module | definition }
-#else
-	module | definition
-#endif
+Oberon ::=  module | definition // also in OBX we require one module or definition per file
 
 /// 3. Vocabulary
 
@@ -67,7 +63,11 @@ comment- ::= '(*' '*)' '//'
 
 qualident ::= [ \LL:2\ ident '.' ] ident  // works even though EbnfStudio disagrees
 
-identdef ::= ident ['*']
+identdef ::= ident [ '*'
+#ifdef OBN2
+	| '-'
+#endif
+	] 
 
 /// 5. Constant declarations
 
@@ -83,19 +83,23 @@ TypeDeclaration ::= identdef
 #endif 
 	'=' type
 
-type ::= qualident 
+type ::= NamedType 
 #ifdef OBNX
-		[ TypeActuals_ ] 
 	| enumeration
 #endif 
 	| ArrayType | RecordType | PointerType | ProcedureType
+
+NamedType ::= qualident 
+#ifdef OBNX
+		[ TypeActuals_ ] 
+#endif 
 
 #ifdef OBNX
 TypeParams_ ::= '<' ident { ',' ident } '>'
 
 TypeActuals_ ::= '<' TypeActual { ',' TypeActual } '>' 
 
-TypeActual ::= type | literal
+TypeActual ::= NamedType | literal
 
 enumeration ::= '('  ident { ',' ident } ')' 
 #endif
@@ -123,7 +127,7 @@ length* ::= ConstExpression
 
 RecordType ::= RECORD ['(' BaseType ')'] [FieldListSequence]  END 
 
-BaseType ::= qualident
+BaseType ::= NamedType
 
 FieldListSequence ::= FieldList 
 #ifdef OBNX
@@ -202,6 +206,12 @@ ActualParameters- ::= '(' [ ExpList ] ')'
 statement ::=
 	assignmentOrProcedureCall
 	| IfStatement | CaseStatement |
+#ifdef OBN2
+	WithStatement |
+	LoopStatement |
+	ExitStatement |
+	ReturnStatement |
+#endif
 	WhileStatement | RepeatStatement | ForStatement
 	
 /// 9.1. Assignments
@@ -239,7 +249,11 @@ ElseStatement ::= ELSE StatementSequence
 
 /// 9.5. Case statements
 
-CaseStatement ::= CASE expression OF Case { '|' Case } END
+CaseStatement ::= CASE expression OF Case { '|' Case }
+#ifdef OBN2
+	[ ELSE StatementSequence ]
+#endif
+	END
 
 Case ::= [ CaseLabelList ':' StatementSequence ]
 
@@ -247,7 +261,14 @@ CaseLabelList ::= LabelRange { ',' LabelRange }
 
 LabelRange ::= label [ '..' label ]
 
-label ::= integer | string | hexchar | hexstring | qualident
+label ::= 
+#ifdef OBN2
+	ConstExpression
+#else
+	integer 
+	| string | hexchar | hexstring 
+	| qualident
+#endif
 
 /// 9.6. While statements
 
@@ -264,12 +285,29 @@ RepeatStatement ::= REPEAT StatementSequence UNTIL expression
 ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
 	DO StatementSequence END
 
+#ifdef OBN2
+WithStatement ::= WITH Guard DO StatementSequence
+	{ '|' Guard DO StatementSequence}
+	[ ELSE StatementSequence ] END
+Guard ::= qualident ':' qualident
+
+LoopStatement ::= LOOP StatementSequence END
+
+ExitStatement ::= EXIT
+#endif
+
 /// 10. Procedure declarations
-ProcedureDeclaration ::= ProcedureHeading [ ';' ] ProcedureBody ident
+ProcedureDeclaration ::= ProcedureHeading [ ';' ] ProcedureBody ident 
+	// OBN87/90 allows forward declaration (no ProcedureBody); here not represented
 
 ProcedureHeading ::= ( PROCEDURE | PROC )
 #ifdef OBN2
+	[ '*' |  '^' ]  // the star is from Oberon 87 (ignored); the hat is also in Oberon 90 and 2 (ignored)
+#endif
+#ifdef OBNX
 	[ TypeParams_ ]
+#endif
+#ifdef OBN2
 	[Receiver]
 #endif
 	 identdef [ FormalParameters ]
@@ -283,38 +321,69 @@ Receiver ::= '(' [VAR] ident ':' ident
 #endif
 
 ProcedureBody ::= DeclarationSequence 
-	[ ( BEGIN | DO ) StatementSequence ]
-	[ ReturnStatement ] END
+	[ ( BEGIN | DO ) StatementSequence
+#ifdef OBN2
+	| ReturnStatement [ ';' ]
+#endif
+	 ]
+#ifndef OBN2
+	[ ReturnStatement [ ';' ] ] 
+#endif
+	END
 	
 DeclarationSequence ::= 
-	[ CONST { ConstDeclaration [';'] } ]
-	[ TYPE { TypeDeclaration [';'] } ]
-	[ VAR { VariableDeclaration [';'] } ]
-	{ ProcedureDeclaration [';'] }
-	
-ReturnStatement ::= RETURN expression [ ';' ]
+#ifdef OBNX
+	{ CONST { ConstDeclaration [';'] } 
+	| TYPE { TypeDeclaration [';'] } 
+	| VAR { VariableDeclaration [';'] } 
+	| ProcedureDeclaration [';'] }
+#else
+	[ CONST { ConstDeclaration ';' } ]
+	[ TYPE { TypeDeclaration ';' } ]
+	[ VAR { VariableDeclaration ';' } ]
+	{ ProcedureDeclaration ';' }
+#endif
+
+ReturnStatement ::= RETURN 
+#ifdef OBN2
+	[ expression ] // leads to LLk ambig with qualident statement; resolve by checking if proc has return type
+#else
+	expression 
+#endif
 
 DeclarationSequence2 ::= 
-	[ CONST { ConstDeclaration [';'] } ]
-	[ TYPE { TypeDeclaration [';'] } ]
-	[ VAR { VariableDeclaration [';'] } ]
-	{ ProcedureHeading [';'] } // difference to DeclarationSequence
+#ifdef OBNX
+	{ CONST { ConstDeclaration [';'] }
+	| TYPE { TypeDeclaration [';'] }
+	| VAR { VariableDeclaration [';'] }
+	| ProcedureHeading [';'] } // difference to DeclarationSequence
+#else
+	[ CONST { ConstDeclaration ';' } ]
+	[ TYPE { TypeDeclaration ';' } ]
+	[ VAR { VariableDeclaration ';' } ]
+	{ ProcedureHeading ';' }
+#endif
 
 /// 10.1. Formal parameters
 
-FormalParameters ::= '(' [ FPSection { [';'] FPSection } ] ')' [ ':' qualident ]
+FormalParameters ::= '(' [ FPSection { [';'] FPSection } ] ')' [ ':' NamedType ]
 
 FPSection ::= [ VAR 
 #ifdef OBNX
 	| IN 
 #endif
-	] ident { ',' ident } ':' FormalType // type in OB-2, not done here
+	] ident { ',' ident } ':' FormalType 
 
-FormalType ::= { ARRAY OF
+FormalType ::= 
+#ifdef OBN2
+	type
+#else
+	{ ARRAY OF
 #ifdef OBNX
 	| '[' ']'
 #endif
-	 } qualident
+	 }  NamedType
+#endif
 
 /// 10.2. Predefined procedures
 
@@ -329,7 +398,10 @@ module ::= MODULE ident [';'] [ ImportList ] DeclarationSequence
 
 ImportList ::= IMPORT import { ',' import } [';']
 
-import ::= [ \LL:2\ ident ':=' ] ident { '/' ident } // NOTE: paths are not case sensitive 
+import ::= [ \LL:2\ ident ':=' ] ident 
+#ifdef OBNX
+	{ '/' ident } // NOTE: paths are not case sensitive 
+#endif
 
 /// 11.1 The Module SYSTEM
 
@@ -339,6 +411,12 @@ definition ::= DEFINITION ident [';']  [ ImportList ] DeclarationSequence2 END i
 
 /// Helper Tokens
 Comment ::=
+#ifndef OBNX
+obnx- ::= PROC
+#endif
+#ifndef OBN2
+obn2- ::= WITH LOOP EXIT
+#endif
 
 /// Pragmas
 %module ::= 'Oberon'

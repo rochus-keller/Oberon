@@ -52,6 +52,7 @@ namespace Ob
         QList<Token> tokens( const QByteArray& code, const QString& path = QString() );
         static QByteArray getSymbol( const QByteArray& );
         static void parseComment( const QByteArray& str, int& pos, int& level );
+        static bool skipOberonHeader( QIODevice* );
     protected:
         Token nextTokenImp();
         int skipWhiteSpace();

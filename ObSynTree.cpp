@@ -36,6 +36,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_LabelRange: return "LabelRange";
 		case R_LengthList: return "LengthList";
 		case R_MulOperator: return "MulOperator";
+		case R_NamedType: return "NamedType";
 		case R_Oberon: return "Oberon";
 		case R_PointerType: return "PointerType";
 		case R_ProcedureBody: return "ProcedureBody";
@@ -43,16 +44,12 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_ProcedureDeclaration: return "ProcedureDeclaration";
 		case R_ProcedureHeading: return "ProcedureHeading";
 		case R_ProcedureType: return "ProcedureType";
-		case R_Receiver: return "Receiver";
 		case R_RecordType: return "RecordType";
 		case R_RepeatStatement: return "RepeatStatement";
 		case R_ReturnStatement: return "ReturnStatement";
 		case R_SimpleExpression: return "SimpleExpression";
 		case R_StatementSequence: return "StatementSequence";
-		case R_TypeActual: return "TypeActual";
-		case R_TypeActuals_: return "TypeActuals_";
 		case R_TypeDeclaration: return "TypeDeclaration";
-		case R_TypeParams_: return "TypeParams_";
 		case R_VariableDeclaration: return "VariableDeclaration";
 		case R_WhileStatement: return "WhileStatement";
 		case R_assignment_: return "assignment";
@@ -61,7 +58,6 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_definition: return "definition";
 		case R_designator: return "designator";
 		case R_element: return "element";
-		case R_enumeration: return "enumeration";
 		case R_expression: return "expression";
 		case R_factor: return "factor";
 		case R_identdef: return "identdef";
@@ -70,6 +66,8 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_literal: return "literal";
 		case R_module: return "module";
 		case R_number: return "number";
+		case R_obn2_: return "obn2";
+		case R_obnx_: return "obnx";
 		case R_qualident: return "qualident";
 		case R_relation: return "relation";
 		case R_selector: return "selector";

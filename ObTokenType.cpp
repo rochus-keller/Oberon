@@ -45,12 +45,14 @@ namespace Ob {
 			case Tok_ELSE: return "ELSE";
 			case Tok_ELSIF: return "ELSIF";
 			case Tok_END: return "END";
+			case Tok_EXIT: return "EXIT";
 			case Tok_FALSE: return "FALSE";
 			case Tok_FOR: return "FOR";
 			case Tok_IF: return "IF";
 			case Tok_IMPORT: return "IMPORT";
 			case Tok_IN: return "IN";
 			case Tok_IS: return "IS";
+			case Tok_LOOP: return "LOOP";
 			case Tok_MOD: return "MOD";
 			case Tok_MODULE: return "MODULE";
 			case Tok_NIL: return "NIL";
@@ -69,6 +71,7 @@ namespace Ob {
 			case Tok_UNTIL: return "UNTIL";
 			case Tok_VAR: return "VAR";
 			case Tok_WHILE: return "WHILE";
+			case Tok_WITH: return "WITH";
 			case Tok_ident: return "ident";
 			case Tok_integer: return "integer";
 			case Tok_real: return "real";
@@ -123,12 +126,14 @@ namespace Ob {
 			case Tok_ELSE: return "Tok_ELSE";
 			case Tok_ELSIF: return "Tok_ELSIF";
 			case Tok_END: return "Tok_END";
+			case Tok_EXIT: return "Tok_EXIT";
 			case Tok_FALSE: return "Tok_FALSE";
 			case Tok_FOR: return "Tok_FOR";
 			case Tok_IF: return "Tok_IF";
 			case Tok_IMPORT: return "Tok_IMPORT";
 			case Tok_IN: return "Tok_IN";
 			case Tok_IS: return "Tok_IS";
+			case Tok_LOOP: return "Tok_LOOP";
 			case Tok_MOD: return "Tok_MOD";
 			case Tok_MODULE: return "Tok_MODULE";
 			case Tok_NIL: return "Tok_NIL";
@@ -147,6 +152,7 @@ namespace Ob {
 			case Tok_UNTIL: return "Tok_UNTIL";
 			case Tok_VAR: return "Tok_VAR";
 			case Tok_WHILE: return "Tok_WHILE";
+			case Tok_WITH: return "Tok_WITH";
 			case Tok_ident: return "Tok_ident";
 			case Tok_integer: return "Tok_integer";
 			case Tok_real: return "Tok_real";
@@ -346,6 +352,13 @@ namespace Ob {
 					res = Tok_END; i += 3;
 				}
 				break;
+			case 'X':
+				if( at(str,i+2) == 'I' ){
+					if( at(str,i+3) == 'T' ){
+						res = Tok_EXIT; i += 4;
+					}
+				}
+				break;
 			}
 			break;
 		case 'F':
@@ -388,6 +401,15 @@ namespace Ob {
 			case 'S':
 				res = Tok_IS; i += 2;
 				break;
+			}
+			break;
+		case 'L':
+			if( at(str,i+1) == 'O' ){
+				if( at(str,i+2) == 'O' ){
+					if( at(str,i+3) == 'P' ){
+						res = Tok_LOOP; i += 4;
+					}
+				}
 			}
 			break;
 		case 'M':
@@ -538,7 +560,8 @@ namespace Ob {
 			}
 			break;
 		case 'W':
-			if( at(str,i+1) == 'H' ){
+			switch( at(str,i+1) ){
+			case 'H':
 				if( at(str,i+2) == 'I' ){
 					if( at(str,i+3) == 'L' ){
 						if( at(str,i+4) == 'E' ){
@@ -546,6 +569,14 @@ namespace Ob {
 						}
 					}
 				}
+				break;
+			case 'I':
+				if( at(str,i+2) == 'T' ){
+					if( at(str,i+3) == 'H' ){
+						res = Tok_WITH; i += 4;
+					}
+				}
+				break;
 			}
 			break;
 		case '[':

@@ -876,32 +876,8 @@ Ast::Ref<Ast::Type> Ast::Model::type(Scope* s, Named* id, SynTree* st, Pointer* 
     SynTree* sub = st->d_children.first();
     switch( sub->d_tok.d_type )
     {
-    case SynTree::R_qualident:
-        {
-            Ref<Type> t;
-            const bool isPointerToType = binding != 0;
-            if( isPointerToType ) // only Pointer may reference subsequent declarations
-            {
-                if( sub->d_children.size() == 2 )
-                {
-                    // Resolve qualidents to imported modules immediately
-                    t = getTypeFromQuali(s,sub).data();
-                }else
-                {
-                    // Only resolve qualidents after all type declarations, otherwhise a POINTER TO T where
-                    // T exists in outer scope and will be declared later is wrongly assigned!
-                    // See T2TypeDeclarations.obn
-                    d_fixType.append( FixType(binding, s, st) );
-                }
-            }else
-                t = getTypeFromQuali(s,sub).data();
-            if( !t.isNull() )
-            {
-                Q_ASSERT( t->d_ident == 0 );
-                t->d_ident = id;
-            }
-            return t;
-        }
+    case SynTree::R_NamedType:
+        return namedType(s,id,sub,binding);
     case SynTree::R_ArrayType:
         {
             Ref<Type> t = arrayType(s, sub );
@@ -942,11 +918,40 @@ Ast::Ref<Ast::Type> Ast::Model::type(Scope* s, Named* id, SynTree* st, Pointer* 
             Q_ASSERT( false );
         break;
     default:
-        qCritical() << "Model::type invalid type" << SynTree::rToStr(st->d_tok.d_type);
+        qCritical() << "Model::type invalid type" << SynTree::rToStr(sub->d_tok.d_type);
         Q_ASSERT(false);
         break;
     }
     return Ref<Ast::Type>();
+}
+
+Ast::Ref<Ast::Type> Ast::Model::namedType(Ast::Scope* s, Ast::Named* id, SynTree* st, Ast::Pointer* binding)
+{
+    Q_ASSERT( st->d_children.size() == 1 && st->d_children.first()->d_tok.d_type == SynTree::R_qualident );
+    SynTree* sub = st->d_children.first();
+    Ref<Type> t;
+    const bool isPointerToType = binding != 0;
+    if( isPointerToType ) // only Pointer may reference subsequent declarations
+    {
+        if( sub->d_children.size() == 2 )
+        {
+            // Resolve qualidents to imported modules immediately
+            t = getTypeFromQuali(s,sub).data();
+        }else
+        {
+            // Only resolve qualidents after all type declarations, otherwhise a POINTER TO T where
+            // T exists in outer scope and will be declared later is wrongly assigned!
+            // See T2TypeDeclarations.obn
+            d_fixType.append( FixType(binding, s, st) );
+        }
+    }else
+        t = getTypeFromQuali(s,sub).data();
+    if( !t.isNull() )
+    {
+        Q_ASSERT( t->d_ident == 0 );
+        t->d_ident = id;
+    }
+    return t;
 }
 
 static quint32 evalLen( Errors* errs, Ast::Expression* e, SynTree* st )
@@ -971,7 +976,9 @@ static quint32 evalLen( Errors* errs, Ast::Expression* e, SynTree* st )
 Ast::Ref<Ast::Type> Ast::Model::arrayType(Ast::Scope* ds, SynTree* t)
 {
     SynTree* ll = findFirstChild( t, SynTree::R_LengthList );
+#ifndef OB_OBN2
     Q_ASSERT( ll != 0 && !ll->d_children.isEmpty() && ll->d_children.first()->d_tok.d_type == SynTree::R_expression );
+#endif
     Q_ASSERT( !t->d_children.isEmpty() && t->d_children.last()->d_tok.d_type == SynTree::R_type );
 
     Ref<Type> tp = type(ds,0,t->d_children.last());
@@ -983,21 +990,24 @@ Ast::Ref<Ast::Type> Ast::Model::arrayType(Ast::Scope* ds, SynTree* t)
     Ref<Array> res = new Array();
     res->d_type = tp;
 
-    res->d_lenExpr = expression(ds, ll->d_children.first() );
-    res->d_len = evalLen( d_errs, res->d_lenExpr.data(), ll->d_children.first() );
-
-    Ref<Array> last = res;
-    for( int i = 1; i < ll->d_children.size(); i++ )
+    if( ll )
     {
-        Q_ASSERT( ll->d_children[i]->d_tok.d_type == SynTree::R_expression );
-        Ref<Array> cur = new Array();
-        last->d_type = cur.data();
-        cur->d_type = tp;
+        res->d_lenExpr = expression(ds, ll->d_children.first() );
+        res->d_len = evalLen( d_errs, res->d_lenExpr.data(), ll->d_children.first() );
 
-        cur->d_lenExpr = expression(ds, ll->d_children[i] );
-        cur->d_len = evalLen( d_errs, cur->d_lenExpr.data(), ll->d_children[i] );
+        Ref<Array> last = res;
+        for( int i = 1; i < ll->d_children.size(); i++ )
+        {
+            Q_ASSERT( ll->d_children[i]->d_tok.d_type == SynTree::R_expression );
+            Ref<Array> cur = new Array();
+            last->d_type = cur.data();
+            cur->d_type = tp;
 
-        last = cur;
+            cur->d_lenExpr = expression(ds, ll->d_children[i] );
+            cur->d_len = evalLen( d_errs, cur->d_lenExpr.data(), ll->d_children[i] );
+
+            last = cur;
+        }
     }
     return res.data();
 }
@@ -1023,8 +1033,9 @@ Ast::Ref<Ast::ProcType> Ast::Model::formalParameters(Ast::Scope* s, SynTree* st)
         case SynTree::R_FPSection:
             fpSection( s, p.data(), st->d_children[i] );
             break;
-        case SynTree::R_qualident:
-            p->d_return = getTypeFromQuali(s, st->d_children[i]).data();
+        case SynTree::R_NamedType:
+            Q_ASSERT( st->d_children[i]->d_children.size() == 1 );
+            p->d_return = getTypeFromQuali(s, st->d_children[i]->d_children.first()).data();
             break;
         case Tok_Lpar:
         case Tok_Rpar:
@@ -1044,7 +1055,9 @@ Ast::Ref<Ast::Type> Ast::Model::recordType(Ast::Scope* s, SynTree* st, Pointer* 
     SynTree* baseSt = findFirstChild(st,SynTree::R_BaseType, 1 );
     if( baseSt )
     {
-        Q_ASSERT( baseSt->d_children.size() == 1 );
+        Q_ASSERT( baseSt->d_children.size() == 1 ); // NamedType
+        baseSt = baseSt->d_children.first();
+        Q_ASSERT( baseSt->d_children.size() == 1 ); // quelident
         baseSt = baseSt->d_children.first();
         Ref<QualiType> base = getTypeFromQuali(s, baseSt);
         if( !base.isNull() )
@@ -1155,7 +1168,15 @@ bool Ast::Model::fpSection(Scope* s, Ast::ProcType* p, SynTree* st)
             arrayOfCount++;
     }
 
-    Ref<Type> t = getTypeFromQuali(s,formalType->d_children.last()).data();
+#ifdef OB_OBN2
+    Q_ASSERT( formalType->d_children.last()->d_tok.d_type == SynTree::R_type &&
+              formalType->d_children.last()->d_children.size() == 1 );
+    Ref<Type> t = type(s, 0, formalType->d_children.last()).data();
+#else
+    Q_ASSERT( formalType->d_children.last()->d_tok.d_type == SynTree::R_NamedType &&
+              formalType->d_children.last()->d_children.size() == 1 );
+    Ref<Type> t = getTypeFromQuali(s,formalType->d_children.last()->d_children.last()).data();
+#endif
     if( arrayOfCount )
     {
         QList< Ref<Array> > tmp;
@@ -2177,7 +2198,7 @@ Ast::Ref<Ast::Expression> Ast::Model::label(Ast::Scope* s, SynTree* st)
         return new Literal(d_stringType.data(),toRowCol(first),QByteArray::fromHex(
                                first->d_tok.d_val.mid(1, first->d_tok.d_val.size() - 2)));
     case Tok_hexchar:
-        return new Literal(d_stringType.data(),toRowCol(first), QByteArray::fromHex(
+        return new Literal(d_charType.data(),toRowCol(first), QByteArray::fromHex(
                                first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ));
     case SynTree::R_qualident:
         {
@@ -2400,7 +2421,7 @@ void Ast::Model::fixTypes()
 
     foreach( const FixType& ft, d_fixType )
     {
-        ft.d_ptr->d_to = type(ft.d_scope,0,ft.d_st);
+        ft.d_ptr->d_to = namedType(ft.d_scope,0,ft.d_st);
         // NOTE: sync with pointerType
         if( ft.d_ptr->d_to.isNull() || ft.d_ptr->d_to->derefed()->getTag() != Thing::T_Record )
             error(ft.d_st,tr("not pointing to a record"));

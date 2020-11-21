@@ -337,6 +337,7 @@ static int dorun( const QStringList& files, QString run, const QString& mod,
         printf(">>> finished\n");
     }
 #endif
+    return 0;
 }
 
 int main(int argc, char *argv[])

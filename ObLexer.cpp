@@ -50,6 +50,18 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         d_sourcePath = sourcePath;
         d_lastToken = Tok_Invalid;
         d_sensed = false;
+
+        if( skipOberonHeader( d_in ) )
+        {
+            QObject* parent = d_in;
+            if( d_in->parent() == this )
+                parent = this;
+            QBuffer* b = new QBuffer( parent );
+            b->buffer() = d_in->readAll();
+            b->buffer().replace( '\r', '\n' );
+            b->open(QIODevice::ReadOnly);
+            d_in = b;
+        }
     }
 }
 
@@ -167,7 +179,7 @@ Token Lexer::nextTokenImp()
     {
         const char ch = quint8(d_line[d_colNr]);
 
-        if( ch == '"' )
+        if( ch == '"' || ch == '\'' )
             return string();
         else if( ch == '$')
             return hexstring();
@@ -199,7 +211,7 @@ Token Lexer::nextTokenImp()
 int Lexer::skipWhiteSpace()
 {
     const int colNr = d_colNr;
-    while( d_colNr < d_line.size() && ::isspace( d_line[d_colNr] ) )
+    while( d_colNr < d_line.size() && ( ( ::isspace( d_line[d_colNr] ) || d_line[d_colNr] == char(28) ) ) )
         d_colNr++;
     return d_colNr - colNr;
 }
@@ -347,7 +359,8 @@ Token Lexer::number()
             else
                 off++;
         }
-        if( lookAhead(off) == 'E' )
+        const char de = lookAhead(off); // Oberon-2 allows E (REAL) or D (LONGREAL)
+        if( de == 'E' || de == 'D' || de == 'e' || de == 'd' )
         {
             off++;
             char o = lookAhead(off);
@@ -423,6 +436,30 @@ void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
     }
 }
 
+static inline bool versionMatch( const quint8* raw )
+{
+    return ( raw[0] == 0xf0 && raw[1] == 0x01 ) ||
+            ( raw[0] == 0x01 && raw[1] == 0xf0 ) ||
+
+            ( raw[0] == 0xf0 && raw[1] == 0x00 ) ||
+            ( raw[0] == 0x00 && raw[1] == 0xf0 ) ;
+}
+
+bool Lexer::skipOberonHeader(QIODevice* in)
+{
+    Q_ASSERT( in != 0 );
+    const QByteArray buf = in->peek(6);
+    const quint8* raw = (const quint8*)buf.constData();
+    if( buf.size() >= 2 && versionMatch(raw) )
+    {
+        // get rid of Oberon file header
+        const quint32 len = raw[2] + ( raw[3] << 8 ) + ( raw[4] << 16 ) + ( raw[5] << 24 );
+        in->read(len);
+        return true;
+    }else
+        return false;
+}
+
 Token Lexer::comment()
 {
     const int startLine = d_lineNr;
@@ -446,6 +483,7 @@ Token Lexer::comment()
     {
         d_colNr = d_line.size();
         Token t( Tok_Invalid, startLine, startCol + 1, str.size(), tr("non-terminated comment").toLatin1() );
+        t.d_sourcePath = d_sourcePath;
         if( d_err )
             d_err->error(Errors::Syntax, t.d_sourcePath, t.d_lineNr, t.d_colNr, t.d_val );
         return t;
@@ -467,12 +505,13 @@ Token Lexer::comment()
 
 Token Lexer::string()
 {
+    const char quote = lookAhead(0);
     int off = 1;
     while( true )
     {
         const char c = lookAhead(off);
         off++;
-        if( c == '"' )
+        if( c == quote )
             break;
         if( c == 0 )
             return token( Tok_Invalid, off, "non-terminated string" );
