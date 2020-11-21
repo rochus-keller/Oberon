@@ -388,7 +388,7 @@ namespace Obx
     {
         Ref<Parameter> d_receiver;
         MetaParams d_metaParams;
-        QByteArray d_imp;
+        Ref<Expression> d_imp; // the number or string after PROC+
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Procedure; }
     };

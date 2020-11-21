@@ -417,6 +417,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     if( d_la == Tok_ARRAY )
     {
         MATCH( Tok_ARRAY, tr("expecting the ARRAY keyword") );
+        ofrontTag();
         if( d_la != Tok_OF )
         {
             dims = lengthList();
@@ -457,6 +458,7 @@ Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
     Ref<Record> res = new Record();
     res->d_ident = id;
     MATCH( Tok_RECORD, tr("expecting the RECORD keyword") );
+    ofrontTag();
     if( d_la == Tok_Lpar )
     {
         next();
@@ -479,6 +481,7 @@ Ref<Type> Parser::pointerType(Scope* scope, Named* id)
     }else
     {
         MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
+        ofrontTag();
         MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
     }
     p->d_to = type(scope, 0, p.data() );
@@ -1396,10 +1399,9 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
         return 0; // just ignore this declaration
     if( !headingOnly )
     {
-        if( kind == ProcCImp && d_la == Tok_string )
+        if( kind == ProcCImp )
         {
-            MATCH( Tok_string, tr("expecting string after PROCEDURE- declaration") );
-            res->d_imp = d_cur.d_val;
+            res->d_imp = literal();
         }
         if( d_la == Tok_Semi )
         {
@@ -1433,7 +1435,7 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
     }
 
     int kind = ProcNormal;
-    if( d_la == Tok_Star || d_la == Tok_Hat || d_la == Tok_Minus )
+    if( d_la == Tok_Star || d_la == Tok_Hat || d_la == Tok_Minus || d_la == Tok_Plus )
     {
         next();
         // Oberon-2 feature
@@ -1448,6 +1450,9 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
             break;
         case Tok_Star:
             // Tok_Star is the way Oberon 87 marks procs the address of which can be taken; like ProcNormal
+            break;
+        case Tok_Plus:
+            // happens in ETH Oberon V3 and V4
             break;
        }
     }
@@ -1787,6 +1792,16 @@ void Parser::import()
     {
         imp->d_hasErrors = true;
         d_mod->d_hasErrors = true;
+    }
+}
+
+void Parser::ofrontTag()
+{
+    if( d_la == Tok_Lbrack )
+    {
+        MATCH( Tok_Lbrack, tr("expecting '['") );
+        MATCH( Tok_integer, tr("expecting '1'") );
+        MATCH( Tok_Rbrack, tr("expecting ']'") );
     }
 }
 

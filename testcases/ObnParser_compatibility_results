@@ -1,0 +1,33 @@
+2020-11-21/RK
+
+OK
+--
+hostess-tests, http://hostess.sourceforge.net/
+all ok
+
+ETH Oberon V3, https://web.archive.org/web/20080912211720if_/http://claudio.ch:80/V4/ProjectOberon-Older/
+all ok
+but OCS.Mod line 315 is a syntax error
+
+ETH Oberon V4, https://web.archive.org/web/20080912211720if_/http://claudio.ch:80/V4/ProjectOberon/
+all ok
+but Printmaps.Def line 1 is a syntax error
+
+oberonc tests, https://github.com/lboasso/oberonc/tree/master/tests
+all ok
+
+Project Oberon 2013, http://www.projectoberon.com/
+System incl. Network, Compiler, Graph
+all ok
+
+obnc passing, https://miasap.se/obnc/downloads/obnc_0.16.1.tar.gz
+all ok
+
+ofront, https://github.com/jtempl/ofront
+all ok
+
+
+NOK
+---
+Linz Oberon V4 1.3.04, ftp://ftp.ssw.uni-linz.ac.at/pub/Oberon/Linux/oberon.tgz
+incompatible file formats (folds)
