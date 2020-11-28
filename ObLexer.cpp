@@ -303,7 +303,8 @@ Token Lexer::ident()
 
 static inline bool isHexDigit( char c )
 {
-    return ::isdigit(c) || c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' || c == 'F';
+    return ::isdigit(c) || c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' || c == 'F'
+            || c == 'a' || c == 'b' || c == 'c' || c == 'd' || c == 'e' || c == 'f';
 }
 
 static inline bool checkHexNumber( QByteArray str )
@@ -311,7 +312,8 @@ static inline bool checkHexNumber( QByteArray str )
     const int pos = str.indexOf('\'');
     if( pos != -1 )
         str = str.left(pos);
-    if( str.size() < 2 || ( !str.endsWith('H') && !str.endsWith('X') ) )
+    if( str.size() < 2 || ( !str.endsWith('H') && !str.endsWith('h')
+                            && !str.endsWith('X') && !str.endsWith('x') ) )
         return false;
     else
         return true;
@@ -319,7 +321,6 @@ static inline bool checkHexNumber( QByteArray str )
 
 Token Lexer::number()
 {
-    // TODO
     // integer ::= // digit {digit} | digit {hexDigit} 'H'
     // real ::= // digit {digit} '.' {digit} [ScaleFactor]
     // ScaleFactor- ::= // 'E' ['+' | '-'] digit {digit}
@@ -336,11 +337,11 @@ Token Lexer::number()
     bool isChar = false;
     bool isReal = false;
     const char o1 = lookAhead(off);
-    if( o1 == 'H' )
+    if( o1 == 'H' || o1 == 'h' )
     {
         isHex = true;
         off++;
-    }else if( o1 == 'X' )
+    }else if( o1 == 'X' || o1 == 'x' )
     {
         isChar = true;
         off++;
