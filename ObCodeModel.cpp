@@ -75,6 +75,7 @@ void CodeModel::clear()
     d_scope.d_setType = d_scope.d_types.back();
     foreach( Type* t, d_scope.d_types )
         d_scope.addToScope(t);
+    d_scope.d_names.insert( Lexer::getSymbol("SHORTINT"), d_scope.d_intType );
     d_scope.d_names.insert( Lexer::getSymbol("LONGINT"), d_scope.d_intType );
     d_scope.d_names.insert( Lexer::getSymbol("LONGREAL"), d_scope.d_realType );
     d_scope.d_types.append( new Type( Type::STRING ) );
@@ -106,6 +107,18 @@ void CodeModel::clear()
     d_scope.d_procs.append( new Element( Element::WriteReal ) );
     d_scope.d_procs.append( new Element( Element::WriteChar ) );
     d_scope.d_procs.append( new Element( Element::WriteLn ) );
+#ifdef OB_OBN2
+    d_scope.d_procs.append( new Element( Element::MAX ) );
+    d_scope.d_procs.append( new Element( Element::CAP ) );
+    d_scope.d_procs.append( new Element( Element::LONG ) );
+    d_scope.d_procs.append( new Element( Element::SHORT ) );
+    d_scope.d_procs.append( new Element( Element::HALT ) );
+    d_scope.d_procs.append( new Element( Element::COPY ) );
+    d_scope.d_procs.append( new Element( Element::ASH ) );
+    d_scope.d_procs.append( new Element( Element::MIN ) );
+    d_scope.d_procs.append( new Element( Element::SIZE ) );
+    d_scope.d_procs.append( new Element( Element::ENTIER ) );
+#endif
     foreach( Element* t, d_scope.d_procs )
         d_scope.addToScope( t );
 
@@ -572,8 +585,28 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
 {
     SynTree* ph = findFirstChild( t, SynTree::R_ProcedureHeading );
     SynTree* pb = findFirstChild( t, SynTree::R_ProcedureBody );
+#ifdef OB_OBN2
+    if( ph == 0 )
+    {
+        Q_ASSERT( t->d_children.size() >= 3 );
+        switch( t->d_children[1]->d_tok.d_type )
+        {
+        case Tok_Hat:
+            return; // this is a forward declaration; ignore it
+        case Tok_Minus:
+            break;
+        default:
+            Q_ASSERT( false );
+        }
+    }
+#else
     Q_ASSERT( ph != 0 );
-    SynTree* idef = findFirstChild(ph,SynTree::R_identdef );
+#endif
+    SynTree* idef = 0;
+    if( ph )
+        idef = findFirstChild(ph,SynTree::R_identdef );
+    else
+        idef = findFirstChild(t,SynTree::R_identdef );
     Q_ASSERT( idef != 0 );
 
     QPair<SynTree*,bool> id = getIdentFromIdentDef(idef);
@@ -590,10 +623,17 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
     ds->addToScope( res );
     index(id.first,res);
 
-    SynTree* fp = findFirstChild(ph,SynTree::R_FormalParameters );
+    SynTree* fp = 0;
+    if( ph )
+        fp = findFirstChild(ph,SynTree::R_FormalParameters );
+    else
+        fp = findFirstChild(t,SynTree::R_FormalParameters );
     res->d_type = parseFormalParams(res,fp,res->d_vals);
     foreach( Element* p, res->d_vals )
         res->addToScope( p );
+
+    if( ph == 0 )
+        return;
 
     Module* m = dynamic_cast<Module*>( ds );
     if( m )
@@ -812,7 +852,14 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
     }else if( st->d_tok.d_type == SynTree::R_CaseStatement )
     {
         checkCaseStatement(ds,st);
-    }else if( st->d_tok.d_type == SynTree::R_designator )
+    }
+#ifdef OB_OBN2
+    else if( st->d_tok.d_type == SynTree::R_WithStatement )
+    {
+        checkWithStatement(ds,st);
+    }
+#endif
+    else if( st->d_tok.d_type == SynTree::R_designator )
     {
         for( int i = 1; i < st->d_children.size(); i++ )
         {
@@ -900,7 +947,7 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
     Q_ASSERT( st->d_tok.d_type == SynTree::R_CaseStatement && st->d_children.size() >= 4 );
 
     const CodeModel::Type* t = derefed(typeOfExpression(ds, st->d_children[1]));
-    if( t->d_kind == CodeModel::Type::Pointer || t->d_kind == CodeModel::Type::Record )
+    if( t && ( t->d_kind == CodeModel::Type::Pointer || t->d_kind == CodeModel::Type::Record ) )
     {
         QList< QPair< QPair<const Type*, SynTree*>,SynTree*> > cases;
         const NamedThing* var = 0;
@@ -949,6 +996,69 @@ void CodeModel::checkCaseStatement(CodeModel::Unit* ds, SynTree* st)
 NormalCaseStatement:
     foreach( SynTree* sub, st->d_children )
         checkNames(ds,sub);
+}
+
+void CodeModel::checkWithStatement(CodeModel::Unit* ds, SynTree* st)
+{
+#ifdef OB_OBN2
+    Q_ASSERT( st->d_tok.d_type == SynTree::R_WithStatement && st->d_children.size() >= 5 );
+
+    for( int i = 1; i < st->d_children.size(); i++ )
+    {
+        SynTree* guard = st->d_children[i];
+        if( guard->d_tok.d_type == SynTree::R_Guard )
+        {
+            Q_ASSERT( i + 2 < st->d_children.size() && st->d_children[i+1]->d_tok.d_type == Tok_DO );
+            checkGuard(ds, guard, st->d_children[i+2] );
+        }
+    }
+
+    SynTree* e = findFirstChild( st, Tok_ELSE, 4 );
+    if( e )
+        checkNames( ds, e );
+#endif
+}
+
+void CodeModel::checkGuard(CodeModel::Unit* ds, SynTree* guard, SynTree* stats)
+{
+#ifdef OB_OBN2
+    Q_ASSERT( guard->d_tok.d_type = SynTree::R_Guard && stats->d_tok.d_type == SynTree::R_StatementSequence
+            && guard->d_children.size() >= 2 );
+
+    SynTree* lhs = guard->d_children.first();
+    SynTree* rhs = guard->d_children.last();
+
+    Q_ASSERT( lhs->d_tok.d_type == SynTree::R_qualident && rhs->d_tok.d_type == SynTree::R_qualident );
+
+    Quali quali = derefQualident(ds,rhs,false,false);
+    const Type* rhsT = quali.second.first ? dynamic_cast<const Type*>( quali.second.first ) : 0;
+    quali = derefQualident(ds,rhs,false,false);
+    const Type* lhsT = quali.second.first ? dynamic_cast<const Type*>( quali.second.first ) : 0;
+
+    if( lhsT && ( lhsT->d_kind == CodeModel::Type::Pointer || lhsT->d_kind == CodeModel::Type::Record ) )
+    {
+        const NamedThing* var = 0;
+        SynTree* id = flatten(lhs);
+        if( id->d_tok.d_type == Tok_ident )
+            var = ds->findByName( id->d_tok.d_val ) ;
+        if( var == 0 )
+        {
+            error(Errors::Semantics,lhs,tr("only simple type case variables supported"));
+        }
+        // first.first type of CaseLabel rhsT
+        // first.second CaseLabelList
+        // second StatementSequence
+
+        Unit scope;
+        scope.d_outer = ds;
+        TypeAlias alias;
+        alias.d_name = id->d_tok.d_val;
+        alias.d_newType = rhsT;
+        alias.d_alias = const_cast<NamedThing*>(var);
+        scope.addToScope(&alias);
+        checkNames( &scope, stats );
+    }
+#endif
 }
 
 CodeModel::Type*CodeModel::parseType(CodeModel::Unit* ds, SynTree* t)
@@ -1046,6 +1156,9 @@ CodeModel::Type*CodeModel::parseRecordType(CodeModel::Unit* ds, SynTree* t)
 CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
 {
     SynTree* ll = findFirstChild( t, SynTree::R_LengthList );
+#ifdef OB_OBN2
+    if( ll )
+#endif
     Q_ASSERT( ll != 0 && !ll->d_children.isEmpty() && ll->d_children.first()->d_tok.d_type == SynTree::R_expression );
     Q_ASSERT( !t->d_children.isEmpty() && t->d_children.last()->d_tok.d_type == SynTree::R_type );
 
@@ -1054,27 +1167,33 @@ CodeModel::Type*CodeModel::parseArrayType(CodeModel::Unit* ds, SynTree* t)
     res->d_kind = Type::Array;
     res->d_def = t;
     res->d_type = tp;
-    res->d_st = ll->d_children.first();
-    bool ok;
-    res->d_len = evalExpression( ds, res->d_st ).toUInt(&ok);
-    if( !ok || res->d_len == 0 )
-        error(Errors::Semantics, res->d_st, tr("invalid array size") );
     ds->d_types.append(res);
-    Type* last = res;
-    for( int i = 1; i < ll->d_children.size(); i++ )
+#ifdef OB_OBN2
+    if( ll )
+#endif
     {
-        Q_ASSERT( ll->d_children[i]->d_tok.d_type == SynTree::R_expression );
-        Type* cur = new Type();
-        last->d_type = cur;
-        cur->d_kind = Type::Array;
-        cur->d_def = t;
-        cur->d_type = tp;
-        cur->d_st = ll->d_children[i];
-        cur->d_len = evalExpression( ds, cur->d_st ).toUInt(&ok);
-        if( !ok || cur->d_len == 0 )
-            error(Errors::Semantics, cur->d_st, tr("invalid array size") );
-        ds->d_types.append(cur);
-        last = cur;
+        res->d_st = ll->d_children.first();
+        bool ok;
+        res->d_len = evalExpression( ds, res->d_st ).toUInt(&ok);
+        if( !ok || res->d_len == 0 )
+            error(Errors::Semantics, res->d_st, tr("invalid array size") );
+        Type* last = res;
+        for( int i = 1; i < ll->d_children.size(); i++ )
+        {
+            Q_ASSERT( ll->d_children[i]->d_tok.d_type == SynTree::R_expression );
+            Type* cur = new Type();
+            last->d_type = cur;
+            cur->d_kind = Type::Array;
+            cur->d_def = t;
+            cur->d_type = tp;
+            cur->d_st = ll->d_children[i];
+            bool ok;
+            cur->d_len = evalExpression( ds, cur->d_st ).toUInt(&ok);
+            if( !ok || cur->d_len == 0 )
+                error(Errors::Semantics, cur->d_st, tr("invalid array size") );
+            ds->d_types.append(cur);
+            last = cur;
+        }
     }
     return res;
 }
@@ -1108,10 +1227,17 @@ CodeModel::Type*CodeModel::parseFormalParams(CodeModel::Unit* ds, SynTree* fp, Q
         {
             if( sec->d_tok.d_type == SynTree::R_FPSection )
             {
+#ifdef OB_OBN2
+                Q_ASSERT( !sec->d_children.isEmpty() && sec->d_children.last()->d_tok.d_type == SynTree::R_FormalType &&
+                          !sec->d_children.last()->d_children.isEmpty() &&
+                          sec->d_children.last()->d_children.last()->d_tok.d_type == SynTree::R_type );
+                Type* tp = parseType(ds,sec->d_children.last()->d_children.last());
+#else
                 Q_ASSERT( !sec->d_children.isEmpty() && sec->d_children.last()->d_tok.d_type == SynTree::R_FormalType &&
                           !sec->d_children.last()->d_children.isEmpty() &&
                           sec->d_children.last()->d_children.last()->d_tok.d_type == SynTree::R_NamedType );
                 Type* tp = parseTypeRef(ds,namedTypeToQualident(sec->d_children.last()->d_children.last()));
+#endif
 
                 const bool var = sec->d_children.first()->d_tok.d_type == Tok_VAR;
 
@@ -1264,7 +1390,17 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
             SynTree* flat = flatten(desig.back().d_arg, SynTree::R_qualident);
             Quali q = derefQualident( ds, flat, false );
             desig.back().d_sym = dynamic_cast<const Type*>( q.second.first );
-            if( desig.back().d_sym == 0 )
+            bool isPredefProc = false;
+            if( desig.size() == 2 && desig.first().d_op == IdentOp )
+            {
+                const NamedThing* n = ds->findByName( desig.first().d_arg->d_tok.d_val );
+                if( n )
+                {
+                    isPredefProc = n->isPredefProc();
+                    desig.first().d_sym = n;
+                }
+            }
+            if( desig.back().d_sym == 0 || isPredefProc )
                 desig.back().d_op = ProcedureOp;
             else
                 desig.back().d_arg = flat;
@@ -1302,6 +1438,9 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
             if( report )
                 error( Errors::Semantics, dP, tr("invalid operation '%1' on designator '%2'")
                            .arg(toString(desig.mid(i,1),true)).arg(toString(desig.mid(0,i))) );
+            const NamedThing* next = applyDesigOp( ds, desig[i-1].d_sym, desig[i], &err, synthesize,
+                    i == desig.size() - 1 ? expected : 0 );
+
             break;
         }else if( err == MissingType )
         {
@@ -1774,6 +1913,10 @@ const CodeModel::Type*CodeModel::typeOfExpression(Unit* ds, Element::Kind m, Syn
     switch( m )
     {
     case Element::ABS:
+    case Element::MAX:
+    case Element::MIN:
+    case Element::LONG:
+    case Element::SHORT:
         return typeOfExpression(ds,args);
     case Element::ODD:
         return d_scope.d_boolType;
@@ -1782,10 +1925,14 @@ const CodeModel::Type*CodeModel::typeOfExpression(Unit* ds, Element::Kind m, Syn
     case Element::ASR:
     case Element::ROR:
     case Element::FLOOR:
+    case Element::ENTIER:
+    case Element::SIZE:
+    case Element::ASH:
         return d_scope.d_intType;
     case Element::FLT:
         return d_scope.d_realType;
     case Element::CHR:
+    case Element::CAP:
         return d_scope.d_charType;
     default:
         return 0;
@@ -2347,8 +2494,11 @@ const char* CodeModel::Type::s_kindName[] =
     "?",
     "BOOLEAN",
     "CHAR",
+    "SHORTINT",
     "INTEGER",
+    "LONGINT",
     "REAL",
+    "LONGREAL",
     "BYTE",
     "SET",
     "STRING",
@@ -2424,6 +2574,7 @@ const char* CodeModel::Element::s_kindName[] =
     "ASSERT",
     "PACK",
     "UNPK",
+    "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
     "WriteInt",
     "WriteReal",
     "WriteChar",

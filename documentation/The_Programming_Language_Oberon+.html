@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2020-11-28</span>
+      <span id="revdate">2020-12-23</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -85,7 +85,7 @@
         </li>
         <li><a href="#_definition_of_terms">Appendix A: Definition of terms</a></li>
         <li><a href="#_syntax_of_oberon">Appendix B: Syntax of Oberon+</a></li>
-        <li><a href="#_references">12. References</a></li>
+        <li><a href="#_references">Appendix C: References</a></li>
       </ul>
     </div>
   </div>
@@ -163,6 +163,9 @@
     end Add
 end Lists</code></pre>
           </div>
+        </div>
+        <div class="paragraph">
+          <p>See <a href="#oberon-2-example">here</a> for more examples.</p>
         </div>
       </div>
     </div>
@@ -1082,8 +1085,8 @@ IdentList  = identdef {',' identdef }</pre>
             </div>
           </div>
           <div class="paragraph">
-            <p>Record types are extensible, i.e. a record type can be declared as an
-              extension of another record type. In the example</p>
+            <p>Record types are extensible, i.e. a record type or a pointer to a record
+              can be declared as an extension of another record type. In the example</p>
           </div>
           <div class="literalblock">
             <div class="content">
@@ -1138,9 +1141,9 @@ end</pre>
               <code>NEW(p)</code>; if T is an n-dimensional open array type the allocation
               has to be done with <code>NEW(p, e<sub>0</sub>, &#8230;&#8203;, e<sub>n-1</sub>)</code>              where T is allocated with lengths given by the expressions e<sub>0</sub>,
               &#8230;&#8203;, e<sub>n-1</sub>. In either case a pointer to the allocated
-              variable is assigned to p. p is of type P. The referenced variable
-              <code>p^</code> is of type T. Any pointer variable may assume the value
-              NIL, which points to no variable at all.</p>
+              variable is assigned to <code>p</code>. <code>p</code> is of type P.
+              The referenced variable <code>p^</code> is of type T. Any pointer variable
+              may assume the value NIL, which points to no variable at all.</p>
           </div>
         </div>
         <div class="sect2">
@@ -1567,7 +1570,7 @@ element          = expression ['..' expression]</pre>
               <p>Set operators apply to operands of type SET and yield a result of type
                 SET. The monadic minus sign denotes the complement of <code>x</code>,
                 i.e. <code>-x</code> denotes the set of integers between 0 and <code>MAX(SET)</code>                which are not elements of <code>x</code>. Set operators are not associative
-                <code>a+b)-c # a+(b-c</code>.</p>
+                (<code>(a+b)-c # a+(b-c)</code>).</p>
             </div>
             <div class="paragraph">
               <p>A set constructor defines the value of a set by listing its elements
@@ -1652,11 +1655,11 @@ element          = expression ['..' expression]</pre>
             </table>
             <div class="paragraph">
               <p>Relations yield a BOOLEAN result. The relations <code>=</code>, <code>#</code>,
-                <code>&lt;</code>, <code>&#8656;</code>, <code>&gt;</code>, and <code>&gt;=</code>                apply to the numeric types, CHAR, strings, and character arrays containing
-                <code>0x</code> as a terminator. The relations <code>=</code> and
-                <code>#</code> also apply to BOOLEAN and SET, as well as to pointer
-                and procedure types (including the value NIL). <code>x IN s</code>                stands for <em>x is an element of s</em>. <code>x</code> must be
-                of an integer type, and <code>s</code> of type SET. <code>v IS T</code>                stands for <em>the dynamic type of <code>v</code> is T (or an extension of T )</em>                and is called a type test. It is applicable if</p>
+                <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, and <code>&gt;=</code>                apply to the numeric types, as well as CHAR, strings, and character
+                arrays containing <code>0x</code> as a terminator. The relations
+                <code>=</code> and <code>#</code> also apply to BOOLEAN and SET,
+                as well as to pointer and procedure types (including the value NIL).
+                <code>x IN s</code> stands for <em>x is an element of s</em>. <code>x</code>                must be of an integer type, and <code>s</code> of type SET. <code>v IS T</code>                stands for <em>the dynamic type of <code>v</code> is T (or an extension of T )</em>                and is called a type test. It is applicable if</p>
             </div>
             <div class="olist arabic">
               <ol class="arabic">
@@ -1733,7 +1736,7 @@ t is CenterTree        // boolean</pre>
           <div class="literalblock">
             <div class="title">Syntax:</div>
             <div class="content">
-              <pre>assignment = designator ":=" expression</pre>
+              <pre>assignment = designator ':=' expression</pre>
             </div>
           </div>
           <div class="paragraph">
@@ -1753,7 +1756,7 @@ t is CenterTree        // boolean</pre>
                   type of <code>v</code> becomes the dynamic type of <code>e</code>;</p>
               </li>
               <li>
-                <p>if T<sub>v</sub> is <code>ARRAY n OF CHAR</code> and <code>e</code>                  is a string of length m &lt; n, <code>v[i]</code> becomes e<sub>i</sub>                  for i = 0..m-1 and <code>v[m]</code> becomes 0X.</p>
+                <p>if T<sub>v</sub> is <code>ARRAY n OF CHAR</code> and <code>e</code>                  is a string of length m &lt; n, <code>v[i]</code> becomes e<sub>i</sub>                  for i = 0..m-1 and <code>v[m]</code> becomes 0X;</p>
               </li>
             </ol>
           </div>
@@ -2173,8 +2176,20 @@ DeclarationSequence  = { CONST { ConstDeclaration [';'] }
             <p>The scope of a formal parameter extends from its declaration to the end
               of the procedure block in which it is declared. A function procedure
               without parameters must have an empty parameter list. It must be called
-              by a function designator whose actual parameter list is empty too.
-              The result type of a procedure can be neither a record nor an array.</p>
+              by a function designator whose actual parameter list is empty too.</p>
+          </div>
+          <div class="admonitionblock note">
+            <table>
+              <tr>
+                <td class="icon">
+                  <div class="title">Note</div>
+                </td>
+                <td class="content">
+                  In contrast to previous Oberon versions the result type of a procedure may also be
+                  a record or an array.
+                </td>
+              </tr>
+            </table>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -2265,7 +2280,7 @@ Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'</pre>
             <p>If <code>v</code> is a designator and <code>P</code> is a type-bound
               procedure, then <code>v.P</code> denotes that procedure <code>P</code>              which is bound to the dynamic type of <code>v</code>. Note, that this
               may be a different procedure than the one bound to the static type
-              of <code>v</code>. <code>v</code> is passed to <code>P</code> 's receiver
+              of <code>v</code>. <code>v</code> is passed to `P&#8217;s receiver
               according to the parameter passing rules specified in Chapter <a href="#_formal_parameters">Formal parameters</a>.</p>
           </div>
           <div class="paragraph">
@@ -2791,7 +2806,7 @@ end Insert</pre>
                     <p class="tableblock">COPY(x, v)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">x: character array, string;</p>
+                    <p class="tableblock">x: character array, string</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">v := x</p>
@@ -3197,7 +3212,7 @@ declarations = { CONST { ConstDeclaration [';'] }
                       or</p>
                   </li>
                   <li>
-                    <p>T<sub>b</sub> is a direct extension of an extension of T<sub>a</sub>.</p>
+                    <p>T<sub>b</sub> is a direct extension of T<sub>a</sub>.</p>
                   </li>
                 </ol>
               </div>
@@ -3221,6 +3236,18 @@ declarations = { CONST { ConstDeclaration [';'] }
                     <p>T<sub>e</sub> and T<sub>v</sub> are numeric types and T<sub>v</sub>                      <em>includes</em> T<sub>e</sub>;</p>
                   </li>
                   <li>
+                    <p>T<sub>v</sub> is a SET type and T<sub>e</sub> is of INTEGER or
+                      smaller type;</p>
+                  </li>
+                  <li>
+                    <p>T<sub>v</sub> is a CHAR type and T<sub>e</sub> is a string constant
+                      with one character;</p>
+                  </li>
+                  <li>
+                    <p>T<sub>v</sub> is a BYTE type and T<sub>e</sub> is a CHAR or a
+                      string constant with one character;</p>
+                  </li>
+                  <li>
                     <p>T<sub>e</sub> and T<sub>v</sub> are record types and T<sub>e</sub>                      is a <em>type extension</em> of T<sub>v</sub> and the dynamic
                       type of v is T<sub>v</sub>;</p>
                   </li>
@@ -3232,7 +3259,11 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                   <li>
                     <p>T<sub>v</sub> is ARRAY n OF CHAR, e is a string constant with
-                      m characters, and m &lt;n;</p>
+                      m characters, and m &lt; n;</p>
+                  </li>
+                  <li>
+                    <p>T<sub>v</sub> is ARRAY n OF T, T<sub>e</sub> is ARRAY m OF T
+                      and m &#8656; n, or T<sub>e</sub> is ARRAY OF T;</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> is a procedure type and e is the name of a procedure
@@ -3616,7 +3647,7 @@ DeclarationSequence2 =
       </div>
     </div>
     <div class="sect1">
-      <h2 id="_references">12. References</h2>
+      <h2 id="_references">Appendix C: References</h2>
       <div class="sectionbody">
         <div class="ulist">
           <ul>

@@ -127,12 +127,8 @@ public:
 	
 	int peek( quint8 la = 1 );
 
-    void RunParser()
-    {
-        d_stack.push(&d_root);
-        Parse();
-        d_stack.pop();
-    }
+    void RunParser();
+
     
 Ob::SynTree d_root;
 	QStack<Ob::SynTree*> d_stack;
@@ -189,6 +185,10 @@ Ob::SynTree d_root;
 	void assignmentOrProcedureCall();
 	void IfStatement();
 	void CaseStatement();
+	void WithStatement();
+	void LoopStatement();
+	void ExitStatement();
+	void ReturnStatement();
 	void WhileStatement();
 	void RepeatStatement();
 	void ForStatement();
@@ -200,11 +200,12 @@ Ob::SynTree d_root;
 	void LabelRange();
 	void label();
 	void ElsifStatement2();
+	void Guard();
 	void ProcedureDeclaration();
 	void ProcedureHeading();
 	void ProcedureBody();
+	void Receiver();
 	void DeclarationSequence();
-	void ReturnStatement();
 	void DeclarationSequence2();
 	void FPSection();
 	void FormalType();

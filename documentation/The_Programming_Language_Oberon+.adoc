@@ -7,7 +7,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2020-11-28
+:revdate: 2020-12-23
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -52,6 +52,8 @@ module Lists
     end Add
 end Lists
 ----
+
+See <<oberon-2-example, here>> for more examples.
 
 == Syntax
 An extended Backus-Naur Formalism (EBNF) is used to describe the syntax of Oberon+:
@@ -410,7 +412,7 @@ FieldList  = [ IdentList ':' type ]
 IdentList  = identdef {',' identdef }
 ....
 
-Record types are extensible, i.e. a record type can be declared as an extension of another record type. In the example
+Record types are extensible, i.e. a record type or a pointer to a record can be declared as an extension of another record type. In the example
 
 ....
 T0 = record x: integer end
@@ -440,7 +442,7 @@ Variables of a pointer type P assume as values pointers to variables of some typ
 PointerType = ( POINTER TO | '^' ) type
 ....
 
-If p is a variable of type `P = POINTER TO T`, a call of the predeclared procedure `NEW(p)` (see <<Predeclared procedures>>) allocates a variable of type T in free storage. If T is a record type or an array type with fixed length, the allocation has to be done with `NEW(p)`; if T is an n-dimensional open array type the allocation has to be done with `NEW(p, e~0~, ..., e~n-1~)` where T is allocated with lengths given by the expressions e~0~, ..., e~n-1~. In either case a pointer to the allocated variable is assigned to p. p is of type P. The referenced variable `p^` is of type T. Any pointer variable may assume the value NIL, which points to no variable at all. 
+If p is a variable of type `P = POINTER TO T`, a call of the predeclared procedure `NEW(p)` (see <<Predeclared procedures>>) allocates a variable of type T in free storage. If T is a record type or an array type with fixed length, the allocation has to be done with `NEW(p)`; if T is an n-dimensional open array type the allocation has to be done with `NEW(p, e~0~, ..., e~n-1~)` where T is allocated with lengths given by the expressions e~0~, ..., e~n-1~. In either case a pointer to the allocated variable is assigned to `p`. `p` is of type P. The referenced variable `p^` is of type T. Any pointer variable may assume the value NIL, which points to no variable at all. 
 
 === Procedure types
 Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). P must not be a predeclared or type-bound procedure nor may it be local to another procedure.
@@ -624,7 +626,7 @@ x    y    x DIV y    x MOD y
 |======================================
 
 
-Set operators apply to operands of type SET and yield a result of type SET. The monadic minus sign denotes the complement of `x`, i.e. `-x` denotes the set of integers between 0 and `MAX(SET)` which are not elements of `x`. Set operators are not associative `((a+b)-c # a+(b-c))`.
+Set operators apply to operands of type SET and yield a result of type SET. The monadic minus sign denotes the complement of `x`, i.e. `-x` denotes the set of integers between 0 and `MAX(SET)` which are not elements of `x`. Set operators are not associative (`(a+b)-c # a+(b-c)`).
 
 A set constructor defines the value of a set by listing its elements between curly brackets. The elements must be integers in the range `0..MAX(SET)`. A range `a..b` denotes all integers in the interval [a, b]. 
 
@@ -642,7 +644,7 @@ A set constructor defines the value of a set by listing its elements between cur
 | IS |   type test
 |======================================
 
-Relations yield a BOOLEAN result. The relations `=`, `\#`, `<`, `<=`, `>`, and `>=` apply to the numeric types, CHAR, strings, and character arrays containing `0x` as a terminator. The relations `=` and `#` also apply to BOOLEAN and SET, as well as to pointer and procedure types (including the value NIL). `x IN s` stands for _x is an element of s_. `x` must be of an integer type, and `s` of type SET. `v IS T` stands for _the dynamic type of `v` is T (or an extension of T )_ and is called a type test. It is applicable if
+Relations yield a BOOLEAN result. The relations `=`, `\#`, `<`, `\<=`, `>`, and `>=` apply to the numeric types, as well as CHAR, strings, and character arrays containing `0x` as a terminator. The relations `=` and `#` also apply to BOOLEAN and SET, as well as to pointer and procedure types (including the value NIL). `x IN s` stands for _x is an element of s_. `x` must be of an integer type, and `s` of type SET. `v IS T` stands for _the dynamic type of `v` is T (or an extension of T )_ and is called a type test. It is applicable if
 
 . `v` is a variable parameter of record type or `v` is a pointer, and if
 . T is an extension of the static type of `v`.
@@ -687,14 +689,15 @@ Assignments replace the current value of a variable by a new value specified by 
 
 .Syntax:
 ....
-assignment = designator ":=" expression
+assignment = designator ':=' expression
 ....
 
 If an expression `e` of type T~e~ is assigned to a variable `v` of type T~v~, the following happens:
 
 . if T~v~ and T~e~ are record types, only those fields of T~e~ are assigned which also belong to T~v~ (projection); the dynamic type of `v` must be the same as the static type of `v` and is not changed by the assignment;
 . if T~v~ and T~e~ are pointer types, the dynamic type of `v` becomes the dynamic type of `e`;
-. if T~v~ is `ARRAY n OF CHAR` and `e` is a string of length m < n, `v[i]` becomes e~i~ for i = 0..m-1 and `v[m]` becomes 0X. 
+. if T~v~ is `ARRAY n OF CHAR` and `e` is a string of length m < n, `v[i]` becomes e~i~ for i = 0..m-1 and `v[m]` becomes 0X; 
+
 
 .Examples:
 ....
@@ -940,7 +943,10 @@ Formal parameters are identifiers declared in the formal parameter list of a pro
 
 Value parameters are local variables to which the value of the corresponding actual parameter is assigned as an initial value. VAR parameters correspond to actual parameters that are variables, and they stand for these variables. IN parameters are like VAR parameters, but they are read-only in the procedure body. 
 
-The scope of a formal parameter extends from its declaration to the end of the procedure block in which it is declared. A function procedure without parameters must have an empty parameter list. It must be called by a function designator whose actual parameter list is empty too. The result type of a procedure can be neither a record nor an array.
+The scope of a formal parameter extends from its declaration to the end of the procedure block in which it is declared. A function procedure without parameters must have an empty parameter list. It must be called by a function designator whose actual parameter list is empty too. 
+
+[NOTE]
+In contrast to previous Oberon versions the result type of a procedure may also be a record or an array.
 
 .Syntax:
 ....
@@ -999,7 +1005,7 @@ Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'
 
 If a procedure P is bound to a type T0, it is implicitly also bound to any type T1 which is an extension of T0. However, a procedure P' (with the same name as P) may be explicitly bound to T1 in which case it overrides the binding of P. P' is considered a redefinition of P for T1. The formal parameter lists of P and P' must _match_ (see <<Definition of terms>>). If P and T1 are exported (see <<Declarations and scope rules>>) P' must be exported too.
 
-If `v` is a designator and `P` is a type-bound procedure, then `v.P` denotes that procedure `P` which is bound to the dynamic type of `v`. Note, that this may be a different procedure than the one bound to the static type of `v`. `v` is passed to `P` 's receiver according to the parameter passing rules specified in Chapter <<Formal parameters>>.
+If `v` is a designator and `P` is a type-bound procedure, then `v.P` denotes that procedure `P` which is bound to the dynamic type of `v`. Note, that this may be a different procedure than the one bound to the static type of `v`. `v` is passed to `P`'s receiver according to the parameter passing rules specified in Chapter <<Formal parameters>>.
 
 If `r` is a receiver parameter declared with type T, `r.P^` denotes the (redefined, sometimes calles _super_) procedure P bound to the base type of T. 
 
@@ -1089,7 +1095,7 @@ FLOOR(1.5) = 1; FLOOR(-1.5) = -2
 |ASSERT(x)          |x: Boolean expression         |terminate program execution if not x
 |ASSERT(x, n)       |x: Boolean expression         |terminate program execution if not x
 |                   |n: integer constant           |
-|COPY(x, v)         |x: character array, string;   |v := x
+|COPY(x, v)         |x: character array, string    |v := x
 |                   |v: character array            |
 |DEC(v)             |integer type                  |v := v - 1
 |                   |enumeration type              |previous ident in enumeration
@@ -1251,7 +1257,7 @@ Type extension (record)::
     Given a type declaration T~b~ = RECORD(T~a~)...END, T~b~ is a direct extension of T~a~, and T~a~ is a direct base type of T~b~. A type T~b~ is an extension of a type T~a~ (T~a~ is a base type of T~b~) if
 
     1. T~a~ and T~b~ are the _same types_, or
-    2. T~b~ is a direct extension of an extension of T~a~.
+    2. T~b~ is a direct extension of T~a~.
     
 Type extension (pointer)::
     If P~a~ = POINTER TO T~a~ and P~b~ = POINTER TO T~b~ , P~b~ is an extension of P~a~ (P~a~ is a base type of P~b~) if T~b~ is an extension of T~a~. 
@@ -1259,13 +1265,17 @@ Type extension (pointer)::
 Assignment compatible::
     An expression e of type T~e~ is assignment compatible with a variable v of type T~v~ if one of the following conditions hold:
 
-    1. T~e~ and T~v~ are the _same type_;
-    2. T~e~ and T~v~ are numeric types and T~v~ _includes_ T~e~;
-    3. T~e~ and T~v~ are record types and T~e~ is a _type extension_ of T~v~ and the dynamic type of v is T~v~;
-    4. T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~;
-    5. T~v~ is a pointer or a procedure type and e is NIL;
-    6. T~v~ is ARRAY n OF CHAR, e is a string constant with m characters, and m <n;
-    7. T~v~ is a procedure type and e is the name of a procedure whose formal parameters match those of T~v~. 
+    . T~e~ and T~v~ are the _same type_;
+    . T~e~ and T~v~ are numeric types and T~v~ _includes_ T~e~;
+    . T~v~ is a SET type and T~e~ is of INTEGER or smaller type;
+    . T~v~ is a CHAR type and T~e~ is a string constant with one character;
+    . T~v~ is a BYTE type and T~e~ is a CHAR or a string constant with one character;
+    . T~e~ and T~v~ are record types and T~e~ is a _type extension_ of T~v~ and the dynamic type of v is T~v~;
+    . T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~;
+    . T~v~ is a pointer or a procedure type and e is NIL;
+    . T~v~ is ARRAY n OF CHAR, e is a string constant with m characters, and m < n;
+    . T~v~ is ARRAY n OF T, T~e~ is ARRAY m OF T and m <= n, or T~e~ is ARRAY OF T;
+    . T~v~ is a procedure type and e is the name of a procedure whose formal parameters match those of T~v~. 
 
 Array compatible::
     An actual parameter a of type T~a~ is array compatible with a formal parameter f of type T~f~ if
@@ -1412,7 +1422,8 @@ DeclarationSequence2 =
 ....
 
 
-[bibliography]
+[appendix]
+// [bibliography]
 == References
 - [[[Mo91]]] Mössenböck, H.; Wirth, N. (1991). The Programming Language Oberon-2. Structured Programming, 12(4):179-195, 1991. http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf (accessed 2020-11-16).
 - [[[Ro97]]] Roe, P.; Szyperski, C. (1997). Lightweight parametric polymorphism for Oberon. In: Mössenböck H. (eds). Modular Programming Languages. JMLC 1997. Lecture Notes in Computer Science, vol 1204. Springer, Berlin, Heidelberg. 

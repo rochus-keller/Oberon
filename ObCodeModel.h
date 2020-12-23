@@ -88,6 +88,7 @@ namespace Ob
             virtual const Type* getType() const { return 0; }
             virtual QByteArray typeName() const { return ""; }
             virtual QList<Element*> getParams() const { return QList<Element*>(); }
+            virtual bool isPredefProc() const { return false; }
         };
 
         class Element : public NamedThing
@@ -96,6 +97,7 @@ namespace Ob
             enum Kind { Unknown,
                 ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
                         NEW, ASSERT, PACK, UNPK,
+                        MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, SIZE, ENTIER, // OBN-2
                         WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
                         LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                         Constant, Variable, StubProc
@@ -199,7 +201,7 @@ namespace Ob
         {
         public:
             enum Kind { Unknown,
-                        BOOLEAN, CHAR, INTEGER, REAL, BYTE, SET, // Basic Types
+                        BOOLEAN, CHAR, SHORTINT, INTEGER, LONGINT, REAL, LONGREAL, BYTE, SET, // Basic Types
                         STRING, NIL, // Basic Type Helpers
                         TypeRef, Array, Record, Pointer, ProcRef
                       };
@@ -278,6 +280,8 @@ namespace Ob
         void checkNames(Unit*, SynTree*, const Type* expected = 0);
         void checkAssig( Unit*, const DesigOpList&, SynTree* expr );
         void checkCaseStatement(Unit* ds, SynTree* st);
+        void checkWithStatement(Unit* ds, SynTree* st);
+        void checkGuard(Unit* ds, SynTree* guard, SynTree* stats );
         Type* parseType( Unit* ds, SynTree* t );
         Type* parseTypeRef( Unit* ds, SynTree* t );
         Type* parsePointerType( Unit* ds, SynTree* t );

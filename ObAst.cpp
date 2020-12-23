@@ -1905,7 +1905,6 @@ Ast::Ref<Ast::Expression> Ast::Model::designator(Ast::Scope* s, SynTree* st)
                 if( f == 0 )
                 {
                     error(first,tr("record field doesn't exist") );
-                    Named* f = r->find(first->d_tok.d_val, true);
                     return 0;
                 }
                 if( sourceMod != d_curModule && !sourceMod->d_isDef && !( f->d_public || f->d_isDef ) )
@@ -2393,6 +2392,7 @@ QList<Ast::Module*> Ast::Model::findProcessingOrder(Mods& in)
         if( count == mods.size() )
             break;
     }
+    d_depOrder.clear();
     if( !mods.isEmpty() )
     {
         foreach( const char* m, mods )
@@ -2401,9 +2401,9 @@ QList<Ast::Module*> Ast::Model::findProcessingOrder(Mods& in)
             if( mod != 0 )
                 error(mod, tr("module '%1' has circular import dependencies").arg(m) );
         }
+        return d_depOrder;
     }
 
-    d_depOrder.clear();
     foreach( const char* m, order )
     {
         Named* mod = d_global->d_names.value(m).data();

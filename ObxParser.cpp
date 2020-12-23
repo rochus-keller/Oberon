@@ -83,7 +83,7 @@ bool Parser::module(bool definition )
     d_mod = m;
     m->d_isDef = definition;
     MATCH( Tok_ident, tr("expecting module name") );
-    m->d_hasErrors = d_cur.isValid();
+    m->d_hasErrors = !d_cur.isValid();
     m->d_name = d_cur.d_val;
     m->d_loc = d_cur.toRowCol();
     m->d_file = d_cur.d_sourcePath;
@@ -125,11 +125,11 @@ Ref<Literal> Parser::number()
             val = d_cur.d_val.left(d_cur.d_val.size()-1).toLongLong(0,16);
         else
             val = d_cur.d_val.toLongLong();
-        return new Literal( intType(), d_cur.toRowCol(),val);
+        return new Literal( Literal::Integer, d_cur.toRowCol(),val);
     case Tok_real:
         next();
         val = d_cur.d_val.toDouble();
-        return new Literal( realType(), d_cur.toRowCol(),val);
+        return new Literal( Literal::Real, d_cur.toRowCol(),val);
         break;
     default:
         syntaxError( tr("expecting a number") );
@@ -176,18 +176,19 @@ void Parser::identdef(Named* n, Scope* scope)
     if( d_la == Tok_Star )
     {
         next();
-        if( scope->getTag() == Thing::T_Module )
-            n->d_public = true;
+        if( scope->getTag() != Thing::T_Procedure )
+            n->d_visibility = Named::ReadWrite;
         else
             semanticError(d_cur.toLoc(), tr("export mark only allowed on module level"));
     }else if( d_la == Tok_Minus )
     {
         next();
-        if( scope->getTag() == Thing::T_Module )
-            n->d_ro = true;
+        if( scope->getTag() == Thing::T_Procedure )
+            n->d_visibility = Named::ReadOnly;
         else
             semanticError(d_cur.toLoc(), tr("export mark only allowed on module level"));
-    }
+    }else if( scope->getTag() == Thing::T_Procedure )
+        n->d_visibility = Named::NotApplicable;
 }
 
 void Parser::constDeclaration(Scope* scope)
@@ -196,9 +197,10 @@ void Parser::constDeclaration(Scope* scope)
     identdef(res.data(), scope );
     MATCH( Tok_Eq, tr("expecting '=' after ident in constant declaration") );
     res->d_constExpr = constExpression();
-    if( !res->d_constExpr.isNull() ) // prev errors
-        res->d_type = res->d_constExpr->d_type.data();
-    res->d_val = eval( res->d_constExpr.data(), true );
+    // this is done in Obx::Validator:
+    // if( !res->d_constExpr.isNull() ) // prev errors
+    //   res->d_type = res->d_constExpr->d_type.data();
+    // res->d_val = eval( res->d_constExpr.data(), true );
     if( !scope->add( res.data() ) )
         semanticError( res->d_loc, tr("constant name is not unique") );
 }
@@ -242,18 +244,12 @@ Ref<Expression> Parser::expression()
         res->d_op = relation(d_cur.d_type);
         Q_ASSERT( res->d_op );
         res->d_loc = d_cur.toRowCol();
-        res->d_type = boolType();
+        //res->d_type = boolType();
         res->d_lhs = lhs;
         res->d_rhs = simpleExpression();
         lhs = res.data();
     }
     return lhs;
-}
-
-static inline void copy( QList<Named*>& lhs, const MetaParams& rhs )
-{
-    for( int i = 0; i < rhs.size(); i++ )
-        lhs << rhs[i].data();
 }
 
 Ref<NamedType> Parser::typeDeclaration(Scope* scope)
@@ -264,14 +260,18 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
     if( d_la == Tok_Lt )
     {
         nt->d_metaParams = typeParams();
+        for( int i = 0; i < nt->d_metaParams.size(); i++ )
+        {
+            if( !nt->add( nt->d_metaParams[i].data() ) )
+                semanticError(nt->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
+        }
     }
     MATCH( Tok_Eq, tr("expecting '=' after ident in type declaration") );
 
-    scope->add(nt.data()); // add to scope before type() to support recursive declarations
+    if( !scope->add(nt.data()) )
+        semanticError(nt->d_loc,tr("name of type declaration must be unique"));
 
-    copy( scope->d_tempNamed, nt->d_metaParams );
     nt->d_type = type(scope, nt.data());
-    scope->d_tempNamed.clear();
 
     if( !nt->d_type.isNull() )
     {
@@ -379,7 +379,8 @@ Ref<Type> Parser::enumeration(Scope* scope,Named* id)
 {
     Ref<Enumeration> e = new Enumeration();
     e->d_ident = id;
-    MATCH( Tok_Lt, tr("expecting '(' to start enumeration") );
+    MATCH( Tok_Lpar, tr("expecting '(' to start enumeration") );
+    e->d_loc = d_cur.toRowCol();
     MATCH( Tok_ident, tr("at least one identifier required in enumeration") );
     addEnum( scope, e.data(), d_cur );
     while( d_la == Tok_Comma )
@@ -388,7 +389,7 @@ Ref<Type> Parser::enumeration(Scope* scope,Named* id)
         MATCH( Tok_ident, tr("identifier expected after ',' in enumeration") );
         addEnum( scope, e.data(), d_cur );
     }
-    MATCH( Tok_Gt, tr("expecting ')' to end enumeration") );
+    MATCH( Tok_Rpar, tr("expecting ')' to end enumeration") );
     return e.data();
 }
 
@@ -401,6 +402,7 @@ Ref<QualiType> Parser::namedType(Named* id)
     Ref<QualiType> q = new QualiType();
     q->d_quali = e;
     q->d_ident = id;
+    q->d_loc = e->d_loc;
     if( d_la == Tok_Lt )
     {
         q->d_metaActuals = typeActuals();
@@ -417,6 +419,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     if( d_la == Tok_ARRAY )
     {
         MATCH( Tok_ARRAY, tr("expecting the ARRAY keyword") );
+        res->d_loc = d_cur.toRowCol();
         ofrontTag();
         if( d_la != Tok_OF )
         {
@@ -426,6 +429,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     }else
     {
         MATCH( Tok_Lbrack, tr("expecting '['") );
+        res->d_loc = d_cur.toRowCol();
         if( d_la != Tok_Rbrack )
         {
             dims = lengthList();
@@ -458,6 +462,7 @@ Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
     Ref<Record> res = new Record();
     res->d_ident = id;
     MATCH( Tok_RECORD, tr("expecting the RECORD keyword") );
+    res->d_loc = d_cur.toRowCol();
     ofrontTag();
     if( d_la == Tok_Lpar )
     {
@@ -478,9 +483,11 @@ Ref<Type> Parser::pointerType(Scope* scope, Named* id)
     if( d_la == Tok_Hat )
     {
         next();
+        p->d_loc = d_cur.toRowCol();
     }else
     {
         MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
+        p->d_loc = d_cur.toRowCol();
         ofrontTag();
         MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
     }
@@ -499,6 +506,7 @@ Ref<Type> Parser::procedureType(Scope* scope, Named* id)
     {
         MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
     }
+    p->d_loc = d_cur.toRowCol();
     if( d_la == Tok_Lpar )
     {
         formalParameters(scope, p.data());
@@ -540,22 +548,22 @@ Ref<Expression> Parser::literal()
         return number().data();
     case Tok_string:
         next();
-        return new Literal(stringType(), d_cur.toRowCol(),d_cur.d_val.mid(1,d_cur.d_val.size()-2));
+        return new Literal(Literal::String, d_cur.toRowCol(),d_cur.d_val.mid(1,d_cur.d_val.size()-2));
     case Tok_hexstring:
         next();
-        return new Literal(stringType(), d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
+        return new Literal(Literal::String, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
     case Tok_hexchar:
         next();
-        return new Literal( charType(), d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.left( d_cur.d_val.size() - 1 ) ));
+        return new Literal( Literal::Char, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.left( d_cur.d_val.size() - 1 ) ));
     case Tok_NIL:
         next();
-        return new Literal( nilType(), d_cur.toRowCol());
+        return new Literal( Literal::Nil, d_cur.toRowCol());
     case Tok_TRUE:
         next();
-        return new Literal( boolType(), d_cur.toRowCol(), true);
+        return new Literal( Literal::Boolean, d_cur.toRowCol(), true);
     case Tok_FALSE:
         next();
-        return new Literal( boolType(), d_cur.toRowCol(), false);
+        return new Literal( Literal::Boolean, d_cur.toRowCol(), false);
     case Tok_Lbrace:
         return set();
     default:
@@ -617,12 +625,16 @@ void Parser::fieldListSequence(Scope* scope, Record* r)
 void Parser::fieldList(Scope* scope, Record* r)
 {
     QList<Ref<Field> > fields;
-    fields << new Field();
-    identdef(fields.back().data(),scope);
+    Field* f = new Field();
+    f->d_scope = scope;
+    fields << f;
+    identdef(f,scope);
     while( d_la == Tok_Comma )
     {
         next();
-        fields << new Field();
+        f = new Field();
+        f->d_scope = scope;
+        fields << f;
         identdef(fields.back().data(),scope);
     }
     MATCH( Tok_Colon, tr("expecting ':' between identifier list and type in field list") );
@@ -630,10 +642,13 @@ void Parser::fieldList(Scope* scope, Record* r)
     for( int i = 0; i < fields.size(); i++ )
     {
         fields[i]->d_type = t;
-        if( r->find( fields[i]->d_name ) )
-            semanticError( fields[i]->d_loc, tr("duplicate field name"));
+        if( r->find( fields[i]->d_name, false ) )
+            semanticError( fields[i]->d_loc, tr("field name is not unique in record"));
         else
+        {
             r->d_fields << fields[i];
+            r->d_names[ fields[i]->d_name.constData() ] = fields[i].data();
+        }
     }
 }
 
@@ -654,7 +669,7 @@ void Parser::formalParameters(Scope* scope, ProcType* p)
     if( d_la == Tok_Colon )
     {
         next();
-        p->d_return = namedType(0);
+        p->d_return = namedType(0).data();
     }
 }
 
@@ -928,7 +943,7 @@ Ref<Expression> Parser::set()
 
     Ref<SetExpr> set = new SetExpr();
     set->d_loc = d_cur.toRowCol();
-    set->d_type = setType();
+    // set->d_type = setType();
 
     if( d_la != Tok_Rbrace )
     {
@@ -1130,7 +1145,7 @@ Ref<Statement> Parser::forStatement(Scope* scope)
         f->d_by = constExpression();
     }else
     {
-        Ref<Literal> one = new Literal( intType(), d_next.toRowCol(), 1);
+        Ref<Literal> one = new Literal( Literal::Integer, d_next.toRowCol(), 1);
         f->d_by = one.data();
     }
     MATCH( Tok_DO, tr("expecting the DO keyword") );
@@ -1169,7 +1184,7 @@ Ref<Statement> Parser::loopStatement(Scope* scope)
 {
     MATCH( Tok_LOOP, tr("expecting the LOOP keyword") );
     Ref<IfLoop> c = new IfLoop();
-    c->d_op = IfLoop::WITH;
+    c->d_op = IfLoop::LOOP;
     c->d_loc = d_cur.toRowCol();
     c->d_then.append( statementSequence(scope) );
     MATCH( Tok_END, tr("expecting a closing END in a LOOP statement") );
@@ -1179,7 +1194,7 @@ Ref<Statement> Parser::loopStatement(Scope* scope)
 Ref<Statement> Parser::exitStatement(Scope* scope)
 {
     MATCH( Tok_EXIT, tr("expecting the EXIT keyword") );
-    Ref<Return> r = new Return();
+    Ref<Exit> r = new Exit();
     r->d_loc = d_cur.toRowCol();
     return r.data();
 }
@@ -1462,7 +1477,10 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
         p->d_metaParams = typeParams();
         Q_ASSERT( p->d_names.isEmpty() );
         for( int i = 0; i < p->d_metaParams.size(); i++ )
-            p->add( p->d_metaParams[i].data() );
+        {
+            if( !p->add( p->d_metaParams[i].data() ) )
+                semanticError( p->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
+        }
     }
     if( d_la == Tok_Lpar )
     {
@@ -1483,12 +1501,14 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
                 semanticError( p->d_loc, tr("procedure name is not unique") );
         }else
         {
-            // add to record
-            // TODO
+            // add to module order to be resolved in a later phase
+            scope->d_order.append( p );
+            p->d_scope = scope;
         }
     }
 
     Ref<ProcType> t = new ProcType();
+    t->d_ident = p;
     p->d_type = t.data();
     if( d_la == Tok_Lpar )
     {
@@ -1744,7 +1764,6 @@ void Parser::import()
 
     Token name, suff;
     bool hasErr = false;
-    QByteArrayList path;
 
     if( peek(2) == Tok_ColonEq )
     {
@@ -1759,7 +1778,7 @@ void Parser::import()
     if( d_cur.isValid() )
     {
         suff = d_cur;
-        path << suff.d_val;
+        imp->d_path << suff.d_val;
     }else
         hasErr = true;
     while( d_la == Tok_Slash )
@@ -1769,7 +1788,7 @@ void Parser::import()
         if( d_cur.isValid() )
         {
             suff = d_cur;
-            path << suff.d_val;
+            imp->d_path << suff.d_val;
         }else
             hasErr = true;
     }
@@ -1780,14 +1799,17 @@ void Parser::import()
     {
         semanticError( name.toLoc(), tr("name '%1' is not unique in module; use a unique name alias (ident := path)").arg(imp->d_name.constData()) );
         hasErr = true;
-    }
+    }else
+        d_mod->d_imports << imp.data();
     imp->d_loc = name.toRowCol();
+#if 0
     imp->d_mod = findModule( path );
     if( imp->d_mod.isNull() )
     {
         semanticError( name.toLoc(), tr("module '%1' could not be found").arg( path.join('/').constData() ) );
         hasErr = true;
     }
+#endif
     if( hasErr )
     {
         imp->d_hasErrors = true;

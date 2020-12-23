@@ -24,7 +24,16 @@ int Parser::peek( quint8 la )
 		return scanner->peekToken( la - 1 ).d_type;
 }
 
-
+void Parser::RunParser()
+{
+    const quint32 before = errors->getErrCount();
+    d_stack.push(&d_root);
+    Parse();
+    d_stack.pop();
+    if( la->kind != 0 && errors->getErrCount() == before )
+        errors->warning( Errors::Syntax, d_next.d_sourcePath, d_next.d_lineNr, d_next.d_colNr, "found text after end of module");
+}
+    
 void Parser::SynErr(int n, const char* ctx) {
     if (errDist >= minErrDist)
     {
@@ -193,9 +202,14 @@ void Parser::identdef() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_identdef, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_ident,__FUNCTION__);
 		addTerminal(); 
-		if (la->kind == _T_Star) {
-			Get();
-			addTerminal(); 
+		if (la->kind == _T_Star || la->kind == _T_Minus) {
+			if (la->kind == _T_Star) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
 		}
 		d_stack.pop(); 
 }
@@ -258,7 +272,9 @@ void Parser::ArrayType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ArrayType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_ARRAY,__FUNCTION__);
 		addTerminal(); 
-		LengthList();
+		if (StartOf(2)) {
+			LengthList();
+		}
 		Expect(_T_OF,__FUNCTION__);
 		addTerminal(); 
 		type();
@@ -394,7 +410,7 @@ void Parser::VariableDeclaration() {
 void Parser::designator() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_designator, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		qualident();
-		while (StartOf(2)) {
+		while (StartOf(3)) {
 			selector();
 		}
 		d_stack.pop(); 
@@ -419,7 +435,7 @@ void Parser::selector() {
 		} else if (la->kind == _T_Lpar) {
 			Get();
 			addTerminal(); 
-			if (StartOf(3)) {
+			if (StartOf(2)) {
 				ExpList();
 			}
 			Expect(_T_Rpar,__FUNCTION__);
@@ -622,7 +638,7 @@ void Parser::set() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_set, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_Lbrace,__FUNCTION__);
 		addTerminal(); 
-		if (StartOf(3)) {
+		if (StartOf(2)) {
 			element();
 			while (la->kind == _T_Comma) {
 				Get();
@@ -665,6 +681,22 @@ void Parser::statement() {
 		}
 		case _T_CASE: {
 			CaseStatement();
+			break;
+		}
+		case _T_WITH: {
+			WithStatement();
+			break;
+		}
+		case _T_LOOP: {
+			LoopStatement();
+			break;
+		}
+		case _T_EXIT: {
+			ExitStatement();
+			break;
+		}
+		case _T_RETURN: {
+			ReturnStatement();
 			break;
 		}
 		case _T_WHILE: {
@@ -727,8 +759,66 @@ void Parser::CaseStatement() {
 			addTerminal(); 
 			Case();
 		}
+		if (la->kind == _T_ELSE) {
+			Get();
+			addTerminal(); 
+			StatementSequence();
+		}
 		Expect(_T_END,__FUNCTION__);
 		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::WithStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_WithStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_WITH,__FUNCTION__);
+		addTerminal(); 
+		Guard();
+		Expect(_T_DO,__FUNCTION__);
+		addTerminal(); 
+		StatementSequence();
+		while (la->kind == _T_Bar) {
+			Get();
+			addTerminal(); 
+			Guard();
+			Expect(_T_DO,__FUNCTION__);
+			addTerminal(); 
+			StatementSequence();
+		}
+		if (la->kind == _T_ELSE) {
+			Get();
+			addTerminal(); 
+			StatementSequence();
+		}
+		Expect(_T_END,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::LoopStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_LoopStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_LOOP,__FUNCTION__);
+		addTerminal(); 
+		StatementSequence();
+		Expect(_T_END,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::ExitStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ExitStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_EXIT,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::ReturnStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ReturnStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_RETURN,__FUNCTION__);
+		addTerminal(); 
+		if (StartOf(2)) {
+			expression();
+		}
 		d_stack.pop(); 
 }
 
@@ -820,7 +910,7 @@ void Parser::ElseStatement() {
 
 void Parser::Case() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Case, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(7)) {
+		if (StartOf(2)) {
 			CaseLabelList();
 			Expect(_T_Colon,__FUNCTION__);
 			addTerminal(); 
@@ -853,21 +943,7 @@ void Parser::LabelRange() {
 
 void Parser::label() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_label, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (la->kind == _T_integer) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_string) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_hexchar) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_hexstring) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_ident) {
-			qualident();
-		} else SynErr(91,__FUNCTION__);
+		ConstExpression();
 		d_stack.pop(); 
 }
 
@@ -882,16 +958,44 @@ void Parser::ElsifStatement2() {
 		d_stack.pop(); 
 }
 
+void Parser::Guard() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Guard, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		qualident();
+		Expect(_T_Colon,__FUNCTION__);
+		addTerminal(); 
+		qualident();
+		d_stack.pop(); 
+}
+
 void Parser::ProcedureDeclaration() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ProcedureDeclaration, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		ProcedureHeading();
-		if (la->kind == _T_Semi) {
-			Get();
+		if (peek(1) == _T_PROCEDURE && ( peek(2) == _T_Hat || peek(2) == _T_Minus ) ) {
+			Expect(_T_PROCEDURE,__FUNCTION__);
 			addTerminal(); 
-		}
-		ProcedureBody();
-		Expect(_T_ident,__FUNCTION__);
-		addTerminal(); 
+			if (la->kind == _T_Hat) {
+				Get();
+				addTerminal(); 
+			} else if (la->kind == _T_Minus) {
+				Get();
+				addTerminal(); 
+			} else SynErr(91,__FUNCTION__);
+			identdef();
+			if (la->kind == _T_Lpar) {
+				FormalParameters();
+			}
+			if (StartOf(5)) {
+				literal();
+			}
+		} else if (la->kind == _T_PROC || la->kind == _T_PROCEDURE) {
+			ProcedureHeading();
+			if (la->kind == _T_Semi) {
+				Get();
+				addTerminal(); 
+			}
+			ProcedureBody();
+			Expect(_T_ident,__FUNCTION__);
+			addTerminal(); 
+		} else SynErr(92,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -903,7 +1007,19 @@ void Parser::ProcedureHeading() {
 		} else if (la->kind == _T_PROC) {
 			Get();
 			addTerminal(); 
-		} else SynErr(92,__FUNCTION__);
+		} else SynErr(93,__FUNCTION__);
+		if (la->kind == _T_Star || la->kind == _T_Plus) {
+			if (la->kind == _T_Star) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
+		}
+		if (la->kind == _T_Lpar) {
+			Receiver();
+		}
 		identdef();
 		if (la->kind == _T_Lpar) {
 			FormalParameters();
@@ -914,24 +1030,44 @@ void Parser::ProcedureHeading() {
 void Parser::ProcedureBody() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ProcedureBody, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		DeclarationSequence();
-		if (la->kind == _T_BEGIN || la->kind == _T_DO) {
-			if (la->kind == _T_BEGIN) {
-				Get();
-				addTerminal(); 
+		if (la->kind == _T_BEGIN || la->kind == _T_DO || la->kind == _T_RETURN) {
+			if (la->kind == _T_BEGIN || la->kind == _T_DO) {
+				if (la->kind == _T_BEGIN) {
+					Get();
+					addTerminal(); 
+				} else {
+					Get();
+					addTerminal(); 
+				}
+				StatementSequence();
 			} else {
-				Get();
-				addTerminal(); 
-			}
-			StatementSequence();
-		}
-		if (la->kind == _T_RETURN) {
-			ReturnStatement();
-			if (la->kind == _T_Semi) {
-				Get();
-				addTerminal(); 
+				ReturnStatement();
+				if (la->kind == _T_Semi) {
+					Get();
+					addTerminal(); 
+				}
 			}
 		}
 		Expect(_T_END,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::Receiver() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Receiver, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_Lpar,__FUNCTION__);
+		addTerminal(); 
+		if (la->kind == _T_VAR) {
+			Get();
+			addTerminal(); 
+		}
+		Expect(_T_ident,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_Colon,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_ident,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_Rpar,__FUNCTION__);
 		addTerminal(); 
 		d_stack.pop(); 
 }
@@ -970,14 +1106,6 @@ void Parser::DeclarationSequence() {
 			Expect(_T_Semi,__FUNCTION__);
 			addTerminal(); 
 		}
-		d_stack.pop(); 
-}
-
-void Parser::ReturnStatement() {
-		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ReturnStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		Expect(_T_RETURN,__FUNCTION__);
-		addTerminal(); 
-		expression();
 		d_stack.pop(); 
 }
 
@@ -1040,13 +1168,7 @@ void Parser::FPSection() {
 
 void Parser::FormalType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_FormalType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		while (la->kind == _T_ARRAY) {
-			Get();
-			addTerminal(); 
-			Expect(_T_OF,__FUNCTION__);
-			addTerminal(); 
-		}
-		NamedType();
+		type();
 		d_stack.pop(); 
 }
 
@@ -1175,6 +1297,9 @@ void Parser::Parse() {
 	d_cur = Ob::Token();
 	d_next = Ob::Token();
 	Get();
+	// manually added
+	Oberon();
+	return;
 	Oberon();
 	Expect(0,__FUNCTION__);
 }
@@ -1194,15 +1319,14 @@ bool Parser::StartOf(int s) {
 	const bool T = true;
 	const bool x = false;
 
-	static bool set[8][82] = {
+	static bool set[7][82] = {
 		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
 		{x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
-		{x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
 		{x,x,x,x, T,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,T, T,T,T,T, T,x,x,x, x,x},
+		{x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
 		{x,x,x,T, x,x,x,T, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
 		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, T,T,T,T, T,x,x,x, x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,T,T,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,T, x,x,x,x, x,x,x,x, x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,T,T, T,x,x,x, x,x}
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,T, x,T,T,x, x,x,T,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,x,x, T,T,x,T, x,x,x,x, x,x,x,x, x,x}
 	};
 
 
@@ -1318,8 +1442,9 @@ void Parser::SynErr(const QString& sourcePath, int line, int col, int n, Ob::Err
 			case 88: s = coco_string_create(L"invalid MulOperator"); break;
 			case 89: s = coco_string_create(L"invalid literal"); break;
 			case 90: s = coco_string_create(L"invalid statement"); break;
-			case 91: s = coco_string_create(L"invalid label"); break;
-			case 92: s = coco_string_create(L"invalid ProcedureHeading"); break;
+			case 91: s = coco_string_create(L"invalid ProcedureDeclaration"); break;
+			case 92: s = coco_string_create(L"invalid ProcedureDeclaration"); break;
+			case 93: s = coco_string_create(L"invalid ProcedureHeading"); break;
 
 		default:
 		{

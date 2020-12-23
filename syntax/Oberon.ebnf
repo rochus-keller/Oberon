@@ -29,7 +29,7 @@
 // - added WITH, LOOP, EXIT statements from Oberon-2 for backward compatibility
 
 //#define OBNX
-//#define OBN2
+#define OBN2
 
 /// Top
 Oberon ::=  module | definition // also in OBX we require one module or definition per file
@@ -236,7 +236,7 @@ StatementSequence ::=
 #ifdef OBNX
 	{ ';' } { statement { ';' } }  // in OS/OR we find things like "BEGIN;" or "statement;;"
 #else
-	[ statement ] { ';' [ statement ] }
+	[ statement ] { ';' [ statement ] } // doesn't work with "statement RETURN" which appears in Oberon-07
 #endif
 
 /// 9.4. If statements
@@ -297,12 +297,16 @@ ExitStatement ::= EXIT
 #endif
 
 /// 10. Procedure declarations
-ProcedureDeclaration ::= ProcedureHeading [ ';' ] ProcedureBody ident 
-	// OBN87/90 allows forward declaration (no ProcedureBody); here not represented
+ProcedureDeclaration ::= 
+#ifdef OBN2
+	\LL:2\ PROCEDURE ( '^' | '-' ) identdef [ FormalParameters ] [ literal ] | 
+	// OBN87/90 allows forward declarations (^) and external declarations (-)
+#endif
+	ProcedureHeading [ ';' ] ProcedureBody ident 
 
 ProcedureHeading ::= ( PROCEDURE | PROC )
 #ifdef OBN2
-	[ '*' |  '^' ]  // the star is from Oberon 87 (ignored); the hat is also in Oberon 90 and 2 (ignored)
+	[ '*' | '+' ]  // the star is from Oberon 87 (ignored)
 #endif
 #ifdef OBNX
 	[ TypeParams_ ]

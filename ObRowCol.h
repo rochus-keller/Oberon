@@ -28,6 +28,7 @@ namespace Ob
     struct Loc : public RowCol
     {
         Loc( quint32 row, quint32 col, const QString& f ):RowCol( row, col ),d_file(f) {}
+        Loc( const RowCol& r, const QString& f):RowCol(r),d_file(f) {}
         QString d_file;
     };
 }

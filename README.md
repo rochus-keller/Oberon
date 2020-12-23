@@ -1,19 +1,23 @@
-## Welcome to the Oberon-07 C++ parser, code model/browser/generator/IDE
+## Welcome to the Oberon parser, code model, browser, compiler and IDE
 
-This is an Oberon-07 parser, code model and generator written in C++ and Qt. See http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf for more information about the language. The syntax was modified for Coco/R compatibility using https://github.com/rochus-keller/EbnfStudio. 
+This project started out as an Oberon-07 (see http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf) parser, code model and transpiler written in C++ and Qt, with the goal to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries, and with no dependencies to the Oberon System (see https://github.com/rochus-keller/lola and https://github.com/rochus-keller/lolacreator).
 
-One goal of this project is to build tools to better understand the Lola-2 compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries and with no dependencies to the Oberon System. The C++ based Lola-2 compiler will be integrated in https://github.com/rochus-keller/LolaCreator.
+Oberon turned out to be a language very well suited for compiler front and backend experiments because it is decently simple but still powerful enough to build real-world software as it supports pointers, static and stack based data structures and call by reference which are not usually available with scripting languages. In consequence an other goal of this project is to study the feasibility of reusing LuaJIT (see http://luajit.org/) as a backend for statically typed programming languages like Oberon. The current implementation of the compiler is able to map full Oberon to Lua source code or LuaJIT bytecode and run with decent performance on LuaJIT. There is also a compatible version of the Oberon System (see https://github.com/rochus-keller/OberonSystem) and an IDE.
 
-Another goal of this project is to study the feasibility of reusing LuaJIT (see http://luajit.org/) as a backend for statically typed programming languages like Oberon. As it turned out, Oberon is an ideal object of study for this question because it is sufficiently simple and representative as it supports pointers, static and stack based data structures and call by reference which are not usually available with scripting languages. The current implementation is able to map full Oberon to Lua source code or LuaJIT bytecode and run with decent performance on LuaJIT. There is also a compatible version of the Oberon System (see https://github.com/rochus-keller/OberonSystem, work in progress).
+During my work with Oberon and systems implemented in Oberon, I kept asking myself what properties the language would need to have so that I could use it for my own systems too, without giving up the goal of making it as simple as possible. From these considerations a new language emerged, which I call "Oberon+" (i.e. "Oberon with extensions", abbreviated OBX); is a general-purpose, procedural and object-oriented programming language in the tradition of Oberon-07 and Oberon-2, with all the elements of these languages, plus parametric polymorphism, enumerations and simplifications such as optional lower case keywords and semicolons. Oberon+ is actually a superset of Oberon 90, Oberon-2 and Oberon-07, i.e. each valid program written in one of these dialects is also a valid Oberon+ program (subject to different byte sizes of the base types). See [the language report](documentation/The_Programming_Language_Oberon+.adoc) for more information. There will also be an IDE with source level debugger and different backends (LuaJIT, TCC, LLVM, etc.). But note that Oberon+ is currently **work in progress** and subject to change at any time. 
 
+On my way to the Oberon+ compiler I needed a decent code browser compatible with all Oberon dialects in focus. I therefore extended the original Oberon-07 parser, code model and browser so it can now also read old Oberon and Oberon-2 code bases.  
+
+More to come.
 
 ### Parser and code model features
 
-- Implements Oberon-07; successfully reads the Oberon System including the applications (see http://www.projectoberon.com/) and the Lola-2 compiler (see https://www.inf.ethz.ch/personal/wirth/Lola) source code
-- Syntax and semantics validation, error reporting
-- Optionally infers and synthesizes missing modules
-- Supports the language version "Oberon+" with lower-case keywords, underscores in idents and line comments (see examples folder)
-- Two parser versions; one generates a syntax tree and one a fully validated AST
+- Three parser versions; one generates a syntax tree and one a fully validated AST
+  - The parser/code model (ObLexer, ObParser, ObCodeModel) used by the code browser supports Oberon-07, Oberon 90 and Oberon-2
+  - The parser/validator (ObLexer, ObParser, ObAst, ObAstValidator) used by the Lua bytecode generator and IDE supports Oberon-07 (optionally with lower-case keywords, underscores in idents and line comments)
+  - The new OBX parser (ObLexer, ObxParser, ObxValidator) supports Oberon-07, Oberon 90, Oberon-2 and Oberon+.
+- All parsers support syntax and (some) semantics validation, and error reporting
+- ObCodeModel optionally infers and synthesizes missing modules
 
 ### C++ Code generator features
 
@@ -24,7 +28,7 @@ Another goal of this project is to study the feasibility of reusing LuaJIT (see 
 - Comments of the original files are also translated
 - Oberon idents conflicting with C++ keywords are postfixed by underscore
 - The generated code is well readable and maintainable
-- Currently only the subset of Oberon-07 used by the Lola-2 compiler is supported; see https://github.com/rochus-keller/Lolac for an example of the generated code
+- Currently **only the subset of Oberon-07 used by the Lola-2 compiler is supported**; see https://github.com/rochus-keller/Lolac for an example of the generated code
 - There is no garbage collector code generated yet, but an arena based collector can easily be implemented outside of the generator by customizing the _Root class; future versions will generate a regular mark & sweep collector.
 
 ### Lua source and bytecode generator features

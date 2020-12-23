@@ -21,6 +21,7 @@
 #include "ObCppGen.h"
 #include "OberonViewer.h"
 #include "ObnHighlighter.h"
+#include "ObLexer.h"
 #include <QDockWidget>
 #include <QFile>
 #include <QPainter>
@@ -40,6 +41,7 @@
 #include <algorithm>
 #include <QFormLayout>
 #include <QDialogButtonBox>
+#include <QBuffer>
 using namespace Ob;
 
 Q_DECLARE_METATYPE(Ob::CodeModel::Module*)
@@ -102,7 +104,15 @@ public:
             return false;
 
         d_hl->setEnableExt(isExt);
-        setPlainText( QString::fromLatin1(in.readAll()) );
+        if( Lexer::skipOberonHeader(&in) )
+        {
+            QBuffer buf;
+            buf.buffer() = in.readAll();
+            buf.buffer().replace( '\r', '\n' );
+            buf.open(QIODevice::ReadOnly);
+            setPlainText( QString::fromLatin1(buf.readAll()) );
+        }else
+            setPlainText( QString::fromLatin1(in.readAll()) );
         return true;
     }
 
@@ -437,7 +447,7 @@ QStringList OberonViewer::collectFiles(const QDir& dir)
         res += collectFiles( QDir( dir.absoluteFilePath(f) ) );
 
     files = dir.entryList( QStringList() << QString("*.Mod")
-                                           << QString("*.mod"),
+                                           << QString("*.mod") << QString("*.Def") << QString("*.def"),
                                            QDir::Files, QDir::Name );
     foreach( const QString& f, files )
     {

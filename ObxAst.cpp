@@ -19,6 +19,7 @@
 
 #include "ObxAst.h"
 #include "ObLexer.h"
+#include <QtDebug>
 using namespace Obx;
 using namespace Ob;
 
@@ -26,14 +27,15 @@ const char* Thing::s_tagName[] =
 {
     "Thing", "Module", "Import", "Pointer", "Record", "BaseType", "Array", "ProcType", "NamedType",
     "CallExpr", "Literal", "SetExpr", "IdentLeaf", "UnExpr", "IdentSel", "BinExpr", "Field",
-    "Const", "BuiltIn", "Parameter", "Return", "Procedure", "Variable", "LocalVar", "TypeRef",
+    "Const", "BuiltIn", "Parameter", "Return", "Procedure", "Variable", "LocalVar",
     "QualiType", "Call", "Assign", "IfLoop", "ForLoop", "CaseStmt", "Scope",
     "Enumeration", "Generic", "Exit"
 };
 
 const char* BaseType::s_typeName[] =
 {
-    "ANY", "ANYNUM", "NIL", "STRING", "BOOLEAN", "CHAR", "INTEGER", "REAL", "BYTE", "SET"
+    "ANY", "ANYNUM", "NIL", "STRING", "BOOLEAN", "CHAR", "BYTE",
+    "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET"
 };
 
 const char* BuiltIn::s_typeName[] =
@@ -42,13 +44,18 @@ const char* BuiltIn::s_typeName[] =
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
     "WriteInt", "WriteReal", "WriteChar", "WriteLn",
     "LED", "TRAP", "TRAPIF",
-    "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY"
+    "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
+    "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
+    // Oberon-2 SYSTEM
+    "MOVE", "NEW", "ROT", "LSH",
+    // Oberon+
+    "VAL"
 };
 
 const char* UnExpr::s_opName[] =
 {
     "???",
-    "NEG", "NOT", "DEREF", "CAST", "SEL", "CALL"
+    "NEG", "NOT", "DEREF", "CAST", "SEL", "CALL", "IDX"
 };
 
 const char* BinExpr::s_opName[] =
@@ -102,14 +109,9 @@ static void markUsed( Type* t )
 
 Named*Scope::find(const QByteArray& name, bool recursive) const
 {
-    for( int j = 0; j < d_tempNamed.size(); j++ )
-    {
-        if( d_tempNamed[j]->d_name.constData() == name.constData() )
-            return d_tempNamed[j];
-    }
     Names::const_iterator i = d_names.find( name.constData() );
     if( i != d_names.end() )
-        return i.value().data();
+        return i.value();
     if( recursive && d_scope )
         return d_scope->find(name);
     else
@@ -139,12 +141,24 @@ BuiltIn::BuiltIn(quint8 f, ProcType* pt):d_func(f)
     d_type->d_ident = this;
 }
 
-ProcType::ProcType(const Type::List& f, QualiType* r):d_return(r)
+ProcType::ProcType(const Type::List& f, Type* r):d_return(r)
 {
     for( int i = 0; i < f.size(); i++ )
     {
         Ref<Parameter> p = new Parameter();
         p->d_type = f[i];
+        d_formals.append(p);
+    }
+}
+
+ProcType::ProcType(const Type::List& f, const ProcType::Vars& var, Type* r)
+{
+    Q_ASSERT( f.size() == var.size() );
+    for( int i = 0; i < f.size(); i++ )
+    {
+        Ref<Parameter> p = new Parameter();
+        p->d_type = f[i];
+        p->d_var = var[i];
         d_formals.append(p);
     }
 }
@@ -224,7 +238,7 @@ Type*QualiType::derefed()
 }
 
 
-IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t):d_mod(mod),d_ident(id)
+IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t):d_ident(id)
 {
     d_loc = loc;
     d_type = t;
@@ -246,13 +260,48 @@ Thing::~Thing()
 
 #endif
 
-
-Field*Record::find(const QByteArray& name) const
+Named*Record::find(const QByteArray& name, bool recursive) const
 {
-    for( int i = 0; i < d_fields.size(); i++ )
-    {
-        if( d_fields[i]->d_name.constData() == name.constData() )
-            return d_fields[i].data();
-    }
+    Names::const_iterator i = d_names.find(name.constData());
+    if( i != d_names.end() )
+        return i.value();
+    if( recursive && d_baseRec != 0 )
+        return d_baseRec->find(name,recursive);
     return 0;
+}
+
+Type*Array::getTypeDim(int& dims) const
+{
+    Type* t = d_type.isNull() ? 0 : d_type->derefed();
+    if( t && t->getTag() == Thing::T_Array )
+    {
+        Array* a = cast<Array*>( t );
+        dims += 1;
+        return a->getTypeDim(dims);
+    }else
+    {
+        dims = 1;
+        return d_type.data();
+    }
+}
+
+ProcType*Procedure::getProcType() const
+{
+    Q_ASSERT( !d_type.isNull() && d_type->getTag() == Thing::T_ProcType );
+    return cast<ProcType*>( d_type.data() );
+}
+
+
+quint8 IdentSel::visibilityFor(Module* m) const
+{
+    if( !d_ident.isNull() )
+    {
+        Module* im = d_ident->getModule();
+        if( im == m )
+            return Named::NotApplicable;
+        if( d_ident->d_visibility == Named::ReadOnly )
+            return Named::ReadOnly;
+
+    }
+    return UnExpr::visibilityFor(m);
 }

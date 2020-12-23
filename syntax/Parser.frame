@@ -74,12 +74,8 @@ public:
 	
 	int peek( quint8 la = 1 );
 
-    void RunParser()
-    {
-        d_stack.push(&d_root);
-        Parse();
-        d_stack.pop();
-    }
+    void RunParser();
+
     
 -->declarations
 
@@ -127,7 +123,16 @@ int Parser::peek( quint8 la )
 		return scanner->peekToken( la - 1 ).d_type;
 }
 
-
+void Parser::RunParser()
+{
+    const quint32 before = errors->getErrCount();
+    d_stack.push(&d_root);
+    Parse();
+    d_stack.pop();
+    if( la->kind != 0 && errors->getErrCount() == before )
+        errors->warning( Errors::Syntax, d_next.d_sourcePath, d_next.d_lineNr, d_next.d_colNr, "found text after end of module");
+}
+    
 void Parser::SynErr(int n, const char* ctx) {
     if (errDist >= minErrDist)
     {
@@ -297,6 +302,9 @@ void Parser::Parse() {
 	d_cur = Ob::Token();
 	d_next = Ob::Token();
 	Get();
+	// manually added
+	Oberon();
+	return;
 -->parseRoot
 }
 

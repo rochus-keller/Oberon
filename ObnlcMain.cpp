@@ -31,9 +31,12 @@
 #include "ObxParser.h"
 #ifdef OBNLC_USING_LUAJIT
 #include <LjTools/Engine2.h>
+#include "ObAstValidator.h"
 #include "ObLjLib.h"
 #include "ObLjbcGen.h"
 #include "ObLuaGen2.h"
+#include "ObxModel.h"
+#include "ObxValidator.h"
 #endif
 
 static QStringList collectFiles( const QDir& dir )
@@ -224,33 +227,40 @@ static int docompile1(const QStringList& files, int gen, const QString& run, con
     return 0;
 }
 
-static int docompile2(const QStringList& files, const QString& mod,
+static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
                       const QString& outPath, bool forceObnExt, bool useOakwood, bool dump)
 {
-    Ob::Errors errs;
-    errs.setReportToConsole(true);
+    Obx::Model model;
+    model.getErrs()->setReportToConsole(true);
 
-    foreach( const QString& f, files )
+#if 0
+    if( forceObnExt )
+        model.setEnableExt(true);
+    else
+        model.setSenseExt(true);
+    if( useOakwood )
     {
-        Ob::Lexer lex;
-        lex.setErrors(&errs);
-        lex.setIgnoreComments(true);
-        lex.setPackComments(true);
-        lex.setSensExt(true);
-        lex.setStream( f );
-        Obx::Parser p(&lex,&errs);
-        p.parse();
+        preloadLib(model,"In");
+        preloadLib(model,"Out");
+        preloadLib(model,"Files");
+        preloadLib(model,"Input");
+        preloadLib(model,"Math");
+        preloadLib(model,"Strings");
+        preloadLib(model,"Coroutines");
+        preloadLib(model,"XYPlane");
     }
+#endif
+    model.parseFiles(files);
 
-    if( errs.getErrCount() == 0 && errs.getWrnCount() == 0 )
+    if( model.getErrs()->getErrCount() == 0 && model.getErrs()->getWrnCount() == 0 )
         qDebug() << "files successfully parsed";
     else
     {
-        qDebug() << "completed with" << errs.getErrCount() << "errors and" <<
-                    errs.getWrnCount() << "warnings";
+        qDebug() << "completed with" << model.getErrs()->getErrCount() << "errors and" <<
+                    model.getErrs()->getWrnCount() << "warnings";
     }
 
-    return errs.getErrCount() ? -1 : 0;
+    return model.getErrs()->getErrCount() ? -1 : 0;
 }
 
 static int dorun( const QStringList& files, QString run, const QString& mod,
@@ -347,7 +357,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2020-01-12");
+    a.setApplicationVersion("2020-12-23");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -425,6 +435,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    Obx::Model::FileGroups fgs;
     QStringList files;
     foreach( const QString& path, dirOrFilePaths )
     {
@@ -432,9 +443,15 @@ int main(int argc, char *argv[])
         if( outPath.isEmpty() )
             outPath = info.isDir() ? info.absoluteFilePath() : info.absolutePath();
         if( info.isDir() )
-            files += collectFiles( info.absoluteFilePath() );
-        else
+        {
+            const QStringList tmp = collectFiles( info.absoluteFilePath() );
+            files += tmp;
+            fgs << Obx::Model::FileGroup::fromPaths( path, tmp );
+        }else
+        {
             files << path;
+            fgs << Obx::Model::FileGroup::fromPaths( path, QStringList() << path );
+        }
     }
 
     qDebug() << "processing" << files.size() << "files...";
@@ -445,7 +462,7 @@ int main(int argc, char *argv[])
             return -1;
     }else if( gen == 4 )
     {
-        if( docompile2(files,mod,outPath,forceObnExt,useOakwood,dump) < 0 )
+        if( docompile2(fgs,mod,outPath,forceObnExt,useOakwood,dump) < 0 )
             return -1;
     }else
     {

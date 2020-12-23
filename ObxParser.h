@@ -123,17 +123,6 @@ namespace Obx
         void semanticError(const Ob::Loc&, const QString& err );
         void semanticError(const Ob::RowCol&, const QString& err );
 
-
-        BaseType* intType() const { return 0; }
-        BaseType* realType() const { return 0; }
-        BaseType* boolType() const { return 0; }
-        BaseType* stringType() const { return 0; }
-        BaseType* charType() const { return 0; }
-        BaseType* nilType() const { return 0; }
-        BaseType* setType() const { return 0; }
-        Module* findModule( const QByteArrayList& ) const { return new Module(); }
-        QVariant eval( Expression*, bool constExpr ) const { return QVariant(); }
-
         void addEnum( Scope* scope, Enumeration* e, const Ob::Token& t );
     private:
         Ob::Lexer* d_lex;

@@ -5,6 +5,8 @@
 
 #include <QByteArray>
 
+#define OB_OBN2
+
 namespace Ob {
 	enum TokenType {
 		Tok_Invalid = 0,
