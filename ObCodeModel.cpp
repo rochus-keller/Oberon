@@ -27,6 +27,7 @@
 #include <QFileInfo>
 #include <typeinfo>
 #include <QBuffer>
+#include <math.h>
 using namespace Ob;
 
 Q_DECLARE_METATYPE( Ob::CodeModel::Set )
@@ -78,48 +79,68 @@ void CodeModel::clear()
     d_scope.d_names.insert( Lexer::getSymbol("SHORTINT"), d_scope.d_intType );
     d_scope.d_names.insert( Lexer::getSymbol("LONGINT"), d_scope.d_intType );
     d_scope.d_names.insert( Lexer::getSymbol("LONGREAL"), d_scope.d_realType );
+#ifdef OB_BBOX
+    d_scope.d_names.insert( Lexer::getSymbol("SHORTCHAR"), d_scope.d_charType );
+    d_scope.d_names.insert( Lexer::getSymbol("SHORTREAL"), d_scope.d_realType );
+
+    d_scope.d_anyRec = new Type( Type::Record );
+    d_scope.d_anyRec->d_name = Lexer::getSymbol("ANYREC");
+    d_scope.d_types.append( d_scope.d_anyRec );
+    d_scope.addToScope(d_scope.d_anyRec);
+    Type* anyptr = new Type( Type::Pointer );
+    anyptr->d_name = Lexer::getSymbol("ANYPTR");
+    anyptr->d_type = d_scope.d_anyRec;
+    d_scope.d_types.append( anyptr);
+    d_scope.addToScope( anyptr );
+#endif
     d_scope.d_types.append( new Type( Type::STRING ) );
     d_scope.d_stringType = d_scope.d_types.back();
     d_scope.d_types.append( new Type( Type::NIL ) );
     d_scope.d_nilType = d_scope.d_types.back();
 
     // Add global procs
-    d_scope.d_procs.append( new Element( Element::ABS ) );
-    d_scope.d_procs.append( new Element( Element::ODD ) );
-    d_scope.d_procs.append( new Element( Element::LEN ) );
-    d_scope.d_procs.append( new Element( Element::LSL ) );
-    d_scope.d_procs.append( new Element( Element::ASR ) );
-    d_scope.d_procs.append( new Element( Element::ROR ) );
-    d_scope.d_procs.append( new Element( Element::FLOOR ) );
-    d_scope.d_procs.append( new Element( Element::FLT ) );
-    d_scope.d_procs.append( new Element( Element::ORD ) );
-    d_scope.d_procs.append( new Element( Element::CHR ) );
-    d_scope.d_procs.append( new Element( Element::INC ) );
-    d_scope.d_procs.append( new Element( Element::DEC ) );
-    d_scope.d_procs.append( new Element( Element::INCL ) );
-    d_scope.d_procs.append( new Element( Element::EXCL ) );
-    d_scope.d_procs.append( new Element( Element::NEW ) );
-    d_scope.d_procs.append( new Element( Element::ASSERT ) );
-    d_scope.d_procs.append( new Element( Element::PACK ) );
-    d_scope.d_procs.append( new Element( Element::UNPK ) );
-    d_scope.d_procs.append( new Element( Element::LED ) );
-    d_scope.d_procs.append( new Element( Element::WriteInt ) );
-    d_scope.d_procs.append( new Element( Element::WriteReal ) );
-    d_scope.d_procs.append( new Element( Element::WriteChar ) );
-    d_scope.d_procs.append( new Element( Element::WriteLn ) );
+    d_scope.d_elems.append( new Element( Element::ABS ) );
+    d_scope.d_elems.append( new Element( Element::ODD ) );
+    d_scope.d_elems.append( new Element( Element::LEN ) );
+    d_scope.d_elems.append( new Element( Element::LSL ) );
+    d_scope.d_elems.append( new Element( Element::ASR ) );
+    d_scope.d_elems.append( new Element( Element::ROR ) );
+    d_scope.d_elems.append( new Element( Element::FLOOR ) );
+    d_scope.d_elems.append( new Element( Element::FLT ) );
+    d_scope.d_elems.append( new Element( Element::ORD ) );
+    d_scope.d_elems.append( new Element( Element::CHR ) );
+    d_scope.d_elems.append( new Element( Element::INC ) );
+    d_scope.d_elems.append( new Element( Element::DEC ) );
+    d_scope.d_elems.append( new Element( Element::INCL ) );
+    d_scope.d_elems.append( new Element( Element::EXCL ) );
+    d_scope.d_elems.append( new Element( Element::NEW ) );
+    d_scope.d_elems.append( new Element( Element::ASSERT ) );
+    d_scope.d_elems.append( new Element( Element::PACK ) );
+    d_scope.d_elems.append( new Element( Element::UNPK ) );
+    d_scope.d_elems.append( new Element( Element::LED ) );
+    d_scope.d_elems.append( new Element( Element::WriteInt ) );
+    d_scope.d_elems.append( new Element( Element::WriteReal ) );
+    d_scope.d_elems.append( new Element( Element::WriteChar ) );
+    d_scope.d_elems.append( new Element( Element::WriteLn ) );
 #ifdef OB_OBN2
-    d_scope.d_procs.append( new Element( Element::MAX ) );
-    d_scope.d_procs.append( new Element( Element::CAP ) );
-    d_scope.d_procs.append( new Element( Element::LONG ) );
-    d_scope.d_procs.append( new Element( Element::SHORT ) );
-    d_scope.d_procs.append( new Element( Element::HALT ) );
-    d_scope.d_procs.append( new Element( Element::COPY ) );
-    d_scope.d_procs.append( new Element( Element::ASH ) );
-    d_scope.d_procs.append( new Element( Element::MIN ) );
-    d_scope.d_procs.append( new Element( Element::SIZE ) );
-    d_scope.d_procs.append( new Element( Element::ENTIER ) );
+    d_scope.d_elems.append( new Element( Element::MAX ) );
+    d_scope.d_elems.append( new Element( Element::CAP ) );
+    d_scope.d_elems.append( new Element( Element::LONG ) );
+    d_scope.d_elems.append( new Element( Element::SHORT ) );
+    d_scope.d_elems.append( new Element( Element::HALT ) );
+    d_scope.d_elems.append( new Element( Element::COPY ) );
+    d_scope.d_elems.append( new Element( Element::ASH ) );
+    d_scope.d_elems.append( new Element( Element::MIN ) );
+    d_scope.d_elems.append( new Element( Element::SIZE ) );
+    d_scope.d_elems.append( new Element( Element::ENTIER ) );
 #endif
-    foreach( Element* t, d_scope.d_procs )
+#ifdef OB_BBOX
+    d_scope.d_elems.append( new Element( true, "TRUE", d_scope.d_boolType ) );
+    d_scope.d_elems.append( new Element( false, "FALSE", d_scope.d_boolType ) );
+    d_scope.d_elems.append( new Element( INFINITY, "INF", d_scope.d_realType ) );
+    d_scope.d_elems.append( new Element( Element::BITS ) );
+#endif
+    foreach( Element* t, d_scope.d_elems )
         d_scope.addToScope( t );
 
     if( d_enableExt ) // additional lower case builtins
@@ -139,6 +160,9 @@ QByteArrayList CodeModel::getBuitinIdents()
         res << Element::s_kindName[i];
     for( int i = Type::BOOLEAN; i <= Type::SET; i++ )
         res << Type::s_kindName[i];
+#ifdef OB_BBOX
+    res << "TRUE" << "FALSE";
+#endif
     return res;
 }
 
@@ -193,6 +217,13 @@ bool CodeModel::parseFiles(const QStringList& files)
         if( m->d_def != 0 )
         {
             qDebug() << "analyzing" << m->d_def->d_tok.d_sourcePath;
+#ifdef OB_BBOX
+            if( m->d_def->d_children.size() >= 3 && m->d_def->d_children[3]->d_tok.d_type == SynTree::R_SysString )
+            {
+                m->d_isDef = true;
+                m->d_sysString = m->d_def->d_children[3];
+            }
+#endif
             processDeclSeq(m,m->d_def);
             resolveTypeRefs(m);
             checkTypeRules(m);
@@ -610,8 +641,6 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
     Q_ASSERT( idef != 0 );
 
     QPair<SynTree*,bool> id = getIdentFromIdentDef(idef);
-    if( !checkNameNotInScope(ds,id.first) )
-        return;
 
     Procedure* res = new Procedure();
     res->d_outer = ds;
@@ -619,8 +648,6 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
     res->d_name = id.first->d_tok.d_val;
     res->d_id = id.first;
     res->d_public = id.second;
-    ds->d_procs.append(res);
-    ds->addToScope( res );
     index(id.first,res);
 
     SynTree* fp = 0;
@@ -633,7 +660,70 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
         res->addToScope( p );
 
     if( ph == 0 )
+    {
+        ds->d_procs.append(res);
+        if( !checkNameNotInScope(ds,id.first) )
+            return;
+        ds->addToScope( res );
         return;
+    }
+
+#ifdef OB_OBN2
+    SynTree* receiver = findFirstChild( ph, SynTree::R_Receiver, 1 );
+    if( receiver )
+    {
+        SynTree* name = findFirstChild( receiver, Tok_ident );
+        Q_ASSERT( name && receiver->d_children.size() >= 4 && name != receiver->d_children.last() );
+        SynTree* tpid = receiver->d_children[receiver->d_children.size()-2];
+        Q_ASSERT( name != tpid && tpid->d_tok.d_type == Tok_ident );
+
+        const Type* nt = dynamic_cast<const Type*>(ds->findByName(tpid->d_tok.d_val));
+        Type* rt = const_cast<Type*>(nt);
+        if( rt && rt->d_kind == Type::Pointer )
+            rt = const_cast<Type*>(derefed(rt->d_type));
+        if( rt && rt->d_kind == Type::TypeRef )
+        {
+            resolveRefType(ds,rt); // because process is called before names are resolved
+            rt = const_cast<Type*>(rt->d_type);
+        }
+        if( rt && rt->d_kind == Type::Record )
+        {
+            Element* p = new Element();
+            p->d_kind = Element::Variable;
+            p->d_type = nt;
+            p->d_var = receiver->d_children[1]->d_tok.d_type == Tok_VAR ||
+                    receiver->d_children[1]->d_tok.d_type == Tok_IN;
+            p->d_name = name->d_tok.d_val;
+            p->d_def = receiver;
+            p->d_id = name;
+            index(name,p);
+            index(tpid,nt);
+            res->d_receiver = p;
+            if( checkNameNotInScope( res, name) )
+                res->addToScope( p );
+
+            if( rt->findByName(res->d_name) || rt->d_procs.contains( res->d_name ) )
+            {
+                error( Errors::Semantics, res->d_id, tr("duplicate name: '%1'").arg(res->d_name.data()));
+                delete res;
+                return;
+            }else
+                const_cast<Type*>(rt)->d_procs.insert( res->d_name, res );
+        }else
+        {
+            error( Errors::Semantics, tpid, tr("identifier is not a record type: %1 %2").
+                   arg( tpid->d_tok.d_val.constData() ).arg( t ? rt->typeName().constData() : "" ) );
+            delete res;
+            return;
+        }
+    }else
+#endif
+    {
+        ds->d_procs.append(res);
+        if( !checkNameNotInScope(ds,id.first) )
+            return;
+        ds->addToScope( res );
+    }
 
     Module* m = dynamic_cast<Module*>( ds );
     if( m )
@@ -645,6 +735,21 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
             return;
         }else if( pb == 0 )
         {
+#ifdef OB_BBOX
+            Q_ASSERT( ph != 0 );
+            res->d_sysFlag = findFirstChild( ph, SynTree::R_SysFlag, 1 );
+
+            for( int i = 0; i < t->d_children.size(); i++ )
+            {
+                switch( t->d_children[i]->d_tok.d_type )
+                {
+                case Tok_ABSTRACT:
+                case Tok_EMPTY:
+                case Tok_integer:
+                    return; // these procedures have no body by intention
+                }
+            }
+#endif
             error(Errors::Semantics, t, tr("procedure body is missing") );
             return;
         }
@@ -669,7 +774,7 @@ bool CodeModel::checkNameNotInScope(Scope* scope, SynTree* id)
         return true;
 }
 
-bool CodeModel::checkNameNotInRecord(Type* scope, SynTree* id)
+bool CodeModel::checkNameNotInRecord(const Type* scope, SynTree* id)
 {
     Q_ASSERT( id != 0 && scope->d_kind == Type::Record );
     const QByteArray name = id->d_tok.d_val;
@@ -686,14 +791,34 @@ void CodeModel::checkNames(CodeModel::Unit* ds)
     // TODO: check procedure type assignments:
     // P must not be declared local to another procedure, and neither can it be a standard procedure.
 
+    foreach( Type* t, ds->d_types)
+    {
+        if( t->d_def )
+            checkNames(ds,t->d_def);
+#ifdef OB_OBN2
+        Type::Procs::const_iterator i;
+        for( i = t->d_procs.begin(); i != t->d_procs.end(); ++i )
+        {
+            checkNames(i.value());
+        }
+#endif
+    }
     foreach( Element* d, ds->d_elems)
         checkNames(ds,d->d_st);
-    foreach( Type* t, ds->d_types)
-        checkNames(ds,t->getExpr());
+    foreach( Procedure* p, ds->d_procs )
+    {
+        if( p->d_receiver && p->d_receiver->d_def )
+            checkNames( p, p->d_receiver->d_def );
+        if( p->d_sysFlag )
+            checkNames( p, p->d_sysFlag );
+#if 0
+        if( p->d_type && p->d_type->d_def )
+            checkNames( p, p->d_type->d_def );
+#endif
+        checkNames(p);
+    }
     foreach( SynTree* s, ds->d_body )
         checkNames(ds,s);
-    foreach( Procedure* p, ds->d_procs )
-        checkNames(p);
 }
 
 void CodeModel::checkTypeRules(CodeModel::Unit* ds)
@@ -703,6 +828,8 @@ void CodeModel::checkTypeRules(CodeModel::Unit* ds)
         if( r->d_kind == Type::Record )
         {
             const Type* tp = derefed( r->d_type );
+            if( tp != 0 && tp->d_kind == Type::Pointer )
+                tp = derefed( tp->d_type );
             if( tp != 0 && tp->d_kind != Type::Record )
             {
                 SynTree* st = r->d_def;
@@ -712,11 +839,19 @@ void CodeModel::checkTypeRules(CodeModel::Unit* ds)
         }else if( r->d_kind == Type::Pointer )
         {
             const Type* tp = derefed( r->d_type );
-            if( tp != 0 && tp->d_kind != Type::Record )
+            if( tp != 0 && tp->d_kind != Type::Record
+#ifdef OB_OBN2
+                             && tp->d_kind != Type::Array
+#endif
+                             )
             {
                 SynTree* st = r->d_def;
                 Q_ASSERT(st!=0);
+#ifdef OB_OBN2
+                error( Errors::Semantics, st, tr("POINTER type not pointing to RECORD or ARRAY"));
+#else
                 error( Errors::Semantics, st, tr("POINTER type not pointing to RECORD"));
+#endif
             }
         }
     }
@@ -756,7 +891,7 @@ static QString toString( const CodeModel::DesigOpList& l, bool mid = false, bool
             if( sym ) res += notNull(l[i].d_sym);
             break;
         case CodeModel::ProcedureOp:
-            if( l[i].d_arg->d_children.isEmpty() )
+            if( l[i].d_arg == 0 || l[i].d_arg->d_children.isEmpty() )
                 res += "()";
             else
                 res += "(,)";
@@ -776,7 +911,8 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
     if( st == 0 )
         return;
 
-    if( st->d_tok.d_type == SynTree::R_expression )
+    const int toktype = st->d_tok.d_type;
+    if( toktype == SynTree::R_expression )
     {
         if( st->d_children.size() == 1 )
             checkNames(ds, st->d_children.first(), expected );
@@ -805,7 +941,7 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
             }
         }
         // TODO analog mit SimpleExpression, term und factor
-    }else if( st->d_tok.d_type == SynTree::R_assignmentOrProcedureCall )
+    }else if( toktype == SynTree::R_assignmentOrProcedureCall )
     {
         Q_ASSERT( !st->d_children.isEmpty() && st->d_children.first()->d_tok.d_type == SynTree::R_designator );
         for( int i = 1; i < st->d_children.first()->d_children.size(); i++ )
@@ -827,19 +963,19 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
             //qDebug() << "ProcCall" << toString(dopl,false,true);
             st->d_tok.d_type = SynTree::R_ProcedureCall_;
         }
-    }else if( st->d_tok.d_type == SynTree::R_IfStatement || st->d_tok.d_type == SynTree::R_ElsifStatement ||
-              st->d_tok.d_type == SynTree::R_WhileStatement )
+    }else if( toktype == SynTree::R_IfStatement || toktype == SynTree::R_ElsifStatement ||
+              toktype == SynTree::R_WhileStatement )
     {
         Q_ASSERT( st->d_children.size() > 1 );
         checkNames(ds, st->d_children[1], d_scope.d_boolType ); // if/elsif/while-expression
         for( int i = 3; i < st->d_children.size(); i++ )
             checkNames(ds, st->d_children[i]);
-    }else if( st->d_tok.d_type == SynTree::R_RepeatStatement )
+    }else if( toktype == SynTree::R_RepeatStatement )
     {
         Q_ASSERT( st->d_children.size() == 4 );
         checkNames(ds, st->d_children[3], d_scope.d_boolType ); // until-expression
         checkNames(ds, st->d_children[1]);
-    }else if( st->d_tok.d_type == SynTree::R_ForStatement )
+    }else if( toktype == SynTree::R_ForStatement )
     {
         Q_ASSERT( st->d_children.size() >= 6 );
         checkNames(ds, st->d_children[3], d_scope.d_intType ); // for-expression
@@ -849,29 +985,36 @@ void CodeModel::checkNames(CodeModel::Unit* ds, SynTree* st, const CodeModel::Ty
             checkNames(ds, by, d_scope.d_intType ); // by-expression
         for( int i = ( by == 0 ? 6: 8 ); i < st->d_children.size(); i++ )
             checkNames(ds, st->d_children[i]);
-    }else if( st->d_tok.d_type == SynTree::R_CaseStatement )
+    }else if( toktype == SynTree::R_CaseStatement )
     {
         checkCaseStatement(ds,st);
     }
 #ifdef OB_OBN2
-    else if( st->d_tok.d_type == SynTree::R_WithStatement )
+    else if( toktype == SynTree::R_WithStatement )
     {
         checkWithStatement(ds,st);
     }
 #endif
-    else if( st->d_tok.d_type == SynTree::R_designator )
+    else if( toktype == SynTree::R_designator )
     {
         for( int i = 1; i < st->d_children.size(); i++ )
         {
             SynTree* sel = st->d_children[i];
-            Q_ASSERT( sel->d_tok.d_type == SynTree::R_selector );
-            checkNames( ds, sel );
+            if( sel->d_tok.d_type == SynTree::R_selector )
+                checkNames( ds, sel );
         }
         derefDesignator( ds, st, true, d_synthesize, expected );
-    }else if( st->d_tok.d_type == SynTree::R_qualident )
+    }else if( toktype == SynTree::R_qualident )
     {
         derefQualident( ds, st, true, false );
-    }else
+    }
+#ifdef OB_BBOX
+    else if( toktype == SynTree::R_SysFlag || toktype == SynTree::R_SysString )
+    {
+        // NOP
+    }
+#endif
+    else
     {
         foreach( SynTree* sub, st->d_children )
             checkNames(ds,sub, expected);
@@ -1000,6 +1143,7 @@ NormalCaseStatement:
 
 void CodeModel::checkWithStatement(CodeModel::Unit* ds, SynTree* st)
 {
+
 #ifdef OB_OBN2
     Q_ASSERT( st->d_tok.d_type == SynTree::R_WithStatement && st->d_children.size() >= 5 );
 
@@ -1030,10 +1174,10 @@ void CodeModel::checkGuard(CodeModel::Unit* ds, SynTree* guard, SynTree* stats)
 
     Q_ASSERT( lhs->d_tok.d_type == SynTree::R_qualident && rhs->d_tok.d_type == SynTree::R_qualident );
 
-    Quali quali = derefQualident(ds,rhs,false,false);
-    const Type* rhsT = quali.second.first ? dynamic_cast<const Type*>( quali.second.first ) : 0;
-    quali = derefQualident(ds,rhs,false,false);
+    Quali quali = derefQualident(ds,lhs,false,false);
     const Type* lhsT = quali.second.first ? dynamic_cast<const Type*>( quali.second.first ) : 0;
+    quali = derefQualident(ds,rhs,false,false);
+    const Type* rhsT = quali.second.first ? dynamic_cast<const Type*>( quali.second.first ) : 0;
 
     if( lhsT && ( lhsT->d_kind == CodeModel::Type::Pointer || lhsT->d_kind == CodeModel::Type::Record ) )
     {
@@ -1044,19 +1188,21 @@ void CodeModel::checkGuard(CodeModel::Unit* ds, SynTree* guard, SynTree* stats)
         if( var == 0 )
         {
             error(Errors::Semantics,lhs,tr("only simple type case variables supported"));
-        }
-        // first.first type of CaseLabel rhsT
-        // first.second CaseLabelList
-        // second StatementSequence
+        }else
+        {
+            // first.first type of CaseLabel rhsT
+            // first.second CaseLabelList
+            // second StatementSequence
 
-        Unit scope;
-        scope.d_outer = ds;
-        TypeAlias alias;
-        alias.d_name = id->d_tok.d_val;
-        alias.d_newType = rhsT;
-        alias.d_alias = const_cast<NamedThing*>(var);
-        scope.addToScope(&alias);
-        checkNames( &scope, stats );
+            Unit scope;
+            scope.d_outer = ds;
+            TypeAlias alias;
+            alias.d_name = id->d_tok.d_val;
+            alias.d_newType = rhsT;
+            alias.d_alias = const_cast<NamedThing*>(var);
+            scope.addToScope(&alias);
+            checkNames( &scope, stats );
+        }
     }
 #endif
 }
@@ -1095,8 +1241,8 @@ CodeModel::Type*CodeModel::parseTypeRef(CodeModel::Unit* ds, SynTree* t)
 
 CodeModel::Type*CodeModel::parsePointerType(CodeModel::Unit* ds, SynTree* t)
 {
-    Q_ASSERT( t->d_children.size() > 1 && t->d_children[2]->d_tok.d_type == SynTree::R_type );
-    Type* tp = parseType(ds, t->d_children[2] );
+    Q_ASSERT( t->d_children.size() > 1 && t->d_children.last()->d_tok.d_type == SynTree::R_type );
+    Type* tp = parseType(ds, t->d_children.last() );
     Type* res = new Type();
     res->d_kind = Type::Pointer;
     res->d_type = tp;
@@ -1220,8 +1366,13 @@ CodeModel::Type*CodeModel::parseFormalParams(CodeModel::Unit* ds, SynTree* fp, Q
     if( fp != 0 )
     {
         Q_ASSERT( fp->d_tok.d_type == SynTree::R_FormalParameters && !fp->d_children.isEmpty() );
+#ifdef OB_BBOX
+        if( fp->d_children.last()->d_tok.d_type == SynTree::R_type )
+            res = parseType(ds,fp->d_children.last());
+#else
         if( fp->d_children.last()->d_tok.d_type == SynTree::R_NamedType )
             res = parseTypeRef(ds,namedTypeToQualident(fp->d_children.last()));
+#endif
 
         foreach( SynTree* sec, fp->d_children )
         {
@@ -1243,6 +1394,7 @@ CodeModel::Type*CodeModel::parseFormalParams(CodeModel::Unit* ds, SynTree* fp, Q
 
                 if( sec->d_children.last()->d_children.size() > 1 )
                 {
+                    Q_ASSERT( sec->d_children.last()->d_tok.d_type == SynTree::R_FormalType );
                     Q_ASSERT( sec->d_children.last()->d_children.first()->d_tok.d_type == Tok_ARRAY );
                     Type* arr = new Type();
                     arr->d_kind = Type::Array; // Open Array has d_st==0, d_def!=0
@@ -1280,21 +1432,36 @@ void CodeModel::resolveTypeRefs(CodeModel::Unit* ds)
     {
         if( r->d_kind != Type::TypeRef )
             continue;
-        //const NamedThing* nt = derefQualident(ds,r->d_typeSt);
-        Quali q = derefQualident( ds, r->d_st, true, d_synthesize );
-
-        if( q.second.first == 0 )
-            continue; // ID wurde nicht gefunden
-
-        const Type* tp = dynamic_cast<const Type*>(q.second.first);
-        if( tp == 0 )
-        {
-            error( Errors::Semantics, r->d_st, tr("qualident doesn't reference a type") );
-        }else
-            r->d_type = tp;
+        resolveRefType( ds, r );
     }
     foreach( Procedure* p, ds->d_procs )
         resolveTypeRefs(p);
+#ifdef OB_OBN2
+    foreach( Type* t, ds->d_types )
+    {
+        foreach( Procedure* p, t->d_procs )
+            resolveTypeRefs(p);
+    }
+#endif
+}
+
+void CodeModel::resolveRefType(CodeModel::Unit* ds, CodeModel::Type* t)
+{
+    Q_ASSERT( t->d_kind == Type::TypeRef );
+    if( t->d_type )
+        return; // already done
+
+    Quali q = derefQualident( ds, t->d_st, true, d_synthesize );
+
+    if( q.second.first == 0 )
+        return; // ID wurde nicht gefunden
+
+    const Type* tp = dynamic_cast<const Type*>(q.second.first);
+    if( tp == 0 )
+    {
+        error( Errors::Semantics, t->d_st, tr("qualident doesn't reference a type") );
+    }else
+        t->d_type = tp;
 }
 
 CodeModel::Quali CodeModel::derefQualident(CodeModel::Unit* ds, SynTree* t, bool report, bool synthesize)
@@ -1380,10 +1547,16 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
 
     for( int i = 0; i < t->d_children.first()->d_children.size(); i++ )
     {
+        // qualident
         desig += getSelectorOp(t->d_children.first()->d_children[i]);
     }
     for( int i = 1; i < t->d_children.size(); i++ )
     {
+        // selector
+#ifdef OB_BBOX
+        if( t->d_children[i]->d_tok.d_type == Tok_Dlr )
+            continue; // ignore $
+#endif
         desig += getSelectorOp(t->d_children[i]);
         if( desig.back().d_op == TypeOp )
         {
@@ -1436,7 +1609,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         if( err == InvalidOperation )
         {
             if( report )
-                error( Errors::Semantics, dP, tr("invalid operation '%1' on designator '%2'")
+                error( Errors::Semantics, dP ? dP : t, tr("invalid operation '%1' on designator '%2'")
                            .arg(toString(desig.mid(i,1),true)).arg(toString(desig.mid(0,i))) );
             const NamedThing* next = applyDesigOp( ds, desig[i-1].d_sym, desig[i], &err, synthesize,
                     i == desig.size() - 1 ? expected : 0 );
@@ -1448,7 +1621,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         }else if( err == NotFound )
         {
             if( report )
-                error( Errors::Semantics, dP, tr("ident '%1' not found").arg(toString(desig.mid(0,i+1))) );
+                error( Errors::Semantics, dP ? dP : t, tr("ident '%1' not found").arg(toString(desig.mid(0,i+1))) );
             break;
         }else
         {
@@ -1458,6 +1631,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         }
     }
 
+#ifndef OB_OBN2
     if( report )
     {
         // ProcedureOp darf nur einmal im DesigOpList vorkommen und nur ganz am Schluss
@@ -1474,6 +1648,7 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
         if( n > 1 || ( n > 0 && hit != ( desig.size() -1 ) ) )
             error( Errors::Semantics, t, tr("invalid procedure call embedded in designator" ) );
     }
+#endif
     return desig;
 }
 
@@ -1506,7 +1681,7 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                     err = NotFound;
             }
         }else
-            err = InvalidOperation;
+            err = sayInvalid(dop,"module");
     }else if( const TypeAlias* ac = dynamic_cast<const TypeAlias*>( input ) )
     {
         if( Element* v = dynamic_cast<Element*>( ac->d_alias ) )
@@ -1523,7 +1698,7 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
         if( vc->isStub() && !vc->isPredefProc() )
         {
             Element* v = const_cast<Element*>( vc );
-            if( dop.d_op == ProcedureOp )
+            if( dop.d_op == ProcedureOp || dop.d_op == TypeOp)
             {
                 if( v->d_kind != Element::StubProc && v->d_kind != Element::Unknown )
                     qWarning() << "stubed member" << v->d_name << "of module" << v->d_scope->d_name <<
@@ -1534,18 +1709,33 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                     v->d_type = expected;
                 if( dop.d_arg != 0 && v->d_vals.isEmpty() )
                 {
-                    Q_ASSERT( dop.d_arg->d_tok.d_type == SynTree::R_ExpList );
-                    for( int i = 0; i < dop.d_arg->d_children.size(); i++ )
+                    if( dop.d_arg->d_tok.d_type == SynTree::R_ExpList )
                     {
-                        // Generate Procedure Params
+                        Q_ASSERT( dop.d_op == ProcedureOp );
+                        for( int i = 0; i < dop.d_arg->d_children.size(); i++ )
+                        {
+                            // Generate Procedure Params
+                            Element* s = new Element();
+                            s->d_kind = Element::Variable;
+                            s->d_name = "_" + QByteArray::number(i);
+                            s->d_public = true;
+                            s->d_type = typeOfExpression(ds,dop.d_arg->d_children[i]);
+                            s->d_st = dop.d_arg->d_children[i];
+                            v->d_vals.append(s);
+                        }
+                    }else if( dop.d_arg->d_tok.d_type == SynTree::R_qualident )
+                    {
+                        Q_ASSERT( dop.d_op == TypeOp );
                         Element* s = new Element();
                         s->d_kind = Element::Variable;
-                        s->d_name = "_" + QByteArray::number(i);
+                        s->d_name = "_" + QByteArray::number(0);
                         s->d_public = true;
-                        s->d_type = typeOfExpression(ds,dop.d_arg->d_children[i]);
-                        s->d_st = dop.d_arg->d_children[i];
+                        Quali quali = derefQualident(ds,dop.d_arg,false,false);
+                        s->d_type = dynamic_cast<const Type*>( quali.second.first );
+                        s->d_st = dop.d_arg;
                         v->d_vals.append(s);
-                    }
+                    }else
+                        Q_ASSERT(false);
                     v->d_st = dop.d_arg;
                 }
             }else if( dop.d_op == IdentOp )
@@ -1585,11 +1775,11 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                 }
                 res = applyDesigOp( ds, v->d_type, dop, &err, synthesize, expected );
             }else
-                err = InvalidOperation;
+                err = sayInvalid(dop, "stub and not predef proc");
         }else
         {
             if( vc->d_kind == Element::Constant )
-                err = InvalidOperation;
+                err = sayInvalid(dop,"constant elem");
             else if( vc->d_kind == Element::Variable )
             {
                 // Für Modul-Variablen und Record-Felder
@@ -1613,7 +1803,7 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                     res = typeOfExpression(ds,vc->d_kind,dop.d_arg);
                 }else
                 {
-                    err = InvalidOperation;
+                    err = sayInvalid(dop, "predef proc");
                 }
             }
             else
@@ -1625,7 +1815,7 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
         {
             if( dop.d_op == IdentOp )
             {
-                res = t->findByName(dop.d_arg->d_tok.d_val);
+                res = t->find(dop.d_arg->d_tok.d_val);
                 if( res == 0 && synthesize )
                 {
                     Type* t2 = const_cast<Type*>(t);
@@ -1654,11 +1844,18 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                     t2->d_type = expected;
                 }
                 res = t->d_type; // don't deref
-            }
-            else
-                err = InvalidOperation;
+            }else if( dop.d_op == PointerOp )
+            {
+                res = t->d_type;
+            }else if( dop.d_op == TypeOp )
+            {
+                res = dop.d_sym;
+                if( res == 0 )
+                    err = MissingType;
+            }else
+                err = sayInvalid(dop, "type, stub");
         }else if( t->isBasicType() )
-            err = InvalidOperation;
+            err = sayInvalid(dop, "basic type");
         else if( t->d_kind == Type::TypeRef )
         {
             t = t->deref();
@@ -1667,21 +1864,33 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
         }else if( t->d_kind == Type::Array )
         {
             if( dop.d_op == ArrayOp )
+            {
                 res = t->d_type; // don't deref
+                if( res == 0 )
+                    err = MissingType;
+            }else if( dop.d_op == IdentOp )
+            {
+                res = t->find(dop.d_arg->d_tok.d_val);
+                if( res == 0 )
+                    err = NotFound;
+            }
             else
-                err = InvalidOperation;
-            if( res == 0 )
-                err = MissingType;
+                err = sayInvalid(dop, "array type");
         }
         else if( t->d_kind == Type::Record )
         {
             if( dop.d_op == IdentOp )
             {
-                res = t->findByName(dop.d_arg->d_tok.d_val);
+                res = t->find(dop.d_arg->d_tok.d_val);
                 if( res == 0 )
                     err = NotFound;
-            }else
-                err = InvalidOperation;
+            }
+#ifdef OB_BBOX
+            else if( dop.d_op == ProcedureOp )
+                res = t->d_type;
+#endif
+            else
+                err = sayInvalid(dop, "record type");
         }
         else if( t->d_kind == Type::Pointer )
         {
@@ -1690,15 +1899,25 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
                 res = t->d_type;
             else if( dop.d_op == IdentOp && td != 0 && td->d_kind == Type::Record )
                 res = applyDesigOp( ds, td, dop, &err, synthesize, expected );
+#ifdef OB_OBN2
+            else if( dop.d_op == ArrayOp && td != 0 && td->d_kind == Type::Array )
+                res = applyDesigOp( ds, td, dop, &err, synthesize, expected );
+            else if( dop.d_op == TypeOp )
+            {
+                res = dop.d_sym;
+                if( res == 0 )
+                    err = MissingType;
+            }
+#endif
             else
-                err = InvalidOperation;
+                err = sayInvalid(dop, "pointer type"); // TODO typeop
         }
         else if( t->d_kind == Type::ProcRef )
         {
             if( dop.d_op == ProcedureOp )
                 res = t->d_type;
             else
-                err = InvalidOperation;
+                err = sayInvalid(dop, "procref type");
         }
         else
             Q_ASSERT( false );
@@ -1707,9 +1926,16 @@ const CodeModel::NamedThing*CodeModel::applyDesigOp(Unit* ds, const CodeModel::N
         if( dop.d_op == ProcedureOp )
         {
             res = v->d_type;
-        }else
+        }
+#ifdef OB_OBN2
+        else if( dop.d_op == PointerOp )
         {
-            err = InvalidOperation;
+            res = input; // method^ means calling the same method of the superclass
+        }
+#endif
+        else
+        {
+            err = sayInvalid(dop, "procedure");
         }
     }else
     {
@@ -1818,9 +2044,11 @@ const CodeModel::Type*CodeModel::typeOfExpression( const Unit* ds, SynTree* st) 
     case Tok_string:
     case Tok_hexstring:
         return d_scope.d_stringType;
+#ifndef OB_BBOX
     case Tok_TRUE:
     case Tok_FALSE:
         return d_scope.d_boolType;
+#endif
     case Tok_NIL:
         return d_scope.d_nilType;
     case SynTree::R_set:
@@ -2202,10 +2430,12 @@ QVariant CodeModel::evalLiteral(const CodeModel::Unit* u, SynTree* expr) const
     case Tok_NIL:
         error(Errors::Semantics, first, tr("NIL not allowed as a constant value") );
         break;
+#ifndef OB_BBOX
     case Tok_TRUE:
         return true;
     case Tok_FALSE:
         return false;
+#endif
     case SynTree::R_set:
         {
            Q_ASSERT( first->d_children.size() >= 2 && first->d_children.first()->d_tok.d_type == Tok_Lbrace &&
@@ -2353,7 +2583,7 @@ QVariant CodeModel::evalExpression(const CodeModel::Unit* u, SynTree* expr) cons
 
 void CodeModel::index(const SynTree* idUse, const CodeModel::NamedThing* decl)
 {
-    if( !d_trackIds )
+    if( !d_trackIds || idUse == 0 || decl == 0 )
         return;
     Q_ASSERT( idUse != 0 && decl != 0 );
     d_dir[idUse->d_tok.d_sourcePath].append( IdentUse(idUse,decl) );
@@ -2376,7 +2606,7 @@ bool CodeModel::error(Errors::Source s, const SynTree* st, const QString& msg) c
 
 CodeModel::GlobalScope::~GlobalScope()
 {
-    foreach( Element* p, d_procs )
+    foreach( Element* p, d_elems )
         delete p;
     foreach( Module* m, d_mods )
         delete m;
@@ -2455,6 +2685,8 @@ QList<CodeModel::Element*> CodeModel::Unit::getUnknowns() const
 
 CodeModel::Procedure::~Procedure()
 {
+    if( d_receiver )
+        delete d_receiver;
     foreach( Element* v, d_vals )
         delete v;
 }
@@ -2465,10 +2697,30 @@ const CodeModel::Element* CodeModel::Type::findByName(const QByteArray& n) const
     if( res == 0 && d_type != 0 )
     {
         const Type* parent = d_type->deref();
+        if( parent && parent->d_kind == Type::Pointer )
+            parent = derefed(parent->d_type);
         if( parent && parent->d_kind == Type::Record )
             res = parent->findByName(n);
     }
 
+    return res;
+}
+
+const CodeModel::NamedThing* CodeModel::Type::find(const QByteArray& n) const
+{
+    const NamedThing* res = d_vals.value(n);
+#ifdef OB_OBN2
+    if( res == 0 )
+        res = d_procs.value(n);
+#endif
+    if( res == 0 && d_type != 0 )
+    {
+        const Type* parent = d_type->deref();
+        if( parent && parent->d_kind == Type::Pointer )
+            parent = derefed(parent->d_type);
+        if( parent && parent->d_kind == Type::Record )
+            res = parent->find(n);
+    }
     return res;
 }
 
@@ -2512,7 +2764,7 @@ const char* CodeModel::Type::s_kindName[] =
 
 CodeModel::Type::Type(CodeModel::Type::Kind k):d_kind(k),d_type(0),d_st(0),d_len(0)
 {
-    if( k >= BOOLEAN && k <= SET )
+    if( k >= BOOLEAN && k < TypeRef )
         d_name = Lexer::getSymbol( s_kindName[k] );
 }
 
@@ -2575,6 +2827,7 @@ const char* CodeModel::Element::s_kindName[] =
     "PACK",
     "UNPK",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
+    "BITS",
     "WriteInt",
     "WriteReal",
     "WriteChar",
@@ -2589,6 +2842,12 @@ CodeModel::Element::Element(CodeModel::Element::Kind k):d_kind(k),d_st(0),d_type
 {
     if( k > Unknown && k <= LED )
         d_name = Lexer::getSymbol(s_kindName[k]);
+}
+
+CodeModel::Element::Element(const QVariant& v, const QByteArray& name, const CodeModel::Type* t)
+    :d_kind(Constant),d_st(0),d_type(t), d_const(v)
+{
+    d_name = Lexer::getSymbol(name);
 }
 
 CodeModel::Element::~Element()

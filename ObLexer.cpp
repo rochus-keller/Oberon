@@ -156,6 +156,12 @@ QByteArray Lexer::getSymbol(const QByteArray& str)
     return sym;
 }
 
+static inline bool isHexDigit( char c )
+{
+    return ::isdigit(c) || c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' || c == 'F'
+            || c == 'a' || c == 'b' || c == 'c' || c == 'd' || c == 'e' || c == 'f';
+}
+
 Token Lexer::nextTokenImp()
 {
     if( d_in == 0 )
@@ -181,9 +187,16 @@ Token Lexer::nextTokenImp()
 
         if( ch == '"' || ch == '\'' )
             return string();
-        else if( ch == '$')
-            return hexstring();
-        else if( ::isalpha(ch) || ( d_enableExt && ch == '_' ) )
+        else if( ch == '$' )
+        {
+#ifdef OB_BBOX
+            if( !isHexstring(1) )
+                return token( Tok_Dlr );
+            else
+#endif
+                return hexstring();
+        }
+        else if( ::isalpha(ch) || ( ch == '_' ) )
             return ident();
         else if( ::isdigit(ch) )
             return number();
@@ -193,7 +206,7 @@ Token Lexer::nextTokenImp()
 
         if( tt == Tok_Latt )
             return comment();
-        else if( d_enableExt && tt == Tok_2Slash )
+        else if( tt == Tok_2Slash )
         {
             const int len = d_line.size() - d_colNr;
             return token( Tok_Comment, len, d_line.mid(d_colNr,len) );
@@ -268,7 +281,7 @@ Token Lexer::ident()
     {
         const char c = lookAhead(off);
         if( !QChar(c).isLetterOrNumber() // QChar wegen möglichen Umlauten
-                && ( !d_enableExt || c != '_' ) )
+                && c != '_' )
             break;
         else
             off++;
@@ -301,18 +314,15 @@ Token Lexer::ident()
         return token( Tok_ident, off, str );
 }
 
-static inline bool isHexDigit( char c )
-{
-    return ::isdigit(c) || c == 'A' || c == 'B' || c == 'C' || c == 'D' || c == 'E' || c == 'F'
-            || c == 'a' || c == 'b' || c == 'c' || c == 'd' || c == 'e' || c == 'f';
-}
-
 static inline bool checkHexNumber( QByteArray str )
 {
     const int pos = str.indexOf('\'');
     if( pos != -1 )
         str = str.left(pos);
     if( str.size() < 2 || ( !str.endsWith('H') && !str.endsWith('h')
+                        #ifdef OB_BBOX
+                            && !str.endsWith('L') && !str.endsWith('l')
+                        #endif
                             && !str.endsWith('X') && !str.endsWith('x') ) )
         return false;
     else
@@ -337,7 +347,11 @@ Token Lexer::number()
     bool isChar = false;
     bool isReal = false;
     const char o1 = lookAhead(off);
-    if( o1 == 'H' || o1 == 'h' )
+    if( o1 == 'H' || o1 == 'h'
+#ifdef OB_BBOX
+           || o1 == 'L' || o1 == 'l'
+#endif
+            )
     {
         isHex = true;
         off++;
@@ -391,6 +405,7 @@ Token Lexer::number()
 
     if( isChar )
     {
+#ifndef OB_BBOX
         if( str.size() == 4 )
         {
             if( str[0] != '0' )
@@ -398,6 +413,7 @@ Token Lexer::number()
             str = str.mid(1);
         }else if( str.size() > 4 )
             return token( Tok_Invalid, off, "invalid hex char" );
+#endif
         return token( Tok_hexchar, off, str );
     }
     else if( isReal)
@@ -569,5 +585,27 @@ Token Lexer::hexstring()
     t.d_len += 1;
     d_colNr = pos;
     return t;
+}
+
+bool Lexer::isHexstring(int off) const
+{
+    for( int i = d_colNr + off; i < d_line.size(); i++ )
+    {
+        const char ch = d_line[i];
+        if( ch == '$' )
+            return true;
+        if( !isHexDigit(ch) && !::isspace(ch) )
+            return false;
+    }
+    const QByteArray buf = d_in->peek(1000); // RISK
+    for( int i = 0; i < buf.size(); i++ )
+    {
+        const char ch = buf[i];
+        if( ch == '$' )
+            return true;
+        if( !isHexDigit(ch) && !::isspace(ch) )
+            return false;
+    }
+    return false;
 }
 

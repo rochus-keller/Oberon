@@ -29,6 +29,9 @@
 #include <QHash>
 #include <bitset>
 #include <QVariant>
+#ifdef _DEBUG
+#include <QtDebug>
+#endif
 
 class QTextStream;
 class QIODevice;
@@ -84,7 +87,6 @@ namespace Ob
             bool d_var; // var param
 
             bool isStub() const { return d_def == 0; }
-            virtual SynTree* getExpr() const { return 0; }
             virtual const Type* getType() const { return 0; }
             virtual QByteArray typeName() const { return ""; }
             virtual QList<Element*> getParams() const { return QList<Element*>(); }
@@ -98,6 +100,7 @@ namespace Ob
                 ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
                         NEW, ASSERT, PACK, UNPK,
                         MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, SIZE, ENTIER, // OBN-2
+                        BITS, // BBOX
                         WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
                         LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                         Constant, Variable, StubProc
@@ -105,6 +108,7 @@ namespace Ob
             static const char* s_kindName[];
 
             Element(Kind k = Unknown);
+            Element(const QVariant&, const QByteArray& name, const Type*);
             ~Element();
 
             Kind d_kind;
@@ -139,7 +143,7 @@ namespace Ob
                 d_nilType(0),d_setType(0){}
             ~GlobalScope();
 
-            QList<Element*> d_procs; // owned
+            QList<Element*> d_elems; // owned
             QList<Module*> d_mods; // owned
             QList<Type*> d_types; // owned
             Type* d_boolType; // not owned
@@ -149,6 +153,7 @@ namespace Ob
             Type* d_nilType; // not owned
             Type* d_setType; // not owned
             Type* d_charType; // not owned
+            Type* d_anyRec; // not owned
 
             virtual QByteArray typeName() const { return "GlobalScope"; }
         };
@@ -175,11 +180,12 @@ namespace Ob
         {
         public:
             // Module mit d_st==0 ist ein Stub
-            Module():d_isDef(false),d_isExt(false) {}
+            Module():d_isDef(false),d_isExt(false),d_sysString(0) {}
             ~Module() { if( d_def ) delete d_def; } // Module owns full SynTree
 
             QList<Module*> d_using, d_usedBy; // not owned
             bool d_isDef, d_isExt;
+            SynTree* d_sysString;
 
             QByteArray typeName() const { return "Module"; }
         };
@@ -187,11 +193,13 @@ namespace Ob
         class Procedure : public Unit
         {
         public:
-            Procedure():d_type(0){}
+            Procedure():d_type(0),d_receiver(0),d_sysFlag(0){}
             ~Procedure();
 
             QList<Element*> d_vals; // owned; params
             Type* d_type; // not owned; return type
+            Element* d_receiver; // owned
+            SynTree* d_sysFlag; // not owned
             const Type* getType() const { return d_type; }
             QByteArray typeName() const { return "Procedure"; }
             virtual QList<Element*> getParams() const { return d_vals; }
@@ -215,6 +223,7 @@ namespace Ob
             const Type* deref() const;
             QByteArray typeName() const;
             const Element* findByName( const QByteArray& ) const;
+            const NamedThing* find( const QByteArray& ) const;
             virtual const Type* getType() const { return this; }
             virtual QList<Element*> getParams() const;
 
@@ -223,6 +232,10 @@ namespace Ob
             SynTree* d_st; // not owned; Array: dim expression; Ref: quali
             Vals d_vals; // owned; Record: fields; ProcRef: Params
             quint32 d_len; // Array: len
+#ifdef OB_OBN2
+            typedef QMap<QByteArray,Procedure*> Procs;
+            Procs d_procs;
+#endif
         };
 
         class TypeAlias : public NamedThing // wird nur temporär auf dem Stack verwendet
@@ -274,7 +287,7 @@ namespace Ob
         void processVariableDeclaration(Unit*,SynTree*);
         void processProcedureDeclaration(Unit*,SynTree*);
         bool checkNameNotInScope(Scope* scope, SynTree* id);
-        bool checkNameNotInRecord(Type* scope, SynTree* id);
+        bool checkNameNotInRecord(const Type* scope, SynTree* id);
         void checkTypeRules(Unit*);
         void checkNames(Unit*);
         void checkNames(Unit*, SynTree*, const Type* expected = 0);
@@ -290,6 +303,7 @@ namespace Ob
         Type* parseProcType( Unit* ds, SynTree* t );
         Type* parseFormalParams(Unit* ds, SynTree* t, QList<Element*>&);
         void resolveTypeRefs( Unit* ds );
+        void resolveRefType( Unit* ds, Type* t );
         Quali derefQualident(Unit* ds, SynTree* t , bool report, bool synthesize = false );
         DesigOpList derefDesignator( Unit*,SynTree*,bool report, bool synthesize, const CodeModel::Type* expected = 0);
         enum DesigOpErr { NoError, NotFound, InvalidOperation, MissingType };
@@ -306,6 +320,15 @@ namespace Ob
 
         static QPair<SynTree*,bool> getIdentFromIdentDef(SynTree*);
         static DesigOp getSelectorOp( SynTree* );
+        static inline DesigOpErr sayInvalid(const DesigOp& dop, const char* input )
+        {
+#ifdef _DEBUG
+            qDebug() << "*** invalid op" << dop.d_op << "with input" << input <<
+                        (dop.d_arg ? dop.d_arg->d_tok.d_sourcePath : QString()) <<
+                        (dop.d_arg ? dop.d_arg->d_tok.d_lineNr : -1 );
+#endif
+            return InvalidOperation;
+        }
     private:
         GlobalScope d_scope;
         QHash<QString,QList<Token> > d_comments;

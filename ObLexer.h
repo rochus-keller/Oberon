@@ -64,6 +64,7 @@ namespace Ob
         Token comment();
         Token string();
         Token hexstring();
+        bool isHexstring(int off = 1) const;
     private:
         QIODevice* d_in;
         Errors* d_err;

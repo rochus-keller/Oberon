@@ -1783,10 +1783,12 @@ Ast::Ref<Ast::Expression> Ast::Model::literal(Ast::Scope* s, SynTree* st)
                                first->d_tok.d_val.left( first->d_tok.d_val.size() - 1 ) ));
     case Tok_NIL:
         return new Literal(d_nilType.data(), toRowCol(first));
+#ifndef OB_BBOX
     case Tok_TRUE:
         return new Literal(d_boolType.data(), toRowCol(first), true);
     case Tok_FALSE:
         return new Literal(d_boolType.data(), toRowCol(first), false);
+#endif
     case SynTree::R_set:
         return set(s,st->d_children.first());
     default:

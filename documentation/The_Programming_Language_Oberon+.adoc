@@ -7,7 +7,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2020-12-23
+:revdate: 2020-12-28
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -207,7 +207,7 @@ The reserved words consist of either all capital or all lower case letters and c
 |===
 
 [NOTE]
-WITH, LOOP and EXIT are Oberon-2 reserved words not present in Oberon-07. DEFINITION and PROC are Oberon+ reserved words not present in previous Oberon versions. All lower-case versions are only reserved words in Oberon+. The compiler is supposed to offer a dedicated Oberon-2 and Oberon-07 compatibility mode to support legacy code with reserved word collisions.
+WITH, LOOP and EXIT are Oberon-2 reserved words not present in Oberon-07. In contrast TRUE and FALSE are Oberon-07 keywords but just predeclared identifiers in Oberon-2 and Oberon+. DEFINITION and PROC are Oberon+ reserved words not present in previous Oberon versions. All lower-case versions are only reserved words in Oberon+. The compiler is supposed to offer a dedicated Oberon-2 and Oberon-07 compatibility mode to support legacy code with reserved word collisions.
 
 === Comments
 Comments are arbitrary character sequences opened by the bracket `(\*` and closed by `*)`. Comments may be nested. They do not affect the meaning of a program. Oberon+ also supports line comments; text starting with `//` up to a line break is considered a comment.
@@ -420,6 +420,8 @@ T1 = record (T0) y: real end
 ....
 
 T1 is a (direct) _extension_ of T0 and T0 is the (direct) base type of T1 (see <<Definition of terms>>). An extended type T1 consists of the fields of its base type and of the fields which are declared in T1. All identifiers declared in the extended record must be different from the identifiers declared in its base type record(s).
+
+Alternatively, a pointer to record type can be specified as the base type. The record base type of the pointer is used as the base type of the declared record in this case.
 
 .Examples:
 ....

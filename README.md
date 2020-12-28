@@ -13,8 +13,8 @@ More to come.
 ### Parser and code model features
 
 - Three parser versions; one generates a syntax tree and one a fully validated AST
-  - The parser/code model (ObLexer, ObParser, ObCodeModel) used by the code browser supports Oberon-07, Oberon 90 and Oberon-2
-  - The parser/validator (ObLexer, ObParser, ObAst, ObAstValidator) used by the Lua bytecode generator and IDE supports Oberon-07 (optionally with lower-case keywords, underscores in idents and line comments)
+  - The parser/code model (ObLexer, ObParser, ObCodeModel) used by the code browser supports Oberon-07, Oberon 90, Oberon-2, and Component Pascal 1.7.2;
+  - The parser/validator (ObLexer, ObParser, ObAst, ObAstValidator) used by the Lua bytecode generator and IDE supports Oberon-07 (optionally with lower-case keywords, underscores in idents and line comments);
   - The new OBX parser (ObLexer, ObxParser, ObxValidator) supports Oberon-07, Oberon 90, Oberon-2 and Oberon+.
 - All parsers support syntax and (some) semantics validation, and error reporting
 - ObCodeModel optionally infers and synthesizes missing modules

@@ -27,9 +27,12 @@
 // - allow more than one TYPE, CONST, VAR in declaration sequence in arbitrary order interleaved with procedures
 // - added '-' to identdef as in Oberon-2 (only effective on RECORD level, MODULE level als '*' is read-only)
 // - added WITH, LOOP, EXIT statements from Oberon-2 for backward compatibility
+// - added syntax elements to parse Blackbox Component Pascal 1.7
 
-//#define OBNX
 #define OBN2
+// combine OBN2 with either OBNX or BBOX
+//#define OBNX
+#define BBOX
 
 /// Top
 Oberon ::=  module | definition // also in OBX we require one module or definition per file
@@ -109,6 +112,9 @@ enumeration ::= '('  ident { ',' ident } ')'
 /// 6.2. Array types
 
 ArrayType ::= ARRAY 
+#ifdef BBOX
+	[ SysFlag ]
+#endif
 #ifdef OBN2
 	[ LengthList ]
 #else
@@ -123,9 +129,22 @@ LengthList ::= length {',' length}
 
 length* ::= ConstExpression
 
+#ifdef BBOX
+SysFlag ::=  '[' ConstExpression ']' 
+SysString ::= string
+#endif
+
 /// 6.3. Record types
 
-RecordType ::= RECORD ['(' BaseType ')'] [FieldListSequence]  END 
+RecordType ::= 
+#ifdef BBOX
+	[ 'ABSTRACT' | 'EXTENSIBLE' | 'LIMITED' ] // RecAttributes
+#endif
+	RECORD 
+#ifdef BBOX
+	[ SysFlag ]
+#endif
+	['(' BaseType ')'] [FieldListSequence]  END 
 
 BaseType ::= NamedType
 
@@ -142,7 +161,11 @@ IdentList ::= identdef {',' identdef}
 
 /// 6.4. Pointer types
 
-PointerType ::= ( POINTER TO
+PointerType ::= ( POINTER 
+#ifdef BBOX
+	[ SysFlag ]
+#endif
+	TO
 #ifdef OBNX
 	| '^' 
 #endif
@@ -154,7 +177,11 @@ ProcedureType ::= ( PROCEDURE
 #ifdef OBNX
 	| PROC 
 #endif 
-	) [FormalParameters]
+	) 
+#ifdef BBOX
+	[ SysFlag ]
+#endif
+	[FormalParameters]
 
 /// 7. Variable declarations
 
@@ -165,6 +192,9 @@ VariableDeclaration ::= IdentList ':' type
 /// 8.1. Operands
 
 designator ::= qualident {selector}
+#ifdef BBOX
+	[ '$' ]
+#endif
 
 selector ::= '.' ident | '[' ExpList ']' | '^'  
 	| '(' [ ExpList ] ')' // substitute for (qualident) and ActualParameters
@@ -187,7 +217,10 @@ term ::= factor {MulOperator factor}
 
 MulOperator ::= '*' | '/' | DIV | MOD | '&'
 
-literal ::= number | string | hexstring | hexchar | NIL | TRUE | FALSE | set 
+literal ::= number | string | hexstring | hexchar | NIL | set 
+#ifndef BBOX
+	| TRUE | FALSE // in Oberon-2 and Blackbox these are just predeclared consts
+#endif
 
 factor ::= literal
 	| variableOrFunctionCall // replaces: designator [ActualParameters]
@@ -286,7 +319,7 @@ ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
 	DO StatementSequence END
 
 #ifdef OBN2
-WithStatement ::= WITH Guard DO StatementSequence
+WithStatement ::= WITH [ '|' ] Guard DO StatementSequence
 	{ '|' Guard DO StatementSequence}
 	[ ELSE StatementSequence ] END
 Guard ::= qualident ':' qualident
@@ -299,14 +332,34 @@ ExitStatement ::= EXIT
 /// 10. Procedure declarations
 ProcedureDeclaration ::= 
 #ifdef OBN2
-	\LL:2\ PROCEDURE ( '^' | '-' ) identdef [ FormalParameters ] [ literal ] | 
+	\LL:2\ PROCEDURE ( '^' | '-' ) [Receiver] identdef [ FormalParameters ] [ literal ] 
 	// OBN87/90 allows forward declarations (^) and external declarations (-)
+#ifdef BBOX
+	MethAttributes
 #endif
+	| 
+#endif
+#ifdef BBOX
+	ProcedureHeading  [ \LL:2\ ',' ident ] // MethAttributes embedded
+	( \LL:2\ ',' ( 'ABSTRACT' | 'EMPTY' ) 
+	| ',' 'EXTENSIBLE' ';'  ProcedureBody ident 
+	| integer { ',' integer } // requires [code] to have at least one number, so modifications required!
+	| ';'  ProcedureBody ident 
+	)
+#else
 	ProcedureHeading [ ';' ] ProcedureBody ident 
+#endif
+
+#ifdef BBOX
+MethAttributes ::= [ \LL:2\ ',' ident ] [ ',' ( 'ABSTRACT' | 'EXTENSIBLE' | 'EMPTY' ) ]  // ident to avoid NEW keyword
+#endif
 
 ProcedureHeading ::= ( PROCEDURE | PROC )
 #ifdef OBN2
 	[ '*' | '+' ]  // the star is from Oberon 87 (ignored)
+#endif
+#ifdef BBOX
+	[ SysFlag ]
 #endif
 #ifdef OBNX
 	[ TypeParams_ ]
@@ -314,10 +367,18 @@ ProcedureHeading ::= ( PROCEDURE | PROC )
 #ifdef OBN2
 	[Receiver]
 #endif
-	 identdef [ FormalParameters ]
+	 identdef 
+#ifdef BBOX
+	[ '[' SysString { ',' SysString } ']' ]
+#endif
+	 [ FormalParameters ]
 
 #ifdef OBN2
-Receiver ::= '(' [VAR] ident ':' ident
+Receiver ::= '(' [ VAR 
+#ifdef BBOX
+	| IN
+#endif
+	] ident ':' ident
 #ifdef OBNX
 	[ TypeActuals_ ] 
 #endif 
@@ -342,9 +403,15 @@ DeclarationSequence ::=
 	| VAR { VariableDeclaration [';'] } 
 	| ProcedureDeclaration [';'] }
 #else
+#ifdef BBOX
+	{ CONST { ConstDeclaration ';' } 
+	| TYPE { TypeDeclaration ';' }
+	| VAR { VariableDeclaration ';' } }
+#else
 	[ CONST { ConstDeclaration ';' } ]
 	[ TYPE { TypeDeclaration ';' } ]
 	[ VAR { VariableDeclaration ';' } ]
+#endif
 	{ ProcedureDeclaration ';' }
 #endif
 
@@ -362,21 +429,46 @@ DeclarationSequence2 ::=
 	| VAR { VariableDeclaration [';'] }
 	| ProcedureHeading [';'] } // difference to DeclarationSequence
 #else
+#ifdef BBOX
+	{ CONST { ConstDeclaration ';' } 
+	| TYPE { TypeDeclaration ';' }
+	| VAR { VariableDeclaration ';' } }
+	{ ProcedureHeading MethAttributes ';' }
+#else	
 	[ CONST { ConstDeclaration ';' } ]
 	[ TYPE { TypeDeclaration ';' } ]
 	[ VAR { VariableDeclaration ';' } ]
 	{ ProcedureHeading ';' }
 #endif
+#endif
 
 /// 10.1. Formal parameters
 
-FormalParameters ::= '(' [ FPSection { [';'] FPSection } ] ')' [ ':' NamedType ]
+FormalParameters ::= '(' [ FPSection { 
+#ifdef OBNX
+	[';'] 
+#else
+	';'
+#endif
+	FPSection } ] ')' 
+#ifdef BBOX
+	[ ':' type ]
+#else
+	[ ':' NamedType ]
+#endif
 
 FPSection ::= [ VAR 
 #ifdef OBNX
 	| IN 
 #endif
-	] ident { ',' ident } ':' FormalType 
+#ifdef BBOX
+	| IN | OUT
+#endif
+	] 
+#ifdef BBOX
+	[ SysFlag ]
+#endif
+	ident { ',' ident } ':' FormalType 
 
 FormalType ::= 
 #ifdef OBN2
@@ -393,12 +485,21 @@ FormalType ::=
 
 /// 11. Modules
 
-module ::= MODULE ident [';'] [ ImportList ] DeclarationSequence
+module ::= MODULE ident (
+#ifdef BBOX
+	'[' SysString ']'  ';' [ ImportList ] DeclarationSequence2 END ident '.'
+	|
+#endif
+	[';'] [ ImportList ] DeclarationSequence
 	[ ( BEGIN 
 #ifdef OBNX
 	| DO 
 #endif
-	) StatementSequence ] END ident ['.']
+	) StatementSequence ] 
+#ifdef BBOX
+	[ CLOSE StatementSequence ]
+#endif
+	END ident ['.'] )
 
 ImportList ::= IMPORT import { ',' import } [';']
 

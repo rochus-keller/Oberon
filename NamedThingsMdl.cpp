@@ -76,7 +76,12 @@ QVariant NamedThingsMdl::data(const QModelIndex& index, int role) const
             {
                 if( v->isStub() )
                     return s->d_sym->d_name + " (" + CodeModel::Element::s_kindName[v->d_kind] + ")";
-            }// else
+            }else if( const CodeModel::Procedure* v = dynamic_cast<const CodeModel::Procedure*>(s->d_sym) )
+            {
+                return s->d_sym->d_name + ( s->d_sym->d_public ? "*" : "" ) + "(" +
+                        ( v->d_vals.isEmpty() ? "" : "," ) + ")";
+            }
+            // else
             return s->d_sym->d_name + ( s->d_sym->d_public ? "*" : "" );
         case Slot::Consts:
             return "CONST";
@@ -212,11 +217,19 @@ void NamedThingsMdl::fillSection( Slot* super, const Sorter& sorter, quint8 kind
             fill(s, p );
         else if( const CodeModel::Type* r = dynamic_cast<const CodeModel::Type*>(j.value()) )
         {
+            if( r->d_kind == CodeModel::Type::Pointer )
+                r = r->d_type;
             if( r->d_kind != CodeModel::Type::Record )
                 continue;
             Sorter s2;
-            foreach( const CodeModel::Element* v, r->d_vals )
-                s2.insert( v->d_name.toLower(), v );
+            CodeModel::Type::Vals::const_iterator i;
+            for( i = r->d_vals.begin(); i != r->d_vals.end(); ++i )
+                s2.insert( i.value()->d_name.toLower(), i.value() );
+#ifdef OB_OBN2
+            CodeModel::Type::Procs::const_iterator j;
+            for( j = r->d_procs.begin(); j != r->d_procs.end(); ++j )
+                s2.insert( j.value()->d_name.toLower(), j.value() );
+#endif
             fillSection( s, s2, Slot::Symbol );
         }else if( const CodeModel::Element* t = dynamic_cast<const CodeModel::Element*>(j.value() ) )
         {

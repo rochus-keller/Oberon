@@ -396,12 +396,14 @@ void CppGen::emitLiteral(const CodeModel::Unit* ds,const SynTree* st, QTextStrea
         else
             out << st->d_children.first()->d_children.first()->d_tok.d_val;
         break;
+#ifndef OB_BBOX
     case Tok_TRUE:
         out << "true";
         break;
     case Tok_FALSE:
         out << "false";
         break;
+#endif
     case Tok_NIL:
         out << "0";
         break;
