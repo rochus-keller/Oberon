@@ -50,6 +50,8 @@ namespace Ob
         Token peekToken(quint8 lookAhead = 1);
         QList<Token> tokens( const QString& code );
         QList<Token> tokens( const QByteArray& code, const QString& path = QString() );
+        quint32 getSloc() const { return d_sloc; }
+
         static QByteArray getSymbol( const QByteArray& );
         static void parseComment( const QByteArray& str, int& pos, int& level );
         static bool skipOberonHeader( QIODevice* );
@@ -65,6 +67,7 @@ namespace Ob
         Token string();
         Token hexstring();
         bool isHexstring(int off = 1) const;
+        void countLine();
     private:
         QIODevice* d_in;
         Errors* d_err;
@@ -74,6 +77,7 @@ namespace Ob
         QString d_sourcePath;
         QByteArray d_line;
         QList<Token> d_buffer;
+        quint32 d_sloc; // number of lines of code without empty or comment lines
         static QHash<QByteArray,QByteArray> d_symbols;
         Token d_lastToken;
         bool d_ignoreComments;  // don't deliver comment tokens
@@ -81,6 +85,7 @@ namespace Ob
         bool d_enableExt; // Allow for both uppercase and lowercase keywords and for idents with underscores as in C
         bool d_sensExt; // Autosense language extension (first keyword MODULE, module, DEFINITION, definition)
         bool d_sensed;
+        bool d_lineCounted;
     };
 }
 

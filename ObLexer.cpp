@@ -31,7 +31,8 @@ QHash<QByteArray,QByteArray> Lexer::d_symbols;
 
 Lexer::Lexer(QObject *parent) : QObject(parent),
     d_lastToken(Tok_Invalid),d_lineNr(0),d_colNr(0),d_in(0),d_err(0),d_fcache(0),
-    d_ignoreComments(true), d_packComments(true),d_enableExt(false), d_sensExt(false), d_sensed(false)
+    d_ignoreComments(true), d_packComments(true),d_enableExt(false), d_sensExt(false),
+    d_sensed(false), d_sloc(0), d_lineCounted(false)
 {
 
 }
@@ -50,6 +51,8 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         d_sourcePath = sourcePath;
         d_lastToken = Tok_Invalid;
         d_sensed = false;
+        d_sloc = 0;
+        d_lineCounted = false;
 
         if( skipOberonHeader( d_in ) )
         {
@@ -234,6 +237,7 @@ void Lexer::nextLine()
     d_colNr = 0;
     d_lineNr++;
     d_line = d_in->readLine();
+    d_lineCounted = false;
 
     if( d_line.endsWith("\r\n") )
         d_line.chop(2);
@@ -252,6 +256,9 @@ int Lexer::lookAhead(int off) const
 
 Token Lexer::token(TokenType tt, int len, const QByteArray& val)
 {
+    if( tt != Tok_Invalid && tt != Tok_Comment && tt != Tok_Eof )
+        countLine();
+
     QByteArray v = val;
     if( tt != Tok_Comment && tt != Tok_Invalid )
         v = getSymbol(v);
@@ -539,6 +546,7 @@ Token Lexer::string()
 
 Token Lexer::hexstring()
 {
+    countLine();
     // inofficial extension of Oberon found in ProjectOberon,
     // e.g. arrow := SYSTEM.ADR($0F0F 0060 0070 0038 001C 000E 0007 8003 C101 E300 7700 3F00 1F00 3F00 7F00 FF00$);
     // in Display.Mod; sogar über mehrere Zeilen zulässig
@@ -554,6 +562,7 @@ Token Lexer::hexstring()
             str += '\n';
         str += d_line.mid( d_colNr );
         nextLine();
+        countLine();
         pos = d_line.indexOf( "$" );
     }
     if( pos == -1 )
@@ -607,5 +616,12 @@ bool Lexer::isHexstring(int off) const
             return false;
     }
     return false;
+}
+
+void Lexer::countLine()
+{
+    if( !d_lineCounted )
+        d_sloc++;
+    d_lineCounted = true;
 }
 

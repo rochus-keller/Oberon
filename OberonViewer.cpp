@@ -22,6 +22,7 @@
 #include "OberonViewer.h"
 #include "ObnHighlighter.h"
 #include "ObLexer.h"
+#include "ObObxGen.h"
 #include <QDockWidget>
 #include <QFile>
 #include <QPainter>
@@ -393,6 +394,7 @@ OberonViewer::OberonViewer(QWidget *parent) : QMainWindow(parent),d_pushBackLock
     new QShortcut(tr("F2"),this,SLOT(onGotoDefinition()) );
     new QShortcut(tr("CTRL+O"),this,SLOT(onOpen()) );
     new QShortcut(tr("CTRL+T"),this,SLOT(onTranslate()) );
+    new QShortcut(tr("CTRL+SHIFT+T"),this,SLOT(onTranslate2()) );
 
 #if QT_VERSION > 0x050000
 	s_oldHandler = qInstallMessageHandler(messageHander);
@@ -447,7 +449,8 @@ QStringList OberonViewer::collectFiles(const QDir& dir)
         res += collectFiles( QDir( dir.absoluteFilePath(f) ) );
 
     files = dir.entryList( QStringList() << QString("*.Mod")
-                                           << QString("*.mod") << QString("*.Def") << QString("*.def"),
+                                           << QString("*.mod") << QString("*.Def") << QString("*.def")
+                           << QString("*.obn") << QString("*.obx"),
                                            QDir::Files, QDir::Name );
     foreach( const QString& f, files )
     {
@@ -487,6 +490,7 @@ void OberonViewer::createUsedBy()
     vbox->setMargin(0);
     vbox->setSpacing(0);
     d_usedByTitle = new QLabel(pane);
+    d_usedByTitle->setWordWrap(true);
     d_usedByTitle->setMargin(2);
     vbox->addWidget(d_usedByTitle);
     d_usedBy = new QTreeWidget(pane);
@@ -779,4 +783,43 @@ void OberonViewer::onTranslate()
     g.emitModules(path->text(),n,p);
     qDebug() << "finished";
 }
+
+void OberonViewer::onTranslate2()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("Translate to Oberon+"));
+    QVBoxLayout* vbox = new QVBoxLayout(&dlg);
+    QFormLayout* form = new QFormLayout();
+    QLabel* intro = new QLabel(&dlg);
+    intro->setText(tr("Convert all loaded Oberon files to Oberon+.\n"
+                      "Check for errors or warnings in the log. For stubs only headers are generated.\n\n"
+                      "WARNING: existing .obx files are overwritten without warning!") );
+    vbox->addWidget(intro);
+    vbox->addLayout(form);
+    QSettings  s;
+    QLineEdit* package = new QLineEdit(&dlg);
+    QLineEdit* path = new QLineEdit(&dlg);
+    package->setText(s.value("PackageName2",tr("")).toString());
+    path->setText(s.value("GenerateTo2",QDir::currentPath()).toString());
+    form->addRow(tr("Package name:"), package );
+    form->addRow(tr("Generate to:"), path );
+    QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg );
+    vbox->addWidget(bb);
+    connect(bb, SIGNAL(accepted()), &dlg, SLOT(accept()));
+    connect(bb, SIGNAL(rejected()), &dlg, SLOT(reject()));
+    if( dlg.exec() != QDialog::Accepted )
+        return;
+    QString p = package->text().simplified();
+    p.replace(' ',"");
+    s.setValue( "PackageName2",p );
+    s.setValue("GenerateTo2", path->text() );
+
+    d_msgLog->clear();
+    qDebug() << "generating Oberon+ files...";
+    Ob::ObxGen g(d_mdl);
+    g.emitModules(path->text(),p);
+    qDebug() << "finished";
+}
+
+
 

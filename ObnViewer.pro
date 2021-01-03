@@ -32,7 +32,8 @@ SOURCES += \
     ObnHighlighter.cpp \
     NamedThingsMdl.cpp \
     CppKeywordDetector.cpp \
-    ObCppGen.cpp
+    ObCppGen.cpp \
+    ObObxGen.cpp
 
 include( Oberon.pri )
 
@@ -48,7 +49,8 @@ HEADERS += \
     OberonViewer.h \
     ObnHighlighter.h \
     NamedThingsMdl.h \
-    ObCppGen.h
+    ObCppGen.h \
+    ObObxGen.h
 
 
 

@@ -1078,8 +1078,10 @@ void Parser::ProcedureDeclaration() {
 				Expect(_T_Semi,__FUNCTION__);
 				addTerminal(); 
 				ProcedureBody();
-				Expect(_T_ident,__FUNCTION__);
-				addTerminal(); 
+				if (la->kind == _T_ident) {
+					Get();
+					addTerminal(); 
+				}
 			} else if (la->kind == _T_integer) {
 				Get();
 				addTerminal(); 
@@ -1093,8 +1095,10 @@ void Parser::ProcedureDeclaration() {
 				Get();
 				addTerminal(); 
 				ProcedureBody();
-				Expect(_T_ident,__FUNCTION__);
-				addTerminal(); 
+				if (la->kind == _T_ident) {
+					Get();
+					addTerminal(); 
+				}
 			} else SynErr(99,__FUNCTION__);
 		} else SynErr(100,__FUNCTION__);
 		d_stack.pop(); 

@@ -28,6 +28,7 @@
 // - added '-' to identdef as in Oberon-2 (only effective on RECORD level, MODULE level als '*' is read-only)
 // - added WITH, LOOP, EXIT statements from Oberon-2 for backward compatibility
 // - added syntax elements to parse Blackbox Component Pascal 1.7
+// - made end ident of procedures optional
 
 #define OBN2
 // combine OBN2 with either OBNX or BBOX
@@ -342,12 +343,12 @@ ProcedureDeclaration ::=
 #ifdef BBOX
 	ProcedureHeading  [ \LL:2\ ',' ident ] // MethAttributes embedded
 	( \LL:2\ ',' ( 'ABSTRACT' | 'EMPTY' ) 
-	| ',' 'EXTENSIBLE' ';'  ProcedureBody ident 
+	| ',' 'EXTENSIBLE' ';'  ProcedureBody [ ident ]
 	| integer { ',' integer } // requires [code] to have at least one number, so modifications required!
-	| ';'  ProcedureBody ident 
+	| ';'  ProcedureBody [ ident ]
 	)
 #else
-	ProcedureHeading [ ';' ] ProcedureBody ident 
+	ProcedureHeading [ ';' ] ProcedureBody [ ident ]
 #endif
 
 #ifdef BBOX
@@ -417,7 +418,7 @@ DeclarationSequence ::=
 
 ReturnStatement ::= RETURN 
 #ifdef OBN2
-	[ expression ] // leads to LLk ambig with qualident statement; resolve by checking if proc has return type
+	[ expression ] // leads to LL(k) ambig with qualident statement; resolve by checking if proc has return type
 #else
 	expression 
 #endif

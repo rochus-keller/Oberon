@@ -35,7 +35,7 @@ namespace Ob
         TokenType d_tokenType;
         };
 #else
-        quint16 d_type : 16; // TokenType
+        quint16 d_type; // TokenType
 #endif
         quint16 d_len;
 

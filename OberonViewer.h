@@ -66,6 +66,7 @@ namespace Ob
         void onGotoDefinition();
         void onOpen();
         void onTranslate();
+        void onTranslate2();
 
     private:
         class Viewer;

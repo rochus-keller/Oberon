@@ -135,9 +135,9 @@ void CodeModel::clear()
     d_scope.d_elems.append( new Element( Element::ENTIER ) );
 #endif
 #ifdef OB_BBOX
-    d_scope.d_elems.append( new Element( true, "TRUE", d_scope.d_boolType ) );
-    d_scope.d_elems.append( new Element( false, "FALSE", d_scope.d_boolType ) );
-    d_scope.d_elems.append( new Element( INFINITY, "INF", d_scope.d_realType ) );
+    d_scope.d_elems.append( new Element( Element::TRUE, d_scope.d_boolType ) );
+    d_scope.d_elems.append( new Element( Element::FALSE, d_scope.d_boolType ) );
+    d_scope.d_elems.append( new Element( Element::INF, d_scope.d_realType ) );
     d_scope.d_elems.append( new Element( Element::BITS ) );
 #endif
     foreach( Element* t, d_scope.d_elems )
@@ -166,16 +166,16 @@ QByteArrayList CodeModel::getBuitinIdents()
     return res;
 }
 
-void CodeModel::parseFile(const QString& path)
+quint32 CodeModel::parseFile(const QString& path)
 {
     QFile file(path);
     if( !file.open(QIODevice::ReadOnly) )
     {
         d_errs->error(Errors::Lexer, path, 0, 0,
                          tr("cannot open file from path %1").arg(path) );
-        return;
+        return 0;
     }
-    parseFile( &file, path );
+    return parseFile( &file, path );
 }
 
 static bool IdenUseLessThan( const CodeModel::IdentUse& lhs, const CodeModel::IdentUse& rhs )
@@ -195,11 +195,15 @@ bool CodeModel::parseFiles(const QStringList& files)
         return false;
     }
 
+    quint32 slocsum = 0;
     foreach( const QString& path, files )
     {
         qDebug() << "parsing" << path;
-        parseFile(path);
+        const quint32 sloc = parseFile(path);
+        slocsum += sloc;
     }
+
+    qDebug() << "parsed" << slocsum << "physical (LOC, no whitespace or comment only) lines in total";
 
     if( d_errs->getSyntaxErrCount() != 0 )
     {
@@ -325,7 +329,7 @@ QList<Token> CodeModel::getComments(QString file) const
     return d_comments.value(file);
 }
 
-void CodeModel::parseFile(QIODevice* in, const QString& path)
+quint32 CodeModel::parseFile(QIODevice* in, const QString& path)
 {
     Ob::Lexer lex;
     lex.setErrors(d_errs);
@@ -339,6 +343,8 @@ void CodeModel::parseFile(QIODevice* in, const QString& path)
     lex.setStream( in, path );
     Ob::Parser p(&lex,d_errs);
     p.RunParser();
+
+    const quint32 sloc = lex.getSloc();
 
     if( d_senseExt && !d_enableExt && lex.isEnabledExt() )
     {
@@ -377,6 +383,7 @@ void CodeModel::parseFile(QIODevice* in, const QString& path)
         delete st;
     foreach( const Token& t, p.d_comments )
         d_comments[t.d_sourcePath].append(t);
+    return sloc;
 }
 
 void CodeModel::checkModuleDependencies()
@@ -2827,7 +2834,7 @@ const char* CodeModel::Element::s_kindName[] =
     "PACK",
     "UNPK",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
-    "BITS",
+    "BITS", "INF", "TRUE", "FALSE",
     "WriteInt",
     "WriteReal",
     "WriteChar",
@@ -2838,7 +2845,7 @@ const char* CodeModel::Element::s_kindName[] =
     "StubProc",
 };
 
-CodeModel::Element::Element(CodeModel::Element::Kind k):d_kind(k),d_st(0),d_type(0)
+CodeModel::Element::Element(CodeModel::Element::Kind k, Type* t):d_kind(k),d_st(0),d_type(t)
 {
     if( k > Unknown && k <= LED )
         d_name = Lexer::getSymbol(s_kindName[k]);

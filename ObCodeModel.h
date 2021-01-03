@@ -100,14 +100,14 @@ namespace Ob
                 ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
                         NEW, ASSERT, PACK, UNPK,
                         MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, SIZE, ENTIER, // OBN-2
-                        BITS, // BBOX
+                        BITS, INF, TRUE, FALSE, // BBOX
                         WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
                         LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                         Constant, Variable, StubProc
                       };
             static const char* s_kindName[];
 
-            Element(Kind k = Unknown);
+            Element(Kind k = Unknown, Type* t = 0);
             Element(const QVariant&, const QByteArray& name, const Type*);
             ~Element();
 
@@ -277,9 +277,9 @@ namespace Ob
         static QByteArrayList getBuitinIdents();
 
     protected:
-        void parseFile( const QString& );
-        void parseFile(QIODevice* , const QString& path);
-       void checkModuleDependencies();
+        quint32 parseFile( const QString& );
+        quint32 parseFile(QIODevice* , const QString& path);
+        void checkModuleDependencies();
         QList<Module*> findProcessingOrder();
         void processDeclSeq(Unit*,SynTree*);
         void processConstDeclaration(Unit*,SynTree*);
