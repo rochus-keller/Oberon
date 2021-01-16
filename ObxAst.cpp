@@ -34,7 +34,7 @@ const char* Thing::s_tagName[] =
 
 const char* BaseType::s_typeName[] =
 {
-    "ANY", "ANYNUM", "NIL", "STRING", "BOOLEAN", "CHAR", "BYTE",
+    "ANY", "ANYNUM", "ANYREC", "PTR", "NIL", "STRING", "BOOLEAN", "CHAR", "BYTE",
     "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET"
 };
 
@@ -46,10 +46,13 @@ const char* BuiltIn::s_typeName[] =
     "LED", "TRAP", "TRAPIF",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
+    "BITS",
     // Oberon-2 SYSTEM
-    "MOVE", "NEW", "ROT", "LSH",
+    "MOVE", "NEW", "ROT", "LSH", "GETREG", "PUTREG",
+    // Blackbox
+    "TYP",
     // Oberon+
-    "VAL"
+    "VAL", "STRLEN"
 };
 
 const char* UnExpr::s_opName[] =
@@ -61,7 +64,7 @@ const char* UnExpr::s_opName[] =
 const char* BinExpr::s_opName[] =
 {
     "???",
-    "Index", "Range",
+    "Range",
     "EQ", "NEQ", "LE", "LEQ", "GT", "GEQ", "IN", "IS",
     "ADD", "SUB", "OR",
     "MUL", "FDIV", "DIV", "MOD", "AND"
@@ -237,6 +240,26 @@ Type*QualiType::derefed()
         return d_quali->d_type->derefed();
 }
 
+QString QualiType::pretty() const
+{
+    Type* t = const_cast<QualiType*>(this)->derefed();
+    if( t && t != this )
+        return t->pretty();
+    if( d_quali.isNull() )
+        return "?";
+    const int qtag = d_quali->getTag();
+    if( qtag == Thing::T_IdentSel )
+    {
+        IdentSel* s = cast<IdentSel*>( d_quali.data() );
+        if( s->d_sub && s->d_sub->getTag() == Thing::T_IdentLeaf )
+            return QString("%1.%2").arg(cast<IdentLeaf*>(s->d_sub.data())->d_name.constData()).arg(s->d_name.constData());
+        else
+            return QString("?.%1").arg(s->d_name.constData());
+    }else if( qtag == Thing::T_IdentLeaf )
+        return cast<IdentLeaf*>(d_quali.data())->d_name;
+    return "?";
+}
+
 
 IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t):d_ident(id)
 {
@@ -285,6 +308,13 @@ Type*Array::getTypeDim(int& dims) const
     }
 }
 
+QString Array::pretty() const
+{
+    if( d_type.isNull() )
+        return "ARRAY OF ?";
+    return QString("ARRAY OF %1").arg(d_type->pretty());
+}
+
 ProcType*Procedure::getProcType() const
 {
     Q_ASSERT( !d_type.isNull() && d_type->getTag() == Thing::T_ProcType );
@@ -304,4 +334,22 @@ quint8 IdentSel::visibilityFor(Module* m) const
 
     }
     return UnExpr::visibilityFor(m);
+}
+
+
+Const::Const(const QByteArray& name, Literal* lit)
+{
+    Q_ASSERT( lit );
+    d_name = name;
+    d_val = lit->d_val;
+    d_constExpr = lit;
+    d_type = lit->d_type.data();
+}
+
+
+QString Pointer::pretty() const
+{
+    if( d_to.isNull() )
+        return "POINTER TO ?";
+    return QString("POINTER TO %1").arg(d_to->pretty());
 }

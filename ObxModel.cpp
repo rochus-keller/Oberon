@@ -27,6 +27,7 @@
 #include <QFileInfo>
 #include <QtDebug>
 #include <qhash.h>
+#include <math.h>
 using namespace Obx;
 using namespace Ob;
 
@@ -41,6 +42,7 @@ Model::Model(QObject *parent) : QObject(parent)
     d_fc = new FileCache(this);
 
     d_globals = new Scope();
+    d_globalsLower = new Scope();
     d_boolType = new BaseType(BaseType::BOOLEAN);
     d_charType = new BaseType(BaseType::CHAR);
     d_byteType = new BaseType(BaseType::BYTE);
@@ -54,6 +56,7 @@ Model::Model(QObject *parent) : QObject(parent)
     d_nilType = new BaseType(BaseType::NIL);
     d_anyType = new BaseType(BaseType::ANY);
     d_anyNum = new BaseType(BaseType::ANYNUM);
+    d_anyRec = new BaseType(BaseType::ANYREC);
 
     fillGlobals();
 }
@@ -77,6 +80,7 @@ bool Model::parseFiles(const FileGroups& files)
     }
     clear();
 
+    const quint32 before = d_errs->getErrCount();
     foreach( const FileGroup& fg, files )
     {
         const QString old = QDir::currentPath();
@@ -104,18 +108,24 @@ bool Model::parseFiles(const FileGroups& files)
 #else
                 m->d_fullName.last() = m->d_name;
 #endif
-                    if( d_modules.contains( m->d_fullName ) )
+                if( d_modules.contains( m->d_fullName ) )
                     error( path,tr("full name of module is not unique in file groups: %1").
                            arg(m->d_fullName.join('/').constData()));
                 else
                 {
-                    m->d_scope = d_globals.data();
+                    if( m->d_isExt )
+                        m->d_scope = d_globalsLower.data();
+                    else
+                        m->d_scope = d_globals.data();
                     d_modules.insert( m->d_fullName, m );
                 }
             }
         }
         QDir::setCurrent(old);
     }
+
+    if( before != d_errs->getErrCount() )
+        return false; // stop on parsing errors
 
     resolveImports();
     if( !findProcessingOrder() )
@@ -135,9 +145,12 @@ bool Model::parseFiles(const FileGroups& files)
     bt.d_nilType = d_nilType.data();
     bt.d_anyType = d_anyType.data();
     bt.d_anyNum = d_anyNum.data();
+    bt.d_anyRec = d_anyRec.data();
 
     foreach( Module* m, d_depOrder )
     {
+        if( m == d_systemModule.data())
+            continue;
         qDebug() << "analyzing" << m->d_file;
 
         Validator::check(m, bt, d_errs );
@@ -172,7 +185,7 @@ Ref<Module> Model::parseFile(QIODevice* in, const QString& path) const
     lex.setCache(d_fc);
     lex.setIgnoreComments(true);
     lex.setPackComments(true);
-    lex.setSensExt(false); // TODO
+    lex.setSensExt(true);
     lex.setStream( in, path );
     Obx::Parser p(&lex,d_errs);
     return p.parse();
@@ -274,7 +287,6 @@ void Model::fillGlobals()
                                                           d_anyType.data() ) ) );
 
 
-
     // Built-in procedures
     bi = new BuiltIn(BuiltIn::ABS, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) );
     d_globals->add( bi.data());
@@ -368,17 +380,40 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::SHORT, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::HALT, new ProcType( Type::List() << d_anyNum.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::COPY, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::ASH, new ProcType( Type::List() << d_anyNum.data() << d_anyNum.data(), d_longType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::ASH, new ProcType( Type::List() << d_anyNum.data() << d_anyNum.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::SIZE, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::ENTIER, new ProcType( Type::List() << d_anyNum.data(), d_longType.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) ) );
 
-#if 0 // TODO
-    d_globalLc->d_names = d_globals->d_names;
+    // Oberon+
+    d_globals->add( new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::STRLEN, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
+
+    // Blackbox
+#ifdef OBX_BBOX
+    d_globals->add( new Const( Lexer::getSymbol("INF"),
+                               new Literal( Literal::Real, RowCol(), INFINITY, d_realType.data() ) ) );
+    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_anyRec->d_type]),d_anyRec.data() );
+    d_globals->add( anyrec.data() );
+    Ref<Pointer> anyptr = new Pointer();
+    anyptr->d_to = anyrec->d_type.data();
+    d_globals->add( new NamedType(Lexer::getSymbol("ANYPTR"), anyptr.data() ) );
+
+    d_globals->add( new BuiltIn(BuiltIn::BITS, new ProcType( Type::List() << d_intType.data(), d_setType.data() ) ) );
+
+    sys->add( new BuiltIn(BuiltIn::SYS_TYP, new ProcType( Type::List() << d_anyRec.data(), d_intType.data() ) ) );
+    sys->add( new BuiltIn(BuiltIn::SYS_GETREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),
+                                              ProcType::Vars() << false << true   ) ) );
+    sys->add( new BuiltIn(BuiltIn::SYS_PUTREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data() ) ) );
+    sys->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[BaseType::PTR]), new BaseType(BaseType::PTR) ) );
+    // TODO THISRECORD
+#endif
+
+
+    // lower case
+    d_globalsLower->d_names = d_globals->d_names;
     Scope::Names::const_iterator i;
     for( i = d_globals->d_names.begin(); i != d_globals->d_names.end(); ++i )
-        d_globalLc->d_names.insert( Lexer::getSymbol( QByteArray(i.key()).toLower() ), i.value() );
-#endif
+        d_globalsLower->d_names.insert( Lexer::getSymbol( QByteArray(i.key()).toLower() ), i.value() );
 }
 
 bool Model::resolveImports()
@@ -407,26 +442,72 @@ bool Model::resolveImports()
     return hasErrors;
 }
 
+static bool DFS( Module* m, QSet<Module*>& mods, QList<Module*>& trace )
+{
+    //qDebug() << m->d_name;
+    trace.append(m);
+    mods.remove(m);
+    foreach( Import* i, m->d_imports )
+    {
+        Module* mm = i->d_mod.data();
+        //qDebug() << "try" << mm->d_name;
+        const int pos = trace.indexOf(mm);
+        if( pos != -1 )
+        {
+            trace = trace.mid(pos);
+            //qDebug() << "hit";
+            return true;
+        }
+        if( !mods.contains(mm) )
+        {
+            //qDebug() << "skip" << mm->d_name;
+            continue;
+        }
+        else if( DFS( mm, mods, trace ) )
+            return true;
+    }
+    //qDebug() << "fail";
+    return false;
+}
+
 bool Model::findProcessingOrder()
 {
     // Mods nicht const da sonst COW eine neue Kopie macht die SynTree löscht
 
-    QSet<Module*> mods;
+    QSet<Module*> mods, all;
     Modules::const_iterator i;
     for( i = d_modules.begin(); i != d_modules.end(); ++i )
         mods.insert(i.value().data());
     mods.insert(d_systemModule.data());
+    all = mods;
 
     QSet<Module*> used;
     foreach( Module* m, mods )
     {
+        if( m == d_systemModule.data() )
+            continue;
+
         // Find all leafs
         if( m->d_imports.isEmpty() )
         {
-            if( m != d_systemModule.data() )
-                d_depOrder.append(m);
+            d_depOrder.append(m);
             used.insert(m);
         }
+#if 0
+        else if( m->d_isDef )
+        {
+            // definitions must be leafs and may not reference modules, but can reference each other
+            defs.insert(m);
+            d_depOrder.append(m);
+            used.insert(m);
+            foreach( Import* imp, m->d_imports )
+            {
+                if( imp->d_mod.isNull() && !imp->d_mod->d_isDef )
+                    error( m->d_file, tr("definition '%1' is referencing module '%1'")
+                           .arg(m->d_name.constData()).arg( imp->d_mod->d_name.constData() ) );
+            }
+        }
+#endif
     }
     mods -= used;
 
@@ -454,6 +535,7 @@ bool Model::findProcessingOrder()
         if( count == mods.size() )
             break;
     }
+#if 0
     if( !mods.isEmpty() )
     {
         foreach( Module* m, mods )
@@ -462,6 +544,24 @@ bool Model::findProcessingOrder()
         }
         return false;
     }
+#else
+    while( !mods.isEmpty() )
+    {
+        Module* m = *mods.begin();
+        QList<Module*> trace;
+        if( DFS( m, mods, trace ) )
+        {
+            Q_ASSERT( !trace.isEmpty() );
+            QStringList names;
+            foreach( Module* mm, trace )
+                names << mm->d_name;
+            error( trace.first()->d_file, tr("there are circular import dependencies among: %1")
+                   .arg( names.join(" ") ) );
+            return false;
+        }
+    }
+
+#endif
 
 #if 0
     foreach( Module* m, d_depOrder )

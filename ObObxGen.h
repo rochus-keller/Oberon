@@ -36,6 +36,7 @@ namespace Ob
         void emitModule(const CodeModel::Module*);
 
         void module(const CodeModel::Unit* u, SynTree* st);
+        void module(const CodeModel::Module* m);
         void importList(const CodeModel::Unit* u, SynTree* st);
         void import(const CodeModel::Unit* u, SynTree* st);
         void ident(const CodeModel::Unit* u, SynTree* st);
@@ -46,7 +47,8 @@ namespace Ob
         void typeDeclaration(const CodeModel::Unit* u, SynTree* st);
         void variableDeclaration(const CodeModel::Unit* u, SynTree* st);
         void procedureDeclaration(const CodeModel::Unit* u, SynTree* st);
-        void procedureHeading(const CodeModel::Unit* u, SynTree* st);
+        const CodeModel::Procedure* findProc(const CodeModel::Unit* u, SynTree* st);
+        const CodeModel::Procedure* procedureHeading(const CodeModel::Unit* u, SynTree* st);
         void identdef(const CodeModel::Unit* u, SynTree* st);
         void constExpression(const CodeModel::Unit* u, SynTree* st);
         void expression(const CodeModel::Unit* u, SynTree* st);
@@ -61,6 +63,7 @@ namespace Ob
         void selector(const CodeModel::Unit* u, SynTree* st);
         void expList(const CodeModel::Unit* u, SynTree* st);
         void type(const CodeModel::Unit* u, SynTree* st);
+        void type(const CodeModel::Unit* u, const CodeModel::Type* );
         void identList(const CodeModel::Unit* u, SynTree* st);
         void namedType(const CodeModel::Unit* u, SynTree* st);
         void arrayType(const CodeModel::Unit* u, SynTree* st);
@@ -111,13 +114,15 @@ namespace Ob
         {
             return QString(level,QChar('\t'));
         }
+        QByteArray escapedIdent( const CodeModel::Unit* u, const QByteArray& id );
         void print(const QByteArray&, SynTree* = 0);
         void print(SynTree* , bool toLower = false);
         void printComments(SynTree* st = 0);
         int printComment(const QByteArray& str, bool mayEndOfLine);
         void newLine(bool comment = true);
-        void assureNl(SynTree* next, quint8 soll, bool comment = true );
+        void assureNl(SynTree* next, quint8 soll = 1, bool comment = true );
         void skipTo(SynTree* to);
+        bool ifStatAfterBegin(SynTree* statSeq);
     private:
         CodeModel* d_mdl;
         Errors* d_errs;
@@ -131,9 +136,17 @@ namespace Ob
         SynTree* last;
         int level, prevRow;
         SynTree* prevSym;
-        QSet<QByteArray> keywords;
+        QSet<QByteArray> reservedWords;
         bool d_isDef;
         bool rowPrinted;
+
+        // formating options
+        bool nlAfterDeclHeader, nlPerDecl, nlPerStat,
+            nlAfterBegin, // includes THEN, DO, etc.
+            nlBeforeEnd, // includes ELSE, UNTIL, etc.
+            switchBBoxTypes, // change REAL to LONGREAL, SHORTREAL to REAL, SHORTCHAR to CHAR, CHAR to WCHAR
+            noWchar      // in case of switchBBoxTypes CHAR is not mapped to WCHAR
+        ;
     };
 }
 

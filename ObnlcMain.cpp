@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2020-12-23");
+    a.setApplicationVersion("2021-01-16");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<

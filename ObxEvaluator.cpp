@@ -42,6 +42,11 @@ QVariant Evaluator::evalNamedConst(Expression* e)
         return res;
 }
 
+QVariant Evaluator::evalBuiltIn(BuiltIn* f, ArgExpr* ae)
+{
+    return QVariant(); // TODO
+}
+
 bool Evaluator::setSet( Set& s, Expression* e )
 {
     const QVariant v = eval(e);
@@ -154,7 +159,14 @@ QVariant Evaluator::eval(Expression* e)
         }
         break;
     case Thing::T_ArgExpr:
-        return expErr( e, tr("operation not supported in a const expression"));
+        {
+            ArgExpr* ae = cast<ArgExpr*>(e);
+            Named* id = ae->d_sub->getIdent();
+            if( id && id->getTag() == Thing::T_BuiltIn )
+                return evalBuiltIn( cast<BuiltIn*>(id), ae );
+            else
+                return expErr( e, tr("operation not supported in a const expression"));
+        }
     default:
         Q_ASSERT( false );
     }

@@ -5,7 +5,6 @@
 
 #include <QByteArray>
 
-#define OB_BBOX
 #define OB_OBN2
 
 namespace Ob {
@@ -14,7 +13,6 @@ namespace Ob {
 
 		TT_Literals,
 		Tok_Hash,
-		Tok_Dlr,
 		Tok_Amp,
 		Tok_Lpar,
 		Tok_Latt,
@@ -45,35 +43,30 @@ namespace Ob {
 		Tok_Tilde,
 
 		TT_Keywords,
-		Tok_ABSTRACT,
 		Tok_ARRAY,
 		Tok_BEGIN,
 		Tok_BY,
 		Tok_CASE,
-		Tok_CLOSE,
 		Tok_CONST,
 		Tok_DEFINITION,
 		Tok_DIV,
 		Tok_DO,
 		Tok_ELSE,
 		Tok_ELSIF,
-		Tok_EMPTY,
 		Tok_END,
 		Tok_EXIT,
-		Tok_EXTENSIBLE,
+		Tok_FALSE,
 		Tok_FOR,
 		Tok_IF,
 		Tok_IMPORT,
 		Tok_IN,
 		Tok_IS,
-		Tok_LIMITED,
 		Tok_LOOP,
 		Tok_MOD,
 		Tok_MODULE,
 		Tok_NIL,
 		Tok_OF,
 		Tok_OR,
-		Tok_OUT,
 		Tok_POINTER,
 		Tok_PROC,
 		Tok_PROCEDURE,
@@ -82,6 +75,7 @@ namespace Ob {
 		Tok_RETURN,
 		Tok_THEN,
 		Tok_TO,
+		Tok_TRUE,
 		Tok_TYPE,
 		Tok_UNTIL,
 		Tok_VAR,

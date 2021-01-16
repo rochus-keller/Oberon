@@ -33,7 +33,7 @@
 #define OBN2
 // combine OBN2 with either OBNX or BBOX
 //#define OBNX
-#define BBOX
+//#define BBOX
 
 /// Top
 Oberon ::=  module | definition // also in OBX we require one module or definition per file

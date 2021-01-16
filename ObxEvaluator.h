@@ -57,6 +57,7 @@ namespace Obx
 
         QVariant expErr( Expression* e, const QString& msg );
         QVariant evalNamedConst(Expression* e);
+        QVariant evalBuiltIn( BuiltIn* f, ArgExpr* );
         bool setSet( Set& s, Expression* e );
         bool setSet( Set& s, Expression* lhs, Expression* rhs );
 

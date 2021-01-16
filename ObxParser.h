@@ -93,7 +93,7 @@ namespace Obx
         Ref<Procedure> procedureDeclaration(bool headingOnly, Scope* scope);
         enum { ProcNormal, ProcForward, ProcCImp };
         int procedureHeading(Procedure* proc, Scope* scope);
-        void procedureBody(Procedure* p);
+        bool procedureBody(Procedure* p);
         Ref<Parameter> receiver();
         void declarationSequence(bool definition, Scope* scope);
         Ref<Statement> returnStatement(Scope* scope);
@@ -120,6 +120,7 @@ namespace Obx
         quint8 peek(quint16 la);
 
         void syntaxError( const QString& err );
+        void warning(const Ob::Loc&, const QString& err );
         void semanticError(const Ob::Loc&, const QString& err );
         void semanticError(const Ob::RowCol&, const QString& err );
 

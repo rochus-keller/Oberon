@@ -80,7 +80,7 @@ namespace Ob
             const T* to() const { return dynamic_cast<const T*>(this); }
 
             SynTree* d_def; // not owned; zeigt auf Context oder 0 für Stubs
-            SynTree* d_id; // not owned; zeit auf Tok_ident oder 0
+            SynTree* d_id; // not owned; zeigt auf Tok_ident oder 0
             Scope* d_scope; // not owned; the scope which owns me (only if named)
             QByteArray d_name;
             bool d_public;
@@ -234,7 +234,7 @@ namespace Ob
             quint32 d_len; // Array: len
 #ifdef OB_OBN2
             typedef QMap<QByteArray,Procedure*> Procs;
-            Procs d_procs;
+            Procs d_procs; // not owned (Scope::d_procs is the owner instead)
 #endif
         };
 

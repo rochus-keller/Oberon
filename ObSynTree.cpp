@@ -38,7 +38,6 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_LabelRange: return "LabelRange";
 		case R_LengthList: return "LengthList";
 		case R_LoopStatement: return "LoopStatement";
-		case R_MethAttributes: return "MethAttributes";
 		case R_MulOperator: return "MulOperator";
 		case R_NamedType: return "NamedType";
 		case R_Oberon: return "Oberon";
@@ -54,8 +53,6 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_ReturnStatement: return "ReturnStatement";
 		case R_SimpleExpression: return "SimpleExpression";
 		case R_StatementSequence: return "StatementSequence";
-		case R_SysFlag: return "SysFlag";
-		case R_SysString: return "SysString";
 		case R_TypeDeclaration: return "TypeDeclaration";
 		case R_VariableDeclaration: return "VariableDeclaration";
 		case R_WhileStatement: return "WhileStatement";

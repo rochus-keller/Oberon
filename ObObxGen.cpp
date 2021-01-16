@@ -21,6 +21,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QtDebug>
 using namespace Ob;
 
 static inline SynTree* findFirstChild(const SynTree* st, int type , int startWith = 0, int* pos = 0 )
@@ -40,16 +41,29 @@ static inline SynTree* findFirstChild(const SynTree* st, int type , int startWit
     return 0;
 }
 
-ObxGen::ObxGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true)
+ObxGen::ObxGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true),
+    nlAfterDeclHeader(true), nlPerDecl(true), nlPerStat(true), nlAfterBegin(true), nlBeforeEnd(true),
+    noWchar(true), switchBBoxTypes(true)
 {
     Q_ASSERT( mdl != 0 );
     d_errs = mdl->getErrs();
-    keywords << "array" << "begin" << "by" << "case" << "definition" << "div"
-                     << "do" << "else" << "elsif" << "end" << "exit" << "false" << "for"
-                             << "if" << "import" << "in" << "is" << "loop" << "module"
-                             << "nil" << "of" << "or" << "pointer" << "proc" << "procedure"
-                             << "record" << "repeat" << "return" << "then" << "to"
-                             << "true" << "type" << "var" << "while" << "with";
+    reservedWords
+            // keywords
+            << "array" << "begin" << "by" << "case" << "definition" << "div" << "mod"
+            << "do" << "else" << "elsif" << "end" << "exit" << "false" << "for"
+            << "if" << "import" << "in" << "is" << "loop" << "module"
+            << "nil" << "of" << "or" << "pointer" << "proc" << "procedure"
+            << "record" << "repeat" << "return" << "then" << "to"
+            << "true" << "type" << "var" << "while" << "with"
+               // predeclared
+            << "abs" << "ash" << "asr" << "assert" << "boolean"<< "byte"
+            << "cap" << "char" << "chr" << "copy" << "dec" << "entier"
+            << "excl" << "floor" << "flt" << "halt" << "inc" << "incl"
+            << "int" << "integer" << "len"
+            << "long" << "longint" << "longreal" << "lsl" << "max"
+            << "min" << "new" << "odd" << "ord" << "pack" << "real"
+            << "ror" << "set" << "short" << "shortint" << "size"
+            << "unpk" << "val";
 }
 
 bool ObxGen::emitModules(const QString& outdir, const QString& mod)
@@ -96,7 +110,10 @@ void ObxGen::emitModule(const CodeModel::Module* m)
         d_cmts = d_mdl->getComments(m->d_def->d_tok.d_sourcePath);
     d_nextCmt = 0;
 
-    module( m,m->d_def );
+    if( m->d_def )
+        module( m,m->d_def );
+    else
+        module( m );
 }
 
 void ObxGen::module(const CodeModel::Unit* u, SynTree* st)
@@ -109,7 +126,11 @@ void ObxGen::module(const CodeModel::Unit* u, SynTree* st)
     if( st )
     {
         Q_ASSERT( st->d_children.size() >= 2 );
-        if( findFirstChild( st, SynTree::R_SysString ) || st->d_children.first()->d_tok.d_type == Tok_DEFINITION )
+        if(
+        #ifdef OB_BBOX
+                findFirstChild( st, SynTree::R_SysString ) ||
+        #endif
+                st->d_children.first()->d_tok.d_type == Tok_DEFINITION )
         {
             d_isDef = true;
             print("definition ", st->d_children.first() );
@@ -117,15 +138,14 @@ void ObxGen::module(const CodeModel::Unit* u, SynTree* st)
             print("module ", st->d_children.first() );
 
         print( st->d_children[1] );
-        //newLine();
+
+        if( st->d_children.size() > 2 )
+            assureNl( st->d_children[2],2 );
 
         level++;
         SynTree* il = findFirstChild( st, SynTree::R_ImportList );
         if( il )
-        {
-            assureNl(il,2);
             importList( u, il );
-        }
 
         SynTree* dl = findFirstChild( st, SynTree::R_DeclarationSequence );
         if( dl )
@@ -137,39 +157,153 @@ void ObxGen::module(const CodeModel::Unit* u, SynTree* st)
 
         int pos;
 
-#ifdef OB_BBOX_ // TODO system gets confused by out of order output
-        if( SynTree* t = findFirstChild( st, Tok_CLOSE, 0, &pos ) )
-        {
-            Q_ASSERT( st->d_children.size() > pos + 1 );
-            out << ind() << "proc FINALIZE" << endl;
-            level++;
-            out << ind();
-            statementSequence( u, st->d_children[pos+1] );
-            level--;
-            out << ind() << "end FINALIZE" << endl << endl;
-        }
-#endif
-
         level--;
         if( SynTree* t = findFirstChild( st, Tok_BEGIN, 0, &pos ) )
         {
             Q_ASSERT( st->d_children.size() > pos + 1 );
             print("begin", t);
             level++;
-            // newLine(false);
-            assureNl( st->d_children[pos+1], 1, false );
+            Q_ASSERT( pos+1 < st->d_children.size() );
+            if( ifStatAfterBegin(st->d_children[pos+1]) )
+                assureNl( st->d_children[pos+1] );
             statementSequence( u, st->d_children[pos+1] );
             level--;
         }
 
+#ifdef OB_BBOX
+        if( SynTree* t = findFirstChild( st, Tok_CLOSE, 0, &pos ) )
+        {
+            Q_ASSERT( st->d_children.size() > pos + 1 );
+            print("(* CLOSE", t );
+            level++;
+            Q_ASSERT( pos+1 < st->d_children.size() );
+            if( ifStatAfterBegin(st->d_children[pos+1]) )
+                assureNl( st->d_children[pos+1] );
+            statementSequence( u, st->d_children[pos+1] );
+            level--;
+            print(" *) ");
+        }
+#endif
+
         if( SynTree* t = findFirstChild( st, Tok_END, 0, &pos ) )
         {
             Q_ASSERT( st->d_children.size() > pos + 1 );
+            if( nlBeforeEnd )
+                assureNl(t);
             print("end ", t);
             print( st->d_children[pos+1] );
             newLine();
         }
     }
+}
+
+void ObxGen::module(const CodeModel::Module* m)
+{
+    out << "// Generated/synthesized by " << qApp->applicationName() << " " << qApp->applicationVersion() <<
+            " on " << QDateTime::currentDateTime().toString(Qt::ISODate) << endl << endl;
+
+    out << "definition " << m->d_name << endl << endl;
+
+    bool found = false;
+    level++;
+    foreach( CodeModel::Element* e, m->d_elems )
+    {
+        if( e->d_kind == CodeModel::Element::Constant )
+        {
+            if( !found )
+            {
+                out << ind() << "const" << endl;
+                level++;
+                found = true;
+            }
+            out << ind() << escapedIdent(m,e->d_name) << " = " << e->d_const.toString() << endl;
+        }
+    }
+    if( found )
+    {
+        out << endl;
+        level--;
+    }
+    level--;
+
+    found = false;
+    level++;
+    foreach( CodeModel::Type* t, m->d_types )
+    {
+        if( !t->d_name.isEmpty() )
+        {
+            if( !found )
+            {
+                out << ind() << "type" << endl;
+                level++;
+                found = true;
+            }
+            out << ind() << escapedIdent(m,t->d_name) << " = ";
+            type(m,t);
+            out << endl;
+        }
+    }
+    if( found )
+    {
+        out << endl;
+        level--;
+    }
+    level--;
+
+    found = false;
+    level++;
+    foreach( CodeModel::Element* e, m->d_elems )
+    {
+        if( e->d_kind == CodeModel::Element::Variable )
+        {
+            if( !found )
+            {
+                out << ind() << "var" << endl;
+                level++;
+                found = true;
+            }
+            out << ind() << escapedIdent(m,e->d_name) << ": ";
+            type(m,e->d_type);
+            out << endl;
+        }
+    }
+    level--;
+    if( found )
+    {
+        out << endl;
+        level--;
+    }
+
+    found = false;
+    level++;
+    foreach( CodeModel::Element* e, m->d_elems )
+    {
+        if( e->d_kind == CodeModel::Element::StubProc )
+        {
+            found = true;
+            out << ind() << "proc " << escapedIdent(m,e->d_name) << "(";
+            for( int i = 0; i < e->d_vals.size(); i++ )
+            {
+                if( i != 0 )
+                    out << "; ";
+                out << escapedIdent(m,e->d_vals[i]->d_name) << ": ";
+                type(m,e->d_vals[i]->d_type);
+            }
+            out << ")";
+            if( e->d_type )
+            {
+                out << ": ";
+                type(m,e->d_type);
+            }
+            out << endl;
+        }
+    }
+    level--;
+    if( found )
+        out << endl;
+
+
+    out << "end " << m->d_name << endl;
 }
 
 void ObxGen::importList(const CodeModel::Unit* u, SynTree* st)
@@ -184,7 +318,6 @@ void ObxGen::importList(const CodeModel::Unit* u, SynTree* st)
         import(u, st->d_children[i]);
     }
     level--;
-    // newLine();
 }
 
 void ObxGen::import(const CodeModel::Unit* u, SynTree* st)
@@ -211,32 +344,7 @@ void ObxGen::ident(const CodeModel::Unit* u, SynTree* st)
 
     QByteArray id = st->d_tok.d_val;
 
-    bool keyword = false;
-
-    const CodeModel::NamedThing* n = u->findByName(id);
-    if( n )
-    {
-        if( const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>( n ) )
-        {
-            if( ( e->d_kind >= CodeModel::Element::ABS && e->d_kind <= CodeModel::Element::FALSE ) ||
-                    e->d_kind == CodeModel::Element::LED )
-            {
-                keyword = true;
-                id = id.toLower();
-            }
-        }else if( const CodeModel::Type* t = dynamic_cast<const CodeModel::Type*>( n ) )
-        {
-            if( t->d_kind >= CodeModel::Type::BOOLEAN && t->d_kind <= CodeModel::Type::SET )
-            {
-                keyword = true;
-                id = CodeModel::Type::s_kindName[t->d_kind]; // SHORTCHAR etc. mapped to CHAR type
-                id = id.toLower();
-            }
-        }
-    }
-
-    if( !keyword && keywords.contains(id) )
-        id += "_";
+    id = escapedIdent(u,id);
 
     print(id,st);
 }
@@ -244,6 +352,9 @@ void ObxGen::ident(const CodeModel::Unit* u, SynTree* st)
 void ObxGen::declarationSequence(const CodeModel::Unit* u, SynTree* st)
 {
     int i = 0;
+    const bool moduleLevel = dynamic_cast<const CodeModel::Procedure*>(u) == 0;
+    if( !moduleLevel )
+        level++;
     while( i < st->d_children.size() )
     {
         bool first = true;
@@ -252,52 +363,63 @@ void ObxGen::declarationSequence(const CodeModel::Unit* u, SynTree* st)
         case Tok_CONST:
             print("const ",st->d_children[i++]);
             level++;
-            //newLine(false);
-            assureNl(st->d_children[i],1,false);
+            if( nlAfterDeclHeader && i < st->d_children.size() )
+                assureNl(st->d_children[i]);
             first = true;
             while( i < st->d_children.size() && st->d_children[i]->d_tok.d_type == SynTree::R_ConstDeclaration )
             {
                 if( !first )
-                    semi(st->d_children[i]);
+                {
+                    if( nlPerDecl )
+                        assureNl(st->d_children[i]);
+                    else
+                        semi(st->d_children[i]);
+                }
                 first = false;
                 constDeclaration(u,st->d_children[i++]);
             }
             level--;
-            // newLine();
             break;
         case Tok_TYPE:
             print("type ",st->d_children[i++]);
             level++;
-            //newLine(false);
-            assureNl(st->d_children[i],1,false);
+            if( nlAfterDeclHeader && i < st->d_children.size() )
+                assureNl(st->d_children[i]);
             while( i < st->d_children.size() && st->d_children[i]->d_tok.d_type == SynTree::R_TypeDeclaration )
             {
                 if( !first )
-                    semi(st->d_children[i]);
+                {
+                    if( nlPerDecl )
+                        assureNl(st->d_children[i]);
+                    else
+                        semi(st->d_children[i]);
+                }
                 first = false;
                 typeDeclaration(u,st->d_children[i++]);
             }
             level--;
-            //newLine();
             break;
         case Tok_VAR:
             print("var ",st->d_children[i++]);
             level++;
-            // newLine(false);
-            assureNl(st->d_children[i],1,false);
+            if( nlAfterDeclHeader && i < st->d_children.size() )
+                assureNl(st->d_children[i]);
             while( i < st->d_children.size() && st->d_children[i]->d_tok.d_type == SynTree::R_VariableDeclaration )
             {
                 if( !first )
-                    semi(st->d_children[i]);
+                {
+                    if( nlPerDecl )
+                        assureNl(st->d_children[i]);
+                    else
+                        semi(st->d_children[i]);
+                }
                 first = false;
                 variableDeclaration(u,st->d_children[i++]);
             }
             level--;
-            //newLine();
             break;
         case SynTree::R_ProcedureDeclaration:
             procedureDeclaration(u,st->d_children[i++]);
-            //newLine();
             break;
         case SynTree::R_ProcedureHeading:
             procedureHeading(u,st->d_children[i++]);
@@ -313,6 +435,8 @@ void ObxGen::declarationSequence(const CodeModel::Unit* u, SynTree* st)
             break;
         }
     }
+    if( !moduleLevel )
+        level--;
 }
 
 void ObxGen::declarationSequence2(const CodeModel::Unit* u, SynTree* st)
@@ -340,7 +464,7 @@ void ObxGen::variableDeclaration(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( st->d_children.size() == 2 ); // ':' is transparent
     identList( u, st->d_children.first() );
-    print( " : " );
+    print( ": " );
     type( u, st->d_children.last() );
 }
 
@@ -352,7 +476,12 @@ void ObxGen::statementSequence(const CodeModel::Unit* u, SynTree* st)
         if( st->d_children[i]->d_tok.d_type == SynTree::R_statement )
         {
             if( i != 0 )
-                semi( st->d_children[i] );
+            {
+                if( nlPerStat )
+                    assureNl(st->d_children[i]);
+                else
+                    semi( st->d_children[i] );
+            }
             statement( u, st->d_children[i] );
         }
     }
@@ -363,32 +492,36 @@ void ObxGen::procedureDeclaration(const CodeModel::Unit* u, SynTree* st)
     Q_ASSERT( st->d_children.size() >= 2 && st->d_tok.d_type == SynTree::R_ProcedureDeclaration );
     if( st->d_children.first()->d_tok.d_type == Tok_PROCEDURE )
     {
-        print( "proc ", st->d_children.first() );
         switch( st->d_children[1]->d_tok.d_type )
         {
         case Tok_Hat:
             skipTo( st->d_children.last() );
             return; // forward declaration, ignored
         case Tok_Minus:
+            print( "proc ", st->d_children.first() );
             break;
         default:
             Q_ASSERT(false);
         }
+        const CodeModel::Procedure* p = findProc( u, st );
+
         for( int i = 2; i < st->d_children.size(); i++ )
         {
             switch( st->d_children[i]->d_tok.d_type )
             {
             case SynTree::R_Receiver:
-                receiver( u, st->d_children[i] );
+                receiver( p, st->d_children[i] );
                 break;
             case SynTree::R_identdef:
                 identdef( u, st->d_children[i] );
                 break;
             case SynTree::R_FormalParameters:
-                formalParameters( u, st->d_children[i] );
+                formalParameters( p, st->d_children[i] );
                 break;
             case SynTree::R_literal:
+#ifdef OB_BBOX
             case SynTree::R_MethAttributes:
+#endif
                 break; // ignore
             default:
                 Q_ASSERT( false );
@@ -399,7 +532,7 @@ void ObxGen::procedureDeclaration(const CodeModel::Unit* u, SynTree* st)
 #ifdef OB_BBOX
     else
     {
-        procedureHeading( u, st->d_children.first() );
+        const CodeModel::Procedure* p = procedureHeading( u, st->d_children.first() );
         int off = 1;
         QByteArrayList attrs;
         if( st->d_children[off]->d_tok.d_type == Tok_ident )
@@ -438,8 +571,8 @@ void ObxGen::procedureDeclaration(const CodeModel::Unit* u, SynTree* st)
                 print( attrs.join(' ') );
             }
             Q_ASSERT( off < st->d_children.size() );
-            assureNl( st->d_children[off], 1 );
-            procedureBody( u, st->d_children[off++] );
+            assureNl( st->d_children[off]);
+            procedureBody( p, st->d_children[off++] );
             Q_ASSERT( off < st->d_children.size() );
             ident( u, st->d_children[off] );
             break;
@@ -450,8 +583,8 @@ void ObxGen::procedureDeclaration(const CodeModel::Unit* u, SynTree* st)
                 print( attrs.join(' ') );
             }
             Q_ASSERT( off < st->d_children.size() );
-            assureNl( st->d_children[off], 1 );
-            procedureBody( u, st->d_children[off++] );
+            assureNl( st->d_children[off]);
+            procedureBody( p, st->d_children[off++] );
             Q_ASSERT( off < st->d_children.size() );
             ident( u, st->d_children[off] );
             break;
@@ -483,9 +616,24 @@ void ObxGen::procedureDeclaration(const CodeModel::Unit* u, SynTree* st)
 #endif
 }
 
-void ObxGen::procedureHeading(const CodeModel::Unit* u, SynTree* st)
+const CodeModel::Procedure*ObxGen::findProc(const CodeModel::Unit* u, SynTree* st)
+{
+    SynTree* identDef = findFirstChild( st, SynTree::R_identdef );
+    Q_ASSERT( identDef && !identDef->d_children.isEmpty() && identDef->d_children.first()->d_tok.d_type == Tok_ident );
+    SynTree* id = identDef->d_children.first();
+    foreach( CodeModel::Procedure* p, u->d_procs )
+    {
+        if( p->d_id == id )
+            return p;
+    }
+    Q_ASSERT( false );
+    return 0;
+}
+
+const CodeModel::Procedure* ObxGen::procedureHeading(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( st && st->d_tok.d_type == SynTree::R_ProcedureHeading );
+    const CodeModel::Procedure* p = findProc(u,st);
     for( int i = 0; i < st->d_children.size(); i++ )
     {
         SynTree* first = st->d_children[i];
@@ -506,18 +654,19 @@ void ObxGen::procedureHeading(const CodeModel::Unit* u, SynTree* st)
             break; // ignore
 #endif
         case SynTree::R_Receiver:
-            receiver(u,first);
+            receiver(p,first);
             break;
         case SynTree::R_identdef:
             identdef(u,first);
             break;
         case SynTree::R_FormalParameters:
-            formalParameters(u,first);
+            formalParameters(p,first);
             break;
         default:
             Q_ASSERT(false);
         }
     }
+    return p;
 }
 
 void ObxGen::identdef(const CodeModel::Unit* u, SynTree* st)
@@ -536,7 +685,7 @@ void ObxGen::constExpression(const CodeModel::Unit* u, SynTree* st)
 
 void ObxGen::expression(const CodeModel::Unit* u, SynTree* st)
 {
-    Q_ASSERT( !st->d_children.isEmpty() && st->d_tok.d_type == SynTree::R_expression );
+    Q_ASSERT( st && !st->d_children.isEmpty() && st->d_tok.d_type == SynTree::R_expression );
     simpleExpression(u,st->d_children.first() );
     if( st->d_children.size() >= 3 )
     {
@@ -682,7 +831,7 @@ void ObxGen::set(const CodeModel::Unit* u, SynTree* st)
 
 void ObxGen::qualident(const CodeModel::Unit* u, SynTree* st)
 {
-    Q_ASSERT( st->d_tok.d_type == SynTree::R_qualident );
+    Q_ASSERT( st && st->d_tok.d_type == SynTree::R_qualident );
     if( st->d_children.size() == 2 ) // dot is transparent
     {
         ident(u,st->d_children.first());
@@ -768,6 +917,101 @@ void ObxGen::type(const CodeModel::Unit* u, SynTree* st)
     }
 }
 
+void ObxGen::type(const CodeModel::Unit* u, const CodeModel::Type* t)
+{
+    static const char* unknown = "UNKNOWN";
+    if( t == 0 )
+    {
+        out << unknown;
+        return;
+    }
+    if( t->isBasicType() )
+    {
+        if( t->d_kind == CodeModel::Type::NIL )
+            out << unknown;
+        else
+            out << QByteArray(CodeModel::Type::s_kindName[t->d_kind]).toLower();
+        return;
+    }
+    if( t->d_kind == CodeModel::Type::TypeRef )
+    {
+        qualident(u,t->d_st);
+        return;
+        /*
+        const CodeModel::Type* b = t->d_type;
+        if( b && b->isBasicType() )
+            out << QByteArray(CodeModel::Type::s_kindName[b->d_kind]).toLower();
+        else
+        {
+            CodeModel::Quali q = d_mdl->derefQualident( u, t->d_st );
+            if( q.second.first )
+            {
+                if( q.first.first )
+                    out << q.first.first->d_name << ".";
+                if( q.second.first )
+                    out << q.second.first->d_name;
+            }else
+                out << unknown;
+        }
+        return;
+        */
+    }
+
+    if( t->d_kind == CodeModel::Type::Array )
+    {
+        out << "array ";
+        if( t->d_st )
+        {
+            expression(u,t->d_st);
+            out << " ";
+        }
+        out << "of ";
+        if( t->d_type )
+            type( u, t->d_type );
+        else
+            out << unknown;
+        return;
+    }
+
+    if( t->d_kind == CodeModel::Type::Pointer )
+    {
+        out << "pointer to ";
+        if( t->d_type )
+            type(u, t->d_type);
+        else
+            out << unknown;
+        return;
+    }
+
+    if( t->d_kind == CodeModel::Type::Record )
+    {
+        out << "record ";
+        if( t->d_type )
+        {
+            out << "(";
+            type(u,t->d_type);
+            out << ")";
+        }
+        if( !t->d_vals.isEmpty() )
+        {
+            level++;
+            out << endl;
+            foreach( const CodeModel::Element* e, t->d_vals )
+            {
+                out << ind() << escapedIdent(u,e->d_name) << ": ";
+                type(u,e->d_type);
+                out << endl;
+            }
+            level--;
+            out << ind();
+        }
+        out << "end";
+        return;
+    }
+
+    out << unknown;
+}
+
 void ObxGen::identList(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() );
@@ -811,7 +1055,7 @@ void ObxGen::recordType(const CodeModel::Unit* u, SynTree* st)
     case Tok_LIMITED:
         print( "(* " );
         print( first, true );
-        print( " *)" );
+        print( " *) " );
         first = st->d_children[1];
         break;
     }
@@ -899,7 +1143,7 @@ void ObxGen::fieldList(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( st->d_children.size() == 2 ); // ':' is transparent
     identList( u, st->d_children.first() );
-    print( " : " );
+    print( ": " );
     type( u, st->d_children.last() );
 }
 
@@ -932,7 +1176,7 @@ void ObxGen::receiver(const CodeModel::Unit* u, SynTree* st)
             if( !colonSent )
             {
                 colonSent = true;
-                print( " : " );
+                print( ": " );
             }
             break;
         case Tok_Lpar:
@@ -948,6 +1192,7 @@ void ObxGen::receiver(const CodeModel::Unit* u, SynTree* st)
 
 void ObxGen::formalParameters(const CodeModel::Unit* u, SynTree* st)
 {
+    level++;
     bool firstFp = true;
     for( int i = 0; i < st->d_children.size(); i++ )
     {
@@ -976,10 +1221,12 @@ void ObxGen::formalParameters(const CodeModel::Unit* u, SynTree* st)
             Q_ASSERT( false );
         }
     }
+    level--;
 }
 
 void ObxGen::procedureBody(const CodeModel::Unit* u, SynTree* st)
 {
+    bool leveled = false;
     Q_ASSERT( st && st->d_tok.d_type == SynTree::R_ProcedureBody );
     for( int i = 0; i < st->d_children.size(); i++ )
     {
@@ -989,11 +1236,16 @@ void ObxGen::procedureBody(const CodeModel::Unit* u, SynTree* st)
         case Tok_BEGIN:
             print( "begin ", c );
             level++;
+            leveled = true;
             Q_ASSERT( i+1 < st->d_children.size() );
-            assureNl(st->d_children[i+1],1);
+            if( ifStatAfterBegin(st->d_children[i+1]) )
+                assureNl(st->d_children[i+1]);
             break;
         case Tok_END:
-            level--;
+            if( leveled )
+                level--;
+            if( nlBeforeEnd )
+                assureNl(c);
             print( "end ", c );
             break;
         case SynTree::R_DeclarationSequence:
@@ -1153,7 +1405,9 @@ void ObxGen::assignment(const CodeModel::Unit* u, SynTree* st)
         space();
         print( st->d_children[1] );
         space();
+        level++;
         expression( u, st->d_children.last() );
+        level--;
     }
 }
 
@@ -1162,7 +1416,11 @@ void ObxGen::procedureCall(const CodeModel::Unit* u, SynTree* st)
     Q_ASSERT( !st->d_children.isEmpty() );
     designator( u, st->d_children.first() );
     if( st->d_children.size() == 2 )
+    {
+        level++;
         actualParameters(u, st->d_children.last() );
+        level--;
+    }
 }
 
 void ObxGen::actualParameters(const CodeModel::Unit* u, SynTree* st)
@@ -1193,13 +1451,22 @@ void ObxGen::ifStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_IF:
+            print(c,true);
+            space();
+            break;
         case Tok_THEN:
+            print(c,true);
+            break;
         case Tok_END:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1230,10 +1497,35 @@ void ObxGen::caseStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_CASE:
+            print(c,true);
+            space();
+            break;
         case Tok_OF:
+            print(c,true);
+            space();
+            level++;
+            Q_ASSERT( i + 1 < st->d_children.size() );
+            if( nlAfterBegin )
+                assureNl(st->d_children[i+1]);
+            break;
         case Tok_ELSE:
-        case Tok_END:
+            level--;
+            if( nlBeforeEnd )
+                assureNl(c);
+            print(c,true);
+            space();
+            level++;
+            break;
         case Tok_Bar:
+            if( nlAfterBegin )
+                assureNl(c);
+            print(c,true);
+            space();
+            break;
+        case Tok_END:
+            level--;
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
@@ -1241,14 +1533,16 @@ void ObxGen::caseStatement(const CodeModel::Unit* u, SynTree* st)
             case_(u,c);
             break;
         case SynTree::R_StatementSequence:
-            level++;
+            // belongs to the ELSE part
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
-            level--;
             break;
         case SynTree::R_expression:
             level++;
             expression(u,c);
+            space();
             level--;
             break;
         default:
@@ -1267,22 +1561,41 @@ void ObxGen::withStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_WITH:
+            print(c,true);
+            space();
+            break;
         case Tok_DO:
+            print(c,true);
+            space();
+            break;
         case Tok_ELSE:
-        case Tok_END:
+            if( nlBeforeEnd )
+                assureNl(c);
+            print(c,true);
+            space();
+            break;
         case Tok_Bar:
+            print(c,true);
+            space();
+            break;
+        case Tok_END:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
             break;
         case SynTree::R_Guard:
-        case 1:
+        case 1: // TODO: this is unexpected behaviour, but seems to work; check
             guard(u,c);
+            space();
             break;
         default:
             qDebug() << SynTree::rToStr(c->d_tok.d_type);
@@ -1300,12 +1613,19 @@ void ObxGen::loopStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_LOOP:
+            print(c,true);
+            space();
+            break;
         case Tok_END:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1330,9 +1650,22 @@ void ObxGen::whileStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_WHILE:
+            print(c,true);
+            space();
+            break;
         case Tok_ELSIF:
+            if( nlBeforeEnd )
+                assureNl(c);
+            print(c,true);
+            space();
+            break;
         case Tok_DO:
+            print(c,true);
+            space();
+            break;
         case Tok_END:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
@@ -1341,6 +1674,8 @@ void ObxGen::whileStatement(const CodeModel::Unit* u, SynTree* st)
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1365,12 +1700,19 @@ void ObxGen::repeatStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_REPEAT:
+            print(c,true);
+            space();
+            break;
         case Tok_UNTIL:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1397,10 +1739,18 @@ void ObxGen::forStatement(const CodeModel::Unit* u, SynTree* st)
         {
         case Tok_FOR:
         case Tok_TO:
-        case Tok_DO:
         case Tok_BY:
-        case Tok_END:
         case Tok_ColonEq:
+            print(c,true);
+            space();
+            break;
+        case Tok_DO:
+            print(c,true);
+            space();
+            break;
+        case Tok_END:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
@@ -1409,6 +1759,8 @@ void ObxGen::forStatement(const CodeModel::Unit* u, SynTree* st)
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1434,6 +1786,11 @@ void ObxGen::elsifStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_ELSIF:
+            if( nlBeforeEnd )
+                assureNl(c);
+            print(c,true);
+            space();
+            break;
         case Tok_THEN:
         case Tok_DO:
             print(c,true);
@@ -1441,6 +1798,8 @@ void ObxGen::elsifStatement(const CodeModel::Unit* u, SynTree* st)
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1465,11 +1824,15 @@ void ObxGen::elseStatement(const CodeModel::Unit* u, SynTree* st)
         switch( c->d_tok.d_type )
         {
         case Tok_ELSE:
+            if( nlBeforeEnd )
+                assureNl(c);
             print(c,true);
             space();
             break;
         case SynTree::R_StatementSequence:
             level++;
+            if( ifStatAfterBegin(c) )
+                assureNl(c);
             statementSequence(u,c);
             space();
             level--;
@@ -1487,6 +1850,8 @@ void ObxGen::case_(const CodeModel::Unit* u, SynTree* st)
         caseLabelList(u,st->d_children.first());
         print(": ");
         level++;
+        if( ifStatAfterBegin(st->d_children.last()) )
+            assureNl(st->d_children.last());
         statementSequence(u,st->d_children.last());
         space();
         level--;
@@ -1499,20 +1864,17 @@ void ObxGen::case_(const CodeModel::Unit* u, SynTree* st)
 void ObxGen::caseLabelList(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() );
-    level++;
     labelRange(u,st->d_children.first() );
     for( int i = 1; i < st->d_children.size(); i++ )
     {
         print(", ");
         labelRange(u,st->d_children[i] );
     }
-    level--;
 }
 
 void ObxGen::labelRange(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() );
-    level++;
     label(u,st->d_children.first() );
     if( st->d_children.size() == 3 )
     {
@@ -1521,7 +1883,6 @@ void ObxGen::labelRange(const CodeModel::Unit* u, SynTree* st)
         space();
         label(u,st->d_children.last() );
     }
-    level--;
 }
 
 void ObxGen::label(const CodeModel::Unit* u, SynTree* st)
@@ -1554,8 +1915,51 @@ void ObxGen::guard(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( st->d_children.size() == 2 ); // ':' transparent
     qualident( u, st->d_children.first() );
-    print(" : ");
+    print(": ");
     qualident( u, st->d_children.last() );
+}
+
+QByteArray ObxGen::escapedIdent(const CodeModel::Unit* u, const QByteArray& in)
+{
+    bool keyword = false;
+
+    QByteArray out = in;
+    const CodeModel::NamedThing* n = u->findByName(out);
+    if( n )
+    {
+        if( const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>( n ) )
+        {
+            if( ( e->d_kind >= CodeModel::Element::ABS && e->d_kind <= CodeModel::Element::FALSE ) ||
+                    e->d_kind == CodeModel::Element::LED )
+            {
+                keyword = true;
+                out = out.toLower();
+            }
+        }else if( const CodeModel::Type* t = dynamic_cast<const CodeModel::Type*>( n ) )
+        {
+            if( t->d_kind >= CodeModel::Type::BOOLEAN && t->d_kind <= CodeModel::Type::SET )
+            {
+                keyword = true;
+                out = CodeModel::Type::s_kindName[t->d_kind]; // SHORTCHAR etc. mapped to CHAR type
+                if( switchBBoxTypes )
+                {
+                    if( out == "SHORTREAL" )
+                        out = "REAL";
+                    else if( out == "REAL" )
+                        out = "LONGREAL";
+                    else if( out == "SHORTCHAR" )
+                        out = "CHAR";
+                    else if( !noWchar && out == "CHAR" )
+                        out = "WCHAR";
+                }
+                out = out.toLower();
+            }
+        }
+    }
+
+    if( !keyword && reservedWords.contains(out) )
+        out += "_";
+    return out;
 }
 
 void ObxGen::print(const QByteArray& str, SynTree* curRowCol)
@@ -1596,6 +2000,8 @@ int ObxGen::printComment( const QByteArray& str, bool mayEndOfLine )
 {
     QByteArray stripped = str.trimmed();
     stripped = stripped.mid(2,stripped.size() - 4).trimmed();
+    if( stripped.startsWith('*') && stripped.endsWith('*') )
+        stripped = stripped.mid(1,stripped.size()-2).trimmed(); // cover (** xxx **) comments
     const QByteArrayList lines = stripped.split('\n');
     if( lines.size() == 1 && mayEndOfLine )
     {
@@ -1617,8 +2023,8 @@ int ObxGen::printComment( const QByteArray& str, bool mayEndOfLine )
 
 void ObxGen::printComments(SynTree* st)
 {
-//    if( st && st->d_tok.d_sourcePath.endsWith("Display.Mod") && st->d_tok.d_lineNr == 74 )
-//        qDebug() << "hit";
+    if( d_cmts.isEmpty() )
+        return;
     Q_ASSERT( d_nextCmt >= d_cmts.size() || d_cmts[d_nextCmt].d_lineNr >= prevRow );
 
     if( st == 0 || prevRow < st->d_tok.d_lineNr )
@@ -1688,6 +2094,14 @@ void ObxGen::skipTo(SynTree* to)
     printComments(to);
     prevSym = to;
     prevRow = to->d_tok.d_lineNr;
+}
+
+bool ObxGen::ifStatAfterBegin(SynTree* statSeq)
+{
+    if( !nlAfterBegin )
+        return false;
+    Q_ASSERT( statSeq && statSeq->d_tok.d_type == SynTree::R_StatementSequence );
+    return !statSeq->d_children.isEmpty();
 }
 
 

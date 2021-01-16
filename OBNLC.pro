@@ -27,6 +27,7 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
+DEFINES += OBX_BBOX
 
 SOURCES += \
     ObnlcMain.cpp \

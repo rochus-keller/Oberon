@@ -288,7 +288,7 @@ void NamedThingsMdl::fill(Slot* super, const CodeModel::Unit* ds )
 
     sorter.clear();
     foreach( const CodeModel::Procedure* x, ds->d_procs )
-        if( !x->d_name.isEmpty() )
+        if( !x->d_name.isEmpty() && x->d_receiver == 0 )
             sorter.insert( x->d_name.toLower(), x );
     fillSection( super, sorter, Slot::Procs );
 }

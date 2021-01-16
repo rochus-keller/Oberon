@@ -341,6 +341,8 @@ Token Lexer::number()
     // integer ::= // digit {digit} | digit {hexDigit} 'H'
     // real ::= // digit {digit} '.' {digit} [ScaleFactor]
     // ScaleFactor- ::= // 'E' ['+' | '-'] digit {digit}
+    const int startLine = d_lineNr;
+    const int startCol = d_colNr;
     int off = 1;
     while( true )
     {
@@ -412,15 +414,11 @@ Token Lexer::number()
 
     if( isChar )
     {
-#ifndef OB_BBOX
-        if( str.size() == 4 )
-        {
-            if( str[0] != '0' )
-                return token( Tok_Invalid, off, "invalid hex char" );
-            str = str.mid(1);
-        }else if( str.size() > 4 )
-            return token( Tok_Invalid, off, "invalid hex char" );
-#endif
+        const quint32 ch = str.left(str.size()-1).toUInt(0,16);
+        if( d_err && ch > 255 )
+            d_err->warning( Errors::Semantics, d_sourcePath, startLine, startCol,
+                            tr("character literal %1 using more than one byte").arg(str.constData()));
+
         return token( Tok_hexchar, off, str );
     }
     else if( isReal)

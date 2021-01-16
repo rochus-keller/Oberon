@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-01-03</span>
+      <span id="revdate">2021-01-16</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -206,12 +206,15 @@ end Lists</code></pre>
       <div class="sectionbody">
         <div class="paragraph">
           <p>The representation of (terminal) symbols in terms of characters is defined
-            using the ASCII character set. Symbols are identifiers, numbers, strings,
-            operators, and delimiters. The following lexical rules apply: blanks
-            and line breaks must not occur within symbols (except in comments, and
-            blanks in strings); they are ignored unless they are essential to separate
-            two consecutive symbols. Capital and lower-case letters are considered
-            as distinct.</p>
+            using the ISO/IEC 8859-1 character set. Symbols are identifiers, numbers,
+            strings, operators, and delimiters. Source files are encoded with one
+            byte per character.</p>
+        </div>
+        <div class="paragraph">
+          <p>The following lexical rules apply: blanks and line breaks must not occur
+            within symbols (except in comments, and blanks in strings); they are
+            ignored unless they are essential to separate two consecutive symbols.
+            Capital and lower-case letters are considered as distinct.</p>
         </div>
         <div class="sect2">
           <h3 id="_identifiers">3.1. Identifiers</h3>
@@ -222,7 +225,9 @@ end Lists</code></pre>
           <div class="literalblock">
             <div class="title">Syntax:</div>
             <div class="content">
-              <pre>ident = ( letter | '_' ) { letter | digit | '_' }</pre>
+              <pre>ident  = ( letter | '_' ) { letter | digit | '_' }
+letter = 'A' ... 'Z' | 'a' ... 'z'
+digit  = '0' ... '9'</pre>
             </div>
           </div>
           <div class="literalblock">
@@ -260,8 +265,8 @@ firstLetter</pre>
 integer  = digit {digit} | digit {hexDigit} ('H' | 'h')
 real     = digit {digit} '.' {digit} [Exponent]
 Exponent = ('E' | 'e' | 'D' | 'd') ['+' | '-'] digit {digit}
-hexDigit = digit | 'A' | ... | 'F' | 'a' | ... | 'f'
-digit    = '0' | ... | '9'</pre>
+hexDigit = digit | 'A' ... 'F' | 'a' ... 'f'
+digit    = '0' ... '9'</pre>
             </div>
           </div>
           <div class="literalblock">
@@ -295,12 +300,12 @@ digit    = '0' | ... | '9'</pre>
         <div class="sect2">
           <h3 id="_strings">3.4. Strings</h3>
           <div class="paragraph">
-            <p>Strings literals are sequences of characters encoded using the ISO/IEC
-              8859-1 scheme and enclosed in single (') or double (") quote marks.
-              The opening quote must be the same as the closing quote and must not
-              occur within the string. The number of characters in a string is called
-              its length. A string of length 1 can be used wherever a character constant
-              is allowed and vice versa.</p>
+            <p>Strings are sequences of characters encoded using the ISO/IEC 8859-1
+              scheme and enclosed in single (') or double (") quote marks. The opening
+              quote must be the same as the closing quote and must not occur within
+              the string. The number of characters in a string is called its length.
+              A string of length 1 can be used wherever a character constant is allowed
+              and vice versa.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -492,13 +497,16 @@ digit    = '0' | ... | '9'</pre>
                   <p class="tableblock">LOOP</p>
                 </td>
                 <td class="tableblock halign-left valign-top">
-                  <p class="tableblock">MODULE</p>
+                  <p class="tableblock">MOD</p>
                 </td>
                 <td class="tableblock halign-left valign-top">
-                  <p class="tableblock">NIL</p>
+                  <p class="tableblock">MODULE</p>
                 </td>
               </tr>
               <tr>
+                <td class="tableblock halign-left valign-top">
+                  <p class="tableblock">NIL</p>
+                </td>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">OF</p>
                 </td>
@@ -511,11 +519,11 @@ digit    = '0' | ... | '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">PROC</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">PROCEDURE</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">RECORD</p>
                 </td>
@@ -528,11 +536,11 @@ digit    = '0' | ... | '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">THEN</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">TO</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">TRUE</p>
                 </td>
@@ -544,9 +552,6 @@ digit    = '0' | ... | '9'</pre>
                 </td>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">WHILE</p>
-                </td>
-                <td class="tableblock halign-left valign-top">
-                  <p class="tableblock">WITH</p>
                 </td>
               </tr>
             </tbody>
@@ -1043,10 +1048,11 @@ array Ln of T</pre>
             </div>
           </div>
           <div class="paragraph">
-            <p>Arrays declared without length are called open arrays. They are restricted
-              to pointer base types (see <a href="#_pointer_types">Pointer types</a>),
+            <p>Arrays declared without length are called <em>open arrays</em>. They
+              are restricted to pointer base types (see <a href="#_pointer_types">Pointer types</a>),
               element types of open array types, and formal parameter types (see
-              <a href="#_formal_parameters">Formal parameters</a>).</p>
+              <a href="#_formal_parameters">Formal parameters</a>). Arrays declared
+              with length are called <em>closed arrays</em>.</p>
           </div>
           <div class="literalblock">
             <div class="title">Examples:</div>
@@ -1656,11 +1662,10 @@ element          = expression ['..' expression]</pre>
             </table>
             <div class="paragraph">
               <p>Relations yield a BOOLEAN result. The relations <code>=</code>, <code>#</code>,
-                <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, and <code>&gt;=</code>                apply to the numeric types, as well as CHAR, strings, and character
-                arrays containing <code>0x</code> as a terminator. The relations
-                <code>=</code> and <code>#</code> also apply to BOOLEAN and SET,
-                as well as to pointer and procedure types (including the value NIL).
-                <code>x IN s</code> stands for <em>x is an element of s</em>. <code>x</code>                must be of an integer type, and <code>s</code> of type SET. <code>v IS T</code>                stands for <em>the dynamic type of <code>v</code> is T (or an extension of T )</em>                and is called a type test. It is applicable if</p>
+                <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, and <code>&gt;=</code>                apply to the numeric types, as well as CHAR, strings, and CHAR arrays
+                containing <code>0x</code> as a terminator. The relations <code>=</code>                and <code>#</code> also apply to BOOLEAN and SET, as well as to pointer
+                and procedure types (including the value NIL). <code>x IN s</code>                stands for <em>x is an element of s</em>. <code>x</code> must be
+                of an integer type, and <code>s</code> of type SET. <code>v IS T</code>                stands for <em>the dynamic type of <code>v</code> is T (or an extension of T )</em>                and is called a type test. It is applicable if</p>
             </div>
             <div class="olist arabic">
               <ol class="arabic">
@@ -1758,6 +1763,18 @@ t is CenterTree        // boolean</pre>
               </li>
               <li>
                 <p>if T<sub>v</sub> is <code>ARRAY n OF CHAR</code> and <code>e</code>                  is a string of length m &lt; n, <code>v[i]</code> becomes e<sub>i</sub>                  for i = 0..m-1 and <code>v[m]</code> becomes 0X;</p>
+              </li>
+              <li>
+                <p>if T<sub>v</sub> and T<sub>e</sub> are open or closed CHAR arrays,
+                  <code>v[i]</code> becomes <code>e[i]</code> for i = 0..STRLEN(e);
+                  if LEN(v) &lt;= STRLEN(e) or <code>e</code> is not terminated by
+                  0X the program halts;</p>
+              </li>
+              <li>
+                <p>if T<sub>v</sub> is an open CHAR array and <code>e</code> is a string
+                  <code>v[i]</code> becomes <code>e[i]</code> for i = 0..LEN(e)-1
+                  and <code>v[LEN(e)]</code> becomes 0X; if LEN(v) &lt;= LEN(e) the
+                  program halts;</p>
               </li>
             </ol>
           </div>
@@ -2203,16 +2220,10 @@ FormalType       = type</pre>
             </div>
           </div>
           <div class="paragraph">
-            <p>Let T<sub>f</sub> be the type of a formal parameter <code>f</code> (not
-              an open array) and T<sub>a</sub> the type of the corresponding actual
-              parameter <code>a</code>. For VAR and IN parameters, T<sub>a</sub>              must be the <em>same type</em> as T<sub>f</sub>, or T<sub>f</sub> must
-              be a record type and T<sub>a</sub> an <em>extension</em> of T<sub>f</sub>.
-              For value parameters, a must be <em>assignment compatible</em> with
-              <code>f</code> (see <a href="#_definition_of_terms">Definition of terms</a>).</p>
-          </div>
-          <div class="paragraph">
-            <p>If T<sub>f</sub> is an open array, then <code>a</code> must be <em>array compatible</em>              with <code>f</code> (see <a href="#_definition_of_terms">Definition of terms</a>).
-              The lengths of <code>f</code> are taken from <code>a</code>.</p>
+            <p>Let T<sub>f</sub> be the type of a formal parameter <code>f</code> and
+              T<sub>a</sub> the type of the corresponding actual parameter <code>a</code>.
+              If T<sub>f</sub> is an open array, then T<sub>a</sub> must be <em>array compatible</em>              to <code>f</code>; the lengths of <code>f</code> are taken from <code>a</code>.
+              Otherwise T<sub>a</sub> must be <em>parameter compatible</em> to <code>f</code>              (see <a href="#_definition_of_terms">Definition of terms</a>).</p>
           </div>
           <div class="literalblock">
             <div class="title">Examples:</div>
@@ -2375,10 +2386,10 @@ end Insert</pre>
                     <p class="tableblock">ASH(x, n)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">x, n: integer type</p>
+                    <p class="tableblock">x, n: INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">LONGINT</p>
+                    <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">arithmetic shift (x * 2<sup>n</sup>)</p>
@@ -2445,7 +2456,9 @@ end Insert</pre>
                     <p class="tableblock">FLOOR(x)</p>
                   </td>
                   <td class="tableblock halign-left valign-top"></td>
-                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">INTEGER</p>
+                  </td>
                   <td class="tableblock halign-left valign-top"></td>
                 </tr>
                 <tr>
@@ -2467,10 +2480,10 @@ end Insert</pre>
                     <p class="tableblock">LEN(v, n)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">v: array n: integer const</p>
+                    <p class="tableblock">v: array n: integer</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">LONGINT</p>
+                    <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">length of v in dimension n (first dimension = 0)</p>
@@ -2484,10 +2497,22 @@ end Insert</pre>
                     <p class="tableblock">v: array</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">LONGINT</p>
+                    <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">equivalent to LEN(v, 0)</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">v: string</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">INTEGER</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">length of string (up to but without the first 0X)</p>
                   </td>
                 </tr>
                 <tr>
@@ -2714,10 +2739,35 @@ end Insert</pre>
                     <p class="tableblock">any type</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">integer type</p>
+                    <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">number of bytes required by T</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">STRLEN(s)</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">s: array of char</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">INTEGER</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">dynamic length of the string up to and not including the first
+                      0X</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">s: string</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">same as LEN(s)</p>
                   </td>
                 </tr>
                 <tr>
@@ -2807,7 +2857,7 @@ end Insert</pre>
                     <p class="tableblock">COPY(x, v)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">x: character array, string</p>
+                    <p class="tableblock">x: CHAR array, string</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">v := x</p>
@@ -2816,7 +2866,7 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">v: character array</p>
+                    <p class="tableblock">v: CHAR array</p>
                   </td>
                   <td class="tableblock halign-left valign-top"></td>
                 </tr>
@@ -2981,11 +3031,11 @@ end Insert</pre>
               <p>The parameter <code>n</code> of PACK represents the exponent of <code>x</code>.
                 <code>PACK(x, y)</code> is equivalent to <code>x := x * 2<sup>y</sup></code>.
                 UNPK is the reverse operation. The resulting <code>x</code> is normalized,
-                such that 1.0 &#8656; x &lt; 2.0.</p>
+                such that 1.0 &lt;= x &lt; 2.0.</p>
             </div>
             <div class="paragraph">
-              <p>COPY allows the assignment of a string or a character array containing
-                a terminating 0X to another character array. If necessary, the assigned
+              <p>COPY allows the assignment of a string or a CHAR array containing a
+                terminating 0X to another CHAR array. If necessary, the assigned
                 value is truncated to the target length minus one. The target will
                 always contain 0X as a terminator.</p>
             </div>
@@ -3189,7 +3239,10 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                   <li>
                     <p>T<sub>a</sub> and T<sub>b</sub> are procedure types whose formal
-                      parameter lists match.</p>
+                      parameter lists <em>match</em>, or</p>
+                  </li>
+                  <li>
+                    <p>T<sub>a</sub> and T<sub>b</sub> are pointer types with <em>equal</em>                      base types.</p>
                   </li>
                 </ol>
               </div>
@@ -3241,30 +3294,32 @@ declarations = { CONST { ConstDeclaration [';'] }
                       smaller type;</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is a CHAR type and T<sub>e</sub> is a string constant
-                      with one character;</p>
+                    <p>T<sub>v</sub> is a CHAR type and T<sub>e</sub> is a string with
+                      one character;</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> is a BYTE type and T<sub>e</sub> is a CHAR or a
-                      string constant with one character;</p>
+                      string with one character;</p>
                   </li>
                   <li>
                     <p>T<sub>e</sub> and T<sub>v</sub> are record types and T<sub>e</sub>                      is a <em>type extension</em> of T<sub>v</sub> and the dynamic
                       type of v is T<sub>v</sub>;</p>
                   </li>
                   <li>
-                    <p>T<sub>e</sub> and T<sub>v</sub> are pointer types and T<sub>e</sub>                      is a <em>type extension</em> of T<sub>v</sub>;</p>
+                    <p>T<sub>e</sub> and T<sub>v</sub> are pointer types and T<sub>e</sub>                      is a <em>type extension</em> of T<sub>v</sub> or the pointers
+                      have <em>equal</em> base types;</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is a pointer or a procedure type and e is NIL;</p>
+                    <p>T<sub>v</sub> is a pointer or a procedure type and <code>e</code>                      is NIL;</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is ARRAY n OF CHAR, e is a string constant with
-                      m characters, and m &lt; n;</p>
+                    <p>T<sub>v</sub> is ARRAY n OF CHAR and <code>e</code> is a string
+                      <sup class="footnote">[<a id="_footnoteref_2" class="footnote" href="#_footnote_2" title="View footnote.">2</a>]</sup>                      with LEN(e) &lt;= LEN(v);</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is ARRAY n OF T, T<sub>e</sub> is ARRAY m OF T
-                      and m &#8656; n, or T<sub>e</sub> is ARRAY OF T;</p>
+                    <p>T<sub>v</sub> and T<sub>e</sub> are open or closed CHAR arrays,
+                      or T<sub>v</sub> is an open CHAR array and <code>e</code> is
+                      a string;</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> is a procedure type and e is the name of a procedure
@@ -3273,21 +3328,43 @@ declarations = { CONST { ConstDeclaration [';'] }
                 </ol>
               </div>
             </dd>
-            <dt class="hdlist1">Array compatible</dt>
+            <dt class="hdlist1">Parameter compatible</dt>
             <dd>
-              <p>An actual parameter a of type T<sub>a</sub> is array compatible with
-                a formal parameter f of type T<sub>f</sub> if</p>
+              <p>An actual parameter <code>a</code> of type T<sub>a</sub> is parameter
+                compatible with a formal parameter <code>f</code> of type T<sub>f</sub>                if</p>
               <div class="olist arabic">
                 <ol class="arabic">
                   <li>
-                    <p>T<sub>f</sub> and T<sub>a</sub> are the <em>same type</em>, or</p>
+                    <p>T<sub>f</sub> and T<sub>a</sub> are <em>equal</em> types, or</p>
+                  </li>
+                  <li>
+                    <p><code>f</code> is a value parameter and T<sub>a</sub> is <em>assignment compatible</em>                      with T<sub>f</sub>, or</p>
+                  </li>
+                  <li>
+                    <p><code>f</code> is an IN or VAR parameter T<sub>a</sub> must be
+                      the <em>same type</em> as T<sub>f</sub>, or T<sub>f</sub> must
+                      be a record type and T<sub>a</sub> an <em>extension</em> of
+                      T<sub>f</sub>.</p>
+                  </li>
+                </ol>
+              </div>
+            </dd>
+            <dt class="hdlist1">Array compatible</dt>
+            <dd>
+              <p>An actual parameter <code>a</code> of type T<sub>a</sub> is array compatible
+                with a formal parameter <code>f</code> of type T<sub>f</sub> if</p>
+              <div class="olist arabic">
+                <ol class="arabic">
+                  <li>
+                    <p>T<sub>f</sub> and T<sub>a</sub> are the <em>equal type</em>,
+                      or</p>
                   </li>
                   <li>
                     <p>T<sub>f</sub> is an open array, T<sub>a</sub> is any array, and
                       their element types are <em>array compatible</em>, or</p>
                   </li>
                   <li>
-                    <p>T<sub>f</sub> is ARRAY OF CHAR and a is a string.</p>
+                    <p>T<sub>f</sub> is a CHAR array and <code>a</code> is a string.</p>
                   </li>
                 </ol>
               </div>
@@ -3296,9 +3373,9 @@ declarations = { CONST { ConstDeclaration [';'] }
             <dd>
               <p>For a given operator, the types of its operands are expression compatible
                 if they conform to the following table (which shows also the result
-                type of the expression). Character arrays that are to be compared
-                must contain 0X as a terminator. Type T1 must be an extension of
-                type T0:</p>
+                type of the expression). CHAR arrays that are to be compared must
+                contain 0X as a terminator. Type T1 must be an extension of type
+                T0:</p>
             </dd>
           </dl>
         </div>
@@ -3419,10 +3496,10 @@ declarations = { CONST { ConstDeclaration [';'] }
             <tr>
               <td class="tableblock halign-left valign-top"></td>
               <td class="tableblock halign-left valign-top">
-                <p class="tableblock">character array, string</p>
+                <p class="tableblock">CHAR array, string</p>
               </td>
               <td class="tableblock halign-left valign-top">
-                <p class="tableblock">character array, string</p>
+                <p class="tableblock">CHAR array, string</p>
               </td>
               <td class="tableblock halign-left valign-top">
                 <p class="tableblock">BOOLEAN</p>
@@ -3527,8 +3604,8 @@ declarations = { CONST { ConstDeclaration [';'] }
                       and</p>
                   </li>
                   <li>
-                    <p>parameters at corresponding positions are both either value or
-                      variable parameters.</p>
+                    <p>parameters at corresponding positions are both either value,
+                      VAR or IN parameters.</p>
                   </li>
                 </ol>
               </div>
@@ -3696,6 +3773,10 @@ DeclarationSequence2 =
     <hr>
     <div class="footnote" id="_footnote_1">
       <a href="#_footnoteref_1">1</a>. adopted with modifications from <a href="#Ro97">[Ro97]</a>
+    </div>
+    <div class="footnote" id="_footnote_2">
+      <a href="#_footnoteref_2">2</a>. which includes single characters corresponding
+      to strings with length 1
     </div>
   </div>
 </body>

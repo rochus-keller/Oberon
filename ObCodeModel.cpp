@@ -655,6 +655,7 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
     res->d_name = id.first->d_tok.d_val;
     res->d_id = id.first;
     res->d_public = id.second;
+    ds->d_procs.append(res); // proc is added to owning scope procs list in any case, but to names only if not bound
     index(id.first,res);
 
     SynTree* fp = 0;
@@ -668,7 +669,6 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
 
     if( ph == 0 )
     {
-        ds->d_procs.append(res);
         if( !checkNameNotInScope(ds,id.first) )
             return;
         ds->addToScope( res );
@@ -712,7 +712,6 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
             if( rt->findByName(res->d_name) || rt->d_procs.contains( res->d_name ) )
             {
                 error( Errors::Semantics, res->d_id, tr("duplicate name: '%1'").arg(res->d_name.data()));
-                delete res;
                 return;
             }else
                 const_cast<Type*>(rt)->d_procs.insert( res->d_name, res );
@@ -720,13 +719,11 @@ void CodeModel::processProcedureDeclaration(Unit* ds, SynTree* t)
         {
             error( Errors::Semantics, tpid, tr("identifier is not a record type: %1 %2").
                    arg( tpid->d_tok.d_val.constData() ).arg( t ? rt->typeName().constData() : "" ) );
-            delete res;
             return;
         }
     }else
 #endif
     {
-        ds->d_procs.append(res);
         if( !checkNameNotInScope(ds,id.first) )
             return;
         ds->addToScope( res );
@@ -802,7 +799,8 @@ void CodeModel::checkNames(CodeModel::Unit* ds)
     {
         if( t->d_def )
             checkNames(ds,t->d_def);
-#ifdef OB_OBN2
+#ifdef OB_OBN2_
+        // no, all procs are in ds->d_procs
         Type::Procs::const_iterator i;
         for( i = t->d_procs.begin(); i != t->d_procs.end(); ++i )
         {
@@ -1443,7 +1441,8 @@ void CodeModel::resolveTypeRefs(CodeModel::Unit* ds)
     }
     foreach( Procedure* p, ds->d_procs )
         resolveTypeRefs(p);
-#ifdef OB_OBN2
+#ifdef OB_OBN2_
+    // no, procs are all in ds->d_procs
     foreach( Type* t, ds->d_types )
     {
         foreach( Procedure* p, t->d_procs )

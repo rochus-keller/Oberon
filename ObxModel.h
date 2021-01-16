@@ -59,6 +59,7 @@ namespace Obx
         bool error( const Ob::Loc& loc, const QString& msg );
     private:
         Ref<Scope> d_globals;
+        Ref<Scope> d_globalsLower;
         QHash<QByteArray,QByteArray> d_preload;
         Ref<BaseType> d_boolType;
         Ref<BaseType> d_charType;
@@ -73,6 +74,7 @@ namespace Obx
         Ref<BaseType> d_nilType;
         Ref<BaseType> d_anyType;
         Ref<BaseType> d_anyNum;
+        Ref<BaseType> d_anyRec;
         Ref<Module> d_systemModule;
         QList<Module*> d_depOrder; // most (0) to least (n-1) dependent
         typedef QHash<QByteArrayList,Ref<Module> > Modules;

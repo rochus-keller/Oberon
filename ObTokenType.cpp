@@ -6,7 +6,6 @@ namespace Ob {
 		switch(r) {
 			case Tok_Invalid: return "<invalid>";
 			case Tok_Hash: return "#";
-			case Tok_Dlr: return "$";
 			case Tok_Amp: return "&";
 			case Tok_Lpar: return "(";
 			case Tok_Latt: return "(*";
@@ -35,35 +34,30 @@ namespace Ob {
 			case Tok_Bar: return "|";
 			case Tok_Rbrace: return "}";
 			case Tok_Tilde: return "~";
-			case Tok_ABSTRACT: return "ABSTRACT";
 			case Tok_ARRAY: return "ARRAY";
 			case Tok_BEGIN: return "BEGIN";
 			case Tok_BY: return "BY";
 			case Tok_CASE: return "CASE";
-			case Tok_CLOSE: return "CLOSE";
 			case Tok_CONST: return "CONST";
 			case Tok_DEFINITION: return "DEFINITION";
 			case Tok_DIV: return "DIV";
 			case Tok_DO: return "DO";
 			case Tok_ELSE: return "ELSE";
 			case Tok_ELSIF: return "ELSIF";
-			case Tok_EMPTY: return "EMPTY";
 			case Tok_END: return "END";
 			case Tok_EXIT: return "EXIT";
-			case Tok_EXTENSIBLE: return "EXTENSIBLE";
+			case Tok_FALSE: return "FALSE";
 			case Tok_FOR: return "FOR";
 			case Tok_IF: return "IF";
 			case Tok_IMPORT: return "IMPORT";
 			case Tok_IN: return "IN";
 			case Tok_IS: return "IS";
-			case Tok_LIMITED: return "LIMITED";
 			case Tok_LOOP: return "LOOP";
 			case Tok_MOD: return "MOD";
 			case Tok_MODULE: return "MODULE";
 			case Tok_NIL: return "NIL";
 			case Tok_OF: return "OF";
 			case Tok_OR: return "OR";
-			case Tok_OUT: return "OUT";
 			case Tok_POINTER: return "POINTER";
 			case Tok_PROC: return "PROC";
 			case Tok_PROCEDURE: return "PROCEDURE";
@@ -72,6 +66,7 @@ namespace Ob {
 			case Tok_RETURN: return "RETURN";
 			case Tok_THEN: return "THEN";
 			case Tok_TO: return "TO";
+			case Tok_TRUE: return "TRUE";
 			case Tok_TYPE: return "TYPE";
 			case Tok_UNTIL: return "UNTIL";
 			case Tok_VAR: return "VAR";
@@ -92,7 +87,6 @@ namespace Ob {
 		switch(r) {
 			case Tok_Invalid: return "Tok_Invalid";
 			case Tok_Hash: return "Tok_Hash";
-			case Tok_Dlr: return "Tok_Dlr";
 			case Tok_Amp: return "Tok_Amp";
 			case Tok_Lpar: return "Tok_Lpar";
 			case Tok_Latt: return "Tok_Latt";
@@ -121,35 +115,30 @@ namespace Ob {
 			case Tok_Bar: return "Tok_Bar";
 			case Tok_Rbrace: return "Tok_Rbrace";
 			case Tok_Tilde: return "Tok_Tilde";
-			case Tok_ABSTRACT: return "Tok_ABSTRACT";
 			case Tok_ARRAY: return "Tok_ARRAY";
 			case Tok_BEGIN: return "Tok_BEGIN";
 			case Tok_BY: return "Tok_BY";
 			case Tok_CASE: return "Tok_CASE";
-			case Tok_CLOSE: return "Tok_CLOSE";
 			case Tok_CONST: return "Tok_CONST";
 			case Tok_DEFINITION: return "Tok_DEFINITION";
 			case Tok_DIV: return "Tok_DIV";
 			case Tok_DO: return "Tok_DO";
 			case Tok_ELSE: return "Tok_ELSE";
 			case Tok_ELSIF: return "Tok_ELSIF";
-			case Tok_EMPTY: return "Tok_EMPTY";
 			case Tok_END: return "Tok_END";
 			case Tok_EXIT: return "Tok_EXIT";
-			case Tok_EXTENSIBLE: return "Tok_EXTENSIBLE";
+			case Tok_FALSE: return "Tok_FALSE";
 			case Tok_FOR: return "Tok_FOR";
 			case Tok_IF: return "Tok_IF";
 			case Tok_IMPORT: return "Tok_IMPORT";
 			case Tok_IN: return "Tok_IN";
 			case Tok_IS: return "Tok_IS";
-			case Tok_LIMITED: return "Tok_LIMITED";
 			case Tok_LOOP: return "Tok_LOOP";
 			case Tok_MOD: return "Tok_MOD";
 			case Tok_MODULE: return "Tok_MODULE";
 			case Tok_NIL: return "Tok_NIL";
 			case Tok_OF: return "Tok_OF";
 			case Tok_OR: return "Tok_OR";
-			case Tok_OUT: return "Tok_OUT";
 			case Tok_POINTER: return "Tok_POINTER";
 			case Tok_PROC: return "Tok_PROC";
 			case Tok_PROCEDURE: return "Tok_PROCEDURE";
@@ -158,6 +147,7 @@ namespace Ob {
 			case Tok_RETURN: return "Tok_RETURN";
 			case Tok_THEN: return "Tok_THEN";
 			case Tok_TO: return "Tok_TO";
+			case Tok_TRUE: return "Tok_TRUE";
 			case Tok_TYPE: return "Tok_TYPE";
 			case Tok_UNTIL: return "Tok_UNTIL";
 			case Tok_VAR: return "Tok_VAR";
@@ -192,9 +182,6 @@ namespace Ob {
 		switch( at(str,i) ){
 		case '#':
 			res = Tok_Hash; i += 1;
-			break;
-		case '$':
-			res = Tok_Dlr; i += 1;
 			break;
 		case '&':
 			res = Tok_Amp; i += 1;
@@ -267,23 +254,7 @@ namespace Ob {
 			}
 			break;
 		case 'A':
-			switch( at(str,i+1) ){
-			case 'B':
-				if( at(str,i+2) == 'S' ){
-					if( at(str,i+3) == 'T' ){
-						if( at(str,i+4) == 'R' ){
-							if( at(str,i+5) == 'A' ){
-								if( at(str,i+6) == 'C' ){
-									if( at(str,i+7) == 'T' ){
-										res = Tok_ABSTRACT; i += 8;
-									}
-								}
-							}
-						}
-					}
-				}
-				break;
-			case 'R':
+			if( at(str,i+1) == 'R' ){
 				if( at(str,i+2) == 'R' ){
 					if( at(str,i+3) == 'A' ){
 						if( at(str,i+4) == 'Y' ){
@@ -291,7 +262,6 @@ namespace Ob {
 						}
 					}
 				}
-				break;
 			}
 			break;
 		case 'B':
@@ -316,15 +286,6 @@ namespace Ob {
 				if( at(str,i+2) == 'S' ){
 					if( at(str,i+3) == 'E' ){
 						res = Tok_CASE; i += 4;
-					}
-				}
-				break;
-			case 'L':
-				if( at(str,i+2) == 'O' ){
-					if( at(str,i+3) == 'S' ){
-						if( at(str,i+4) == 'E' ){
-							res = Tok_CLOSE; i += 5;
-						}
 					}
 				}
 				break;
@@ -386,53 +347,36 @@ namespace Ob {
 					}
 				}
 				break;
-			case 'M':
-				if( at(str,i+2) == 'P' ){
-					if( at(str,i+3) == 'T' ){
-						if( at(str,i+4) == 'Y' ){
-							res = Tok_EMPTY; i += 5;
-						}
-					}
-				}
-				break;
 			case 'N':
 				if( at(str,i+2) == 'D' ){
 					res = Tok_END; i += 3;
 				}
 				break;
 			case 'X':
-				switch( at(str,i+2) ){
-				case 'I':
+				if( at(str,i+2) == 'I' ){
 					if( at(str,i+3) == 'T' ){
 						res = Tok_EXIT; i += 4;
 					}
-					break;
-				case 'T':
-					if( at(str,i+3) == 'E' ){
-						if( at(str,i+4) == 'N' ){
-							if( at(str,i+5) == 'S' ){
-								if( at(str,i+6) == 'I' ){
-									if( at(str,i+7) == 'B' ){
-										if( at(str,i+8) == 'L' ){
-											if( at(str,i+9) == 'E' ){
-												res = Tok_EXTENSIBLE; i += 10;
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-					break;
 				}
 				break;
 			}
 			break;
 		case 'F':
-			if( at(str,i+1) == 'O' ){
+			switch( at(str,i+1) ){
+			case 'A':
+				if( at(str,i+2) == 'L' ){
+					if( at(str,i+3) == 'S' ){
+						if( at(str,i+4) == 'E' ){
+							res = Tok_FALSE; i += 5;
+						}
+					}
+				}
+				break;
+			case 'O':
 				if( at(str,i+2) == 'R' ){
 					res = Tok_FOR; i += 3;
 				}
+				break;
 			}
 			break;
 		case 'I':
@@ -460,27 +404,12 @@ namespace Ob {
 			}
 			break;
 		case 'L':
-			switch( at(str,i+1) ){
-			case 'I':
-				if( at(str,i+2) == 'M' ){
-					if( at(str,i+3) == 'I' ){
-						if( at(str,i+4) == 'T' ){
-							if( at(str,i+5) == 'E' ){
-								if( at(str,i+6) == 'D' ){
-									res = Tok_LIMITED; i += 7;
-								}
-							}
-						}
-					}
-				}
-				break;
-			case 'O':
+			if( at(str,i+1) == 'O' ){
 				if( at(str,i+2) == 'O' ){
 					if( at(str,i+3) == 'P' ){
 						res = Tok_LOOP; i += 4;
 					}
 				}
-				break;
 			}
 			break;
 		case 'M':
@@ -512,11 +441,6 @@ namespace Ob {
 				break;
 			case 'R':
 				res = Tok_OR; i += 2;
-				break;
-			case 'U':
-				if( at(str,i+2) == 'T' ){
-					res = Tok_OUT; i += 3;
-				}
 				break;
 			}
 			break;
@@ -600,6 +524,13 @@ namespace Ob {
 				break;
 			case 'O':
 				res = Tok_TO; i += 2;
+				break;
+			case 'R':
+				if( at(str,i+2) == 'U' ){
+					if( at(str,i+3) == 'E' ){
+						res = Tok_TRUE; i += 4;
+					}
+				}
 				break;
 			case 'Y':
 				if( at(str,i+2) == 'P' ){

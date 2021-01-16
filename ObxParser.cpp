@@ -51,10 +51,12 @@ Ref<Module> Parser::parse()
         case Tok_MODULE:
             next();
             module(false);
+            d_mod->d_isExt = d_lex->isEnabledExt();
             break;
         case Tok_DEFINITION:
             next();
             module(true);
+            d_mod->d_isExt = d_lex->isEnabledExt();
             break;
         default:
             syntaxError( tr("expecting MODULE or DEFINITION keyword"));
@@ -176,6 +178,8 @@ void Parser::identdef(Named* n, Scope* scope)
     if( d_la == Tok_Star )
     {
         next();
+        if( d_mod->d_isDef )
+            warning(d_cur.toLoc(), tr("'*' ineffective in DEFINITION since all elements are public"));
         if( scope->getTag() != Thing::T_Procedure )
             n->d_visibility = Named::ReadWrite;
         else
@@ -183,7 +187,7 @@ void Parser::identdef(Named* n, Scope* scope)
     }else if( d_la == Tok_Minus )
     {
         next();
-        if( scope->getTag() == Thing::T_Procedure )
+        if( scope->getTag() != Thing::T_Procedure )
             n->d_visibility = Named::ReadOnly;
         else
             semanticError(d_cur.toLoc(), tr("export mark only allowed on module level"));
@@ -202,7 +206,7 @@ void Parser::constDeclaration(Scope* scope)
     //   res->d_type = res->d_constExpr->d_type.data();
     // res->d_val = eval( res->d_constExpr.data(), true );
     if( !scope->add( res.data() ) )
-        semanticError( res->d_loc, tr("constant name is not unique") );
+        semanticError( res->d_loc, tr("constant name '%1' is not unique").arg(res->d_name.constData()) );
 }
 
 Ref<Expression> Parser::constExpression()
@@ -1161,6 +1165,8 @@ Ref<Statement> Parser::withStatement(Scope* scope)
     Ref<IfLoop> c = new IfLoop();
     c->d_op = IfLoop::WITH;
     c->d_loc = d_cur.toRowCol();
+    if( d_la == Tok_Bar )
+        next();
     c->d_if << guard();
     MATCH( Tok_DO, tr("expecting the DO keyword after the WITH expression") );
     c->d_then.append( statementSequence(scope) );
@@ -1408,12 +1414,15 @@ Ref<Expression> Parser::label()
 
 Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
 {
+    if( d_mod->d_isDef )
+        headingOnly = true;
     Ref<Procedure> res = new Procedure();
     const int kind = procedureHeading(res.data(), scope);
     if( kind == ProcForward )
         return 0; // just ignore this declaration
     if( !headingOnly )
     {
+        bool hasEndIdent = false;
         if( kind == ProcCImp )
         {
             res->d_imp = literal();
@@ -1425,9 +1434,16 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
         switch( kind )
         {
         case ProcNormal:
-            procedureBody( res.data() );
-            MATCH( Tok_ident, tr("expecting procedure name after END keyword") );
-            if( d_cur.isValid() && d_cur.d_val != res->d_name )
+            if( procedureBody( res.data() ) )
+            {
+                MATCH( Tok_ident, tr("expecting procedure name after END keyword") );
+                hasEndIdent = true;
+            }else if( d_la == Tok_ident )
+            {
+                next();
+                hasEndIdent = true;
+            }
+            if( hasEndIdent && d_cur.isValid() && d_cur.d_val != res->d_name )
                 semanticError( d_next.toLoc(), tr("the ident '%1' after the END keyword must be equal "
                                   "to the procedure name").arg(d_next.d_val.constData()));
             break;
@@ -1522,9 +1538,10 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
     return kind;
 }
 
-void Parser::procedureBody(Procedure* p)
+bool Parser::procedureBody(Procedure* p)
 {
     declarationSequence(false, p);
+    bool hasBody = false;
     if( d_la == Tok_BEGIN || d_la == Tok_DO
 #ifndef OBN07
             || d_la == Tok_RETURN
@@ -1536,10 +1553,12 @@ void Parser::procedureBody(Procedure* p)
             p->d_body << returnStatement(p);
         else
         {
+            hasBody = true;
             next();
             p->d_body = statementSequence(p);
         }
 #else
+        hasBody = true;
         next();
         p->d_body = statementSequence(p);
 #endif
@@ -1556,6 +1575,7 @@ void Parser::procedureBody(Procedure* p)
 #endif
     MATCH( Tok_END, tr("expecting a closing END in procedure") );
     p->d_end = d_cur.toRowCol();
+    return hasBody;
 }
 
 Ref<Parameter> Parser::receiver()
@@ -1564,10 +1584,12 @@ Ref<Parameter> Parser::receiver()
 
     Ref<Parameter> v = new Parameter();
 
-    if( d_la == Tok_VAR )
+    if( d_la == Tok_VAR || d_la == Tok_IN )
     {
         next();
         v->d_var = true;
+        if( d_cur.d_type == Tok_IN )
+            v->d_const = true;
     }
     MATCH( Tok_ident, tr("expecting the receiver variable name") );
     v->d_name = d_cur.d_val;
@@ -1873,6 +1895,11 @@ void Parser::syntaxError(const QString& err)
         d_errs->error( Errors::Syntax, d_cur.toLoc(), err );
     else
         d_errs->error( Errors::Syntax, d_next.toLoc(), err );
+}
+
+void Parser::warning(const Loc& l, const QString& err)
+{
+    d_errs->warning( Errors::Semantics, l, err );
 }
 
 void Parser::semanticError(const Loc& l, const QString& err)

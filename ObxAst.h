@@ -178,11 +178,12 @@ namespace Obx
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
         virtual Type* derefed() { return this; }
+        virtual QString pretty() const { return QString(); }
     };
 
     struct BaseType : public Type
     {
-        enum { ANY, ANYNUM, NIL, STRING, BOOLEAN, CHAR, BYTE, SHORTINT,
+        enum { ANY, ANYNUM, ANYREC, PTR, NIL, STRING, BOOLEAN, CHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET };
         static const char* s_typeName[];
 
@@ -190,6 +191,7 @@ namespace Obx
         int getTag() const { return T_BaseType; }
         void accept(AstVisitor* v) { v->visit(this); }
         const char* getTypeName() const { return s_typeName[d_type]; }
+        QString pretty() const { return getTypeName(); }
     };
 
     struct Pointer : public Type
@@ -197,6 +199,7 @@ namespace Obx
         Ref<Type> d_to; // only to Record or Array
         int getTag() const { return T_Pointer; }
         void accept(AstVisitor* v) { v->visit(this); }
+        QString pretty() const;
     };
 
     struct Array : public Type
@@ -209,6 +212,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured() const { return true; }
         Type* getTypeDim( int& dims ) const;
+        QString pretty() const;
     };
 
     struct Record : public Type
@@ -227,6 +231,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured() const { return true; }
         Named* find(const QByteArray& name , bool recursive) const;
+        QString pretty() const { return "RECORD"; }
     };
 
     struct ProcType : public Type
@@ -244,6 +249,7 @@ namespace Obx
         Parameter* find( const QByteArray& ) const;
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
+        QString pretty() const { return "PROC"; }
     };
 
     typedef QList< Ref<Thing> > MetaActuals;
@@ -261,6 +267,7 @@ namespace Obx
         int getTag() const { return T_QualiType; }
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
+        QString pretty() const;
     };
 
     struct Named : public Thing
@@ -326,13 +333,15 @@ namespace Obx
         Parameter():d_var(false),d_const(false) {}
         int getTag() const { return T_Parameter; }
         void accept(AstVisitor* v) { v->visit(this); }
-        bool isVarParam() const { return d_var; }
+        bool isVarParam() const { return ( d_var || d_const ); }
     };
 
     struct Const : public Named
     {
         QVariant d_val;
         Ref<Expression> d_constExpr;
+        Const(){}
+        Const(const QByteArray& name, Literal* lit );
         int getTag() const { return T_Const; }
         void accept(AstVisitor* v) { v->visit(this); }
     };
@@ -342,6 +351,7 @@ namespace Obx
         QList< Ref<Const> > d_items;
         int getTag() const { return T_Enumeration; }
         void accept(AstVisitor* v) { v->visit(this); }
+        QString pretty() const { return "enumeration"; }
     };
 
     struct Import : public Named
@@ -366,10 +376,14 @@ namespace Obx
                SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY,
                // Oberon-2
                MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, SIZE, ENTIER,
+               // Blackbox
+               BITS,
                // Oberon-2 SYSTEM
-               SYS_MOVE, SYS_NEW, SYS_ROT, SYS_LSH,
+               SYS_MOVE, SYS_NEW, SYS_ROT, SYS_LSH, SYS_GETREG, SYS_PUTREG,
+               // Blackbox SYSTEM
+               SYS_TYP,
                // Oberon+
-               VAL
+               VAL, STRLEN
              };
         static const char* s_typeName[];
         quint8 d_func;
@@ -411,8 +425,9 @@ namespace Obx
         QByteArrayList d_fullName; // Path segments (if present) + module name
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
+        bool d_isExt;
 
-        Module():d_isDef(false),d_isValidated(false) {}
+        Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
     };
@@ -511,7 +526,8 @@ namespace Obx
         enum Kind { Integer, Real, Boolean, String, Char, Nil, Set };
         QVariant d_val;
         quint8 d_kind;
-        Literal( Kind t = Nil, Ob::RowCol l = Ob::RowCol(), const QVariant& v = QVariant() ):d_val(v),d_kind(t){ d_loc = l; }
+        Literal( Kind t = Nil, Ob::RowCol l = Ob::RowCol(),
+                 const QVariant& v = QVariant(), Type* typ = 0 ):d_val(v),d_kind(t){ d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }
         void accept(AstVisitor* v) { v->visit(this); }
     };

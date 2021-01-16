@@ -86,6 +86,9 @@ struct ValidatorImp : public AstVisitor
 
     void visitBoundProc( Procedure* me )
     {
+        Q_ASSERT( !me->d_receiver.isNull() );
+        me->d_receiver->accept(this);
+
         Type* t = derefed(me->d_receiver->d_type.data());
         if( t == 0 )
         {
@@ -178,7 +181,7 @@ struct ValidatorImp : public AstVisitor
         // me->d_mod = mod;
         if( me->d_ident.isNull() )
         {
-            error( me->d_loc, Validator::tr("cannot relove identifier '%1'").arg(me->d_name.constData()) );
+            error( me->d_loc, Validator::tr("cannot resolve identifier '%1'").arg(me->d_name.constData()) );
         }else
         {
             //if( me->d_ident->getTag() == Thing::T_Import )
@@ -213,7 +216,7 @@ struct ValidatorImp : public AstVisitor
             if( !imp->d_mod->d_isDef && !modVar->isPublic() )
             {
                 error( me->d_loc,Validator::tr("cannot access private identifier '%1' in imported module '%2'")
-                      .arg(me->d_name.constData()).arg( imp->d_name.constData() ) );
+                      .arg(me->d_name.constData()).arg( imp->d_path.join('/').constData() ) );
                 return;
             }
             me->d_ident = modVar;
@@ -298,32 +301,18 @@ struct ValidatorImp : public AstVisitor
                     // If Tf is an open array, then a must be array compatible with f
                     if( !arrayCompatible( af, actual->d_type.data() ) )
                         error( actual->d_loc, Validator::tr("actual parameter type not compatible with formal open array type"));
-                }else
+                }
+#ifdef OBX_BBOX
+                else if( toCharArray(tf) && ta == bt.d_stringType )
+                    ; // NOP
+#endif
+                else if( !paramCompatible( formal, actual ) )
                 {
-                    bool ok = true;
-                    if( formal->d_const || formal->d_var )
-                    {
-                        Record* rf = tftag == Thing::T_Record ? cast<Record*>(tf) : 0;
-                        Record* ra = ta->getTag() == Thing::T_Record ? cast<Record*>(ta) : 0;
+                    const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
 
-                        // Oberon-2: Ta must be the same type as Tf, or Tf must be a record type and Ta an extension of Tf.
-                        const bool isTypeExt = typeExtension(rf,ra);
-                        const bool isSameT = sameType( tf, ta );
-                        // Oberon 90: If a formal parameter is of type ARRAY OF BYTE, then the corresponding
-                        //   actual parameter may be of any type.
-                        const bool isFormalBa = ( af != 0 && derefed(af->d_type.data()) == bt.d_byteType );
-                        // Oberon 90: The type BYTE is compatible with CHAR and SHORTINT (shortint is 16 bit here)
-                        const bool isByteChar = tf == bt.d_byteType && ta == bt.d_charType;
-                        if( !isTypeExt && !isSameT && !isFormalBa && !isByteChar )
-                            ok = false;
-                    }else
-                    {
-                        // For value parameters, a must be assignment compatible with f
-                        if( !assignmentCompatible(formal->d_type.data(), actual ) )
-                            ok = false;
-                    }
-                    if( !ok )
-                        error( actual->d_loc, Validator::tr("actual parameter type not compatible with formal type"));
+                    error( actual->d_loc,
+                           Validator::tr("actual parameter type %1 not compatible with formal type %2%3")
+                           .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
                 }
             }
         }
@@ -345,12 +334,7 @@ struct ValidatorImp : public AstVisitor
         {
             // check whether this might be a cast and if a call whether there is an appropriate procedure type
             Named* decl = me->d_args.size() == 1 ? me->d_args.first()->getIdent() : 0;
-            if( decl && decl->getTag() == Thing::T_NamedType )
-            {
-                // this is a type guard
-                me->d_op = UnExpr::CAST;
-                me->d_type = decl->d_type.data();
-            }else if( subType && subType->getTag() == Thing::T_ProcType )
+            if( subType && subType->getTag() == Thing::T_ProcType )
             {
                 // this is a call
                 ProcType* p = cast<ProcType*>( subType );
@@ -386,6 +370,10 @@ struct ValidatorImp : public AstVisitor
                                 me->d_type = bt.d_shortType;
                             else if( t == bt.d_doubleType )
                                 me->d_type = bt.d_realType;
+#ifdef OBX_BBOX
+                            else if( t == bt.d_charType || toCharArray(t) )
+                                me->d_type = t;
+#endif
                             else
                                 error( me->d_loc, Validator::tr("SHORT not applicable to given argument"));
                         }
@@ -402,6 +390,10 @@ struct ValidatorImp : public AstVisitor
                                 me->d_type = bt.d_longType;
                             else if( t == bt.d_realType )
                                 me->d_type = bt.d_doubleType;
+#ifdef OBX_BBOX
+                            else if( t == bt.d_charType || toCharArray(t) )
+                                me->d_type = t;
+#endif
                             else
                                 error( me->d_loc, Validator::tr("LONG not applicable to given argument"));
                         }
@@ -415,12 +407,18 @@ struct ValidatorImp : public AstVisitor
                             else
                                 me->d_type = me->d_args.first()->d_type;
                         }
+                        break;
                     default:
                         me->d_type = p->d_return.data();
                         break;
                     }
                 }else
                     me->d_type = p->d_return.data();
+            }else if( decl && decl->getTag() == Thing::T_NamedType )
+            {
+                // this is a type guard
+                me->d_op = UnExpr::CAST;
+                me->d_type = decl->d_type.data();
             }else
                 error( me->d_loc, Validator::tr("this expression cannot be called") );
         }else if( me->d_op == UnExpr::IDX )
@@ -507,6 +505,7 @@ struct ValidatorImp : public AstVisitor
     {
         if( me->d_lhs.isNull() || me->d_rhs.isNull() )
             return;
+
         me->d_lhs->accept(this);
         me->d_rhs->accept(this);
 
@@ -579,8 +578,13 @@ struct ValidatorImp : public AstVisitor
                 me->d_type = inclusiveType1(lhsT,rhsT);
             else if( lhsT == bt.d_setType || rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
+#ifdef OBX_BBOX
+            else if( me->d_op == BinExpr::ADD && isTextual(lhsT) && isTextual(rhsT) )
+                me->d_type = bt.d_stringType;
+#endif
             else
-                error( me->d_loc, Validator::tr("operator expects both operands to be either of numeric or SET type") );
+                error( me->d_loc, Validator::tr("operator '%1' expects both operands to "
+                                                "be either of numeric or SET type").arg( BinExpr::s_opName[me->d_op]) );
             break;
 
         case BinExpr::FDIV: // set num
@@ -850,48 +854,49 @@ struct ValidatorImp : public AstVisitor
             }
         }
 
-        Ref<Type> orig;
-        Named* caseId = 0;
-        if( me->d_op == IfLoop::WITH  )
+        for( int ifThenNr = 0; ifThenNr < me->d_then.size(); ifThenNr++ )
         {
-            // me->d_exp->getIdent()
-            Q_ASSERT( me->d_if.size() == 1 && me->d_if.first()->getTag() == Thing::T_BinExpr );
-            BinExpr* guard = cast<BinExpr*>(me->d_if.first().data());
-            Q_ASSERT( guard->d_op == BinExpr::IS );
-
-            caseId = guard->d_lhs->getIdent();
-            Type* lhsT = derefed(guard->d_lhs->d_type.data());
-            Type* rhsT = derefed(guard->d_rhs->d_type.data());
-            if( caseId != 0 && lhsT != 0 && rhsT != 0 )
+            Ref<Type> orig;
+            Named* caseId = 0;
+            if( me->d_op == IfLoop::WITH && ifThenNr < me->d_if.size() )
             {
-                orig = lhsT;
-                caseId->d_type = rhsT;
+                Q_ASSERT( me->d_if[ifThenNr]->getTag() == Thing::T_BinExpr );
+                BinExpr* guard = cast<BinExpr*>(me->d_if[ifThenNr].data());
+                Q_ASSERT( guard->d_op == BinExpr::IS );
 
-                const bool isRec = lhsT->getTag() == Thing::T_Record;
-                const bool isRecPtr = isPointerToRecord(lhsT);
+                caseId = guard->d_lhs->getIdent();
+                Type* lhsT = derefed(guard->d_lhs->d_type.data());
+                Type* rhsT = derefed(guard->d_rhs->d_type.data());
+                if( caseId != 0 && lhsT != 0 && rhsT != 0 )
+                {
+                    orig = caseId->d_type;
+                    caseId->d_type = rhsT;
 
-                const int tag = caseId->getTag();
-                // caseId must be Variable, LocalVar, Parameter or Field
-                if( ( !isRecPtr && !isRec ) ||
-                        ( isRec && !caseId->isVarParam() ) ||
-                        !( tag == Thing::T_Variable || tag == Thing::T_LocalVar ||
-                           tag == Thing::T_Parameter || tag == Thing::T_Field ) )
-                    error( me->d_if.first()->d_loc,
-                           Validator::tr("guard must be a VAR parameter of record type or a pointer variable") );
-            } // else error already reported
-        }
+                    const bool isRec = lhsT->getTag() == Thing::T_Record;
+                    const bool isRecPtr = isPointerToRecord(lhsT);
 
-        foreach( const StatSeq& ss, me->d_then )
-        {
+                    const int tag = caseId->getTag();
+                    // caseId must be Variable, LocalVar, Parameter or Field
+                    if( ( !isRecPtr && !isRec ) ||
+                            ( isRec && !caseId->isVarParam() ) ||
+                            !( tag == Thing::T_Variable || tag == Thing::T_LocalVar ||
+                               tag == Thing::T_Parameter || tag == Thing::T_Field ) )
+                        error( me->d_if.first()->d_loc,
+                               Validator::tr("guard must be a VAR parameter of record type or a pointer variable") );
+                } // else error already reported
+            }
+
+            const StatSeq& ss = me->d_then[ifThenNr];
             foreach( const Ref<Statement>& s, ss )
             {
                 if( !s.isNull() )
                     s->accept(this);
             }
-        }
 
-        if( caseId != 0 && !orig.isNull() )
-            caseId->d_type = orig;
+            if( caseId != 0 && !orig.isNull() )
+                caseId->d_type = orig;
+
+        }
 
         foreach( const Ref<Statement>& s, me->d_else )
         {
@@ -993,7 +998,12 @@ struct ValidatorImp : public AstVisitor
         }
         if( !assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ) )
         {
-            error( me->d_rhs->d_loc, Validator::tr("expression is not assignment compatible with designator"));
+            const QString lhs = !me->d_lhs->d_type.isNull() ? me->d_lhs->d_type->pretty() : QString("?");
+            const QString rhs = !me->d_rhs->d_type.isNull() ? me->d_rhs->d_type->pretty() : QString("?");
+
+            error( me->d_rhs->d_loc, Validator::tr("right side %1 is not compatible with left side %2 of assignment")
+                   .arg(rhs).arg(lhs) );
+            assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
             return;
         }
     }
@@ -1207,13 +1217,15 @@ struct ValidatorImp : public AstVisitor
             return bt.d_doubleType;
     }
 
-    inline Array* toCharArray( Type* t ) const
+    inline Array* toCharArray( Type* t, bool resolvePointer = true ) const
     {
         if( t == 0 )
             return 0;
 
         if( t->getTag() == Thing::T_Pointer )
         {
+            if( !resolvePointer )
+                return 0;
             Pointer* p = cast<Pointer*>( t );
             t = derefed(p->d_to.data());
         }
@@ -1272,7 +1284,9 @@ struct ValidatorImp : public AstVisitor
             return false;
         lhs = derefed(lhs);
         rhs = derefed(rhs);
-        if( lhs->getTag() == Thing::T_Array && rhs->getTag() == Thing::T_Array )
+        const int lhstag = lhs->getTag();
+        const int rhstag = rhs->getTag();
+        if( lhstag == Thing::T_Array && rhstag == Thing::T_Array )
         {
             Array* l = cast<Array*>(lhs);
             Array* r = cast<Array*>(rhs);
@@ -1280,8 +1294,10 @@ struct ValidatorImp : public AstVisitor
                     equalType( l->d_type.data(), r->d_type.data() ) )
                 return true;
         }
-        if( lhs->getTag() == Thing::T_ProcType && rhs->getTag() == Thing::T_ProcType )
+        if( lhstag == Thing::T_ProcType && rhstag == Thing::T_ProcType )
             return matchingFormalParamLists( cast<ProcType*>(lhs), cast<ProcType*>(rhs) );
+        if( lhstag == Thing::T_Pointer && rhstag == Thing::T_Pointer )
+            return equalType( cast<Pointer*>(lhs)->d_to.data(), cast<Pointer*>(rhs)->d_to.data() );
         return false;
     }
 
@@ -1289,11 +1305,12 @@ struct ValidatorImp : public AstVisitor
     {
         if( super == 0 || sub == 0 )
             return false;
-        if( super->getTag() == Thing::T_Pointer && sub->getTag() == Thing::T_Pointer )
-        {
+        if( super == sub )
+            return true; // same type
+        if( super->getTag() == Thing::T_Pointer )
             super = derefed( cast<Pointer*>(super)->d_to.data() );
+        if( sub->getTag() == Thing::T_Pointer )
             sub = derefed( cast<Pointer*>(sub)->d_to.data() );
-        }
         if( super->getTag() == Thing::T_Record && sub->getTag() == Thing::T_Record )
         {
             Record* base = cast<Record*>(super);
@@ -1355,45 +1372,93 @@ struct ValidatorImp : public AstVisitor
                 matchingFormalParamLists( cast<ProcType*>(lhsT), cast<ProcType*>(rhsT) ))
             return true;
 
+        if( ltag == Thing::T_Pointer && rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
+            return true;
+
         if( lhsT == bt.d_charType && ( rhs->getTag() == Thing::T_Literal && rhsT == bt.d_stringType ) )
         {
             Literal* l = cast<Literal*>(rhs);
             return l->d_val.toByteArray().size() == 1;
         }
 
-        if( ltag == Thing::T_Array && derefed( cast<Array*>( lhsT )->d_type.data() ) == bt.d_charType &&
-                rhsT == bt.d_stringType )
-            return true;
-
         if( lhsT == bt.d_byteType &&
                 ( rhsT == bt.d_charType ||
                 ( rtag == Thing::T_Array && derefed( cast<Array*>( rhsT )->d_type.data() ) == bt.d_charType ) ) )
             return true;
 
-        if( ltag == Thing::T_Array && rtag == Thing::T_Array )
+        if( ltag == Thing::T_Array )
         {
             // Array Array
             Array* l = cast<Array*>(lhsT);
-            Array* r = cast<Array*>(rhsT);
             Type* lt = derefed(l->d_type.data());
-            Type* rt = derefed(r->d_type.data());
-            if( lt == bt.d_charType && rt == bt.d_charType && l->d_len >= r->d_len )
+            if( rtag == Thing::T_Array )
+            {
+                Array* r = cast<Array*>(rhsT);
+                Type* rt = derefed(r->d_type.data());
+                if( lt == bt.d_charType && rt == bt.d_charType )
+                    return true;
+            }else if( rhsT == bt.d_stringType || rhsT == bt.d_charType )
                 return true;
         }
 
         return false;
     }
 
+    bool paramCompatible( Parameter* lhs, Expression* rhs )
+    {
+        if( equalType( lhs->d_type.data(), rhs->d_type.data() ) )
+            return true;
+        if( lhs->d_var || lhs->d_const )
+        {
+            Type* tf = derefed(lhs->d_type.data());
+            Type* ta = derefed(rhs->d_type.data());
+            if( tf == 0 || ta == 0 )
+                return false; // error already handled
+#ifdef OBX_BBOX
+            if( ta == bt.d_nilType )
+                return true;
+#endif
+            const int tftag = tf->getTag();
+            Record* rf = tftag == Thing::T_Record ? cast<Record*>(tf) : 0;
+            Record* ra = ta->getTag() == Thing::T_Record ? cast<Record*>(ta) : 0;
+
+            // Oberon-2: Ta must be the same type as Tf, or Tf must be a record type and Ta an extension of Tf.
+            const bool isTypeExt = typeExtension(rf,ra) || ( tf == bt.d_anyRec && ra );
+            const bool isSameT = sameType( tf, ta );
+            // Oberon 90: If a formal parameter is of type ARRAY OF BYTE, then the corresponding
+            //   actual parameter may be of any type.
+            Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
+            const bool isFormalBa = ( af != 0 && derefed(af->d_type.data()) == bt.d_byteType );
+            // Oberon 90: The type BYTE is compatible with CHAR and SHORTINT (shortint is 16 bit here)
+            const bool isByteChar = tf == bt.d_byteType && ta == bt.d_charType;
+            if( !isTypeExt && !isSameT && !isFormalBa && !isByteChar )
+                return false;
+            else
+                return true;
+        }else
+        {
+#ifdef OBX_BBOX
+            Type* tf = derefed(lhs->d_type.data());
+            Type* ta = derefed(rhs->d_type.data());
+            if( tf == 0 || ta == 0 )
+                return false; // error already handled
+            if( toCharArray( tf, true ) && toCharArray(ta, false) )
+                return true;
+#endif
+            return assignmentCompatible( lhs->d_type.data(), rhs );
+        }
+    }
+
     bool arrayCompatible( Type* lhsT, Type* rhsT ) const
     {
         if( lhsT == 0 || rhsT == 0 )
             return false;
-        //if( sameType(lhs,rhs) )
-        //    return true;
+
+        if( equalType( lhsT, rhsT ) )
+            return true;
+
         lhsT = derefed(lhsT);
         rhsT = derefed(rhsT);
-        if( lhsT == rhsT )
-            return true; // sameType implementation
 
         const int ltag = lhsT->getTag();
         Array* la = ltag == Thing::T_Array ? cast<Array*>(lhsT) : 0 ;
@@ -1473,5 +1538,6 @@ Validator::BaseTypes::BaseTypes()
 void Validator::BaseTypes::assert() const
 {
     Q_ASSERT( d_boolType && d_charType && d_byteType && d_intType && d_realType && d_setType &&
-              d_stringType && d_nilType && d_anyType && d_anyNum && d_shortType && d_longType && d_doubleType );
+              d_stringType && d_nilType && d_anyType && d_anyNum && d_shortType && d_longType && d_doubleType &&
+              d_anyRec );
 }
