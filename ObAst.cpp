@@ -443,12 +443,12 @@ bool Ast::Model::parseFiles(const QStringList& files)
     Mods mods;
     createModules(mods,pr);
 
-    QList<Module*> order = findProcessingOrder(mods);
+    Modules order = findProcessingOrder(mods);
 
     // if( d_errs->getErrCount() != 0 )
     //    return false;
 
-    foreach( Module* m, order )
+    foreach( const Ref<Module>& m, order )
     {
         if( mods[m->d_name.constData()].d_st == 0 )
         {
@@ -456,17 +456,17 @@ bool Ast::Model::parseFiles(const QStringList& files)
             continue;
         }
         qDebug() << "analyzing" << m->d_file;
-        module( m, mods[m->d_name.constData()].d_st );
+        module( m.data(), mods[m->d_name.constData()].d_st );
 
         if( !m->d_hasErrors )
         {
-            if( anyWithError( getImportedModules(m) ) )
+            if( anyWithError( getImportedModules(m.data()) ) )
             {
                 d_errs->error(Errors::Semantics, m->d_file, m->d_loc.d_row, m->d_loc.d_col,
                               tr("There are errors in imported modules") );
                 m->d_hasErrors = true;
             }else
-                Validator::validate( this, m, d_errs );
+                Validator::validate( this, m.data(), d_errs );
         }
     }
 
@@ -495,6 +495,10 @@ bool Ast::Model::parseFile(const QString& path, ParseResultList& res) const
 
 void Ast::Model::parseFile(QIODevice* in, const QString& path, ParseResultList& res) const
 {
+#if defined(OB_BBOX) || defined(OB_OBN2) || defined(OB_OBNX)
+    qWarning() << "This AST does not support Oberon-2, Oberon 90, Oberon+ or Blackbox; crashes are likely";
+#endif
+
     const quint32 before = d_errs->getErrCount();
     Ob::Lexer lex;
     lex.setErrors(d_errs);
@@ -1305,6 +1309,7 @@ Ast::Ref<Ast::Statement> Ast::Model::statement(Ast::Scope* s, SynTree* st)
     case SynTree::R_ForStatement:
         return forStatement(s,stmt);
     default:
+        qCritical() << "unexpected" << SynTree::rToStr(stmt->d_tok.d_type);
         Q_ASSERT(false);
     }
 
@@ -2351,7 +2356,7 @@ bool Ast::Model::resolveImport(Mods& mods, const QByteArray& imp)
     return true;
 }
 
-QList<Ast::Module*> Ast::Model::findProcessingOrder(Mods& in)
+Ast::Model::Modules Ast::Model::findProcessingOrder(Mods& in)
 {
     // Mods nicht const da sonst COW eine neue Kopie macht die SynTree löscht
     QList<const char*> order;

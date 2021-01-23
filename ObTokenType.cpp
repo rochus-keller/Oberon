@@ -37,8 +37,11 @@ namespace Ob {
 			case Tok_ARRAY: return "ARRAY";
 			case Tok_BEGIN: return "BEGIN";
 			case Tok_BY: return "BY";
+			case Tok_CARRAY: return "CARRAY";
 			case Tok_CASE: return "CASE";
 			case Tok_CONST: return "CONST";
+			case Tok_CSTRUCT: return "CSTRUCT";
+			case Tok_CUNION: return "CUNION";
 			case Tok_DEFINITION: return "DEFINITION";
 			case Tok_DIV: return "DIV";
 			case Tok_DO: return "DO";
@@ -68,6 +71,7 @@ namespace Ob {
 			case Tok_TO: return "TO";
 			case Tok_TRUE: return "TRUE";
 			case Tok_TYPE: return "TYPE";
+			case Tok_UNSAFE: return "UNSAFE";
 			case Tok_UNTIL: return "UNTIL";
 			case Tok_VAR: return "VAR";
 			case Tok_WHILE: return "WHILE";
@@ -118,8 +122,11 @@ namespace Ob {
 			case Tok_ARRAY: return "Tok_ARRAY";
 			case Tok_BEGIN: return "Tok_BEGIN";
 			case Tok_BY: return "Tok_BY";
+			case Tok_CARRAY: return "Tok_CARRAY";
 			case Tok_CASE: return "Tok_CASE";
 			case Tok_CONST: return "Tok_CONST";
+			case Tok_CSTRUCT: return "Tok_CSTRUCT";
+			case Tok_CUNION: return "Tok_CUNION";
 			case Tok_DEFINITION: return "Tok_DEFINITION";
 			case Tok_DIV: return "Tok_DIV";
 			case Tok_DO: return "Tok_DO";
@@ -149,6 +156,7 @@ namespace Ob {
 			case Tok_TO: return "Tok_TO";
 			case Tok_TRUE: return "Tok_TRUE";
 			case Tok_TYPE: return "Tok_TYPE";
+			case Tok_UNSAFE: return "Tok_UNSAFE";
 			case Tok_UNTIL: return "Tok_UNTIL";
 			case Tok_VAR: return "Tok_VAR";
 			case Tok_WHILE: return "Tok_WHILE";
@@ -283,10 +291,21 @@ namespace Ob {
 		case 'C':
 			switch( at(str,i+1) ){
 			case 'A':
-				if( at(str,i+2) == 'S' ){
+				switch( at(str,i+2) ){
+				case 'R':
+					if( at(str,i+3) == 'R' ){
+						if( at(str,i+4) == 'A' ){
+							if( at(str,i+5) == 'Y' ){
+								res = Tok_CARRAY; i += 6;
+							}
+						}
+					}
+					break;
+				case 'S':
 					if( at(str,i+3) == 'E' ){
 						res = Tok_CASE; i += 4;
 					}
+					break;
 				}
 				break;
 			case 'O':
@@ -294,6 +313,30 @@ namespace Ob {
 					if( at(str,i+3) == 'S' ){
 						if( at(str,i+4) == 'T' ){
 							res = Tok_CONST; i += 5;
+						}
+					}
+				}
+				break;
+			case 'S':
+				if( at(str,i+2) == 'T' ){
+					if( at(str,i+3) == 'R' ){
+						if( at(str,i+4) == 'U' ){
+							if( at(str,i+5) == 'C' ){
+								if( at(str,i+6) == 'T' ){
+									res = Tok_CSTRUCT; i += 7;
+								}
+							}
+						}
+					}
+				}
+				break;
+			case 'U':
+				if( at(str,i+2) == 'N' ){
+					if( at(str,i+3) == 'I' ){
+						if( at(str,i+4) == 'O' ){
+							if( at(str,i+5) == 'N' ){
+								res = Tok_CUNION; i += 6;
+							}
 						}
 					}
 				}
@@ -543,12 +586,23 @@ namespace Ob {
 			break;
 		case 'U':
 			if( at(str,i+1) == 'N' ){
-				if( at(str,i+2) == 'T' ){
+				switch( at(str,i+2) ){
+				case 'S':
+					if( at(str,i+3) == 'A' ){
+						if( at(str,i+4) == 'F' ){
+							if( at(str,i+5) == 'E' ){
+								res = Tok_UNSAFE; i += 6;
+							}
+						}
+					}
+					break;
+				case 'T':
 					if( at(str,i+3) == 'I' ){
 						if( at(str,i+4) == 'L' ){
 							res = Tok_UNTIL; i += 5;
 						}
 					}
+					break;
 				}
 			}
 			break;

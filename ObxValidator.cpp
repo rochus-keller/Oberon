@@ -118,6 +118,7 @@ struct ValidatorImp : public AstVisitor
         else
         {
             r->d_methods << me;
+            me->d_receiverRec = r;
             r->d_names[ me->d_name.constData() ] = me;
         }
         if( r->d_baseRec )
@@ -131,7 +132,11 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("bound procedure name collides with a field name in the receiver base record"));
                 return;
             }
-            if( !matchingFormalParamLists( me->getProcType(), cast<Procedure*>(n)->getProcType() ) )
+            if( !matchingFormalParamLists( cast<Procedure*>(n)->getProcType(), me->getProcType()
+                               #ifdef OBX_BBOX
+                                           , true
+                               #endif
+                                           ) )
                 error( me->d_loc, Validator::tr("formal paramater list doesn't match the overridden procedure in the receiver base record"));
         }
     }
@@ -254,7 +259,7 @@ struct ValidatorImp : public AstVisitor
                 Named* f = r->find(me->d_name, true);
                 if( f == 0 )
                 {
-                    error( me->d_loc, Validator::tr("record field doesn't exist") );
+                    error( me->d_loc, Validator::tr("record has no field or bound procedure named '%1'").arg(me->d_name.constData()) );
                     return;
                 }
                 Module* sourceMod = f->getModule();
@@ -281,39 +286,54 @@ struct ValidatorImp : public AstVisitor
     void checkCallArgs( ProcType* p, ArgExpr* me )
     {
         if( p->d_formals.size() != me->d_args.size() )
-            error( me->d_loc, Validator::tr("number of actual and formal parameters doesn't match"));
-        else
         {
-            for( int i = 0; i < p->d_formals.size(); i++ )
-            {
-                Parameter* formal = p->d_formals[i].data();
-                Expression* actual = me->d_args[i].data();
-                Type* tf = derefed(formal->d_type.data());
-                Type* ta = derefed(actual->d_type.data());
-                if( tf == 0 || ta == 0 )
-                    continue; // error already handled
+            error( me->d_loc, Validator::tr("number of actual and formal parameters doesn't match"));
+            return;
+        }
 
-                const int tftag = tf->getTag();
-                Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
+        for( int i = 0; i < p->d_formals.size(); i++ )
+        {
+            Parameter* formal = p->d_formals[i].data();
+            Expression* actual = me->d_args[i].data();
+            Type* tf = derefed(formal->d_type.data());
+            Type* ta = derefed(actual->d_type.data());
+            if( tf == 0 || ta == 0 )
+                continue; // error already handled
 
-                if( af && af->d_lenExpr.isNull() )
-                {
-                    // If Tf is an open array, then a must be array compatible with f
-                    if( !arrayCompatible( af, actual->d_type.data() ) )
-                        error( actual->d_loc, Validator::tr("actual parameter type not compatible with formal open array type"));
-                }
+            const int tftag = tf->getTag();
+            Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
+
 #ifdef OBX_BBOX
-                else if( toCharArray(tf) && ta == bt.d_stringType )
-                    ; // NOP
+            if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && ta->getTag() == Thing::T_Pointer )
+            {
+                me->d_args[i] = new UnExpr(UnExpr::DEREF, actual ); // implicit deref if actual is ptr and formal is arr or rec
+                Pointer* p = cast<Pointer*>(ta);
+                ta = derefed(p->d_to.data());
+                me->d_args[i]->d_type = ta;
+                actual = me->d_args[i].data();
+            }
 #endif
-                else if( !paramCompatible( formal, actual ) )
-                {
-                    const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
 
+            const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
+            if( af && af->d_lenExpr.isNull() )
+            {
+                // If Tf is an open array, then a must be array compatible with f
+                if( !arrayCompatible( af, actual->d_type.data() ) )
                     error( actual->d_loc,
-                           Validator::tr("actual parameter type %1 not compatible with formal type %2%3")
-                           .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
-                }
+                           Validator::tr("actual parameter type %1 not compatible with formal type of %2%3 of '%4'")
+                           .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
+                           .arg(formal->d_name.constData()));
+            }
+#ifdef OBX_BBOX
+            else if( toCharArray(tf) && ta == bt.d_stringType )
+                ; // NOP
+#endif
+            else if( !paramCompatible( formal, actual ) )
+            {
+                error( actual->d_loc,
+                       Validator::tr("actual parameter type %1 not compatible with formal type %2%3 of '%4'")
+                       .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
+                       .arg(formal->d_name.constData()));
             }
         }
     }
@@ -423,10 +443,14 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("this expression cannot be called") );
         }else if( me->d_op == UnExpr::IDX )
         {
-            // sub must be a pointer or an array
-
+            Q_ASSERT( !me->d_args.isEmpty() );
+            // sub must be a pointer to an array or an array
             if( subType && subType->getTag() == Thing::T_Pointer )
             {
+                Pointer* p = cast<Pointer*>(subType);
+                if( p->d_to.isNull() )
+                    return; // error already reported
+
                 // The designator p^[e] may be abbreviated p[e], i.e. array selectors imply dereferencing.
                 // So add a deref to the AST.
                 Ref<UnExpr> deref = new UnExpr();
@@ -434,30 +458,37 @@ struct ValidatorImp : public AstVisitor
                 deref->d_sub = me->d_sub;
                 me->d_sub = deref.data();
                 deref->d_loc = me->d_loc;
-                Pointer* p = cast<Pointer*>(subType);
-                subType = p->d_to.data();
+                subType = derefed(p->d_to.data());
                 deref->d_type = subType;
-                if( subType == 0 )
-                    return;
+                if( deref->d_type.isNull() )
+                    return; // error already reported
             }
+            if( subType == 0 || subType->getTag() != Thing::T_Array )
+            {
+                error( me->d_loc, Validator::tr("index selector only available for arrays") );
+                return;
+            }
+            Array* a = cast<Array*>(subType);
+            subType = derefed(a->d_type.data());
+            if( subType == 0 )
+                return; // already reported
 
             // check if we are really indexing an array and it has the appropriate dimension
-            for( int j = 0; j < me->d_args.size() ; j++ )
+            for( int j = 1; j < me->d_args.size() ; j++ )
             {
-                if( subType && subType->getTag() == Thing::T_Array )
+                if( subType->getTag() == Thing::T_Array )
                 {
-                    Array* a = cast<Array*>(subType);
-                    subType = a->d_type.data();
-                    me->d_type = subType;
+                    a = cast<Array*>(subType);
+                    subType = derefed(a->d_type.data());
                     if( subType == 0 )
                         break;
-                    subType = subType->derefed();
                 }else
                 {
                     error( me->d_loc, Validator::tr("index has more dimensions than array") );
                     break;
                 }
             }
+            me->d_type = subType;
         }else
             Q_ASSERT(false);
     }
@@ -478,12 +509,51 @@ struct ValidatorImp : public AstVisitor
         switch( me->d_op )
         {
         case UnExpr::DEREF:
-            if( prevT->getTag() == Thing::T_Pointer )
+            switch( prevT->getTag() )
             {
-                Pointer* p = cast<Pointer*>(prevT);
-                me->d_type = p->d_to.data();
-            }else
+            case Thing::T_Pointer:
+                {
+                    Pointer* p = cast<Pointer*>(prevT);
+                    me->d_type = p->d_to.data();
+                }
+                break;
+            case Thing::T_ProcType:
+                {
+                    QList<Expression*> desig = me->d_sub->getSubList();
+                    Named* id1 = 0;
+                    if( desig.size() == 2 || ( desig.size() == 3 && desig[1]->getUnOp() == UnExpr::DEREF ) )
+                    {
+                        id1 = desig.first()->getIdent();
+                        if( id1 && id1->getTag() == Thing::T_Parameter )
+                        {
+                            Named* id2 = desig.last()->getIdent();
+                            if( id2 && id2->getTag() == Thing::T_Procedure )
+                            {
+                                Procedure* p = cast<Procedure*>(id2);
+                                if( p->d_receiver.data() == id1 )
+                                {
+                                    Named* super = p->d_receiverRec && p->d_receiverRec->d_baseRec ?
+                                                p->d_receiverRec->d_baseRec->find(p->d_name, true) : 0;
+                                    if( super && super->getTag() == Thing::T_Procedure )
+                                        me->d_type = p->d_type.data();
+                                    else
+                                        error( me->d_loc, Validator::tr("invalid super call (identifier '%1' is not "
+                                                                        "the receiver parameter of proc '%2')" )
+                                               .arg(id1->d_name.constData()).arg(p->d_name.constData()));
+                                }else
+                                    error( me->d_loc, Validator::tr("invalid super call (other procedure than the one called from)" ) );
+                            }else
+                                error( me->d_loc, Validator::tr("invalid super call (not designating a procedure)" ) );
+                        }else
+                            error( me->d_loc, Validator::tr("invalid super call (identifier not a receiver parameter)") );
+                    }else
+                        error( me->d_loc, Validator::tr("invalid super call (expecting identifier referencing bound procedure") );
+                }
+                break;
+            default:
                 error( me->d_loc, Validator::tr("only a pointer can be dereferenced") );
+                break;
+            }
             break;
         case UnExpr::NEG:
             if( isNumeric(prevT) || prevT == bt.d_setType )
@@ -496,7 +566,6 @@ struct ValidatorImp : public AstVisitor
                 me->d_type = prevT;
             else
                 error( me->d_loc, Validator::tr("negation only applicable to boolean types") );
-            break;
             break;
         }
     }
@@ -682,6 +751,13 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
+        if( !me->d_flag.isNull() )
+        {
+            me->d_flag->accept(this);
+            // only one in Kernel line 268
+            // qDebug() << "flagged pointer" << me->d_flag->getIdent()->d_name << "in module" << mod->d_name << me->d_loc.d_row;
+        }
+
         if( !me->d_to.isNull() )
         {
             me->d_to->accept(this);
@@ -704,18 +780,21 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
+        if( !me->d_flag.isNull() )
+            me->d_flag->accept(this);
+
         if( !me->d_lenExpr.isNull() )
         {
             me->d_lenExpr->accept(this);
             if( !isInteger(me->d_lenExpr->d_type.data() ) )
-                error( me->d_lenExpr->d_loc, Validator::tr("expecting positive integer for array length") );
+                error( me->d_lenExpr->d_loc, Validator::tr("expression doesn't evaluate to an integer") );
             else
             {
                 bool ok;
                 Evaluator e;
                 const int len = e.eval(me->d_lenExpr.data(), mod,err).toInt(&ok);
                 if( ok && len <= 0 )
-                    error( me->d_lenExpr->d_loc, Validator::tr("expecting positive integer for array length") );
+                    error( me->d_lenExpr->d_loc, Validator::tr("expecting positive non-zero integer for array length") );
                 me->d_len = len;
             }
         }
@@ -753,7 +832,10 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
-       if( !me->d_base.isNull() )
+        if( !me->d_flag.isNull() )
+            me->d_flag->accept(this);
+
+        if( !me->d_base.isNull() )
         {
             me->d_base->accept(this);
             QualiType::ModItem mi = me->d_base->getQuali();
@@ -772,8 +854,28 @@ struct ValidatorImp : public AstVisitor
         foreach( const Ref<Field>& f, me->d_fields )
         {
             f->accept(this);
-            if( me->d_baseRec && me->d_baseRec->find( f->d_name, true ) )
+            Named* found = me->d_baseRec ? me->d_baseRec->find( f->d_name, true ) : 0;
+            if( found  )
+            {
+#ifdef OBX_BBOX
+                bool ok = false;
+                if( found->getTag() == Thing::T_Field )
+                {
+                    Field* ff = cast<Field*>(found);
+                    Type* super = derefed(ff->d_type.data());
+                    Type* sub = derefed(f->d_type.data());
+                    if( sub && sub->getTag() == Thing::T_Pointer && super && super->getTag() == Thing::T_Pointer &&
+                            typeExtension( super, sub ) )
+                    {
+                        f->d_specialization = true;
+                        ok = true;
+                        // there are some cases where fields with same type are overriden; does this make sense? TODO
+                    }
+                }
+                if( !ok )
+#endif
                 error( f->d_loc, Validator::tr("field name collides with a name in the base record") );
+            }
         }
         // note that bound procedures are handled in the procedure visitor
     }
@@ -951,6 +1053,8 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Assign* me )
     {
+        if( me->d_lhs.isNull() || me->d_rhs.isNull() )
+            return; // error already reported
         me->d_lhs->accept(this);
         me->d_rhs->accept(this);
         const quint8 v = me->d_lhs->visibilityFor(mod);
@@ -985,7 +1089,36 @@ struct ValidatorImp : public AstVisitor
                 return;
             }
         }
-        Array* str = toCharArray(derefed(me->d_lhs->d_type.data()));
+        Type* lhsT = derefed(me->d_lhs->d_type.data());
+        Type* rhsT = derefed(me->d_rhs->d_type.data());
+
+#ifdef OBX_BBOX
+        const int lhsTag = lhsT ? lhsT->getTag() : 0;
+        const int rhsTag = rhsT ? rhsT->getTag() : 0;
+        if( ( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array ) && rhsTag == Thing::T_Pointer )
+        {
+            me->d_rhs = new UnExpr(UnExpr::DEREF, me->d_rhs.data() ); // implicit deref if rhs is ptr and lhs is arr or rec
+            Pointer* p = cast<Pointer*>(rhsT);
+            rhsT = derefed(p->d_to.data());
+            me->d_rhs->d_type = rhsT;
+        }
+
+        if( lhsTag == Thing::T_Pointer && ( rhsTag == Thing::T_Record || rhsTag == Thing::T_Array || rhsT == bt.d_stringType ) )
+        {
+            Pointer* p = cast<Pointer*>(lhsT);
+            if( p->d_unsafe )
+            {
+                Type* lhsT = derefed( p->d_to.data() );
+                const int lhsTag = lhsT ? lhsT->getTag() : 0;
+                Q_ASSERT( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array );
+                if( lhsTag == Thing::T_Record && typeExtension( lhsT, rhsT ) )
+                    return; // assign the address of record to unsafe pointer to record
+                if( lhsTag == Thing::T_Array && arrayCompatible( lhsT, rhsT ) )
+                    return; // assign the address of array to unsafe pointer to array
+            }
+        }
+#endif
+        Array* str = toCharArray(lhsT);
         if( str && me->d_rhs->getTag() == Thing::T_Literal )
         {
             Literal* lit = cast<Literal*>( me->d_rhs.data() );
@@ -996,15 +1129,15 @@ struct ValidatorImp : public AstVisitor
             // TODO: runtime checks for var length arrays
 
         }
+
+        // lhs and rhs might have no type which might be an already reported error or the attempt to assign no value
         if( !assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ) )
         {
-            const QString lhs = !me->d_lhs->d_type.isNull() ? me->d_lhs->d_type->pretty() : QString("?");
-            const QString rhs = !me->d_rhs->d_type.isNull() ? me->d_rhs->d_type->pretty() : QString("?");
+            const QString lhs = !me->d_lhs->d_type.isNull() ? me->d_lhs->d_type->pretty() : QString("");
+            const QString rhs = !me->d_rhs->d_type.isNull() ? me->d_rhs->d_type->pretty() : QString("");
 
-            error( me->d_rhs->d_loc, Validator::tr("right side %1 is not compatible with left side %2 of assignment")
+            error( me->d_rhs->d_loc, Validator::tr("right side %1 of assignment is not compatible with left side %2")
                    .arg(rhs).arg(lhs) );
-            assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
-            return;
         }
     }
 
@@ -1311,17 +1444,23 @@ struct ValidatorImp : public AstVisitor
             super = derefed( cast<Pointer*>(super)->d_to.data() );
         if( sub->getTag() == Thing::T_Pointer )
             sub = derefed( cast<Pointer*>(sub)->d_to.data() );
+        if( super == sub )
+            return true; // same type
         if( super->getTag() == Thing::T_Record && sub->getTag() == Thing::T_Record )
         {
-            Record* base = cast<Record*>(super);
-            Record* rec = cast<Record*>(sub);
-            if( sameType(base,rec) )
+#ifdef OBX_BBOX
+            if( super == bt.d_anyRec )
                 return true;
-            while( rec->d_baseRec )
+#endif
+            Record* superRec = cast<Record*>(super);
+            Record* subRec = cast<Record*>(sub);
+            if( sameType(superRec,subRec) )
+                return true;
+            while( subRec && subRec->d_baseRec )
             {
-                if( rec->d_baseRec == base )
+                if( subRec->d_baseRec == superRec )
                     return true;
-                rec = rec->d_baseRec;
+                subRec = subRec->d_baseRec;
             }
         }
         return false;
@@ -1423,7 +1562,7 @@ struct ValidatorImp : public AstVisitor
             Record* ra = ta->getTag() == Thing::T_Record ? cast<Record*>(ta) : 0;
 
             // Oberon-2: Ta must be the same type as Tf, or Tf must be a record type and Ta an extension of Tf.
-            const bool isTypeExt = typeExtension(rf,ra) || ( tf == bt.d_anyRec && ra );
+            const bool isTypeExt = typeExtension(rf,ra);
             const bool isSameT = sameType( tf, ta );
             // Oberon 90: If a formal parameter is of type ARRAY OF BYTE, then the corresponding
             //   actual parameter may be of any type.
@@ -1487,16 +1626,29 @@ struct ValidatorImp : public AstVisitor
         return false;
     }
 
-    bool matchingFormalParamLists( ProcType* lhs, ProcType* rhs ) const
+    bool matchingFormalParamLists( ProcType* lhs, ProcType* rhs, bool allowRhsCovariance = false ) const
     {
         if( lhs == 0 || rhs == 0 )
             return false;
         if( lhs->d_formals.size() != rhs->d_formals.size() )
             return false;
         if( ( lhs->d_return.isNull() && !rhs->d_return.isNull() ) ||
-                ( !lhs->d_return.isNull() && rhs->d_return.isNull() ) ||
-                !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
+            ( !lhs->d_return.isNull() && rhs->d_return.isNull() ) )
+                return false;
+        if( !allowRhsCovariance && !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
             return false;
+        if( allowRhsCovariance && !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
+        {
+            Q_ASSERT( !lhs->d_return.isNull() && !rhs->d_return.isNull() );
+            Type* super = derefed(lhs->d_return.data());
+            Type* sub = derefed(rhs->d_return.data());
+            if( super && super->getTag() == Thing::T_Pointer && sub && sub->getTag() == Thing::T_Pointer )
+            {
+                if( !typeExtension(super, sub) )
+                    return false;
+            }else
+                return false;
+        }
         for( int i = 0; i < lhs->d_formals.size(); i++ )
         {
             if( ( lhs->d_formals[i]->d_var != rhs->d_formals[i]->d_var ) ||

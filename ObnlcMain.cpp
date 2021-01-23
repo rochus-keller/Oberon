@@ -252,8 +252,9 @@ static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
 #endif
     model.parseFiles(files);
 
+    qDebug() << "parsed" << model.getSloc() << "physical lines (LOC, no whitespace or comment only) in total";
     if( model.getErrs()->getErrCount() == 0 && model.getErrs()->getWrnCount() == 0 )
-        qDebug() << "files successfully parsed";
+        qDebug() << "no errors or warnings found";
     else
     {
         qDebug() << "completed with" << model.getErrs()->getErrCount() << "errors and" <<
@@ -357,7 +358,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2021-01-16");
+    a.setApplicationVersion("2021-01-24");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<

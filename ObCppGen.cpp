@@ -66,6 +66,9 @@ bool CppGen::emitModules(const QString& outdir, const QString& ns, const QString
     d_outdir = outdir;
     d_mod = mod;
     d_nameNr = 1;
+#if defined(OB_BBOX) || defined(OB_OBN2) || defined(OB_OBNX)
+    qWarning() << "CppGen does not support Oberon-2, Oberon 90, Oberon+ or Blackbox; crashes are likely";
+#endif
     const int precount = d_errs->getErrCount();
     foreach( CodeModel::Module* m, d_mdl->getGlobalScope().d_mods )
     {

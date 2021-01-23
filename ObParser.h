@@ -52,51 +52,55 @@ private:
 		_T_ARRAY=32,
 		_T_BEGIN=33,
 		_T_BY=34,
-		_T_CASE=35,
-		_T_CONST=36,
-		_T_DEFINITION=37,
-		_T_DIV=38,
-		_T_DO=39,
-		_T_ELSE=40,
-		_T_ELSIF=41,
-		_T_END=42,
-		_T_EXIT=43,
-		_T_FALSE=44,
-		_T_FOR=45,
-		_T_IF=46,
-		_T_IMPORT=47,
-		_T_IN=48,
-		_T_IS=49,
-		_T_LOOP=50,
-		_T_MOD=51,
-		_T_MODULE=52,
-		_T_NIL=53,
-		_T_OF=54,
-		_T_OR=55,
-		_T_POINTER=56,
-		_T_PROC=57,
-		_T_PROCEDURE=58,
-		_T_RECORD=59,
-		_T_REPEAT=60,
-		_T_RETURN=61,
-		_T_THEN=62,
-		_T_TO=63,
-		_T_TRUE=64,
-		_T_TYPE=65,
-		_T_UNTIL=66,
-		_T_VAR=67,
-		_T_WHILE=68,
-		_T_WITH=69,
-		_T_Specials_=70,
-		_T_ident=71,
-		_T_integer=72,
-		_T_real=73,
-		_T_string=74,
-		_T_hexchar=75,
-		_T_hexstring=76,
-		_T_Comment=77,
-		_T_Eof=78,
-		_T_MaxToken_=79
+		_T_CARRAY=35,
+		_T_CASE=36,
+		_T_CONST=37,
+		_T_CSTRUCT=38,
+		_T_CUNION=39,
+		_T_DEFINITION=40,
+		_T_DIV=41,
+		_T_DO=42,
+		_T_ELSE=43,
+		_T_ELSIF=44,
+		_T_END=45,
+		_T_EXIT=46,
+		_T_FALSE=47,
+		_T_FOR=48,
+		_T_IF=49,
+		_T_IMPORT=50,
+		_T_IN=51,
+		_T_IS=52,
+		_T_LOOP=53,
+		_T_MOD=54,
+		_T_MODULE=55,
+		_T_NIL=56,
+		_T_OF=57,
+		_T_OR=58,
+		_T_POINTER=59,
+		_T_PROC=60,
+		_T_PROCEDURE=61,
+		_T_RECORD=62,
+		_T_REPEAT=63,
+		_T_RETURN=64,
+		_T_THEN=65,
+		_T_TO=66,
+		_T_TRUE=67,
+		_T_TYPE=68,
+		_T_UNSAFE=69,
+		_T_UNTIL=70,
+		_T_VAR=71,
+		_T_WHILE=72,
+		_T_WITH=73,
+		_T_Specials_=74,
+		_T_ident=75,
+		_T_integer=76,
+		_T_real=77,
+		_T_string=78,
+		_T_hexchar=79,
+		_T_hexstring=80,
+		_T_Comment=81,
+		_T_Eof=82,
+		_T_MaxToken_=83
 	};
 	int maxT;
 
@@ -185,10 +189,6 @@ Ob::SynTree d_root;
 	void assignmentOrProcedureCall();
 	void IfStatement();
 	void CaseStatement();
-	void WithStatement();
-	void LoopStatement();
-	void ExitStatement();
-	void ReturnStatement();
 	void WhileStatement();
 	void RepeatStatement();
 	void ForStatement();
@@ -200,12 +200,11 @@ Ob::SynTree d_root;
 	void LabelRange();
 	void label();
 	void ElsifStatement2();
-	void Guard();
 	void ProcedureDeclaration();
-	void Receiver();
 	void ProcedureHeading();
 	void ProcedureBody();
 	void DeclarationSequence();
+	void ReturnStatement();
 	void DeclarationSequence2();
 	void FPSection();
 	void FormalType();

@@ -128,7 +128,7 @@ namespace Ob
         public:
             typedef QMap<QByteArray,NamedThing*> Names;
             Scope():d_outer(0){}
-            const NamedThing* findByName( const QByteArray& ) const;
+            const NamedThing* findByName(const QByteArray& , bool recursive = true) const;
             const Module* getModule() const;
             void addToScope( NamedThing* );
 

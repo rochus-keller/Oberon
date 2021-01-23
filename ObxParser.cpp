@@ -123,7 +123,7 @@ Ref<Literal> Parser::number()
     {
     case Tok_integer:
         next();
-        if( d_cur.d_val.endsWith('H') )
+        if( d_cur.d_val.endsWith('H') || d_cur.d_val.endsWith('h') )
             val = d_cur.d_val.left(d_cur.d_val.size()-1).toLongLong(0,16);
         else
             val = d_cur.d_val.toLongLong();
@@ -149,6 +149,7 @@ Ref<Expression> Parser::qualident()
         Ref<IdentLeaf> id = new IdentLeaf();
         id->d_name = d_cur.d_val;
         id->d_loc = d_cur.toRowCol();
+        id->d_mod = d_mod.data();
         cur = id.data();
         next(); // dot
     }
@@ -158,6 +159,7 @@ Ref<Expression> Parser::qualident()
         Ref<IdentLeaf> id = new IdentLeaf();
         id->d_name = d_cur.d_val;
         id->d_loc = d_cur.toRowCol();
+        id->d_mod = d_mod.data();
         cur = id.data();
     }else
     {
@@ -314,7 +316,8 @@ MetaParams Parser::typeParams()
 
 Ref<Type> Parser::type(Scope* scope, Named* id, Pointer* binding)
 {
-    static const TokSet toks = TokSet() << Tok_Lpar << Tok_Lbrack << Tok_Hat << Tok_ARRAY
+    static const TokSet toks = TokSet() << Tok_Lpar << Tok_Lbrack << Tok_Hat << Tok_ARRAY << Tok_CARRAY
+                                        << Tok_UNSAFE << Tok_CSTRUCT << Tok_CUNION
                                   << Tok_POINTER << Tok_PROC << Tok_PROCEDURE << Tok_RECORD << Tok_ident;
     if( d_sync )
         sync(toks);
@@ -326,11 +329,15 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Pointer* binding)
     case Tok_Lpar:
         return enumeration(scope,id);
     case Tok_ARRAY:
+    case Tok_CARRAY:
     case Tok_Lbrack:
         return arrayType(scope, id);
     case Tok_RECORD:
+    case Tok_CSTRUCT:
+    case Tok_CUNION:
         return recordType(scope,id, binding);
     case Tok_POINTER:
+    case Tok_UNSAFE:
     case Tok_Hat:
         return pointerType(scope, id);
     case Tok_PROCEDURE:
@@ -420,11 +427,13 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     Ref<Array> res = new Array();
     res->d_ident = id;
     QList< Ref<Expression> > dims;
-    if( d_la == Tok_ARRAY )
+    if( d_la == Tok_ARRAY || d_la == Tok_CARRAY )
     {
-        MATCH( Tok_ARRAY, tr("expecting the ARRAY keyword") );
+        if( d_la == Tok_CARRAY )
+            res->d_unsafe = true;
+        next();
         res->d_loc = d_cur.toRowCol();
-        ofrontTag();
+        res->d_flag = systemFlag();
         if( d_la != Tok_OF )
         {
             dims = lengthList();
@@ -465,9 +474,26 @@ Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
 {
     Ref<Record> res = new Record();
     res->d_ident = id;
-    MATCH( Tok_RECORD, tr("expecting the RECORD keyword") );
+    switch( d_la )
+    {
+    case Tok_RECORD:
+        MATCH( Tok_RECORD, tr("expecting the RECORD keyword") );
+        break;
+    case Tok_CSTRUCT:
+        next();
+        res->d_unsafe = true;
+        break;
+    case Tok_CUNION:
+        next();
+        res->d_unsafe = true;
+        res->d_union = true;
+        break;
+    default:
+        break;
+    }
+
     res->d_loc = d_cur.toRowCol();
-    ofrontTag();
+    res->d_flag = systemFlag();
     if( d_la == Tok_Lpar )
     {
         next();
@@ -490,9 +516,14 @@ Ref<Type> Parser::pointerType(Scope* scope, Named* id)
         p->d_loc = d_cur.toRowCol();
     }else
     {
+        if( d_la == Tok_UNSAFE )
+        {
+            next();
+            p->d_unsafe = true;
+        }
         MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
         p->d_loc = d_cur.toRowCol();
-        ofrontTag();
+        p->d_flag = systemFlag();
         MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
     }
     p->d_to = type(scope, 0, p.data() );
@@ -1138,6 +1169,7 @@ Ref<Statement> Parser::forStatement(Scope* scope)
     Ref<IdentLeaf> id = new IdentLeaf();
     id->d_loc = d_cur.toRowCol();
     id->d_name = d_cur.d_val;
+    id->d_mod = d_mod.data();
     f->d_id = id.data();
     MATCH( Tok_ColonEq, tr("expecting ':=' to assign the start value of the FOR statement") );
     f->d_from = expression();
@@ -1583,6 +1615,7 @@ Ref<Parameter> Parser::receiver()
     MATCH( Tok_Lpar, tr("expecting '(' to start a receiver") );
 
     Ref<Parameter> v = new Parameter();
+    v->d_receiver = true;
 
     if( d_la == Tok_VAR || d_la == Tok_IN )
     {
@@ -1602,6 +1635,7 @@ Ref<Parameter> Parser::receiver()
     Ref<IdentLeaf> id = new IdentLeaf();
     id->d_name = d_cur.d_val;
     id->d_loc = d_cur.toRowCol();
+    id->d_mod = d_mod.data();
 
     Ref<QualiType> q = new QualiType();
     q->d_quali = id.data();
@@ -1791,8 +1825,10 @@ void Parser::import()
     {
         MATCH( Tok_ident, tr("expecting import name alias") );
         if( d_cur.isValid() )
+        {
             name = d_cur;
-        else
+            imp->d_aliasPos = d_cur.toRowCol();
+        }else
             hasErr = true;
         next(); // :=
     }
@@ -1814,24 +1850,20 @@ void Parser::import()
         }else
             hasErr = true;
     }
-    if( !name.isValid() )
-        name = suff;
-    imp->d_name = name.d_val;
+    if( !imp->d_aliasPos.isValid() ) // no alias present
+        imp->d_name = suff.d_val;
+    else
+        imp->d_name = name.d_val;
+    imp->d_loc = suff.toRowCol();
+
     if( !d_mod->add( imp.data() ) )
     {
-        semanticError( name.toLoc(), tr("name '%1' is not unique in module; use a unique name alias (ident := path)").arg(imp->d_name.constData()) );
+        semanticError( imp->d_aliasPos.isValid() ? imp->d_aliasPos : imp->d_loc,
+                       tr("name '%1' is not unique in module; use a unique name alias (ident := path)").arg(imp->d_name.constData()) );
         hasErr = true;
     }else
         d_mod->d_imports << imp.data();
-    imp->d_loc = name.toRowCol();
-#if 0
-    imp->d_mod = findModule( path );
-    if( imp->d_mod.isNull() )
-    {
-        semanticError( name.toLoc(), tr("module '%1' could not be found").arg( path.join('/').constData() ) );
-        hasErr = true;
-    }
-#endif
+
     if( hasErr )
     {
         imp->d_hasErrors = true;
@@ -1839,14 +1871,16 @@ void Parser::import()
     }
 }
 
-void Parser::ofrontTag()
+Ref<Expression> Parser::systemFlag()
 {
+    Ref<Expression> res;
     if( d_la == Tok_Lbrack )
     {
         MATCH( Tok_Lbrack, tr("expecting '['") );
-        MATCH( Tok_integer, tr("expecting '1'") );
+        res = expression();
         MATCH( Tok_Rbrack, tr("expecting ']'") );
     }
+    return res;
 }
 
 void Parser::next()

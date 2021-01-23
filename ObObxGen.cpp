@@ -43,11 +43,11 @@ static inline SynTree* findFirstChild(const SynTree* st, int type , int startWit
 
 ObxGen::ObxGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true),
     nlAfterDeclHeader(true), nlPerDecl(true), nlPerStat(true), nlAfterBegin(true), nlBeforeEnd(true),
-    noWchar(true), switchBBoxTypes(true)
+    noWchar(true), switchBBoxTypes(true), genSysFlags(false), genUnsafe(true)
 {
     Q_ASSERT( mdl != 0 );
     d_errs = mdl->getErrs();
-    reservedWords
+    obxKeyWords
             // keywords
             << "array" << "begin" << "by" << "case" << "definition" << "div" << "mod"
             << "do" << "else" << "elsif" << "end" << "exit" << "false" << "for"
@@ -55,7 +55,20 @@ ObxGen::ObxGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true),
             << "nil" << "of" << "or" << "pointer" << "proc" << "procedure"
             << "record" << "repeat" << "return" << "then" << "to"
             << "true" << "type" << "var" << "while" << "with"
-               // predeclared
+            << "unsafe" << "carray" << "cstruct" << "cunion" << "const" << "until";
+
+    QSet<QByteArray> tmp = obxKeyWords;
+    foreach( const QByteArray& str, tmp )
+        obxKeyWords << str.toUpper();
+
+    // predeclared
+    for( int i = CodeModel::Element::ABS; i <= CodeModel::Element::FALSE; i++ )
+        builtIns << CodeModel::Element::s_kindName[i];
+    builtIns << CodeModel::Element::s_kindName[CodeModel::Element::LED];
+    for( int i = CodeModel::Type::BOOLEAN; i <= CodeModel::Type::SET; i++ )
+        builtIns << CodeModel::Type::s_kindName[i];
+
+    obxBuiltIns
             << "abs" << "ash" << "asr" << "assert" << "boolean"<< "byte"
             << "cap" << "char" << "chr" << "copy" << "dec" << "entier"
             << "excl" << "floor" << "flt" << "halt" << "inc" << "incl"
@@ -103,13 +116,12 @@ void ObxGen::emitModule(const CodeModel::Module* m)
             " on " << QDateTime::currentDateTime().toString(Qt::ISODate) << endl << endl;
 #endif
 
-    int lh = 0;
-
     d_cmts.clear();
     if( m->d_def )
         d_cmts = d_mdl->getComments(m->d_def->d_tok.d_sourcePath);
     d_nextCmt = 0;
 
+    d_isDef = m->d_isDef;
     if( m->d_def )
         module( m,m->d_def );
     else
@@ -118,7 +130,6 @@ void ObxGen::emitModule(const CodeModel::Module* m)
 
 void ObxGen::module(const CodeModel::Unit* u, SynTree* st)
 {
-    d_isDef = false;
     level = 0;
     prevRow = 1;
     prevSym = 0;
@@ -216,7 +227,7 @@ void ObxGen::module(const CodeModel::Module* m)
                 level++;
                 found = true;
             }
-            out << ind() << escapedIdent(m,e->d_name) << " = " << e->d_const.toString() << endl;
+            out << ind() << escapeName(e->d_name) << " = " << e->d_const.toString() << endl;
         }
     }
     if( found )
@@ -238,7 +249,7 @@ void ObxGen::module(const CodeModel::Module* m)
                 level++;
                 found = true;
             }
-            out << ind() << escapedIdent(m,t->d_name) << " = ";
+            out << ind() << escapeName(t->d_name) << " = ";
             type(m,t);
             out << endl;
         }
@@ -262,7 +273,7 @@ void ObxGen::module(const CodeModel::Module* m)
                 level++;
                 found = true;
             }
-            out << ind() << escapedIdent(m,e->d_name) << ": ";
+            out << ind() << escapeName(e->d_name) << ": ";
             type(m,e->d_type);
             out << endl;
         }
@@ -281,12 +292,12 @@ void ObxGen::module(const CodeModel::Module* m)
         if( e->d_kind == CodeModel::Element::StubProc )
         {
             found = true;
-            out << ind() << "proc " << escapedIdent(m,e->d_name) << "(";
+            out << ind() << "proc " << escapeName(e->d_name) << "(";
             for( int i = 0; i < e->d_vals.size(); i++ )
             {
                 if( i != 0 )
                     out << "; ";
-                out << escapedIdent(m,e->d_vals[i]->d_name) << ": ";
+                out << escapeName(e->d_vals[i]->d_name) << ": ";
                 type(m,e->d_vals[i]->d_type);
             }
             out << ")";
@@ -338,13 +349,47 @@ void ObxGen::import(const CodeModel::Unit* u, SynTree* st)
     }
 }
 
-void ObxGen::ident(const CodeModel::Unit* u, SynTree* st)
+void ObxGen::ident(const CodeModel::Unit* u, SynTree* st, bool leafIdent)
 {
     Q_ASSERT( st->d_tok.d_type == Tok_ident );
 
     QByteArray id = st->d_tok.d_val;
 
-    id = escapedIdent(u,id);
+    bool dontTouchKeyword = false;
+
+    if( leafIdent )
+    {
+        const CodeModel::NamedThing* n = u->findByName(id);
+        if( n && ( n->d_scope == 0 || n->d_scope != &d_mdl->getGlobalScope() ) )
+        {
+            // it's a locally defined symbol and may override builtins; leave it alone
+            if( obxBuiltIns.contains(id) )
+                        id += "_";
+        }else if( builtIns.contains(id) )
+        {
+            id = id.toLower();
+            if( id == "true" || id == "false" )
+                dontTouchKeyword = true; // otherwise true_ or false_ are returned
+        }else if( obxBuiltIns.contains(id) )
+            id += "_";
+        else if( switchBBoxTypes )
+        {
+            if( id == "SHORTREAL" )
+                id = "REAL";
+            else if( id == "REAL" )
+                id = "LONGREAL";
+            else if( id == "SHORTCHAR" )
+                id = "CHAR";
+            else if( !noWchar && id == "CHAR" )
+                id = "WCHAR";
+            if( st->d_tok.d_val != id )
+                id = id.toLower();
+        }
+    }else if( obxBuiltIns.contains(id) )
+        id += "_";
+
+    if( !dontTouchKeyword && obxKeyWords.contains(id) )
+        id += "_";
 
     print(id,st);
 }
@@ -455,6 +500,7 @@ void ObxGen::constDeclaration(const CodeModel::Unit* u, SynTree* st)
 void ObxGen::typeDeclaration(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( st->d_children.size() == 3 );
+
     identdef( u, st->d_children.first() );
     print( " = " );
     type( u, st->d_children.last() );
@@ -661,6 +707,7 @@ const CodeModel::Procedure* ObxGen::procedureHeading(const CodeModel::Unit* u, S
             break;
         case SynTree::R_FormalParameters:
             formalParameters(p,first);
+            space();
             break;
         default:
             Q_ASSERT(false);
@@ -672,9 +719,24 @@ const CodeModel::Procedure* ObxGen::procedureHeading(const CodeModel::Unit* u, S
 void ObxGen::identdef(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() );
-    ident(u,st->d_children.first());
+
+    // ident(u,st->d_children.first());
+
+    SynTree* first = st->d_children.first();
+    Q_ASSERT( first->d_tok.d_type == Tok_ident );
+    QByteArray id = first->d_tok.d_val;
+    id = escapeName(id);
+    print(id,first);
+
     if( st->d_children.size() > 1 )
-        print( st->d_children[1] );
+    {
+        if( d_isDef )
+        {
+            if( st->d_children[1]->d_tok.d_type == Tok_Minus )
+                print( st->d_children[1] );
+        }else
+            print( st->d_children[1] );
+    }
 }
 
 void ObxGen::constExpression(const CodeModel::Unit* u, SynTree* st)
@@ -766,8 +828,7 @@ void ObxGen::literal(const CodeModel::Unit* u, SynTree* st)
     switch( first->d_tok.d_type )
     {
     case SynTree::R_number:
-        Q_ASSERT( !first->d_children.isEmpty() );
-        print( first->d_children.first(), true );
+        number(u,first);
         break;
     case Tok_string:
         print( first );
@@ -792,6 +853,28 @@ void ObxGen::literal(const CodeModel::Unit* u, SynTree* st)
         print("false", st->d_children.first());
         break;
 #endif
+    default:
+        Q_ASSERT( false );
+    }
+}
+
+void ObxGen::number(const CodeModel::Unit* u, SynTree* st)
+{
+    Q_ASSERT( !st->d_children.isEmpty() );
+    SynTree* first = st->d_children.first();
+    switch( first->d_tok.d_type )
+    {
+    case Tok_integer:
+        {
+            QByteArray num = first->d_tok.d_val.toLower();
+            if( num.endsWith('l') )
+                num[num.size()-1] = 'h';
+            print( num, first );
+        }
+        break;
+    case Tok_real:
+        print( first, true );
+        break;
     default:
         Q_ASSERT( false );
     }
@@ -836,7 +919,7 @@ void ObxGen::qualident(const CodeModel::Unit* u, SynTree* st)
     {
         ident(u,st->d_children.first());
         print( "." );
-        ident(u,st->d_children.last());
+        ident(u,st->d_children.last(),false);
     }else
     {
         Q_ASSERT( st->d_children.size() == 1 );
@@ -855,7 +938,7 @@ void ObxGen::selector(const CodeModel::Unit* u, SynTree* st)
     case Tok_ident: // dot is transparent
         Q_ASSERT( st->d_children.size() == 1 );
         print( "." );
-        ident( u, st->d_children.last() );
+        ident( u, st->d_children.last(), false );
         break;
     case Tok_Lbrack:
         Q_ASSERT( st->d_children.size() == 3 );
@@ -914,6 +997,31 @@ void ObxGen::type(const CodeModel::Unit* u, SynTree* st)
         break;
     default:
         Q_ASSERT( false );
+    }
+}
+
+SynTree* ObxGen::getTypeSysFlag(const CodeModel::Unit* u, SynTree* st)
+{
+    SynTree* type = CodeModel::findFirstChild(st, SynTree::R_type );
+    Q_ASSERT( type && !type->d_children.isEmpty() && type->d_tok.d_type == SynTree::R_type );
+    SynTree* first = type->d_children.first();
+    switch( first->d_tok.d_type )
+    {
+    case SynTree::R_ArrayType:
+    case SynTree::R_RecordType:
+    case SynTree::R_PointerType:
+        return findFirstChild( first, SynTree::R_SysFlag, 1 );
+    case SynTree::R_NamedType:
+        {
+            Q_ASSERT( !first->d_children.isEmpty() );
+            CodeModel::Quali q = d_mdl->derefQualident(u,first->d_children.first());
+            const CodeModel::Type* tp = dynamic_cast<const CodeModel::Type*>(q.second.first);
+            if( tp != 0 )
+                return getTypeSysFlag(u,tp->d_def);
+        }
+        break;
+    default:
+        return 0;
     }
 }
 
@@ -998,7 +1106,7 @@ void ObxGen::type(const CodeModel::Unit* u, const CodeModel::Type* t)
             out << endl;
             foreach( const CodeModel::Element* e, t->d_vals )
             {
-                out << ind() << escapedIdent(u,e->d_name) << ": ";
+                out << ind() << escapeName(e->d_name) << ": ";
                 type(u,e->d_type);
                 out << endl;
             }
@@ -1032,8 +1140,15 @@ void ObxGen::namedType(const CodeModel::Unit* u, SynTree* st)
 void ObxGen::arrayType(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() && st->d_tok.d_type == SynTree::R_ArrayType );
-    print( "array ", st->d_children.first());
-    // ignore SysFlag
+    SynTree* flag = 0;
+    if( genSysFlags || genUnsafe )
+        flag = findFirstChild( st, SynTree::R_SysFlag, 1 );
+    if( genUnsafe && flag )
+        print( "carray ", st->d_children.first() );
+    else
+        print( "array ", st->d_children.first());
+    if( genSysFlags && flag )
+        sysFlag(u,flag);
     if( SynTree* ll = findFirstChild(st, SynTree::R_LengthList, 1 ) )
     {
         lengthList( u, ll );
@@ -1060,7 +1175,20 @@ void ObxGen::recordType(const CodeModel::Unit* u, SynTree* st)
         break;
     }
 #endif
-    print( "record ", first );
+    SynTree* flag = 0;
+    if( genSysFlags || genUnsafe )
+        flag = findFirstChild( st, SynTree::R_SysFlag, 1 );
+    if( genUnsafe && flag )
+    {
+        SynTree* id = CodeModel::flatten(flag, Tok_ident );
+        if( id && id->d_tok.d_val == "union" )
+            print( "cunion ", first );
+        else
+            print( "cstruct ", first );
+    }else
+        print( "record ", first );
+    if( genSysFlags && flag )
+        sysFlag(u,flag);
     level++;
     if( SynTree* base = findFirstChild( st, SynTree::R_BaseType, 1 ) )
     {
@@ -1082,8 +1210,19 @@ void ObxGen::recordType(const CodeModel::Unit* u, SynTree* st)
 void ObxGen::pointerType(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() && st->d_tok.d_type == SynTree::R_PointerType );
-    // ignore SysFlag
-    print( "pointer to ", st->d_children.first());
+
+    SynTree* flag = 0;
+    if( genSysFlags || genUnsafe )
+        flag = findFirstChild( st, SynTree::R_SysFlag, 1 );
+    if( genUnsafe && flag == 0 )
+        flag = getTypeSysFlag( u, st->d_children.last() );
+    if( genUnsafe && flag )
+        print( "unsafe pointer ", st->d_children.first() );
+    else
+        print( "pointer ", st->d_children.first());
+    if( genSysFlags && flag )
+        sysFlag(u,flag);
+    print( "to " );
     type( u, st->d_children.last() );
 }
 
@@ -1126,6 +1265,17 @@ void ObxGen::baseType(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() );
     namedType( u, st->d_children.first() );
+}
+
+void ObxGen::sysFlag(const CodeModel::Unit* u, SynTree* st)
+{
+    if( !genSysFlags )
+        return;
+    Q_ASSERT( st->d_children.size() == 3 );
+    print(st->d_children.first());
+    constExpression(u,st->d_children[1]);
+    print(st->d_children.last());
+    space();
 }
 
 void ObxGen::fieldListSequence(const CodeModel::Unit* u, SynTree* st)
@@ -1919,54 +2069,16 @@ void ObxGen::guard(const CodeModel::Unit* u, SynTree* st)
     qualident( u, st->d_children.last() );
 }
 
-QByteArray ObxGen::escapedIdent(const CodeModel::Unit* u, const QByteArray& in)
+QByteArray ObxGen::escapeName(const QByteArray& id)
 {
-    bool keyword = false;
-
-    QByteArray out = in;
-    const CodeModel::NamedThing* n = u->findByName(out);
-    if( n )
-    {
-        if( const CodeModel::Element* e = dynamic_cast<const CodeModel::Element*>( n ) )
-        {
-            if( ( e->d_kind >= CodeModel::Element::ABS && e->d_kind <= CodeModel::Element::FALSE ) ||
-                    e->d_kind == CodeModel::Element::LED )
-            {
-                keyword = true;
-                out = out.toLower();
-            }
-        }else if( const CodeModel::Type* t = dynamic_cast<const CodeModel::Type*>( n ) )
-        {
-            if( t->d_kind >= CodeModel::Type::BOOLEAN && t->d_kind <= CodeModel::Type::SET )
-            {
-                keyword = true;
-                out = CodeModel::Type::s_kindName[t->d_kind]; // SHORTCHAR etc. mapped to CHAR type
-                if( switchBBoxTypes )
-                {
-                    if( out == "SHORTREAL" )
-                        out = "REAL";
-                    else if( out == "REAL" )
-                        out = "LONGREAL";
-                    else if( out == "SHORTCHAR" )
-                        out = "CHAR";
-                    else if( !noWchar && out == "CHAR" )
-                        out = "WCHAR";
-                }
-                out = out.toLower();
-            }
-        }
-    }
-
-    if( !keyword && reservedWords.contains(out) )
-        out += "_";
+    QByteArray out = id;
+    if( obxKeyWords.contains(out) || obxBuiltIns.contains(out) )
+            out += "_";
     return out;
 }
 
 void ObxGen::print(const QByteArray& str, SynTree* curRowCol)
 {
-//    if( curRowCol && curRowCol->d_tok.d_sourcePath.endsWith("/Viewers.Mod") && curRowCol->d_tok.d_lineNr == 23 )
-//        qDebug() << "hit";
-
     if( curRowCol )
     {
         printComments(curRowCol);

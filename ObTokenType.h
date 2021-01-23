@@ -5,8 +5,6 @@
 
 #include <QByteArray>
 
-#define OB_OBN2
-
 namespace Ob {
 	enum TokenType {
 		Tok_Invalid = 0,
@@ -46,8 +44,11 @@ namespace Ob {
 		Tok_ARRAY,
 		Tok_BEGIN,
 		Tok_BY,
+		Tok_CARRAY,
 		Tok_CASE,
 		Tok_CONST,
+		Tok_CSTRUCT,
+		Tok_CUNION,
 		Tok_DEFINITION,
 		Tok_DIV,
 		Tok_DO,
@@ -77,6 +78,7 @@ namespace Ob {
 		Tok_TO,
 		Tok_TRUE,
 		Tok_TYPE,
+		Tok_UNSAFE,
 		Tok_UNTIL,
 		Tok_VAR,
 		Tok_WHILE,

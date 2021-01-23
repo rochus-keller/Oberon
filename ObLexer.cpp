@@ -294,6 +294,8 @@ Token Lexer::ident()
             off++;
     }
     const QByteArray str = d_line.mid(d_colNr, off );
+    if( !isAscii(str) )
+        return token( Tok_Invalid, off, "invalid characters in identifier" );
     Q_ASSERT( !str.isEmpty() );
     int pos = 0;
     QByteArray keyword = str;
@@ -527,6 +529,9 @@ Token Lexer::comment()
 
 Token Lexer::string()
 {
+    const int startLine = d_lineNr;
+    const int startCol = d_colNr;
+
     const char quote = lookAhead(0);
     int off = 1;
     while( true )
@@ -538,7 +543,31 @@ Token Lexer::string()
         if( c == 0 )
             return token( Tok_Invalid, off, "non-terminated string" );
     }
-    const QByteArray str = d_line.mid(d_colNr, off );
+    QByteArray str = d_line.mid(d_colNr, off );
+#ifdef OBX_BBOX
+    if( isUtf8(str) )
+    {
+        const QString unicode = QString::fromUtf8(str);
+        //const QString unicode16 = QString::fromUtf16(str);
+        const QByteArray latin1 = unicode.toLatin1();
+        isUtf8(str);
+        if( str != latin1 )
+        {
+            if( d_err )
+            {
+                if( unicode != QString::fromLatin1(latin1) )
+                    d_err->warning( Errors::Semantics, d_sourcePath, startLine, startCol,
+                                    tr("string literal %1 is likely unicode; information lost when converted to latin-1 %2")
+                                    .arg(unicode).arg(latin1.constData()));
+                else
+                    d_err->warning( Errors::Semantics, d_sourcePath, startLine, startCol,
+                                tr("string literal %1 is likely unicode; converted to latin-1")
+                                .arg(unicode));
+            }
+            str = latin1;
+        }
+    }
+#endif
     return token( Tok_string, off, str );
 }
 
@@ -623,3 +652,94 @@ void Lexer::countLine()
     d_lineCounted = true;
 }
 
+bool Lexer::isUtf8(const QByteArray& str)
+{
+    if( isAscii(str) )
+        return false;
+    // Quelle: https://stackoverflow.com/questions/1031645/how-to-detect-utf-8-in-plain-c
+    // see also http://www.perlmonks.org/?node=910102
+    const unsigned char * bytes = (const unsigned char *)str.constData();
+    while(*bytes)
+    {
+        if( (// ASCII
+             // use bytes[0] <= 0x7F to allow ASCII control characters
+                bytes[0] == 0x09 ||
+                bytes[0] == 0x0A ||
+                bytes[0] == 0x0D ||
+                (0x20 <= bytes[0] && bytes[0] <= 0x7E)
+            )
+        ) {
+            bytes += 1;
+            continue;
+        }
+
+        if( (// non-overlong 2-byte
+                (0xC2 <= bytes[0] && bytes[0] <= 0xDF) &&
+                (0x80 <= bytes[1] && bytes[1] <= 0xBF)
+            )
+        ) {
+            bytes += 2;
+            continue;
+        }
+
+        if( (// excluding overlongs
+                bytes[0] == 0xE0 &&
+                (0xA0 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+            ) ||
+            (// straight 3-byte
+                ((0xE1 <= bytes[0] && bytes[0] <= 0xEC) ||
+                    bytes[0] == 0xEE ||
+                    bytes[0] == 0xEF) &&
+                (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+            ) ||
+            (// excluding surrogates
+                bytes[0] == 0xED &&
+                (0x80 <= bytes[1] && bytes[1] <= 0x9F) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF)
+            )
+        ) {
+            bytes += 3;
+            continue;
+        }
+
+        if( (// planes 1-3
+                bytes[0] == 0xF0 &&
+                (0x90 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+            ) ||
+            (// planes 4-15
+                (0xF1 <= bytes[0] && bytes[0] <= 0xF3) &&
+                (0x80 <= bytes[1] && bytes[1] <= 0xBF) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+            ) ||
+            (// plane 16
+                bytes[0] == 0xF4 &&
+                (0x80 <= bytes[1] && bytes[1] <= 0x8F) &&
+                (0x80 <= bytes[2] && bytes[2] <= 0xBF) &&
+                (0x80 <= bytes[3] && bytes[3] <= 0xBF)
+            )
+        ) {
+            bytes += 4;
+            continue;
+        }
+
+        return false;
+    }
+
+    return true;
+}
+
+bool Lexer::isAscii(const QByteArray& str)
+{
+    const quint8* bytes = (const quint8*)str.constData();
+    for( int i = 0; i < str.size(); i++ )
+    {
+        if( bytes[i] >= 0x80 )
+            return false;
+    }
+    return true;
+}

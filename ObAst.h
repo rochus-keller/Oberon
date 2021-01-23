@@ -560,7 +560,7 @@ namespace Ob
 
             typedef QList< Ref<Module> > Modules;
             Modules getModules() const;
-            const QList<Module*>& getProcessingOrder() const { return d_depOrder; }
+            const Modules& getProcessingOrder() const { return d_depOrder; }
 
             struct BaseTypes
             {
@@ -651,7 +651,7 @@ namespace Ob
             static const QList<SynTree*> getImports(const SynTree*);
             void createModules( Mods& mods, ParseResultList& );
             bool resolveImport( Mods& mods, const QByteArray& );
-            QList<Module*> findProcessingOrder( Mods& mods);
+            Modules findProcessingOrder( Mods& mods);
             void fixTypes();
             void deferredBody(Procedure* p, SynTree* st);
             void deferredBody();
@@ -671,7 +671,7 @@ namespace Ob
             Ref<BaseType> d_nilType;
             Ref<BaseType> d_anyType;
             Ref<BaseType> d_anyNum;
-            QList<Module*> d_depOrder; // most to least dependent
+            Modules d_depOrder; // most to least dependent
             XRef d_xref;
 
             QByteArray d_system;

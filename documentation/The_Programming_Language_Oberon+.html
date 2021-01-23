@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-01-16</span>
+      <span id="revdate">2021-01-23</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -449,10 +449,13 @@ digit    = '0' ... '9'</pre>
                   <p class="tableblock">CASE</p>
                 </td>
                 <td class="tableblock halign-left valign-top">
-                  <p class="tableblock">DEFINITION</p>
+                  <p class="tableblock">CONST</p>
                 </td>
               </tr>
               <tr>
+                <td class="tableblock halign-left valign-top">
+                  <p class="tableblock">DEFINITION</p>
+                </td>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">DIV</p>
                 </td>
@@ -465,11 +468,11 @@ digit    = '0' ... '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">ELSIF</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">END</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">EXIT</p>
                 </td>
@@ -482,11 +485,11 @@ digit    = '0' ... '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">IF</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">IMPORT</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">IN</p>
                 </td>
@@ -499,11 +502,11 @@ digit    = '0' ... '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">MOD</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">MODULE</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">NIL</p>
                 </td>
@@ -516,11 +519,11 @@ digit    = '0' ... '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">POINTER</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">PROC</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">PROCEDURE</p>
                 </td>
@@ -533,11 +536,11 @@ digit    = '0' ... '9'</pre>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">RETURN</p>
                 </td>
+              </tr>
+              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">THEN</p>
                 </td>
-              </tr>
-              <tr>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">TO</p>
                 </td>
@@ -548,11 +551,21 @@ digit    = '0' ... '9'</pre>
                   <p class="tableblock">TYPE</p>
                 </td>
                 <td class="tableblock halign-left valign-top">
+                  <p class="tableblock">UNTIL</p>
+                </td>
+              </tr>
+              <tr>
+                <td class="tableblock halign-left valign-top">
                   <p class="tableblock">VAR</p>
                 </td>
                 <td class="tableblock halign-left valign-top">
                   <p class="tableblock">WHILE</p>
                 </td>
+                <td class="tableblock halign-left valign-top">
+                  <p class="tableblock">WITH</p>
+                </td>
+                <td class="tableblock halign-left valign-top"></td>
+                <td class="tableblock halign-left valign-top"></td>
               </tr>
             </tbody>
           </table>
@@ -1100,9 +1113,11 @@ T1 = record (T0) y: real end</pre>
             <p>T1 is a (direct) <em>extension</em> of T0 and T0 is the (direct) base
               type of T1 (see <a href="#_definition_of_terms">Definition of terms</a>).
               An extended type T1 consists of the fields of its base type and of
-              the fields which are declared in T1. All identifiers declared in the
-              extended record must be different from the identifiers declared in
-              its base type record(s).</p>
+              the fields which are declared in T1. In general all identifiers declared
+              in the extended record must be different from the identifiers declared
+              in its base type record(s). A pointer field of the base record can
+              be re-declared in the extended record with a pointer type which is
+              an extension of the corresponding base record field type <sup class="footnote">[<a id="_footnoteref_2" class="footnote" href="#_footnote_2" title="View footnote.">2</a>]</sup>.</p>
           </div>
           <div class="paragraph">
             <p>Alternatively, a pointer to record type can be specified as the base
@@ -1158,8 +1173,8 @@ end</pre>
           <div class="paragraph">
             <p>Variables of a procedure type T have a procedure (or NIL) as value. If
               a procedure P is assigned to a variable of type T, the formal parameter
-              lists (see <a href="#_formal_parameters">Formal parameters</a>) of
-              P and T must <em>match</em> (see <a href="#_definition_of_terms">Definition of terms</a>).
+              lists and result types (see <a href="#_formal_parameters">Formal parameters</a>)
+              of P and T must <em>match</em> (see <a href="#_definition_of_terms">Definition of terms</a>).
               P must not be a predeclared or type-bound procedure nor may it be local
               to another procedure.</p>
           </div>
@@ -1321,12 +1336,19 @@ ExpList    = expression {',' expression}</pre>
           </div>
           <div class="paragraph">
             <p>If <code>r</code> designates a record, then <code>r.f</code> denotes
-              the field <code>f</code> of <code>r</code> or the procedure <code>f</code>              bound to the dynamic type of <code>r</code> (see <a href="#_type_bound_procedures">Type-bound procedures</a>).</p>
+              the field <code>f</code> of <code>r</code> or the procedure <code>f</code>              bound to the dynamic type of <code>r</code> (see <a href="#_type_bound_procedures">Type-bound procedures</a>).
+              If <code>p</code> designates a pointer, <code>p^</code> denotes the
+              variable which is referenced by <code>p</code>. The designators <code>p^.f</code>              and <code>p^[e]</code> may be abbreviated as <code>p.f</code> and <code>p[e]</code>,
+              i.e. record and array selectors imply dereferencing.</p>
           </div>
           <div class="paragraph">
-            <p>If <code>p</code> designates a pointer, <code>p^</code> denotes the variable
-              which is referenced by <code>p</code>. The designators <code>p^.f</code>              and <code>p^[e]</code> may be abbreviated as <code>p.f</code> and <code>p[e]</code>,
-              i.e. record and array selectors imply dereferencing. If <code>a</code>              or <code>r</code> are read-only, then also <code>a[e]</code> and <code>r.f</code>              are read-only.</p>
+            <p>Dereferencing is also implied if a pointer is assigned to a variable
+              of a record or array type, if a pointer is used as actual parameter
+              for a formal parameter of a record or array type, or if a pointer is
+              used as argument of the standard procedure LEN <sup class="footnote">[<a id="_footnoteref_3" class="footnote" href="#_footnote_3" title="View footnote.">3</a>]</sup>.</p>
+          </div>
+          <div class="paragraph">
+            <p>If <code>a</code> or <code>r</code> are read-only, then also <code>a[e]</code>              and <code>r.f</code> are read-only.</p>
           </div>
           <div class="paragraph">
             <p>A type guard <code>v(T)</code> asserts that the dynamic type of <code>v</code>              is T (or an extension of T), i.e. program execution is aborted, if
@@ -1798,7 +1820,7 @@ t := c</pre>
           <h3 id="_procedure_calls">9.3. Procedure calls</h3>
           <div class="paragraph">
             <p>A procedure call activates a procedure. It may contain a list of actual
-              parameters which replace the corresponding formal parameters defined
+              parameters which replace the corresponding formal parameter list defined
               in the procedure declaration (see <a href="#_procedure_declarations">Procedure declarations</a>).
               The correspondence is established by the positions of the parameters
               in the actual and formal parameter lists. There are three kinds of
@@ -2125,10 +2147,11 @@ Guard         = qualident ':' qualident</pre>
       <div class="sectionbody">
         <div class="paragraph">
           <p>A procedure declaration consists of a procedure heading and a procedure
-            body. The heading specifies the procedure identifier and the formal parameters.
-            For type-bound procedures it also specifies the receiver parameter. The
-            body contains declarations and statements. The procedure identifier is
-            repeated at the end of the procedure declaration.</p>
+            body. The heading specifies the procedure identifier and the formal parameters
+            (see <a href="#Formal Parameters">[Formal Parameters]</a>). For type-bound
+            procedures it also specifies the receiver parameter. The body contains
+            declarations and statements. The procedure identifier must be repeated
+            at the end of the procedure declaration unless it has no body.</p>
         </div>
         <div class="paragraph">
           <p>There are two kinds of procedures: proper procedures and function procedures.
@@ -2154,12 +2177,12 @@ Guard         = qualident ':' qualident</pre>
           <div class="title">Syntax:</div>
           <div class="content">
             <pre>ProcedureDeclaration = ProcedureHeading [';']
-                       ProcedureBody ident
+                       ProcedureBody END [ ident ]
 ProcedureHeading     = ( PROCEDURE | PROC ) [ TypeParams ]
 					   [Receiver] identdef [ FormalParameters ]
 ProcedureBody        = DeclarationSequence
                        [ BEGIN StatementSequence
-                       | ReturnStatement [';'] ] END
+                       | ReturnStatement [';'] ]
 Receiver             = '(' [VAR] ident ':' ident
                        [ TypeActuals ] ')'
 DeclarationSequence  = { CONST { ConstDeclaration [';'] }
@@ -2284,8 +2307,10 @@ Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'</pre>
               the same name as P) may be explicitly bound to T1 in which case it
               overrides the binding of P. P' is considered a redefinition of P for
               T1. The formal parameter lists of P and P' must <em>match</em> (see
-              <a href="#_definition_of_terms">Definition of terms</a>). If P and
-              T1 are exported (see <a href="#_declarations_and_scope_rules">Declarations and scope rules</a>)
+              <a href="#_definition_of_terms">Definition of terms</a>). Also the
+              result types must <em>match</em>, or if P and P' both have pointer
+              result types, then the result type of P' must be an <em>extension</em>              of the result type of P <sup class="footnote">[<a id="_footnoteref_4" class="footnote" href="#_footnote_4" title="View footnote.">4</a>]</sup>.
+              If P and T1 are exported (see <a href="#_declarations_and_scope_rules">Declarations and scope rules</a>)
               P' must be exported too.</p>
           </div>
           <div class="paragraph">
@@ -2296,8 +2321,9 @@ Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'</pre>
               according to the parameter passing rules specified in Chapter <a href="#_formal_parameters">Formal parameters</a>.</p>
           </div>
           <div class="paragraph">
-            <p>If <code>r</code> is a receiver parameter declared with type T, <code>r.P^</code>              denotes the (redefined, sometimes calles <em>super</em>) procedure
-              P bound to the base type of T.</p>
+            <p>If <code>r</code> is the receiver parameter of P declared with type T,
+              <code>r.P^</code> denotes the (redefined, sometimes calles <em>super</em>)
+              procedure P bound to a base type of T.</p>
           </div>
           <div class="literalblock">
             <div class="title">Examples:</div>
@@ -3239,7 +3265,7 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                   <li>
                     <p>T<sub>a</sub> and T<sub>b</sub> are procedure types whose formal
-                      parameter lists <em>match</em>, or</p>
+                      parameters <em>match</em>, or</p>
                   </li>
                   <li>
                     <p>T<sub>a</sub> and T<sub>b</sub> are pointer types with <em>equal</em>                      base types.</p>
@@ -3314,7 +3340,7 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                   <li>
                     <p>T<sub>v</sub> is ARRAY n OF CHAR and <code>e</code> is a string
-                      <sup class="footnote">[<a id="_footnoteref_2" class="footnote" href="#_footnote_2" title="View footnote.">2</a>]</sup>                      with LEN(e) &lt;= LEN(v);</p>
+                      <sup class="footnote">[<a id="_footnoteref_5" class="footnote" href="#_footnote_5" title="View footnote.">5</a>]</sup>                      with LEN(e) &lt;= LEN(v);</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> and T<sub>e</sub> are open or closed CHAR arrays,
@@ -3596,10 +3622,6 @@ declarations = { CONST { ConstDeclaration [';'] }
                     <p>they have the same number of parameters, and</p>
                   </li>
                   <li>
-                    <p>they have either the <em>same function result type</em> or none,
-                      and</p>
-                  </li>
-                  <li>
                     <p>parameters at corresponding positions have <em>equal types</em>,
                       and</p>
                   </li>
@@ -3609,6 +3631,10 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                 </ol>
               </div>
+            </dd>
+            <dt class="hdlist1">Matching result types</dt>
+            <dd>
+              <p>The result types of two procedures match if they are either the <em>same type</em>                or none.</p>
             </dd>
           </dl>
         </div>
@@ -3692,13 +3718,13 @@ Guard = qualident ':' qualident
 LoopStatement = LOOP StatementSequence END
 ExitStatement = EXIT
 ProcedureDeclaration = ProcedureHeading [ ';' ]
-	ProcedureBody ident
+	ProcedureBody END ident
 ProcedureHeading = ( PROCEDURE | PROC ) [TypeParams] [Receiver]
 	 identdef [ FormalParameters ]
 Receiver = '(' [VAR] ident ':' ident [ TypeActuals ] ')'
 ProcedureBody = DeclarationSequence
 	[ BEGIN StatementSequence
-	| ReturnStatement [ ';' ] ] END
+	| ReturnStatement [ ';' ] ]
 DeclarationSequence =
 	{ CONST { ConstDeclaration [';'] }
 	| TYPE { TypeDeclaration [';'] }
@@ -3734,6 +3760,12 @@ DeclarationSequence2 =
                 <a id="Mo91"></a>[Mo91] Mössenböck, H.; Wirth, N. (1991). The Programming Language
                 Oberon-2. Structured Programming, 12(4):179-195, 1991. <a href="http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf"
                   class="bare">http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf</a>                (accessed 2020-11-16).</p>
+            </li>
+            <li>
+              <p>
+                <a id="Om01"></a>[Om01] Oberon microsystems, Inc. (2001). Component Pascal Language
+                Report. <a href="https://web.archive.org/web/20191021025943/http://www.oberon.ch/pdf/CP-Lang.pdf"
+                  class="bare">https://web.archive.org/web/20191021025943/http://www.oberon.ch/pdf/CP-Lang.pdf</a>                (accessed 2021-01-21).</p>
             </li>
             <li>
               <p>
@@ -3775,7 +3807,18 @@ DeclarationSequence2 =
       <a href="#_footnoteref_1">1</a>. adopted with modifications from <a href="#Ro97">[Ro97]</a>
     </div>
     <div class="footnote" id="_footnote_2">
-      <a href="#_footnoteref_2">2</a>. which includes single characters corresponding
+      <a href="#_footnoteref_2">2</a>. this corresponds to the implementation of
+      the Blackbox framework 1.7, see <a href="https://blackboxframework.org" class="bare">https://blackboxframework.org</a>      <a href="#Om01">[Om01]</a>
+    </div>
+    <div class="footnote" id="_footnote_3">
+      <a href="#_footnoteref_3">3</a>. adopted from <a href="#Om01">[Om01]</a>
+    </div>
+    <div class="footnote" id="_footnote_4">
+      <a href="#_footnoteref_4">4</a>. this is called <em>covariance</em>, adopted
+      with modifications from <a href="#Om01">[Om01]</a>
+    </div>
+    <div class="footnote" id="_footnote_5">
+      <a href="#_footnoteref_5">5</a>. which includes single characters corresponding
       to strings with length 1
     </div>
   </div>

@@ -34,8 +34,8 @@ namespace Ob
         CppGen(CodeModel*);
         void setGenStubs(bool on) { d_genStubs = on; }
         bool emitModules(const QString& outdir, const QString& ns = QString(), const QString& mod = QString() );
-        bool emitObnUtils( const QString& outdir, const QString& ns = QString(), const QString& mod = QString() );
     protected:
+        bool emitObnUtils( const QString& outdir, const QString& ns = QString(), const QString& mod = QString() );
         void emitModule(const CodeModel::Module*);
         void emitHeader(const CodeModel::Module*, QTextStream& out, int level);
         void emitBody(const CodeModel::Module*, QTextStream& out);

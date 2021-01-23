@@ -29,8 +29,9 @@
 // - added WITH, LOOP, EXIT statements from Oberon-2 for backward compatibility
 // - added syntax elements to parse Blackbox Component Pascal 1.7
 // - made end ident of procedures optional
+// - added UNSAFE POINTER, CSTRUCT,  CUNION and CARRAY for external C library integration
 
-#define OBN2
+//#define OBN2
 // combine OBN2 with either OBNX or BBOX
 //#define OBNX
 //#define BBOX
@@ -112,7 +113,11 @@ enumeration ::= '('  ident { ',' ident } ')'
 
 /// 6.2. Array types
 
-ArrayType ::= ARRAY 
+ArrayType ::= ( ARRAY 
+#ifdef OBNX
+	| CARRAY
+#endif
+	)
 #ifdef BBOX
 	[ SysFlag ]
 #endif
@@ -141,7 +146,12 @@ RecordType ::=
 #ifdef BBOX
 	[ 'ABSTRACT' | 'EXTENSIBLE' | 'LIMITED' ] // RecAttributes
 #endif
-	RECORD 
+	( RECORD 
+#ifdef OBNX
+	| CSTRUCT
+	| CUNION
+#endif
+	)
 #ifdef BBOX
 	[ SysFlag ]
 #endif
@@ -162,7 +172,11 @@ IdentList ::= identdef {',' identdef}
 
 /// 6.4. Pointer types
 
-PointerType ::= ( POINTER 
+PointerType ::= ( 
+#ifdef OBNX
+	UNSAFE
+#endif
+	POINTER 
 #ifdef BBOX
 	[ SysFlag ]
 #endif
@@ -518,7 +532,7 @@ definition ::= DEFINITION ident [';']  [ ImportList ] DeclarationSequence2 END i
 /// Helper Tokens
 Comment ::=
 #ifndef OBNX
-obnx- ::= PROC
+obnx- ::= PROC UNSAFE CSTRUCT CUNION CARRAY
 #endif
 #ifndef OBN2
 obn2- ::= WITH LOOP EXIT

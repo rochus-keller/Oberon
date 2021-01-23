@@ -1258,6 +1258,7 @@ CodeModel::Type*CodeModel::parsePointerType(CodeModel::Unit* ds, SynTree* t)
 
 CodeModel::Type*CodeModel::parseRecordType(CodeModel::Unit* ds, SynTree* t)
 {
+    Q_ASSERT( t && t->d_tok.d_type == SynTree::R_RecordType );
     SynTree* st = findFirstChild( t, SynTree::R_BaseType );
     Type* bt = 0;
     if( st )
@@ -2739,10 +2740,10 @@ QList<CodeModel::Element*> CodeModel::Type::getParams() const
     return res;
 }
 
-const CodeModel::NamedThing*CodeModel::Scope::findByName(const QByteArray& name) const
+const CodeModel::NamedThing*CodeModel::Scope::findByName(const QByteArray& name, bool recursive ) const
 {
     const CodeModel::NamedThing* thing = d_names.value(name);
-    if( thing == 0 && d_outer )
+    if( recursive && thing == 0 && d_outer )
         thing = d_outer->findByName(name);
     return thing;
 }

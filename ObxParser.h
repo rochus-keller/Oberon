@@ -101,7 +101,7 @@ namespace Obx
         Ref<Type> formalType(Scope* scope);
         void importList();
         void import();
-        void ofrontTag();
+        Ref<Expression> systemFlag();
 
         void next();
 

@@ -34,7 +34,7 @@ const char* Thing::s_tagName[] =
 
 const char* BaseType::s_typeName[] =
 {
-    "ANY", "ANYNUM", "ANYREC", "PTR", "NIL", "STRING", "BOOLEAN", "CHAR", "BYTE",
+    "ANY", "ANYNUM", "NIL", "STRING", "BOOLEAN", "CHAR", "BYTE",
     "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET"
 };
 
@@ -205,6 +205,21 @@ Module* Named::getModule()
         return 0;
 }
 
+const char*Named::visibilitySymbol() const
+{
+    switch( d_visibility)
+    {
+    case NotApplicable:
+    case Private:
+    default:
+        return "";
+    case ReadWrite:
+        return "*";
+    case ReadOnly:
+        return "-";
+    }
+}
+
 QualiType::ModItem QualiType::getQuali() const
 {
     Q_ASSERT( !d_quali.isNull() );
@@ -236,7 +251,11 @@ Type*QualiType::derefed()
     Q_ASSERT( !d_quali.isNull() );
     if( d_quali->d_type.isNull() )
         return this; // never return 0 with derefed
-    else
+    else if( d_quali->d_type.data() == this )
+    {
+        qWarning() << "qualident referring to itself" << d_quali->getModule()->d_file << d_loc.d_row << d_loc.d_col;
+        return this;
+    }else
         return d_quali->d_type->derefed();
 }
 
@@ -265,6 +284,7 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t):d_i
 {
     d_loc = loc;
     d_type = t;
+    d_mod = mod;
 }
 
 #ifdef _DEBUG
@@ -339,11 +359,13 @@ quint8 IdentSel::visibilityFor(Module* m) const
 
 Const::Const(const QByteArray& name, Literal* lit)
 {
-    Q_ASSERT( lit );
     d_name = name;
-    d_val = lit->d_val;
     d_constExpr = lit;
-    d_type = lit->d_type.data();
+    if( lit )
+    {
+        d_type = lit->d_type.data();
+        d_val = lit->d_val;
+    }
 }
 
 
@@ -352,4 +374,18 @@ QString Pointer::pretty() const
     if( d_to.isNull() )
         return "POINTER TO ?";
     return QString("POINTER TO %1").arg(d_to->pretty());
+}
+
+
+QList<Expression*> Expression::getSubList() const
+{
+    QList<Expression*> res;
+    res.push_back(const_cast<Expression*>(this));
+    Expression* sub = getSub();
+    while( sub )
+    {
+        res.prepend(sub);
+        sub = sub->getSub();
+    }
+    return res;
 }

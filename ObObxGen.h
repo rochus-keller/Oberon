@@ -39,7 +39,7 @@ namespace Ob
         void module(const CodeModel::Module* m);
         void importList(const CodeModel::Unit* u, SynTree* st);
         void import(const CodeModel::Unit* u, SynTree* st);
-        void ident(const CodeModel::Unit* u, SynTree* st);
+        void ident(const CodeModel::Unit* u, SynTree* st, bool leaf = true);
         void declarationSequence(const CodeModel::Unit* u, SynTree* st);
         void declarationSequence2(const CodeModel::Unit* u, SynTree* st);
         void statementSequence(const CodeModel::Unit* u, SynTree* st);
@@ -56,6 +56,7 @@ namespace Ob
         void term(const CodeModel::Unit* u, SynTree* st);
         void factor(const CodeModel::Unit* u, SynTree* st);
         void literal(const CodeModel::Unit* u, SynTree* st);
+        void number(const CodeModel::Unit* u, SynTree* st);
         void variableOrFunctionCall(const CodeModel::Unit* u, SynTree* st);
         void designator(const CodeModel::Unit* u, SynTree* st);
         void set(const CodeModel::Unit* u, SynTree* st);
@@ -63,6 +64,7 @@ namespace Ob
         void selector(const CodeModel::Unit* u, SynTree* st);
         void expList(const CodeModel::Unit* u, SynTree* st);
         void type(const CodeModel::Unit* u, SynTree* st);
+        SynTree* getTypeSysFlag(const CodeModel::Unit* u, SynTree* st);
         void type(const CodeModel::Unit* u, const CodeModel::Type* );
         void identList(const CodeModel::Unit* u, SynTree* st);
         void namedType(const CodeModel::Unit* u, SynTree* st);
@@ -72,6 +74,7 @@ namespace Ob
         void procedureType(const CodeModel::Unit* u, SynTree* st);
         void lengthList(const CodeModel::Unit* u, SynTree* st);
         void baseType(const CodeModel::Unit* u, SynTree* st);
+        void sysFlag(const CodeModel::Unit* u, SynTree* st);
         void fieldListSequence(const CodeModel::Unit* u, SynTree* st);
         void fieldList(const CodeModel::Unit* u, SynTree* st);
         void element(const CodeModel::Unit* u, SynTree* st);
@@ -114,7 +117,7 @@ namespace Ob
         {
             return QString(level,QChar('\t'));
         }
-        QByteArray escapedIdent( const CodeModel::Unit* u, const QByteArray& id );
+        QByteArray escapeName(const QByteArray& id);
         void print(const QByteArray&, SynTree* = 0);
         void print(SynTree* , bool toLower = false);
         void printComments(SynTree* st = 0);
@@ -136,7 +139,8 @@ namespace Ob
         SynTree* last;
         int level, prevRow;
         SynTree* prevSym;
-        QSet<QByteArray> reservedWords;
+        QSet<QByteArray> obxKeyWords;
+        QSet<QByteArray> builtIns, obxBuiltIns;
         bool d_isDef;
         bool rowPrinted;
 
@@ -145,7 +149,9 @@ namespace Ob
             nlAfterBegin, // includes THEN, DO, etc.
             nlBeforeEnd, // includes ELSE, UNTIL, etc.
             switchBBoxTypes, // change REAL to LONGREAL, SHORTREAL to REAL, SHORTCHAR to CHAR, CHAR to WCHAR
-            noWchar      // in case of switchBBoxTypes CHAR is not mapped to WCHAR
+            noWchar,      // in case of switchBBoxTypes CHAR is not mapped to WCHAR
+            genSysFlags,
+            genUnsafe
         ;
     };
 }

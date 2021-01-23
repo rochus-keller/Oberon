@@ -172,8 +172,12 @@ namespace Obx
         uint d_visited : 1;
         uint d_type : 4;    // used by BaseType
         uint d_selfRef : 1; // used by QualiType
+        uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
+        uint d_union : 1;   // used by Record (CUNION)
 
-        Type():d_ident(0),d_visited(false),d_type(0),d_selfRef(false) {}
+        Ref<Expression> d_flag; // optional system flag
+
+        Type():d_ident(0),d_visited(false),d_type(0),d_selfRef(false),d_unsafe(false),d_union(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
@@ -183,7 +187,7 @@ namespace Obx
 
     struct BaseType : public Type
     {
-        enum { ANY, ANYNUM, ANYREC, PTR, NIL, STRING, BOOLEAN, CHAR, BYTE, SHORTINT,
+        enum { ANY, ANYNUM, NIL, STRING, BOOLEAN, CHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET };
         static const char* s_typeName[];
 
@@ -299,6 +303,7 @@ namespace Obx
         virtual bool isVarParam() const { return false; }
         Module* getModule();
         bool isPublic() const { return d_visibility == ReadWrite || d_visibility == ReadOnly; }
+        const char* visibilitySymbol() const;
     };
 
     struct GenericName : public Named
@@ -310,6 +315,8 @@ namespace Obx
 
     struct Field : public Named // Record field
     {
+        bool d_specialization; // field corresponds to inherited with same name, but more specific type
+        Field():d_specialization(false){}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Field; }
     };
@@ -330,7 +337,8 @@ namespace Obx
     {
         bool d_var;
         bool d_const;
-        Parameter():d_var(false),d_const(false) {}
+        bool d_receiver;
+        Parameter():d_var(false),d_const(false),d_receiver(false) {}
         int getTag() const { return T_Parameter; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isVarParam() const { return ( d_var || d_const ); }
@@ -357,6 +365,7 @@ namespace Obx
     struct Import : public Named
     {
         QByteArrayList d_path;
+        Ob::RowCol d_aliasPos; // invalid if no alias present
         Ref<Module> d_mod;
         int getTag() const { return T_Import; }
         void accept(AstVisitor* v) { v->visit(this); }
@@ -397,7 +406,7 @@ namespace Obx
         typedef QHash<const char*, Named*> Names;
         Names d_names;
         QList< Ref<Named> > d_order;
-        // QList< Ref<IdentLeaf> > d_helper; // filled with all decls when fillXref
+        QList< Ref<IdentLeaf> > d_helper; // filled with helper decls when fillXref
         StatSeq d_body;
         Ob::RowCol d_end;
 
@@ -411,8 +420,10 @@ namespace Obx
     struct Procedure : public Scope
     {
         Ref<Parameter> d_receiver;
+        Record* d_receiverRec;
         MetaParams d_metaParams;
         Ref<Expression> d_imp; // the number or string after PROC+
+        Procedure():d_receiverRec(0) {}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Procedure; }
         ProcType* getProcType() const;
@@ -519,6 +530,9 @@ namespace Obx
         virtual Named* getIdent() const { return 0; }
         virtual Module* getModule() const { return 0; }
         virtual quint8 visibilityFor(Module*) const { return Named::NotApplicable; }
+        virtual Expression* getSub() const { return 0; }
+        QList<Expression*> getSubList() const;
+        virtual quint8 getUnOp() const { return 0; }
     };
 
     struct Literal : public Expression
@@ -543,10 +557,11 @@ namespace Obx
     {
         NoRef<Named> d_ident;
         QByteArray d_name; // name to be resolved with result written to d_ident
-        IdentLeaf() {}
-        IdentLeaf( Named* id, const Ob::RowCol&, Module* mod, Type* t );
+        IdentLeaf():d_mod(0) {}
+        IdentLeaf( Named* id, const Ob::RowCol&, Module* mod, Type* t = 0 );
+        Module* d_mod; // we need this to find out when xref from which module the ident is coming
         Named* getIdent() const { return d_ident.data(); }
-        Module* getModule() const { return d_ident.isNull() ? 0 : d_ident->getModule(); }
+        Module* getModule() const { return d_mod; }
         int getTag() const { return T_IdentLeaf; }
         void accept(AstVisitor* v) { v->visit(this); }
         quint8 visibilityFor(Module*) const { return Named::ReadWrite; } // leaf is local or import name
@@ -565,6 +580,8 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         quint8 visibilityFor(Module* m) const { return !d_sub.isNull() ? d_sub->visibilityFor(m): quint8(Named::NotApplicable); }
         Module* getModule() const { return d_sub.isNull() ? 0 : d_sub->getModule(); }
+        Expression* getSub() const { return d_sub.data(); }
+        quint8 getUnOp() const { return d_op; }
     };
 
     struct IdentSel : public UnExpr // SEL
@@ -573,7 +590,6 @@ namespace Obx
         QByteArray d_name; // name to be resolved with result written to d_ident
         IdentSel():UnExpr(SEL) {}
         Named* getIdent() const { return d_ident.data(); }
-        Module* getModule() const { return d_ident.isNull() ? 0 : d_ident->getModule(); }
         int getTag() const { return T_IdentSel; }
         void accept(AstVisitor* v) { v->visit(this); }
         quint8 visibilityFor(Module* m) const;

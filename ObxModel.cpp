@@ -36,7 +36,336 @@ static uint qHash( const QByteArrayList& ba, uint seed )
     return qHash(ba.last(),seed);
 }
 
-Model::Model(QObject *parent) : QObject(parent)
+struct Model::CrossReferencer : public AstVisitor
+{
+    Module* d_mod;
+    Model* d_mdl;
+    QList<Scope*> stack;
+    QSet<Type*> visited;
+
+    CrossReferencer(Model* mdl, Module* mod)
+    {
+        d_mod = mod;
+        d_mdl = mdl;
+        d_mod->accept(this);
+    }
+
+    void visit( Module* me )
+    {
+        stack.push_back(me);
+
+        me->d_helper << new IdentLeaf( me, me->d_loc,me, 0);
+        d_mdl->d_xref[me].append( me->d_helper.back().data() );
+
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( !n.isNull() )
+                n->accept(this);
+        }
+
+        foreach( const Ref<Statement>& s, me->d_body )
+        {
+            if( !s.isNull() )
+                s->accept(this);
+        }
+        stack.pop_back();
+    }
+
+    void visit( Import* me )
+    {
+        Q_ASSERT( !d_mod->d_helper.isEmpty() && d_mod->d_helper.first()->getIdent()->getTag() == Thing::T_Module );
+
+        if( !me->d_mod.isNull() )
+        {
+            d_mdl->d_xref[me->d_mod.data()].append( d_mod->d_helper.first().data() );
+
+            IdentLeaf* e2 = new IdentLeaf( me->d_mod.data(), me->d_loc, d_mod, 0 );
+            d_mod->d_helper.append( e2 );
+            d_mdl->d_xref[me->d_mod.data()].append( e2 );
+        }
+
+        IdentLeaf* e1 = new IdentLeaf( me, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc, d_mod, 0 );
+        d_mod->d_helper.append( e1 );
+        d_mdl->d_xref[me].append( e1 );
+    }
+
+    void visit( Procedure* me )
+    {
+        stack.push_back(me);
+
+        me->d_helper << new IdentLeaf( me, me->d_loc,d_mod, 0);
+        d_mdl->d_xref[me].append( me->d_helper.back().data() );
+
+        //if( me->d_receiver ) // receiver Param is part of d_order
+        //    me->d_receiver->accept(this);
+
+        ProcType* pt = me->getProcType();
+        // ProcType formals are part of d_order
+        if( pt->d_return )
+            pt->d_return->accept(this);
+
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( !n.isNull() )
+                n->accept(this);
+        }
+        // d_metaParams were already processed in me->d_order
+
+        foreach( const Ref<Statement>& s, me->d_body )
+        {
+            if( !s.isNull() )
+                s->accept(this);
+        }
+        stack.pop_back();
+    }
+
+    void visit( NamedType* me )
+    {
+        Scope* s = stack.back();
+        s->d_helper << new IdentLeaf(me, me->d_loc, d_mod );
+        d_mdl->d_xref[me].append( s->d_helper.back().data() );
+
+        if( me->d_type )
+            me->d_type->accept(this);
+    }
+
+    void visit( Pointer* me)
+    {
+        if( me->d_flag )
+            me->d_flag->accept(this);
+        if( me->d_to )
+            me->d_to->accept(this);
+    }
+
+    void visit( Array* me )
+    {
+        if( me->d_flag )
+            me->d_flag->accept(this);
+        if( me->d_type )
+            me->d_type->accept(this);
+        if( me->d_lenExpr )
+            me->d_lenExpr->accept(this);
+    }
+
+    void visit( Record* me )
+    {
+        if( me->d_base )
+            me->d_base->accept(this);
+        if( me->d_flag )
+            me->d_flag->accept(this);
+        foreach( const Ref<Field>& f, me->d_fields )
+            f->accept(this);
+        // d_methods is handled from Procedure
+    }
+
+    void visit( ProcType* me )
+    {
+        if( me->d_return )
+            me->d_return->accept(this);
+        foreach( const Ref<Parameter>& p, me->d_formals )
+            p->accept(this);
+    }
+
+    void visit( QualiType* me )
+    {
+        if( me->d_quali )
+            me->d_quali->accept(this);
+        foreach( const Ref<Thing>& t, me->d_metaActuals )
+            t->accept(this);
+    }
+    void visitVar( Named* me )
+    {
+        Scope* s = stack.back();
+        s->d_helper << new IdentLeaf( me, me->d_loc, d_mod );
+        d_mdl->d_xref[me].append( s->d_helper.back().data() );
+        // we need the visited set here because the same type can be assigned to more than one Named
+        if( me->d_type && !visited.contains(me->d_type.data()) )
+        {
+            visited.insert(me->d_type.data());
+            me->d_type->accept(this);
+        }
+    }
+
+    void visit( Field* me )
+    {
+        visitVar(me);
+    }
+
+    void visit( Variable* me )
+    {
+        visitVar(me);
+    }
+
+    void visit( LocalVar* me )
+    {
+        visitVar(me);
+    }
+
+    void visit( Parameter* me )
+    {
+        visitVar(me);
+    }
+
+    void visit( GenericName* me )
+    {
+        visitVar(me);
+    }
+
+    void visit( Const* me )
+    {
+        Scope* s = stack.back();
+        s->d_helper << new IdentLeaf( me, me->d_loc, d_mod );
+        d_mdl->d_xref[me].append( s->d_helper.back().data() );
+        if( me->d_constExpr )
+            me->d_constExpr->accept(this);
+    }
+
+    void visit( Enumeration* me )
+    {
+        foreach( const Ref<Const>& c, me->d_items )
+            c->accept(this);
+    }
+
+    void visit( Call* me )
+    {
+        if( me->d_what )
+            me->d_what->accept(this);
+    }
+
+    void visit( Return* me )
+    {
+        if( me->d_what )
+            me->d_what->accept(this);
+    }
+
+    void visit( Assign* me )
+    {
+        if( me->d_lhs )
+            me->d_lhs->accept(this);
+        if( me->d_rhs )
+            me->d_rhs->accept(this);
+    }
+
+    void visit( IfLoop* me )
+    {
+        foreach( const Ref<Expression>& e, me->d_if )
+        {
+            if( e )
+                e->accept(this);
+        }
+        foreach( const StatSeq& ss, me->d_then )
+        {
+            foreach( const Ref<Statement>& s, ss )
+            {
+                if( !s.isNull() )
+                    s->accept(this);
+            }
+        }
+        foreach( const Ref<Statement>& s, me->d_else )
+        {
+            if( !s.isNull() )
+                s->accept(this);
+        }
+    }
+
+    void visit( ForLoop* me )
+    {
+        if( me->d_id )
+            me->d_id->accept(this);
+        if( me->d_from )
+            me->d_from->accept(this);
+        if( me->d_to )
+            me->d_to->accept(this);
+        if( me->d_by )
+            me->d_by->accept(this);
+        foreach( const Ref<Statement>& s, me->d_do )
+        {
+            if( !s.isNull() )
+                s->accept(this);
+        }
+    }
+
+    void visit( CaseStmt* me )
+    {
+        if( me->d_exp )
+            me->d_exp->accept(this);
+        foreach( const CaseStmt::Case& c, me->d_cases )
+        {
+            foreach( const Ref<Expression>& e, c.d_labels )
+            {
+                if( e )
+                    e->accept(this);
+            }
+            foreach( const Ref<Statement>& s, c.d_block )
+            {
+                if( !s.isNull() )
+                    s->accept(this);
+            }
+        }
+        foreach( const Ref<Statement>& s, me->d_else )
+        {
+            if( !s.isNull() )
+                s->accept(this);
+        }
+    }
+
+    void visit( SetExpr* me )
+    {
+        foreach( const Ref<Expression>& e, me->d_parts )
+        {
+            if( e )
+                e->accept(this);
+        }
+    }
+
+    void visit( IdentLeaf* me )
+    {
+        if( !me->d_ident.isNull() )
+            d_mdl->d_xref[me->d_ident.data()].append( me );
+    }
+
+    void visit( UnExpr* me )
+    {
+        if( me->d_sub )
+            me->d_sub->accept(this);
+    }
+
+    void visit( IdentSel* me )
+    {
+        if( me->d_sub )
+            me->d_sub->accept(this);
+        if( !me->d_ident.isNull() )
+            d_mdl->d_xref[me->d_ident.data()].append( me );
+    }
+
+    void visit( ArgExpr* me )
+    {
+        if( me->d_sub )
+            me->d_sub->accept(this);
+        foreach( const Ref<Expression>& e, me->d_args )
+        {
+            if( e )
+                e->accept(this);
+        }
+    }
+
+    void visit( BinExpr* me )
+    {
+        if( me->d_lhs )
+            me->d_lhs->accept(this);
+        if( me->d_rhs )
+            me->d_rhs->accept(this);
+    }
+
+    // NOP
+    void visit( BaseType* ) {}
+    void visit( Exit* ) {}
+    void visit( BuiltIn* ) {}
+    void visit( Literal* ) {}
+
+};
+
+Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
 {
     d_errs = new Errors(this);
     d_fc = new FileCache(this);
@@ -56,7 +385,7 @@ Model::Model(QObject *parent) : QObject(parent)
     d_nilType = new BaseType(BaseType::NIL);
     d_anyType = new BaseType(BaseType::ANY);
     d_anyNum = new BaseType(BaseType::ANYNUM);
-    d_anyRec = new BaseType(BaseType::ANYREC);
+    d_anyRec = new Record();
 
     fillGlobals();
 }
@@ -68,7 +397,9 @@ void Model::clear()
     d_depOrder.clear();
     unbindFromGlobal();
     d_modules.clear();
-    // d_globals->d_names.clear();
+    d_others.clear();
+    d_xref.clear();
+    d_sloc = 0;
 }
 
 bool Model::parseFiles(const FileGroups& files)
@@ -84,14 +415,20 @@ bool Model::parseFiles(const FileGroups& files)
     foreach( const FileGroup& fg, files )
     {
         const QString old = QDir::currentPath();
-        QDir::setCurrent(fg.d_root);
+        if( !fg.d_root.isEmpty() )
+            QDir::setCurrent(fg.d_root);
         foreach( const QString& file, fg.d_files )
         {
-            if( !QFileInfo(file).isRelative() )
+            if( !fg.d_root.isEmpty() && !QFileInfo(file).isRelative() )
             {
                 error( file, tr("file not relative to file group '%1'").arg(fg.d_root));
                 continue;
+            }else if( fg.d_root.isEmpty() && QFileInfo(file).isRelative() )
+            {
+                error( file, tr("with empty root file '%1' must have an absolute path").arg(file));
+                continue;
             }
+
             const QString path = QDir::current().absoluteFilePath(file);
             qDebug() << "parsing" << path;
             Ref<Module> m = parseFile(path);
@@ -154,12 +491,14 @@ bool Model::parseFiles(const FileGroups& files)
         qDebug() << "analyzing" << m->d_file;
 
         Validator::check(m, bt, d_errs );
+        if( d_fillXref )
+            CrossReferencer(this,m);
     }
 
     return true;
 }
 
-Ref<Module> Model::parseFile(const QString& path) const
+Ref<Module> Model::parseFile(const QString& path)
 {
     bool found;
     FileCache::Entry content = d_fc->getFile(path, &found );
@@ -178,7 +517,7 @@ Ref<Module> Model::parseFile(const QString& path) const
     }
 }
 
-Ref<Module> Model::parseFile(QIODevice* in, const QString& path) const
+Ref<Module> Model::parseFile(QIODevice* in, const QString& path)
 {
     Ob::Lexer lex;
     lex.setErrors(d_errs);
@@ -188,7 +527,10 @@ Ref<Module> Model::parseFile(QIODevice* in, const QString& path) const
     lex.setSensExt(true);
     lex.setStream( in, path );
     Obx::Parser p(&lex,d_errs);
-    return p.parse();
+    Ref<Module> res = p.parse();
+    d_sloc += lex.getSloc();
+    // qDebug() << path << "with" << lex.getSloc() << "LOC";
+    return res;
 }
 
 void Model::unbindFromGlobal()
@@ -392,7 +734,7 @@ void Model::fillGlobals()
 #ifdef OBX_BBOX
     d_globals->add( new Const( Lexer::getSymbol("INF"),
                                new Literal( Literal::Real, RowCol(), INFINITY, d_realType.data() ) ) );
-    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_anyRec->d_type]),d_anyRec.data() );
+    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
     d_globals->add( anyrec.data() );
     Ref<Pointer> anyptr = new Pointer();
     anyptr->d_to = anyrec->d_type.data();
@@ -404,7 +746,14 @@ void Model::fillGlobals()
     sys->add( new BuiltIn(BuiltIn::SYS_GETREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),
                                               ProcType::Vars() << false << true   ) ) );
     sys->add( new BuiltIn(BuiltIn::SYS_PUTREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data() ) ) );
-    sys->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[BaseType::PTR]), new BaseType(BaseType::PTR) ) );
+    sys->add( new NamedType(Lexer::getSymbol("PTR"), anyptr.data() ) );
+
+    d_globals->add( new Const( Lexer::getSymbol("untagged"), 0 ) );
+    d_globals->add( new Const( Lexer::getSymbol("union"), 0 ) );
+    d_globals->add( new Const( Lexer::getSymbol("align8"), 0 ) );
+    d_globals->add( new Const( Lexer::getSymbol("noalign"), 0 ) );
+    d_globals->add( new Const( Lexer::getSymbol("align2"), 0 ) );
+
     // TODO THISRECORD
 #endif
 
@@ -432,9 +781,24 @@ bool Model::resolveImports()
                     i->d_mod = d_systemModule;
                 else
                 {
-                    error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
-                           arg( i->d_path.join('/').constData() ) );
-                    hasErrors = true;
+                    i->d_mod = d_others.value( i->d_path );
+                    if( i->d_mod.isNull() )
+                    {
+                        i->d_mod = parseFile( i->d_path.join('/') );
+                        if( i->d_mod.isNull() )
+                        {
+                            error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
+                                   arg( i->d_path.join('/').constData() ) );
+                            hasErrors = true;
+                        }else
+                        {
+                            if( i->d_mod->d_isExt )
+                                i->d_mod->d_scope = d_globalsLower.data();
+                            else
+                                i->d_mod->d_scope = d_globals.data();
+                            d_others.insert(i->d_path, i->d_mod );
+                        }
+                    }
                 }
             }
         }
@@ -444,29 +808,24 @@ bool Model::resolveImports()
 
 static bool DFS( Module* m, QSet<Module*>& mods, QList<Module*>& trace )
 {
-    //qDebug() << m->d_name;
     trace.append(m);
     mods.remove(m);
     foreach( Import* i, m->d_imports )
     {
         Module* mm = i->d_mod.data();
-        //qDebug() << "try" << mm->d_name;
         const int pos = trace.indexOf(mm);
         if( pos != -1 )
         {
             trace = trace.mid(pos);
-            //qDebug() << "hit";
             return true;
         }
         if( !mods.contains(mm) )
         {
-            //qDebug() << "skip" << mm->d_name;
             continue;
         }
         else if( DFS( mm, mods, trace ) )
             return true;
     }
-    //qDebug() << "fail";
     return false;
 }
 
@@ -477,6 +836,8 @@ bool Model::findProcessingOrder()
     QSet<Module*> mods, all;
     Modules::const_iterator i;
     for( i = d_modules.begin(); i != d_modules.end(); ++i )
+        mods.insert(i.value().data());
+    for( i = d_others.begin(); i != d_others.end(); ++i )
         mods.insert(i.value().data());
     mods.insert(d_systemModule.data());
     all = mods;
@@ -582,13 +943,13 @@ bool Model::error(const Loc& loc, const QString& msg)
     return false;
 }
 
-QByteArrayList Model::FileGroup::toFullName(const QString& relativeFileName)
+QByteArrayList Model::FileGroup::toFullName(const QString& filePath)
 {
-    QFileInfo info(relativeFileName);
+    QFileInfo info(filePath);
     if( !info.isRelative() )
     {
-        qCritical() << "filename not relative" << relativeFileName;
-        return QByteArrayList();
+        //qCritical() << "filename not relative" << relativeFileName;
+        return QByteArrayList() << info.completeBaseName().toUtf8();
     }
     QByteArrayList res;
     const QStringList segments = info.path().split( '/' );

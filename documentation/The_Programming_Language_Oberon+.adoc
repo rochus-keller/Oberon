@@ -1,3 +1,7 @@
+// This file may be used under the terms of the GNU General Public
+// License (GPL) versions 2.0 or 3.0 as published by the Free Software
+// Foundation, see http://www.gnu.org/copyleft/gpl.html for more information
+
 // missing in AsciiDoc:
 // - clear concept how to add line breaks to tables without physically breaking lines in the adoc source
 // - table in labeled list item
@@ -7,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-01-16
+:revdate: 2021-01-23
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -177,6 +181,7 @@ The reserved words consist of either all capital or all lower case letters and c
 |BEGIN    
 |BY       
 |CASE     
+|CONST
 |DEFINITION
 |DIV      
 |DO       
@@ -206,6 +211,7 @@ The reserved words consist of either all capital or all lower case letters and c
 |TO
 |TRUE
 |TYPE
+|UNTIL
 |VAR
 |WHILE
 |WITH
@@ -424,7 +430,7 @@ T0 = record x: integer end
 T1 = record (T0) y: real end
 ....
 
-T1 is a (direct) _extension_ of T0 and T0 is the (direct) base type of T1 (see <<Definition of terms>>). An extended type T1 consists of the fields of its base type and of the fields which are declared in T1. All identifiers declared in the extended record must be different from the identifiers declared in its base type record(s).
+T1 is a (direct) _extension_ of T0 and T0 is the (direct) base type of T1 (see <<Definition of terms>>). An extended type T1 consists of the fields of its base type and of the fields which are declared in T1. In general all identifiers declared in the extended record must be different from the identifiers declared in its base type record(s). A pointer field of the base record can be re-declared in the extended record with a pointer type which is an extension of the corresponding base record field type footnote:[this corresponds to the implementation of the Blackbox framework 1.7, see https://blackboxframework.org <<Om01>>].
 
 Alternatively, a pointer to record type can be specified as the base type. The record base type of the pointer is used as the base type of the declared record in this case.
 
@@ -452,7 +458,7 @@ PointerType = ( POINTER TO | '^' ) type
 If p is a variable of type `P = POINTER TO T`, a call of the predeclared procedure `NEW(p)` (see <<Predeclared procedures>>) allocates a variable of type T in free storage. If T is a record type or an array type with fixed length, the allocation has to be done with `NEW(p)`; if T is an n-dimensional open array type the allocation has to be done with `NEW(p, e~0~, ..., e~n-1~)` where T is allocated with lengths given by the expressions e~0~, ..., e~n-1~. In either case a pointer to the allocated variable is assigned to `p`. `p` is of type P. The referenced variable `p^` is of type T. Any pointer variable may assume the value NIL, which points to no variable at all. 
 
 === Procedure types
-Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). P must not be a predeclared or type-bound procedure nor may it be local to another procedure.
+Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists and result types (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). P must not be a predeclared or type-bound procedure nor may it be local to another procedure.
 
 .Syntax:
 ....
@@ -545,9 +551,11 @@ ExpList    = expression {',' expression}
 
 If `a` designates an array, then `a[e]` denotes that element of `a` whose index is the current value of the expression `e`. The type of `e` must be an _integer type_. A designator of the form `a[e~0~, e~1~, ..., e~n~]` stands for `a[e~0~][e~1~]...[e~n~]`. 
 
-If `r` designates a record, then `r.f` denotes the field `f` of `r` or the procedure `f` bound to the dynamic type of `r` (see <<Type-bound procedures>>). 
+If `r` designates a record, then `r.f` denotes the field `f` of `r` or the procedure `f` bound to the dynamic type of `r` (see <<Type-bound procedures>>). If `p` designates a pointer, `p^` denotes the variable which is referenced by `p`. The designators `p^.f` and `p^[e]` may be abbreviated as `p.f` and `p[e]`, i.e. record and array selectors imply dereferencing. 
 
-If `p` designates a pointer, `p^` denotes the variable which is referenced by `p`. The designators `p^.f` and `p^[e]` may be abbreviated as `p.f` and `p[e]`, i.e. record and array selectors imply dereferencing. If `a` or `r` are read-only, then also `a[e]` and `r.f` are read-only.
+Dereferencing is also implied if a pointer is assigned to a variable of a record or array type, if a pointer is used as actual parameter for a formal parameter of a record or array type, or if a pointer is used as argument of the standard procedure LEN footnote:[adopted from <<Om01>>].
+
+If `a` or `r` are read-only, then also `a[e]` and `r.f` are read-only.
 
 A type guard `v(T)` asserts that the dynamic type of `v` is T (or an extension of T), i.e. program execution is aborted, if the dynamic type of `v` is not T (or an extension of T). Within the designator, `v` is then regarded as having the static type T. The guard is applicable, if
 
@@ -723,7 +731,7 @@ t := c
 ....
      
 === Procedure calls
-A procedure call activates a procedure. It may contain a list of actual parameters which replace the corresponding formal parameters defined in the procedure declaration (see <<Procedure declarations>>). The correspondence is established by the positions of the parameters in the actual and formal parameter lists. There are three kinds of parameters: _variable_ (VAR), IN and _value_ parameters.
+A procedure call activates a procedure. It may contain a list of actual parameters which replace the corresponding formal parameter list defined in the procedure declaration (see <<Procedure declarations>>). The correspondence is established by the positions of the parameters in the actual and formal parameter lists. There are three kinds of parameters: _variable_ (VAR), IN and _value_ parameters.
 
 If a formal parameter is a VAR or IN parameter, the corresponding actual parameter must be a designator denoting a variable. If it denotes an element of a structured variable, the component selectors are evaluated when the formal/actual parameter substitution takes place, i.e. before the execution of the procedure. If a formal parameter is a value parameter, the corresponding actual parameter must be an expression. This expression is evaluated before the procedure activation, and the resulting value is assigned to the formal parameter (see also <<Formal parameters>>).
 
@@ -920,7 +928,7 @@ with t: CenterTree do i := t.width; c := t.subnode end
 ....
 
 == Procedure declarations
-A procedure declaration consists of a procedure heading and a procedure body. The heading specifies the procedure identifier and the formal parameters. For type-bound procedures it also specifies the receiver parameter. The body contains declarations and statements. The procedure identifier is repeated at the end of the procedure declaration.
+A procedure declaration consists of a procedure heading and a procedure body. The heading specifies the procedure identifier and the formal parameters (see <<Formal Parameters>>). For type-bound procedures it also specifies the receiver parameter. The body contains declarations and statements. The procedure identifier must be repeated at the end of the procedure declaration unless it has no body.
 
 There are two kinds of procedures: proper procedures and function procedures. The latter are activated by a function designator as a constituent of an expression and yield a result that is an operand of the expression. Proper procedures are activated by a procedure call. A procedure is a function procedure if its formal parameters specify a result type. The body of a function procedure must contain a return statement which defines its result.
 
@@ -931,12 +939,12 @@ Objects declared in the environment of the procedure are also visible in those p
 .Syntax:
 ....
 ProcedureDeclaration = ProcedureHeading [';'] 
-                       ProcedureBody ident 
+                       ProcedureBody END [ ident ]
 ProcedureHeading     = ( PROCEDURE | PROC ) [ TypeParams ] 
 					   [Receiver] identdef [ FormalParameters ]
 ProcedureBody        = DeclarationSequence 
                        [ BEGIN StatementSequence
-                       | ReturnStatement [';'] ] END
+                       | ReturnStatement [';'] ]
 Receiver             = '(' [VAR] ident ':' ident 
                        [ TypeActuals ] ')'
 DeclarationSequence  = { CONST { ConstDeclaration [';'] } 
@@ -946,6 +954,7 @@ DeclarationSequence  = { CONST { ConstDeclaration [';'] }
 ....
 
 If a procedure declaration specifies a receiver parameter, the procedure is considered to be bound to a type (see <<Type-bound procedures>>). 
+
 
 === Formal parameters
 Formal parameters are identifiers declared in the formal parameter list of a procedure. They correspond to actual parameters specified in the procedure call. The correspondence between formal and actual parameters is established when the procedure is called. There are three kinds of parameters, value, variable (VAR) and IN parameters, indicated in the formal parameter list by the absence or presence of the keyword VAR and IN. 
@@ -1011,11 +1020,11 @@ ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ]
 Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'
 ....
 
-If a procedure P is bound to a type T0, it is implicitly also bound to any type T1 which is an extension of T0. However, a procedure P' (with the same name as P) may be explicitly bound to T1 in which case it overrides the binding of P. P' is considered a redefinition of P for T1. The formal parameter lists of P and P' must _match_ (see <<Definition of terms>>). If P and T1 are exported (see <<Declarations and scope rules>>) P' must be exported too.
+If a procedure P is bound to a type T0, it is implicitly also bound to any type T1 which is an extension of T0. However, a procedure P' (with the same name as P) may be explicitly bound to T1 in which case it overrides the binding of P. P' is considered a redefinition of P for T1. The formal parameter lists of P and P' must _match_ (see <<Definition of terms>>). Also the result types must _match_, or if P and P' both have pointer result types, then the result type of P' must be an _extension_ of the result type of P footnote:[this is called _covariance_, adopted with modifications from <<Om01>>]. If P and T1 are exported (see <<Declarations and scope rules>>) P' must be exported too.
 
 If `v` is a designator and `P` is a type-bound procedure, then `v.P` denotes that procedure `P` which is bound to the dynamic type of `v`. Note, that this may be a different procedure than the one bound to the static type of `v`. `v` is passed to `P`'s receiver according to the parameter passing rules specified in Chapter <<Formal parameters>>.
 
-If `r` is a receiver parameter declared with type T, `r.P^` denotes the (redefined, sometimes calles _super_) procedure P bound to the base type of T. 
+If `r` is the receiver parameter of P declared with type T, `r.P^` denotes the (redefined, sometimes calles _super_) procedure P bound to a base type of T. 
 
 .Examples:
 ....
@@ -1234,6 +1243,7 @@ declarations = { CONST { ConstDeclaration [';'] }
 ....
 
 // TODO: specify interoperability rules with C, possibly with C specific data structures and procedures, including manual memory management.
+// unsafe pointer, carray, cstruct, cunion
 
 [appendix]
 == Definition of terms
@@ -1259,7 +1269,7 @@ Equal types::
 
     1. T~a~ and T~b~ are the _same type_, or
     2. T~a~ and T~b~ are open array types with _equal element types_, or
-    3. T~a~ and T~b~ are procedure types whose formal parameter lists _match_, or
+    3. T~a~ and T~b~ are procedure types whose formal parameters _match_, or
     4. T~a~ and T~b~ are pointer types with _equal_ base types.
 
 Type inclusion::
@@ -1328,10 +1338,13 @@ Expression compatible::
 Matching formal parameter lists::
     Two formal parameter lists match if
 
-    1. they have the same number of parameters, and
-    2. they have either the _same function result type_ or none, and
-    3. parameters at corresponding positions have _equal types_, and
-    4. parameters at corresponding positions are both either value, VAR or IN parameters. 
+    . they have the same number of parameters, and
+    . parameters at corresponding positions have _equal types_, and
+    . parameters at corresponding positions are both either value, VAR or IN parameters. 
+    
+Matching result types::
+    The result types of two procedures match if they are either the _same type_ or none. 
+    
 
 [appendix]
 == Syntax of Oberon+
@@ -1410,13 +1423,13 @@ Guard = qualident ':' qualident
 LoopStatement = LOOP StatementSequence END
 ExitStatement = EXIT
 ProcedureDeclaration = ProcedureHeading [ ';' ] 
-	ProcedureBody ident 
+	ProcedureBody END ident 
 ProcedureHeading = ( PROCEDURE | PROC ) [TypeParams] [Receiver]
 	 identdef [ FormalParameters ]
 Receiver = '(' [VAR] ident ':' ident [ TypeActuals ] ')'
 ProcedureBody = DeclarationSequence 
 	[ BEGIN StatementSequence
-	| ReturnStatement [ ';' ] ] END
+	| ReturnStatement [ ';' ] ]
 DeclarationSequence = 
 	{ CONST { ConstDeclaration [';'] } 
 	| TYPE { TypeDeclaration [';'] } 
@@ -1445,6 +1458,7 @@ DeclarationSequence2 =
 // [bibliography]
 == References
 - [[[Mo91]]] Mössenböck, H.; Wirth, N. (1991). The Programming Language Oberon-2. Structured Programming, 12(4):179-195, 1991. http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf (accessed 2020-11-16).
+- [[[Om01]]] Oberon microsystems, Inc. (2001). Component Pascal Language Report. https://web.archive.org/web/20191021025943/http://www.oberon.ch/pdf/CP-Lang.pdf (accessed 2021-01-21).
 - [[[Ro97]]] Roe, P.; Szyperski, C. (1997). Lightweight parametric polymorphism for Oberon. In: Mössenböck H. (eds). Modular Programming Languages. JMLC 1997. Lecture Notes in Computer Science, vol 1204. Springer, Berlin, Heidelberg. 
 - [[[Wi16]]] Wirth, N. (2016). The Programming Language Oberon. https://people.inf.ethz.ch/wirth/Oberon/Oberon07.Report.pdf (accessed 2020-11-16).
 - [[[Wi73]]] Wirth, N. (1973). The Programming Language Pascal (Revised Report). ETH Report. https://doi.org/10.3929/ethz-a-000814158 (accessed 2020-11-16).

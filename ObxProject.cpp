@@ -1,7 +1,7 @@
 /*
-* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the Oberon parser/compiler library.
+* This file is part of the Oberon+ parser/compiler library.
 *
 * The following is the license that applies to this copy of the
 * library. For a license to use the library under conditions
@@ -17,8 +17,9 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include "ObLjProject.h"
-#include "ObAst.h"
+#include "ObxProject.h"
+#include "ObxAst.h"
+#include "ObxModel.h"
 #include "ObErrors.h"
 #include "ObLjbcGen.h"
 #include <QBuffer>
@@ -26,10 +27,10 @@
 #include <QtDebug>
 #include <QSettings>
 #include <QCoreApplication>
+using namespace Obx;
 using namespace Ob;
-using namespace Ob::Ast;
 
-struct HitTest : public AstVisitor
+struct ObxHitTest : public AstVisitor
 {
     quint32 line; quint16 col;
 
@@ -48,29 +49,35 @@ struct HitTest : public AstVisitor
 
     void visit( Pointer* p )
     {
-        if( p->d_to->d_ident == 0 )
+        //if( p->d_to->d_ident == 0 )
+        if( p->d_flag )
+            p->d_flag->accept(this);
+        if( p->d_to )
             p->d_to->accept(this); // look for qualis
     }
 
     void visit( Array* a )
     {
-        if( a->d_type->d_ident == 0 )
+        //if( a->d_type->d_ident == 0 )
+        if( a->d_flag )
+            a->d_flag->accept(this);
+        if( a->d_type )
             a->d_type->accept(this); // look for qualis
     }
 
     void visit( Record* r )
     {
+        if( r->d_flag )
+            r->d_flag->accept(this);
         if( !r->d_base.isNull() )
             r->d_base->accept(this); // look for qualis
         for( int i = 0; i < r->d_fields.size(); i++ )
-        {
             r->d_fields[i]->accept(this); // look for qualis
-        }
     }
 
     void visit( ProcType* p )
     {
-        if( p->d_return && p->d_return->d_ident == 0 )
+        if( p->d_return ) // && p->d_return->d_ident == 0 )
             p->d_return->accept(this); // look for qualis
         for( int i = 0; i < p->d_formals.size(); i++ )
             p->d_formals[i]->accept(this); // look for qualis
@@ -78,31 +85,36 @@ struct HitTest : public AstVisitor
 
     void visit( QualiType* q )
     {
-        q->d_quali->accept(this);
+        if( q->d_quali )
+            q->d_quali->accept(this);
     }
 
     void visit( Field* f )
     {
-        if( f->d_type->d_ident == 0 )
+        //if( f->d_type->d_ident == 0 )
+        if( f->d_type )
             f->d_type->accept(this);
         // TODO test(f);
     }
 
     void visit( Variable* v )
     {
-        if( v->d_type->d_ident == 0 )
+        //if( v->d_type->d_ident == 0 )
+        if( v->d_type )
             v->d_type->accept(this);
     }
 
     void visit( LocalVar* v )
     {
-        if( v->d_type->d_ident == 0 )
+        //if( v->d_type->d_ident == 0 )
+        if( v->d_type )
             v->d_type->accept(this);
     }
 
     void visit( Parameter* p )
     {
-        if( p->d_type->d_ident == 0 )
+        //if( p->d_type->d_ident == 0 )
+        if( p->d_type )
             p->d_type->accept(this);
     }
 
@@ -114,17 +126,23 @@ struct HitTest : public AstVisitor
 
     void visit( Const* c )
     {
-        c->d_constExpr->accept(this);
+        if( c->d_constExpr )
+            c->d_constExpr->accept(this);
     }
 
     void visit( Import* i )
     {
+        // NOP
     }
 
     void visit( Procedure* m)
     {
-        if( m->d_type->d_ident == 0 )
+        //if( m->d_type->d_ident == 0 )
+        if( m->d_type )
             m->d_type->accept(this);
+
+        if( m->d_receiver )
+            m->d_receiver->accept(this);
 
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);
@@ -146,18 +164,22 @@ struct HitTest : public AstVisitor
 
     void visit( Call* c )
     {
-        c->d_what->accept(this);
+        if( c->d_what )
+            c->d_what->accept(this);
     }
 
     void visit( Return* r )
     {
-        r->d_what->accept(this);
+        if( r->d_what )
+            r->d_what->accept(this);
     }
 
     void visit( Assign* a )
     {
-        a->d_lhs->accept(this);
-        a->d_rhs->accept(this);
+        if( a->d_lhs)
+            a->d_lhs->accept(this);
+        if( a->d_rhs )
+            a->d_rhs->accept(this);
     }
 
     void visit( IfLoop* l )
@@ -176,17 +198,22 @@ struct HitTest : public AstVisitor
 
     void visit( ForLoop* l )
     {
-        l->d_id->accept(this);
-        l->d_from->accept(this);
-        l->d_to->accept(this);
-        l->d_by->accept(this);
+        if( l->d_id )
+            l->d_id->accept(this);
+        if( l->d_from )
+            l->d_from->accept(this);
+        if( l->d_to )
+            l->d_to->accept(this);
+        if( l->d_by )
+            l->d_by->accept(this);
         for( int i = 0; i < l->d_do.size(); i++ )
             l->d_do[i]->accept(this);
     }
 
     void visit( CaseStmt* c )
     {
-        c->d_exp->accept(this);
+        if( c->d_exp )
+            c->d_exp->accept(this);
         for( int i = 0; i < c->d_cases.size(); i++ )
         {
             for( int j = 0; j < c->d_cases[i].d_labels.size(); j++ )
@@ -196,7 +223,7 @@ struct HitTest : public AstVisitor
         }
     }
 
-    void visit( Literal* ) {}
+    void visit( Literal* ) {} // NOP
 
     void visit( SetExpr* s )
     {
@@ -211,38 +238,58 @@ struct HitTest : public AstVisitor
 
     void visit( UnExpr* e )
     {
-        e->d_sub->accept(this);
+        if( e->d_sub )
+            e->d_sub->accept(this);
     }
 
     void visit( IdentSel* e )
     {
-        e->d_sub->accept(this);
+        if( e->d_sub )
+            e->d_sub->accept(this);
         test(e);
     }
 
-    void visit( CallExpr* c )
+    void visit( ArgExpr* c )
     {
-        c->d_sub->accept(this);
-        for( int i = 0; i < c->d_actuals.size(); i++ )
-            c->d_actuals[i]->accept(this);
+        if( c->d_sub )
+            c->d_sub->accept(this);
+        for( int i = 0; i < c->d_args.size(); i++ )
+            c->d_args[i]->accept(this);
     }
 
     void visit( BinExpr* e )
     {
-        e->d_lhs->accept(this);
-        e->d_rhs->accept(this);
+        if( e->d_lhs )
+            e->d_lhs->accept(this);
+        if( e->d_rhs )
+            e->d_rhs->accept(this);
     }
+
+    virtual void visit( Enumeration* me )
+    {
+        foreach( const Ref<Const>& c, me->d_items )
+            c->accept(this);
+    }
+
+    virtual void visit( GenericName* v)
+    {
+        //if( v->d_type->d_ident == 0 )
+        if( v->d_type )
+            v->d_type->accept(this);
+    }
+
 };
 
 Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInOakwood(false),
     d_useBuiltInObSysInner(false)
 {
-    d_mdl = new Ast::Model(this);
-    d_mdl->setSenseExt(true);
+    d_mdl = new Model(this);
+    //d_mdl->setSenseExt(true);
     d_mdl->getErrs()->setRecord(true);
+    d_mdl->getErrs()->setReportToConsole(true); // TEST
     d_mdl->setFillXref(true);
 
-    d_suffixes << ".Mod" << ".obn";
+    d_suffixes << ".Mod" << ".obn" << ".obx" << ".def";
 }
 
 void Project::clear()
@@ -267,8 +314,8 @@ bool Project::initializeFromDir(const QDir& dir, bool recursive)
     d_dirty = false;
 
     QStringList files = findFiles(dir, recursive);
-    foreach( const QString& f, files )
-        d_files.insert(f,File(f));
+    foreach( const QString& filePath, files )
+        d_files.insert(filePath,File(filePath));
     emit sigRenamed();
     return true;
 }
@@ -317,27 +364,27 @@ bool Project::removeFile(const QString& path)
 
 Project::FileList Project::getFilesInExecOrder() const
 {
-    const Ast::Model::Modules& order = d_mdl->getProcessingOrder();
+    const QList<Module*>& order = d_mdl->getDepOrder();
     FileList res;
-    foreach( const Ref<Ast::Module>& m, order )
+    foreach( Module* m, order )
     {
         Q_ASSERT( m );
         FileHash::const_iterator i = d_files.find( m->d_file );
-        if( i == d_files.end() || i.value().d_bc.isEmpty() || i.value().d_mod.isNull() )
+        if( i == d_files.end() || i.value().d_sourceCode.isEmpty() || i.value().d_mod.isNull() )
             continue;
         res.append( i.value() );
     }
     return res;
 }
 
-Ast::Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
+Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
 {
     FileHash::const_iterator i = d_files.find(file);
-    if( i == d_files.end() || i.value().d_mod.isNull() || i.value().d_mod->d_hasErrors )
+    if( i == d_files.end() || i.value().d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
         return 0;
     try
     {
-        HitTest hit;
+        ObxHitTest hit;
         hit.col = col;
         hit.line = line;
         i.value().d_mod->accept(&hit);
@@ -351,7 +398,7 @@ Ast::Expression* Project::findSymbolBySourcePos(const QString& file, quint32 lin
     return 0;
 }
 
-Ast::Model::ExpList Project::getUsage(Named* n) const
+ExpList Project::getUsage(Named* n) const
 {
     const Model::XRef& xref = d_mdl->getXref();
     return xref.value(n);
@@ -421,9 +468,11 @@ void Project::touch()
 
 bool Project::recompile()
 {
-    const bool res = d_mdl->parseFiles( d_files.keys() );
-    Ast::Model::Modules mods = d_mdl->getModules();
-    foreach( const Ast::Ref<Ast::Module>& m, mods )
+    Model::FileGroups fgs;
+    fgs << Obx::Model::FileGroup::fromPaths( d_files.keys() );
+    const bool res = d_mdl->parseFiles( fgs );
+    QList<Module*> mods = d_mdl->getDepOrder();
+    foreach( Module* m, mods )
     {
         if( m->d_file.isEmpty() || ( m->d_isDef && !d_files.contains(m->d_file) ) )
             continue; // e.g. SYSTEM
@@ -447,15 +496,15 @@ bool Project::generate()
     for( i = d_files.begin(); i != d_files.end(); ++i )
     {
         if( i.value().d_mod.isNull() || i.value().d_mod->d_hasErrors || i.value().d_mod->d_isDef )
-            i.value().d_bc.clear();
+            i.value().d_sourceCode.clear();
         else
         {
             qDebug() << "generating" << i.value().d_mod->d_name;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
-            LjbcGen::translate(i.value().d_mod.data(), &buf, d_mdl->getErrs() );
+            // TODO LjbcGen::translate(i.value().d_mod.data(), &buf, d_mdl->getErrs() );
             buf.close();
-            i.value().d_bc = buf.buffer();
+            i.value().d_sourceCode = buf.buffer();
         }
     }
     return errs == d_mdl->getErrs()->getErrCount();

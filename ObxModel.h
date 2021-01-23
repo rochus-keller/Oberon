@@ -34,11 +34,12 @@ namespace Obx
     public:
         struct FileGroup
         {
-            QString d_root; // absolute path to root directory of file group
-            QStringList d_files; // file paths relative to root
-            static QByteArrayList toFullName(const QString& relativeFileName);
+            QString d_root; // absolute path to root directory of file group, or empty
+            QStringList d_files; // file paths relative to root, or absolute if there is no root
+            static QByteArrayList toFullName(const QString& filePath);
             QStringList absolutePaths() const;
-            static FileGroup fromPaths( const QString& root, const QStringList& files );
+            static FileGroup fromPaths( const QString& root, const QStringList& files ); // root may be empty
+            static FileGroup fromPaths( const QStringList& files ) { return fromPaths( QString(), files ); }
         };
         typedef QList<FileGroup> FileGroups;
 
@@ -46,9 +47,17 @@ namespace Obx
         void clear();
 
         bool parseFiles(const FileGroups& files);
-        Ref<Module> parseFile( const QString& path ) const;
-        Ref<Module> parseFile(QIODevice* , const QString& path) const;
+        Ref<Module> parseFile( const QString& path );
+        Ref<Module> parseFile(QIODevice* , const QString& path);
+        const QList<Module*>& getDepOrder() const { return d_depOrder; }
+        quint32 getSloc() const { return d_sloc; }
+
+        void setFillXref( bool b ) { d_fillXref = b; }
+        typedef QHash<Named*, ExpList > XRef; // name used by ident expression
+        const XRef& getXref() const { return d_xref; }
+
         Ob::Errors* getErrs() const { return d_errs; }
+        Ob::FileCache* getFc() const { return d_fc; }
 
     protected:
         void unbindFromGlobal();
@@ -58,6 +67,7 @@ namespace Obx
         bool error( const QString& file, const QString& msg );
         bool error( const Ob::Loc& loc, const QString& msg );
     private:
+        struct CrossReferencer;
         Ref<Scope> d_globals;
         Ref<Scope> d_globalsLower;
         QHash<QByteArray,QByteArray> d_preload;
@@ -74,14 +84,17 @@ namespace Obx
         Ref<BaseType> d_nilType;
         Ref<BaseType> d_anyType;
         Ref<BaseType> d_anyNum;
-        Ref<BaseType> d_anyRec;
+        Ref<Record> d_anyRec;
         Ref<Module> d_systemModule;
         QList<Module*> d_depOrder; // most (0) to least (n-1) dependent
         typedef QHash<QByteArrayList,Ref<Module> > Modules;
-        Modules d_modules;
+        Modules d_modules, d_others;
+        XRef d_xref;
+        quint32 d_sloc;
 
         Ob::Errors* d_errs;
         Ob::FileCache* d_fc;
+        bool d_fillXref;
     };
 }
 

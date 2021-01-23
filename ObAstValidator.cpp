@@ -26,7 +26,7 @@ using namespace Ob::Ast;
 
 static const bool s_strict = false; // TODO
 
-struct ValidatorImp : public AstVisitor
+struct ObValidatorImp : public AstVisitor
 {
     Errors* err;
     Model::BaseTypes bt;
@@ -991,7 +991,7 @@ bool Validator::validate(Model* mdl, Module* m, Errors* err)
 
     const quint32 errCount = err->getErrCount();
 
-    ValidatorImp imp;
+    ObValidatorImp imp;
     imp.err = err;
     imp.bt = mdl->getBaseTypes();
     imp.mod = m;
