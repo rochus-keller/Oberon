@@ -555,9 +555,11 @@ void ObxGen::procedureDeclaration(const CodeModel::Unit* u, SynTree* st)
         {
             switch( st->d_children[i]->d_tok.d_type )
             {
+#ifdef OB_OBN2
             case SynTree::R_Receiver:
                 receiver( p, st->d_children[i] );
                 break;
+#endif
             case SynTree::R_identdef:
                 identdef( u, st->d_children[i] );
                 break;
@@ -699,9 +701,11 @@ const CodeModel::Procedure* ObxGen::procedureHeading(const CodeModel::Unit* u, S
         case Tok_Rbrack:
             break; // ignore
 #endif
+#ifdef OB_OBN2
         case SynTree::R_Receiver:
             receiver(p,first);
             break;
+#endif
         case SynTree::R_identdef:
             identdef(u,first);
             break;
@@ -1002,7 +1006,10 @@ void ObxGen::type(const CodeModel::Unit* u, SynTree* st)
 
 SynTree* ObxGen::getTypeSysFlag(const CodeModel::Unit* u, SynTree* st)
 {
+#ifdef OB_BBOX
     SynTree* type = CodeModel::findFirstChild(st, SynTree::R_type );
+    if( type == 0 )
+        return 0;
     Q_ASSERT( type && !type->d_children.isEmpty() && type->d_tok.d_type == SynTree::R_type );
     SynTree* first = type->d_children.first();
     switch( first->d_tok.d_type )
@@ -1023,6 +1030,8 @@ SynTree* ObxGen::getTypeSysFlag(const CodeModel::Unit* u, SynTree* st)
     default:
         return 0;
     }
+#endif
+    return 0;
 }
 
 void ObxGen::type(const CodeModel::Unit* u, const CodeModel::Type* t)
@@ -1141,8 +1150,10 @@ void ObxGen::arrayType(const CodeModel::Unit* u, SynTree* st)
 {
     Q_ASSERT( !st->d_children.isEmpty() && st->d_tok.d_type == SynTree::R_ArrayType );
     SynTree* flag = 0;
+#ifdef OB_BBOX
     if( genSysFlags || genUnsafe )
         flag = findFirstChild( st, SynTree::R_SysFlag, 1 );
+#endif
     if( genUnsafe && flag )
         print( "carray ", st->d_children.first() );
     else
@@ -1176,8 +1187,10 @@ void ObxGen::recordType(const CodeModel::Unit* u, SynTree* st)
     }
 #endif
     SynTree* flag = 0;
+#ifdef OB_BBOX
     if( genSysFlags || genUnsafe )
         flag = findFirstChild( st, SynTree::R_SysFlag, 1 );
+#endif
     if( genUnsafe && flag )
     {
         SynTree* id = CodeModel::flatten(flag, Tok_ident );
@@ -1212,8 +1225,10 @@ void ObxGen::pointerType(const CodeModel::Unit* u, SynTree* st)
     Q_ASSERT( !st->d_children.isEmpty() && st->d_tok.d_type == SynTree::R_PointerType );
 
     SynTree* flag = 0;
+#ifdef OB_BBOX
     if( genSysFlags || genUnsafe )
         flag = findFirstChild( st, SynTree::R_SysFlag, 1 );
+#endif
     if( genUnsafe && flag == 0 )
         flag = getTypeSysFlag( u, st->d_children.last() );
     if( genUnsafe && flag )

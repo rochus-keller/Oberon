@@ -302,15 +302,34 @@ struct ValidatorImp : public AstVisitor
 
             const int tftag = tf->getTag();
             Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
+            const int tatag = ta->getTag();
 
 #ifdef OBX_BBOX
-            if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && ta->getTag() == Thing::T_Pointer )
+            if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && tatag == Thing::T_Pointer )
             {
                 me->d_args[i] = new UnExpr(UnExpr::DEREF, actual ); // implicit deref if actual is ptr and formal is arr or rec
                 Pointer* p = cast<Pointer*>(ta);
                 ta = derefed(p->d_to.data());
                 me->d_args[i]->d_type = ta;
                 actual = me->d_args[i].data();
+            }
+#endif
+
+#ifdef OBX_BBOX
+            if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
+                                               || ta == bt.d_stringType || ta == bt.d_charType ) )
+            {
+                Pointer* p = cast<Pointer*>(tf);
+                if( p->d_unsafe )
+                {
+                    Type* lhsT = derefed( p->d_to.data() );
+                    const int lhsTag = lhsT ? lhsT->getTag() : 0;
+                    Q_ASSERT( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array );
+                    if( lhsTag == Thing::T_Record && typeExtension( lhsT, ta ) )
+                        return; // assign the address of record to unsafe pointer to record
+                    if( lhsTag == Thing::T_Array && arrayCompatible( lhsT, ta ) )
+                        return; // assign the address of array to unsafe pointer to array
+                }
             }
 #endif
 
@@ -325,7 +344,7 @@ struct ValidatorImp : public AstVisitor
                            .arg(formal->d_name.constData()));
             }
 #ifdef OBX_BBOX
-            else if( toCharArray(tf) && ta == bt.d_stringType )
+            else if( toCharArray(tf, false) && ( ta == bt.d_stringType || ta == bt.d_charType ) )
                 ; // NOP
 #endif
             else if( !paramCompatible( formal, actual ) )
@@ -1103,7 +1122,8 @@ struct ValidatorImp : public AstVisitor
             me->d_rhs->d_type = rhsT;
         }
 
-        if( lhsTag == Thing::T_Pointer && ( rhsTag == Thing::T_Record || rhsTag == Thing::T_Array || rhsT == bt.d_stringType ) )
+        if( lhsTag == Thing::T_Pointer && ( rhsTag == Thing::T_Record || rhsTag == Thing::T_Array
+                                            || rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
         {
             Pointer* p = cast<Pointer*>(lhsT);
             if( p->d_unsafe )
@@ -1118,7 +1138,7 @@ struct ValidatorImp : public AstVisitor
             }
         }
 #endif
-        Array* str = toCharArray(lhsT);
+        Array* str = toCharArray(lhsT,false);
         if( str && me->d_rhs->getTag() == Thing::T_Literal )
         {
             Literal* lit = cast<Literal*>( me->d_rhs.data() );
