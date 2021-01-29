@@ -118,10 +118,6 @@ void CodeModel::clear()
     d_scope.d_elems.append( new Element( Element::PACK ) );
     d_scope.d_elems.append( new Element( Element::UNPK ) );
     d_scope.d_elems.append( new Element( Element::LED ) );
-    d_scope.d_elems.append( new Element( Element::WriteInt ) );
-    d_scope.d_elems.append( new Element( Element::WriteReal ) );
-    d_scope.d_elems.append( new Element( Element::WriteChar ) );
-    d_scope.d_elems.append( new Element( Element::WriteLn ) );
 #ifdef OB_OBN2
     d_scope.d_elems.append( new Element( Element::MAX ) );
     d_scope.d_elems.append( new Element( Element::CAP ) );
@@ -1618,9 +1614,6 @@ CodeModel::DesigOpList CodeModel::derefDesignator(CodeModel::Unit* ds, SynTree* 
             if( report )
                 error( Errors::Semantics, dP ? dP : t, tr("invalid operation '%1' on designator '%2'")
                            .arg(toString(desig.mid(i,1),true)).arg(toString(desig.mid(0,i))) );
-            const NamedThing* next = applyDesigOp( ds, desig[i-1].d_sym, desig[i], &err, synthesize,
-                    i == desig.size() - 1 ? expected : 0 );
-
             break;
         }else if( err == MissingType )
         {
@@ -2835,10 +2828,6 @@ const char* CodeModel::Element::s_kindName[] =
     "UNPK",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
     "BITS", "INF", "TRUE", "FALSE",
-    "WriteInt",
-    "WriteReal",
-    "WriteChar",
-    "WriteLn",
     "LED",
     "Constant",
     "Variable",

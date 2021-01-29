@@ -260,6 +260,9 @@ static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
         qDebug() << "completed with" << model.getErrs()->getErrCount() << "errors and" <<
                     model.getErrs()->getWrnCount() << "warnings";
     }
+#ifdef _DEBUG
+        qDebug() << "things count peak" << Obx::Thing::insts.size();
+#endif
 
     return model.getErrs()->getErrCount() ? -1 : 0;
 }
@@ -463,8 +466,22 @@ int main(int argc, char *argv[])
             return -1;
     }else if( gen == 4 )
     {
-        if( docompile2(fgs,mod,outPath,forceObnExt,useOakwood,dump) < 0 )
-            return -1;
+#ifdef _DEBUG
+        const quint32 before = Obx::Thing::insts.size();
+        qDebug() << "things count before" << before;
+#endif
+        const int res = docompile2(fgs,mod,outPath,forceObnExt,useOakwood,dump);
+#ifdef _DEBUG
+        const quint32 after = Obx::Thing::insts.size();
+        qDebug() << "things count after" << after;
+        QHash<int,int> counts; // tag -> inst count
+        foreach( Obx::Thing* t, Obx::Thing::insts )
+            counts[t->getTag()]++;
+        QHash<int,int>::const_iterator i;
+        for( i = counts.begin(); i != counts.end(); ++i )
+            qDebug() << Obx::Thing::s_tagName[i.key()] << i.value();
+#endif
+        return res;
     }else
     {
         qCritical() << "invalid generator selected (see -h for more information):" << gen;

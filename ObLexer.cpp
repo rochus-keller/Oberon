@@ -64,7 +64,8 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
             b->buffer().replace( '\r', '\n' );
             b->open(QIODevice::ReadOnly);
             d_in = b;
-        }
+        }else
+            skipBom( d_in );
     }
 }
 
@@ -416,11 +417,12 @@ Token Lexer::number()
 
     if( isChar )
     {
+#if 0
         const quint32 ch = str.left(str.size()-1).toUInt(0,16);
         if( d_err && ch > 255 )
             d_err->warning( Errors::Semantics, d_sourcePath, startLine, startCol,
                             tr("character literal %1 using more than one byte").arg(str.constData()));
-
+#endif
         return token( Tok_hexchar, off, str );
     }
     else if( isReal)
@@ -484,6 +486,17 @@ bool Lexer::skipOberonHeader(QIODevice* in)
         return false;
 }
 
+bool Lexer::skipBom(QIODevice* in)
+{
+    const QByteArray buf = in->peek(3);
+    if( buf.size() == 3 && buf[0] == 0xef && buf[1] == 0xbb && buf[2] == 0xbf )
+    {
+        in->read(3);
+        return true;
+    }else
+        return false;
+}
+
 Token Lexer::comment()
 {
     const int startLine = d_lineNr;
@@ -529,9 +542,6 @@ Token Lexer::comment()
 
 Token Lexer::string()
 {
-    const int startLine = d_lineNr;
-    const int startCol = d_colNr;
-
     const char quote = lookAhead(0);
     int off = 1;
     while( true )
@@ -543,31 +553,7 @@ Token Lexer::string()
         if( c == 0 )
             return token( Tok_Invalid, off, "non-terminated string" );
     }
-    QByteArray str = d_line.mid(d_colNr, off );
-#ifdef OBX_BBOX
-    if( isUtf8(str) )
-    {
-        const QString unicode = QString::fromUtf8(str);
-        //const QString unicode16 = QString::fromUtf16(str);
-        const QByteArray latin1 = unicode.toLatin1();
-        isUtf8(str);
-        if( str != latin1 )
-        {
-            if( d_err )
-            {
-                if( unicode != QString::fromLatin1(latin1) )
-                    d_err->warning( Errors::Semantics, d_sourcePath, startLine, startCol,
-                                    tr("string literal %1 is likely unicode; information lost when converted to latin-1 %2")
-                                    .arg(unicode).arg(latin1.constData()));
-                else
-                    d_err->warning( Errors::Semantics, d_sourcePath, startLine, startCol,
-                                tr("string literal %1 is likely unicode; converted to latin-1")
-                                .arg(unicode));
-            }
-            str = latin1;
-        }
-    }
-#endif
+    const QByteArray str = d_line.mid(d_colNr, off );
     return token( Tok_string, off, str );
 }
 

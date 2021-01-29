@@ -32,18 +32,19 @@ namespace Obx
         {
             BaseType* d_boolType;
             BaseType* d_charType;
+            BaseType* d_wcharType;
             BaseType* d_byteType;
             BaseType* d_intType;
             BaseType* d_shortType;
             BaseType* d_longType;
             BaseType* d_realType;
-            BaseType* d_doubleType;
+            BaseType* d_longrealType;
             BaseType* d_setType;
             BaseType* d_stringType;
+            BaseType* d_wstringType;
             BaseType* d_nilType;
             Record* d_anyRec;
             BaseType* d_anyType;
-            BaseType* d_anyNum;
             BaseTypes();
             void assert() const;
         };

@@ -61,6 +61,13 @@ void Highlighter::setEnableExt(bool b)
     }
 }
 
+void Highlighter::addBuiltIn(const QByteArray& bi)
+{
+    d_builtins << bi;
+    if( d_enableExt )
+        d_builtins << bi.toLower();
+}
+
 QTextCharFormat Highlighter::formatForCategory(int c) const
 {
     return d_format[c];

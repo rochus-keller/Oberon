@@ -114,5 +114,5 @@ CONFIG(debug, debug|release) {
 }
 
 RESOURCES += \
-    OberonIde.qrc
+    ObxIde.qrc
 

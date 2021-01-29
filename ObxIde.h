@@ -42,6 +42,7 @@ namespace Obx
 {
     class Project;
     class Named;
+    class Module;
     class Expression;
 
     class Ide : public QMainWindow
@@ -57,9 +58,22 @@ namespace Obx
 
     protected:
         class Editor;
+        struct Location
+        {
+            // Qt-Koordinaten
+            quint32 d_line;
+            quint16 d_col;
+            quint16 d_yoff;
+            QString d_file;
+            bool operator==( const Location& rhs ) { return d_line == rhs.d_line && d_col == rhs.d_col &&
+                        d_file == rhs.d_file; }
+            Location(const QString& f, quint32 l, quint16 c, quint16 y ):d_file(f),d_line(l),d_col(c),d_yoff(y){}
+        };
         void createTerminal();
         void createDumpView();
         void createMods();
+        void createMod();
+        void createHier();
         void createErrs();
         void createXref();
         void createStack();
@@ -72,8 +86,9 @@ namespace Obx
         void fillMods();
         void showDocument( const QString& filePath );
         void addTopCommands(Gui::AutoMenu * pop);
-        void showEditor( const QString& path, int row = -1, int col = -1, bool setMarker = false );
-        void showEditor(Named* , bool setMarker = false);
+        Editor* showEditor(const QString& path, int row = -1, int col = -1, bool setMarker = false , bool center = false);
+        void showEditor(Named*, bool setMarker = false, bool center = false);
+        void showEditor( const Location& );
         void createMenu( Editor* );
         void addDebugMenu(Gui::AutoMenu * pop);
         bool luaRuntimeMessage(const QByteArray&, const QString& file);
@@ -81,18 +96,10 @@ namespace Obx
         void fillXref(Named*);
         void fillStack();
         void fillLocals();
+        void fillModule(Module*);
+        void fillHier(Named*);
         void removePosMarkers();
         void enableDbgMenu();
-        struct Location
-        {
-            // Qt-Koordinaten
-            int d_line;
-            int d_col;
-            QString d_file;
-            bool operator==( const Location& rhs ) { return d_line == rhs.d_line && d_col == rhs.d_col &&
-                        d_file == rhs.d_file; }
-            Location(const QString& f, int l, int c ):d_file(f),d_line(l),d_col(c){}
-        };
         void pushLocation( const Location& );
 
     protected slots:
@@ -112,6 +119,8 @@ namespace Obx
         void onExportBc();
         void onExportAsm();
         void onModsDblClicked(QTreeWidgetItem*,int);
+        void onModDblClicked(QTreeWidgetItem*,int);
+        void onHierDblClicked(QTreeWidgetItem*,int);
         void onStackDblClicked(QTreeWidgetItem*,int);
         void onTabChanged();
         void onTabClosing(int);
@@ -147,9 +156,14 @@ namespace Obx
         Lua::BcViewer2* d_bcv;
         Lua::Terminal2* d_term;
         QTreeWidget* d_mods;
+        QTreeWidget* d_mod;
+        QTreeWidget* d_hier;
+        QHash<Named*,QTreeWidgetItem*> d_modIdx;
         QTreeWidget* d_stack;
         QTreeWidget* d_locals;
         QLabel* d_xrefTitle;
+        QLabel* d_modTitle;
+        QLabel* d_hierTitle;
         QTreeWidget* d_xref;
         QTreeWidget* d_errs;
         QList<Location> d_backHisto; // d_backHisto.last() ist aktuell angezeigtes Objekt
@@ -159,7 +173,7 @@ namespace Obx
         QAction* d_dbgContinue;
         QAction* d_dbgStepIn;
         QByteArray d_curBc;
-        bool d_lock;
+        bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
     };

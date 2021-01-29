@@ -34,7 +34,7 @@ const char* Thing::s_tagName[] =
 
 const char* BaseType::s_typeName[] =
 {
-    "ANY", "ANYNUM", "NIL", "STRING", "BOOLEAN", "CHAR", "BYTE",
+    "ANY", "NIL", "STRING", "WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
     "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET"
 };
 
@@ -42,7 +42,6 @@ const char* BuiltIn::s_typeName[] =
 {
     "ABS", "ODD", "LEN", "LSL", "ASR", "ROR", "FLOOR", "FLT", "ORD",
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
-    "WriteInt", "WriteReal", "WriteChar", "WriteLn",
     "LED", "TRAP", "TRAPIF",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
@@ -52,13 +51,13 @@ const char* BuiltIn::s_typeName[] =
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN"
+    "VAL", "STRLEN", "WCHR"
 };
 
 const char* UnExpr::s_opName[] =
 {
     "???",
-    "NEG", "NOT", "DEREF", "CAST", "SEL", "CALL", "IDX"
+    "NEG", "NOT", "DEREF", "ADDROF", "CAST", "SEL", "CALL", "IDX"
 };
 
 const char* BinExpr::s_opName[] =
@@ -280,7 +279,7 @@ QString QualiType::pretty() const
 }
 
 
-IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t):d_ident(id)
+IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, IdentRole r):d_ident(id),d_role(r)
 {
     d_loc = loc;
     d_type = t;

@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-01-23
+:revdate: 2021-01-29
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -69,7 +69,8 @@ An extended Backus-Naur Formalism (EBNF) is used to describe the syntax of Obero
  - Symbols of the language vocabulary (terminal symbols) are denoted by strings enclosed in quotation marks or by words in capital letters.
 
 == Vocabulary and Representation
-The representation of (terminal) symbols in terms of characters is defined using the ISO/IEC 8859-1 character set. Symbols are identifiers, numbers, strings, operators, and delimiters. Source files are encoded with one byte per character. 
+Oberon+ source code is a string of characters encoded using the UTF-8 variable-width encoding as defined in ISO/IEC 10646. 
+Identifiers, numbers, operators, and delimiters are represented using the ASCII character set; strings and comments can be either represented in the ASCII, Latin-1 (as defined in ISO/IEC 8859-1) or the Unicode Basic Multilingual Plane (BMP, plane 0, as defined in ISO/IEC 10646) character set.
 
 The following lexical rules apply: blanks and line breaks must not occur within symbols (except in comments, and blanks in strings); they are ignored unless they are essential to separate two consecutive symbols. Capital and lower-case letters are considered as distinct.
 
@@ -124,10 +125,10 @@ Character constants are denoted by the ordinal number of the character in hexade
 character = digit {hexDigit} ('X' | 'x')
 ....
 
-Each character is encoded as a single eight-bit code value using the ISO/IEC 8859-1 encoding scheme.
+A character is either encoded as a 8-bit code value using the ISO/IEC 8859-1 Latin-1 encoding scheme or a 16-bit code value using the Unicode BMP scheme.
 
 === Strings
-Strings are sequences of characters encoded using the ISO/IEC 8859-1 scheme and enclosed in single (') or double (") quote marks. The opening quote must be the same as the closing quote and must not occur within the string. The number of characters in a string is called its length. A string of length 1 can be used wherever a character constant is allowed and vice versa.
+Strings are sequences of characters enclosed in single (') or double (") quote marks. The opening quote must be the same as the closing quote and must not occur within the string. The number of characters in a string is called its length. A string of length 1 can be used wherever a character constant is allowed and vice versa.
 
 .Syntax:
 ....
@@ -288,6 +289,7 @@ The following identifiers are predeclared; their meaning is defined in the indic
 |SIZE 
 |UNPK     
 |VAL
+|WCHR
 |
 |
 |
@@ -295,7 +297,6 @@ The following identifiers are predeclared; their meaning is defined in the indic
 
 [NOTE]
 BYTE, ASR, FLOOR, ROR, LSL, FLT, PACK and UNPK are predeclared identifiers in Oberon-07 and Oberon+, but not in Oberon-2. All lower-case versions are only predeclared in Oberon+. 
-The compiler is supposed to offer a dedicated Oberon-2 and Oberon-07 compatibility mode to support legacy code with predeclared identifier collisions.
 
 == Constant declarations
 A constant declaration associates an identifier with a constant value.
@@ -361,6 +362,7 @@ The basic types are denoted by predeclared identifiers. The associated operators
 //| F32, f32 |  32 bit IEEE 754 floating point number between -3.4e38 and 3.4e38
 //| F64, f64 |  64 bit IEEE 754 floating point number between -1.8e308 and 1.8e308
 | SET, set       |  the sets of integers between 0 and MAX(SET)
+| WCHAR, wchar	 | the characters of the Unicode BMP set (0x .. 0d7ffx, 0f900x .. 0ffffx)
 |====================================================
 
 Types LONGINT, INTEGER, SHORTINT and BYTE are integer types, types REAL and LONGREAL are floating point types, and together they are called numeric types. INT is the abbreviation for INTEGER. The specific bit precision of these types (besides BYTE) is implementation specific, but the larger type includes (the values of) the smaller type according to the following relations:
@@ -371,10 +373,11 @@ LONGINT >= INTEGER >= SHORTINT >= BYTE
 LONGREAL >= REAL
 REAL >= SHORTINT
 LONGREAL >= LONGINT
+WCHAR >= CHAR
 ....
 
 [NOTE]
-The precision of BYTE and CHAR is 8 bits. The bit precision of LONGINT is limited by the bit precision of the LONGREAL mantissa bit precision (which is 52 bits in case of IEEE 754 double precision representation). REAL is not expected to (fully) include INTEGER; if an INTEGER is assigned to a REAL, the compiler issues a warning unless the predeclared function FLT is used. The bit precision of SHORTINT is equal or greater than the bit precision of BYTE.
+The precision of BYTE and CHAR is 8 bits. The precision of WCHAR is 16 bits. The bit precision of LONGINT is limited by the bit precision of the LONGREAL mantissa bit precision (which is 52 bits in case of IEEE 754 double precision representation). REAL is not expected to (fully) include INTEGER; if an INTEGER is assigned to a REAL, the compiler issues a warning unless the predeclared function FLT is used. The bit precision of SHORTINT is equal or greater than the bit precision of BYTE.
 
 === Array types
 An array is a structure consisting of a number of elements which are all of the same type, called the element type. The number of elements of an array is called its length. The elements of the array are designated by indices, which are integers between 0 and the length minus 1.
@@ -402,7 +405,7 @@ array L1 of
 array Ln of T
 ....
 
-Arrays declared without length are called _open arrays_. They are restricted to pointer base types (see <<Pointer types>>), element types of open array types, and formal parameter types (see <<Formal parameters>>). Arrays declared with length are called _closed arrays_.
+Arrays declared without length are called _open arrays_. They are restricted to pointer base types (see <<Pointer types>>), element types of open array types, and formal parameter types (see <<Formal parameters>>). 
 
 .Examples:
 ....
@@ -455,10 +458,10 @@ Variables of a pointer type P assume as values pointers to variables of some typ
 PointerType = ( POINTER TO | '^' ) type
 ....
 
-If p is a variable of type `P = POINTER TO T`, a call of the predeclared procedure `NEW(p)` (see <<Predeclared procedures>>) allocates a variable of type T in free storage. If T is a record type or an array type with fixed length, the allocation has to be done with `NEW(p)`; if T is an n-dimensional open array type the allocation has to be done with `NEW(p, e~0~, ..., e~n-1~)` where T is allocated with lengths given by the expressions e~0~, ..., e~n-1~. In either case a pointer to the allocated variable is assigned to `p`. `p` is of type P. The referenced variable `p^` is of type T. Any pointer variable may assume the value NIL, which points to no variable at all. 
+If p is a variable of type `P = POINTER TO T`, a call of the predeclared procedure `NEW(p)` (see <<Predeclared procedures>>) allocates a variable of type T in free storage. If T is a record type or an array type with fixed length, the allocation has to be done with `NEW(p)`; if T is an n-dimensional open array type the allocation has to be done with `NEW(p, e~0~, ..., e~n-1~)` where T is allocated with lengths given by the expressions e~0~, ..., e~n-1~. In either case a pointer to the allocated variable is assigned to `p`. `p` is of type P. The referenced variable `p^` is of type T. Any pointer variable may assume the value NIL, which points to no variable at all. All pointer fields or elements of a newly allocated record or array are set to NIL.
 
 === Procedure types
-Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists and result types (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). P must not be a predeclared or type-bound procedure nor may it be local to another procedure.
+Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists and result types (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). A procedure P assigned to a variable or a formal parameter must not be a predeclared or type-bound procedure nor may it be local to another procedure.
 
 .Syntax:
 ....
@@ -977,6 +980,8 @@ FormalType       = type
 
 Let T~f~ be the type of a formal parameter `f` and T~a~ the type of the corresponding actual parameter `a`. If T~f~ is an open array, then T~a~ must be _array compatible_ to `f`; the lengths of `f` are taken from `a`. Otherwise T~a~ must be _parameter compatible_ to `f` (see <<Definition of terms>>).
 
+[NOTE]
+Also value parameters can have an open array type, but for efficiency reasons (to avoid unneccessary copying) open arrays should be VAR or IN parameters.
 
 .Examples:
 ....
@@ -1069,7 +1074,8 @@ The following table lists the predeclared procedures. Some are generic procedure
 |ASH(x, n)   |x, n: INTEGER        |INTEGER        |arithmetic shift (x * 2^n^)
 |ASR(x, n)   |x, n: INTEGER        |INTEGER        |signed shift right, x DIV 2^n^
 |CAP(x)      |CHAR                 |CHAR           |x is letter: corresponding capital letter
-|CHR(x)      |integer type         |CHAR           |character with ordinal number x
+|            |WCHAR                |WCHAR          |
+|CHR(x)      |integer type         |CHAR           |Latin-1 character with ordinal number x
 |ENTIER(x)   |real type            |LONGINT        |largest integer not greater than x
 |FLOOR(x)    |                     |INTEGER        |
 |FLT(x)      |INTEGER              |REAL           |identity
@@ -1087,7 +1093,7 @@ The following table lists the predeclared procedures. Some are generic procedure
 |            |T = SET              |INTEGER        |0
 |            |T = enumeration type |T              |first element of the enumeration
 |ODD(x)      |integer type         |BOOLEAN        |x MOD 2 = 1
-|ORD(x)      |CHAR                 |INTEGER        |ordinal number of x
+|ORD(x)      |CHAR or WCHAR        |INTEGER        |ordinal number of x
 |            |enumeration type     |INTEGER        |ordinal number of the given identifier
 |ROR(x, n)   |x, n: INTEGER        |INTEGER        |x rotated right by n bits
 |SHORT(x)    |LONGINT              |INTEGER        |identity
@@ -1097,6 +1103,7 @@ The following table lists the predeclared procedures. Some are generic procedure
 |STRLEN(s)   |s: array of char     |INTEGER        |dynamic length of the string up to and not including the first 0X
 |            |s: string            |               |same as LEN(s)
 |VAL(T,x)	 |T:enumeration type x:ordinal number|enumeration type|the value with the ordinal number x.
+|WCHR(x)      |integer type        |WCHAR          |Unicode BMP character with ordinal number x
 |===  
 
 [NOTE]
@@ -1244,6 +1251,7 @@ declarations = { CONST { ConstDeclaration [';'] }
 
 // TODO: specify interoperability rules with C, possibly with C specific data structures and procedures, including manual memory management.
 // unsafe pointer, carray, cstruct, cunion
+// unsafe pointer to integer etc.
 
 [appendix]
 == Definition of terms
@@ -1273,7 +1281,7 @@ Equal types::
     4. T~a~ and T~b~ are pointer types with _equal_ base types.
 
 Type inclusion::
-    Numeric types include (the values of) smaller numeric types. See <<type-inclusion-relations, here>> for more information.
+    Numeric types include (the values of) smaller numeric types. WCHAR includes the values of CHAR. See <<type-inclusion-relations, here>> for more information.
 	
 Type extension (record)::
     Given a type declaration T~b~ = RECORD(T~a~)...END, T~b~ is a direct extension of T~a~, and T~a~ is a direct base type of T~b~. A type T~b~ is an extension of a type T~a~ (T~a~ is a base type of T~b~) if
@@ -1284,20 +1292,21 @@ Type extension (record)::
 Type extension (pointer)::
     If P~a~ = POINTER TO T~a~ and P~b~ = POINTER TO T~b~ , P~b~ is an extension of P~a~ (P~a~ is a base type of P~b~) if T~b~ is an extension of T~a~. 
     
+
 Assignment compatible::
     An expression e of type T~e~ is assignment compatible with a variable v of type T~v~ if one of the following conditions hold:
 
     . T~e~ and T~v~ are the _same type_;
-    . T~e~ and T~v~ are numeric types and T~v~ _includes_ T~e~;
+    . T~e~ and T~v~ are numeric or character types and T~v~ _includes_ T~e~ footnote:[character types include strings with length 1];
     . T~v~ is a SET type and T~e~ is of INTEGER or smaller type;
-    . T~v~ is a CHAR type and T~e~ is a string with one character;
-    . T~v~ is a BYTE type and T~e~ is a CHAR or a string with one character;
+    . T~v~ is a BYTE type and T~e~ is a Latin-1 character type;
     . T~e~ and T~v~ are record types and T~e~ is a _type extension_ of T~v~ and the dynamic type of v is T~v~;
     . T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~ or the pointers have _equal_ base types;
     . T~v~ is a pointer or a procedure type and `e` is NIL;
-    . T~v~ is ARRAY n OF CHAR and `e` is a string footnote:[which includes single characters corresponding to strings with length 1] with LEN(e) \<= LEN(v);
-    . T~v~ and T~e~ are open or closed CHAR arrays, or T~v~ is an open CHAR array and `e` is a string;
-    . T~v~ is a procedure type and e is the name of a procedure whose formal parameters match those of T~v~. 
+    . T~v~ is an array of WCHAR, T~e~ is a Unicode BMP or Latin-1 string or character array, and STRLEN(e) < LEN(v);
+    . T~v~ is an array of CHAR, T~e~ is a Latin-1 string or character array, and STRLEN(e) < LEN(v);
+    . T~v~ is a procedure type and `e` is the name of a procedure whose formal parameters _match_ those of T~v~. 
+
 
 Parameter compatible::
 	An actual parameter `a` of type T~a~ is parameter compatible with a formal parameter `f` of type T~f~ if
@@ -1311,10 +1320,11 @@ Array compatible::
 
     1. T~f~ and T~a~ are the _equal type_, or
     2. T~f~ is an open array, T~a~ is any array, and their element types are _array compatible_, or
-    3. T~f~ is a CHAR array and `a` is a string. 
+    3. T~f~ is an open array of CHAR and T~a~ is a Latin-1 string, or
+    4. T~f~ is an open array of WCHAR and T~a~ is a Unicode BMP or Latin-1 string.
 
 Expression compatible::
-    For a given operator, the types of its operands are expression compatible if they conform to the following table (which shows also the result type of the expression). CHAR arrays that are to be compared must contain 0X as a terminator. Type T1 must be an extension of type T0:
+    For a given operator, the types of its operands are expression compatible if they conform to the following table (which shows also the result type of the expression). CHAR and WCHAR arrays that are to be compared must contain 0X as a terminator. Type T1 must be an extension of type T0:
 
 [%header,cols="1,2,2,3"] 
 |===

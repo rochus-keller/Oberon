@@ -149,7 +149,7 @@ namespace Ob
             nlAfterBegin, // includes THEN, DO, etc.
             nlBeforeEnd, // includes ELSE, UNTIL, etc.
             switchBBoxTypes, // change REAL to LONGREAL, SHORTREAL to REAL, SHORTCHAR to CHAR, CHAR to WCHAR
-            noWchar,      // in case of switchBBoxTypes CHAR is not mapped to WCHAR
+            hasWchar,      // in case of switchBBoxTypes CHAR is mapped to WCHAR
             genSysFlags,
             genUnsafe
         ;

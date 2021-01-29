@@ -193,8 +193,13 @@ void Parser::identdef(Named* n, Scope* scope)
             n->d_visibility = Named::ReadOnly;
         else
             semanticError(d_cur.toLoc(), tr("export mark only allowed on module level"));
-    }else if( scope->getTag() == Thing::T_Procedure )
-        n->d_visibility = Named::NotApplicable;
+    }else
+    {
+        if( d_mod->d_isDef && scope->getTag() != Thing::T_Procedure )
+            n->d_visibility = Named::ReadWrite;
+        else
+            n->d_visibility = Named::NotApplicable;
+    }
 }
 
 void Parser::constDeclaration(Scope* scope)
@@ -424,16 +429,16 @@ Ref<QualiType> Parser::namedType(Named* id)
 
 Ref<Type> Parser::arrayType(Scope* scope, Named* id)
 {
-    Ref<Array> res = new Array();
-    res->d_ident = id;
+    Ref<Array> arr = new Array();
+    arr->d_ident = id;
     QList< Ref<Expression> > dims;
     if( d_la == Tok_ARRAY || d_la == Tok_CARRAY )
     {
         if( d_la == Tok_CARRAY )
-            res->d_unsafe = true;
+            arr->d_unsafe = true;
         next();
-        res->d_loc = d_cur.toRowCol();
-        res->d_flag = systemFlag();
+        arr->d_loc = d_cur.toRowCol();
+        arr->d_flag = systemFlag();
         if( d_la != Tok_OF )
         {
             dims = lengthList();
@@ -442,7 +447,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     }else
     {
         MATCH( Tok_Lbrack, tr("expecting '['") );
-        res->d_loc = d_cur.toRowCol();
+        arr->d_loc = d_cur.toRowCol();
         if( d_la != Tok_Rbrack )
         {
             dims = lengthList();
@@ -451,12 +456,12 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     }
 
     Ref<Type> t = type(scope,0);
-    res->d_type = t;
+    arr->d_type = t;
 
     if( !dims.isEmpty() )
     {
-        res->d_lenExpr = dims[0];
-        Ref<Array> last = res;
+        arr->d_lenExpr = dims[0];
+        Ref<Array> last = arr;
         for( int i = 1; i < dims.size(); i++ )
         {
             Ref<Array> cur = new Array();
@@ -465,15 +470,18 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
             last->d_type = cur.data();
             last = cur;
         }
+        if( arr->d_unsafe && dims.size() > 1 )
+            semanticError( arr->d_loc, tr("carray can only be declared with one dimension") );
     }
 
-    return res.data();
+    return arr.data();
 }
 
 Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
 {
     Ref<Record> res = new Record();
     res->d_ident = id;
+    res->d_binding = binding;
     switch( d_la )
     {
     case Tok_RECORD:
@@ -589,7 +597,7 @@ Ref<Expression> Parser::literal()
         return new Literal(Literal::String, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
     case Tok_hexchar:
         next();
-        return new Literal( Literal::Char, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.left( d_cur.d_val.size() - 1 ) ));
+        return new Literal( Literal::Char, d_cur.toRowCol(), d_cur.d_val.left( d_cur.d_val.size() - 1 ).toUInt(0,16));
     case Tok_NIL:
         next();
         return new Literal( Literal::Nil, d_cur.toRowCol());
@@ -631,7 +639,17 @@ Ref<Expression> Parser::length()
 
 Ref<QualiType> Parser::baseType()
 {
-    return namedType(0);
+    Ref<QualiType> res = namedType(0);
+    switch( res->d_quali->getTag() )
+    {
+    case Thing::T_IdentLeaf:
+        cast<IdentLeaf*>(res->d_quali.data())->d_role = SuperRole;
+        break;
+    case Thing::T_IdentSel:
+        cast<IdentSel*>(res->d_quali.data())->d_role = SuperRole;
+        break;
+    }
+    return res;
 }
 
 void Parser::fieldListSequence(Scope* scope, Record* r)
@@ -1634,6 +1652,7 @@ Ref<Parameter> Parser::receiver()
     MATCH( Tok_ident, tr("expecting the type name") );
     Ref<IdentLeaf> id = new IdentLeaf();
     id->d_name = d_cur.d_val;
+    id->d_role = MethRole;
     id->d_loc = d_cur.toRowCol();
     id->d_mod = d_mod.data();
 

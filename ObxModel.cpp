@@ -54,7 +54,7 @@ struct Model::CrossReferencer : public AstVisitor
     {
         stack.push_back(me);
 
-        me->d_helper << new IdentLeaf( me, me->d_loc,me, 0);
+        me->d_helper << new IdentLeaf( me, me->d_loc,me, 0, DeclRole );
         d_mdl->d_xref[me].append( me->d_helper.back().data() );
 
         foreach( const Ref<Named>& n, me->d_order )
@@ -75,25 +75,24 @@ struct Model::CrossReferencer : public AstVisitor
     {
         Q_ASSERT( !d_mod->d_helper.isEmpty() && d_mod->d_helper.first()->getIdent()->getTag() == Thing::T_Module );
 
+        IdentLeaf* e1 = new IdentLeaf( me, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc, d_mod, 0, ImportRole );
+        d_mod->d_helper.append( e1 );
+        d_mdl->d_xref[me].append( e1 );
+
         if( !me->d_mod.isNull() )
         {
-            d_mdl->d_xref[me->d_mod.data()].append( d_mod->d_helper.first().data() );
-
-            IdentLeaf* e2 = new IdentLeaf( me->d_mod.data(), me->d_loc, d_mod, 0 );
+            IdentLeaf* e2 = new IdentLeaf( me->d_mod.data(), me->d_loc, d_mod, 0, ImportRole );
             d_mod->d_helper.append( e2 );
             d_mdl->d_xref[me->d_mod.data()].append( e2 );
         }
 
-        IdentLeaf* e1 = new IdentLeaf( me, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc, d_mod, 0 );
-        d_mod->d_helper.append( e1 );
-        d_mdl->d_xref[me].append( e1 );
     }
 
     void visit( Procedure* me )
     {
         stack.push_back(me);
 
-        me->d_helper << new IdentLeaf( me, me->d_loc,d_mod, 0);
+        me->d_helper << new IdentLeaf( me, me->d_loc,d_mod, 0, DeclRole);
         d_mdl->d_xref[me].append( me->d_helper.back().data() );
 
         //if( me->d_receiver ) // receiver Param is part of d_order
@@ -122,7 +121,7 @@ struct Model::CrossReferencer : public AstVisitor
     void visit( NamedType* me )
     {
         Scope* s = stack.back();
-        s->d_helper << new IdentLeaf(me, me->d_loc, d_mod );
+        s->d_helper << new IdentLeaf(me, me->d_loc, d_mod, 0, DeclRole );
         d_mdl->d_xref[me].append( s->d_helper.back().data() );
 
         if( me->d_type )
@@ -173,10 +172,10 @@ struct Model::CrossReferencer : public AstVisitor
         foreach( const Ref<Thing>& t, me->d_metaActuals )
             t->accept(this);
     }
-    void visitVar( Named* me )
+    void visitVar( Named* me, bool receiver = false )
     {
         Scope* s = stack.back();
-        s->d_helper << new IdentLeaf( me, me->d_loc, d_mod );
+        s->d_helper << new IdentLeaf( me, me->d_loc, d_mod, 0, receiver ? ThisRole : DeclRole );
         d_mdl->d_xref[me].append( s->d_helper.back().data() );
         // we need the visited set here because the same type can be assigned to more than one Named
         if( me->d_type && !visited.contains(me->d_type.data()) )
@@ -203,7 +202,7 @@ struct Model::CrossReferencer : public AstVisitor
 
     void visit( Parameter* me )
     {
-        visitVar(me);
+        visitVar(me, me->d_receiver );
     }
 
     void visit( GenericName* me )
@@ -214,7 +213,7 @@ struct Model::CrossReferencer : public AstVisitor
     void visit( Const* me )
     {
         Scope* s = stack.back();
-        s->d_helper << new IdentLeaf( me, me->d_loc, d_mod );
+        s->d_helper << new IdentLeaf( me, me->d_loc, d_mod, 0, DeclRole );
         d_mdl->d_xref[me].append( s->d_helper.back().data() );
         if( me->d_constExpr )
             me->d_constExpr->accept(this);
@@ -374,17 +373,19 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_globalsLower = new Scope();
     d_boolType = new BaseType(BaseType::BOOLEAN);
     d_charType = new BaseType(BaseType::CHAR);
+    d_wcharType = new BaseType(BaseType::WCHAR);
     d_byteType = new BaseType(BaseType::BYTE);
     d_intType = new BaseType(BaseType::INTEGER);
     d_shortType = new BaseType(BaseType::SHORTINT);
     d_longType = new BaseType(BaseType::LONGINT);
     d_realType = new BaseType(BaseType::REAL);
-    d_doubleType = new BaseType(BaseType::LONGREAL);
+    d_longrealType = new BaseType(BaseType::LONGREAL);
     d_setType = new BaseType(BaseType::SET);
     d_stringType = new BaseType(BaseType::STRING);
+    d_wstringType = new BaseType(BaseType::WSTRING);
     d_nilType = new BaseType(BaseType::NIL);
     d_anyType = new BaseType(BaseType::ANY);
-    d_anyNum = new BaseType(BaseType::ANYNUM);
+    d_anyNum = new BaseType(BaseType::ANY);
     d_anyRec = new Record();
 
     fillGlobals();
@@ -476,13 +477,14 @@ bool Model::parseFiles(const FileGroups& files)
     bt.d_shortType = d_shortType.data();
     bt.d_longType = d_longType.data();
     bt.d_realType = d_realType.data();
-    bt.d_doubleType = d_doubleType.data();
+    bt.d_longrealType = d_longrealType.data();
     bt.d_setType = d_setType.data();
     bt.d_stringType = d_stringType.data();
     bt.d_nilType = d_nilType.data();
     bt.d_anyType = d_anyType.data();
-    bt.d_anyNum = d_anyNum.data();
     bt.d_anyRec = d_anyRec.data();
+    bt.d_wcharType = d_wcharType.data();
+    bt.d_wstringType = d_wstringType.data();
 
     foreach( Module* m, d_depOrder )
     {
@@ -543,41 +545,20 @@ void Model::unbindFromGlobal()
 
 void Model::fillGlobals()
 {
-    Ref<NamedType> t;
-
     // Built-in types
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_type]),d_boolType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_type]),d_charType.data() );
-    d_globals->add( t.data() );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_type]),d_boolType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_type]),d_charType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_wcharType->d_type]),d_wcharType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_type]),d_intType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_type]),d_realType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_type]),d_setType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_nilType->d_type]),d_nilType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longType->d_type]),d_longType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_shortType->d_type]),d_shortType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longrealType->d_type]),d_longrealType.data() ) );
 
     Ref<NamedType> byteType = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_byteType->d_type]),d_byteType.data() );
     d_globals->add( byteType.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_type]),d_intType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_type]),d_realType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_type]),d_setType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_stringType->d_type]),d_stringType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_nilType->d_type]),d_nilType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longType->d_type]),d_longType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_shortType->d_type]),d_shortType.data() );
-    d_globals->add( t.data() );
-
-    t = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_doubleType->d_type]),d_doubleType.data() );
-    d_globals->add( t.data() );
 
     Ref<BuiltIn> bi;
 
@@ -701,19 +682,6 @@ void Model::fillGlobals()
     bi = new BuiltIn(BuiltIn::TRAPIF, new ProcType( Type::List() << d_boolType.data() ) );
     d_globals->add( bi.data());
 
-    // lboasso oberonc
-    bi = new BuiltIn(BuiltIn::WriteInt, new ProcType( Type::List() << d_intType.data() ) );
-    d_globals->add( bi.data());
-
-    bi = new BuiltIn(BuiltIn::WriteReal, new ProcType( Type::List() << d_realType.data() ) );
-    d_globals->add( bi.data());
-
-    bi = new BuiltIn(BuiltIn::WriteChar, new ProcType( Type::List() << d_charType.data() ) );
-    d_globals->add( bi.data());
-
-    bi = new BuiltIn(BuiltIn::WriteLn );
-    d_globals->add( bi.data());
-
     // Oberon-2
     d_globals->add( new BuiltIn(BuiltIn::MAX, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::MIN, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
@@ -729,6 +697,7 @@ void Model::fillGlobals()
     // Oberon+
     d_globals->add( new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::STRLEN, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::WCHR, new ProcType( Type::List() << d_intType.data(), d_wcharType.data() ) ) );
 
     // Blackbox
 #ifdef OBX_BBOX
@@ -746,7 +715,10 @@ void Model::fillGlobals()
     sys->add( new BuiltIn(BuiltIn::SYS_GETREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),
                                               ProcType::Vars() << false << true   ) ) );
     sys->add( new BuiltIn(BuiltIn::SYS_PUTREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data() ) ) );
-    sys->add( new NamedType(Lexer::getSymbol("PTR"), anyptr.data() ) );
+
+    Ref<Pointer> ptr = new Pointer();
+    ptr->d_to = d_anyType.data();
+    sys->add( new NamedType(Lexer::getSymbol("PTR"), ptr.data() ) );
 
     d_globals->add( new Const( Lexer::getSymbol("untagged"), 0 ) );
     d_globals->add( new Const( Lexer::getSymbol("union"), 0 ) );

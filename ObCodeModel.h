@@ -101,7 +101,6 @@ namespace Ob
                         NEW, ASSERT, PACK, UNPK,
                         MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, SIZE, ENTIER, // OBN-2
                         BITS, INF, TRUE, FALSE, // BBOX
-                        WriteInt, WriteReal, WriteChar, WriteLn, // to run oberonc test cases
                         LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                         Constant, Variable, StubProc
                       };

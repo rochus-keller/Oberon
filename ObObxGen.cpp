@@ -43,7 +43,7 @@ static inline SynTree* findFirstChild(const SynTree* st, int type , int startWit
 
 ObxGen::ObxGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true),
     nlAfterDeclHeader(true), nlPerDecl(true), nlPerStat(true), nlAfterBegin(true), nlBeforeEnd(true),
-    noWchar(true), switchBBoxTypes(true), genSysFlags(false), genUnsafe(true)
+    hasWchar(true), switchBBoxTypes(true), genSysFlags(false), genUnsafe(true)
 {
     Q_ASSERT( mdl != 0 );
     d_errs = mdl->getErrs();
@@ -76,7 +76,9 @@ ObxGen::ObxGen(CodeModel* mdl):d_mdl(mdl),d_errs(0),d_genStubs(true),
             << "long" << "longint" << "longreal" << "lsl" << "max"
             << "min" << "new" << "odd" << "ord" << "pack" << "real"
             << "ror" << "set" << "short" << "shortint" << "size"
-            << "unpk" << "val";
+            << "unpk" << "val" ;
+    if( hasWchar )
+        obxBuiltIns << "wchar" << "wchr";
 }
 
 bool ObxGen::emitModules(const QString& outdir, const QString& mod)
@@ -360,6 +362,7 @@ void ObxGen::ident(const CodeModel::Unit* u, SynTree* st, bool leafIdent)
     if( leafIdent )
     {
         const CodeModel::NamedThing* n = u->findByName(id);
+
         if( n && ( n->d_scope == 0 || n->d_scope != &d_mdl->getGlobalScope() ) )
         {
             // it's a locally defined symbol and may override builtins; leave it alone
@@ -370,20 +373,24 @@ void ObxGen::ident(const CodeModel::Unit* u, SynTree* st, bool leafIdent)
             id = id.toLower();
             if( id == "true" || id == "false" )
                 dontTouchKeyword = true; // otherwise true_ or false_ are returned
+            else if( switchBBoxTypes )
+            {
+                if( id == "real" )
+                    id = "longreal";
+                else if( hasWchar && id == "char" )
+                    id = "wchar";
+                else if( hasWchar && id == "chr" )
+                    id = "wchr";
+            }
         }else if( obxBuiltIns.contains(id) )
             id += "_";
         else if( switchBBoxTypes )
         {
+            Q_ASSERT( id != "REAL" && id != "CHAR" );
             if( id == "SHORTREAL" )
-                id = "REAL";
-            else if( id == "REAL" )
-                id = "LONGREAL";
+                id = "real";
             else if( id == "SHORTCHAR" )
-                id = "CHAR";
-            else if( !noWchar && id == "CHAR" )
-                id = "WCHAR";
-            if( st->d_tok.d_val != id )
-                id = id.toLower();
+                id = "char";
         }
     }else if( obxBuiltIns.contains(id) )
         id += "_";
@@ -896,7 +903,28 @@ void ObxGen::designator(const CodeModel::Unit* u, SynTree* st)
     qualident( u, st->d_children.first() );
     for( int i = 1; i < st->d_children.size(); i++ )
         selector(u, st->d_children[i] );
-    // ignore '$' in case of BBOX
+#ifdef OB_BBOX
+    if( st->d_children.last()->d_tok.d_type == Tok_Dlr )
+    {
+        CodeModel::DesigOpList ops = d_mdl->derefDesignator(u,st);
+        if( ops.isEmpty() )
+            return;
+        const CodeModel::NamedThing* n = ops.last().d_sym;
+        if( n == 0 )
+            return;
+        const CodeModel::Type* type = 0;
+        if( const CodeModel::Element* e = n->to<CodeModel::Element>() )
+            type = e->d_type;
+        else if( const CodeModel::Type* t = n->to<CodeModel::Type>() )
+            type = t;
+        else if( const CodeModel::Procedure* p = n->to<CodeModel::Procedure>() )
+            type = p->d_type;
+        if( type && type->d_kind == CodeModel::Type::TypeRef )
+            type = type->d_type;
+        if( type && type->d_kind == CodeModel::Type::Pointer )
+            print("^", st->d_children.last() );
+    }
+#endif
 }
 
 void ObxGen::set(const CodeModel::Unit* u, SynTree* st)

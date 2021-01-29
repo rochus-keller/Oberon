@@ -187,7 +187,7 @@ namespace Obx
 
     struct BaseType : public Type
     {
-        enum { ANY, ANYNUM, NIL, STRING, BOOLEAN, CHAR, BYTE, SHORTINT,
+        enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET };
         static const char* s_typeName[];
 
@@ -223,6 +223,7 @@ namespace Obx
     {
         Ref<QualiType> d_base; // base type - a quali to a Record or Pointer or null
         Record* d_baseRec;
+        QList<Record*> d_subRecs;
         Pointer* d_binding; // points back to pointer type in case of anonymous record
 
         typedef QHash<const char*,Named*> Names;
@@ -376,8 +377,6 @@ namespace Obx
         enum { // Oberon-07
                ABS, ODD, LEN, LSL, ASR, ROR, FLOOR, FLT, ORD, CHR, INC, DEC, INCL, EXCL,
                NEW, ASSERT, PACK, UNPK,
-               // oberonc
-               WriteInt, WriteReal, WriteChar, WriteLn,
                LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                // IDE
                TRAP, TRAPIF,
@@ -392,7 +391,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN
+               VAL, STRLEN, WCHR
              };
         static const char* s_typeName[];
         quint8 d_func;
@@ -420,10 +419,12 @@ namespace Obx
     struct Procedure : public Scope
     {
         Ref<Parameter> d_receiver;
-        Record* d_receiverRec;
+        Record* d_receiverRec; // the record to which this procedure is bound
+        Procedure* d_super; // the procedure of the super class this procedure overrides, or zero
+        QList<Procedure*> d_subs; // the procedures of the subclasses which override this procedure
         MetaParams d_metaParams;
         Ref<Expression> d_imp; // the number or string after PROC+
-        Procedure():d_receiverRec(0) {}
+        Procedure():d_receiverRec(0),d_super(0) {}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Procedure; }
         ProcType* getProcType() const;
@@ -437,6 +438,7 @@ namespace Obx
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
         bool d_isExt;
+        QList< Ref<Type> > d_helper2; // filled with pointers because of ADDROF
 
         Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
         int getTag() const { return T_Module; }
@@ -524,24 +526,29 @@ namespace Obx
         int getTag() const { return T_CaseStmt; }
     };
 
+    enum IdentRole { NoRole, DeclRole, LhsRole, VarRole, RhsRole, SuperRole, SubRole, CallRole,
+                     ImportRole, ThisRole, MethRole };
+
     struct Expression : public Thing
     {
-        NoRef<Type> d_type;
+        NoRef<Type> d_type; // this must be NoRef, otherwise there are refcount cycles!
         virtual Named* getIdent() const { return 0; }
         virtual Module* getModule() const { return 0; }
         virtual quint8 visibilityFor(Module*) const { return Named::NotApplicable; }
         virtual Expression* getSub() const { return 0; }
         QList<Expression*> getSubList() const;
         virtual quint8 getUnOp() const { return 0; }
+        virtual IdentRole getIdentRole() const { return NoRole; }
     };
 
     struct Literal : public Expression
     {
-        enum Kind { Integer, Real, Boolean, String, Char, Nil, Set };
+        enum Kind { Integer, Real, Boolean, String, Char /* uint */, Nil, Set };
         QVariant d_val;
-        quint8 d_kind;
+        uint d_kind : 8;
+        uint d_len : 24;
         Literal( Kind t = Nil, Ob::RowCol l = Ob::RowCol(),
-                 const QVariant& v = QVariant(), Type* typ = 0 ):d_val(v),d_kind(t){ d_loc = l; d_type = typ; }
+                 const QVariant& v = QVariant(), Type* typ = 0 ):d_val(v),d_kind(t),d_len(0){ d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }
         void accept(AstVisitor* v) { v->visit(this); }
     };
@@ -557,19 +564,21 @@ namespace Obx
     {
         NoRef<Named> d_ident;
         QByteArray d_name; // name to be resolved with result written to d_ident
-        IdentLeaf():d_mod(0) {}
-        IdentLeaf( Named* id, const Ob::RowCol&, Module* mod, Type* t = 0 );
+        IdentRole d_role;
+        IdentLeaf():d_mod(0),d_role(NoRole) {}
+        IdentLeaf( Named* id, const Ob::RowCol&, Module* mod, Type* t, IdentRole r );
         Module* d_mod; // we need this to find out when xref from which module the ident is coming
         Named* getIdent() const { return d_ident.data(); }
         Module* getModule() const { return d_mod; }
         int getTag() const { return T_IdentLeaf; }
         void accept(AstVisitor* v) { v->visit(this); }
         quint8 visibilityFor(Module*) const { return Named::ReadWrite; } // leaf is local or import name
+        IdentRole getIdentRole() const { return d_role; }
     };
 
     struct UnExpr : public Expression
     {
-        enum Op { Invalid, NEG, NOT, DEREF, // implemented in UnExpr
+        enum Op { Invalid, NEG, NOT, DEREF, ADDROF, // implemented in UnExpr
                   CAST, SEL, CALL, IDX // implemented in subclasses
                 };
         static const char* s_opName[];
@@ -588,11 +597,13 @@ namespace Obx
     {
         NoRef<Named> d_ident;
         QByteArray d_name; // name to be resolved with result written to d_ident
-        IdentSel():UnExpr(SEL) {}
+        IdentRole d_role;
+        IdentSel():UnExpr(SEL),d_role(NoRole) {}
         Named* getIdent() const { return d_ident.data(); }
         int getTag() const { return T_IdentSel; }
         void accept(AstVisitor* v) { v->visit(this); }
         quint8 visibilityFor(Module* m) const;
+        IdentRole getIdentRole() const { return d_role; }
     };
 
     struct ArgExpr : public UnExpr // CALL, IDX, or CAST

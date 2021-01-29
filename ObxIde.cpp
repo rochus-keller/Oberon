@@ -41,6 +41,7 @@
 #include <QDateTime>
 #include <QSettings>
 #include <QShortcut>
+#include <QScrollBar>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -87,6 +88,11 @@ struct ScopeRef : public Ref<Scope>
     ScopeRef(Scope* s = 0):Ref(s) {}
 };
 Q_DECLARE_METATYPE(ScopeRef)
+struct NamedRef : public Ref<Named>
+{
+    NamedRef(Named* s = 0):Ref(s) {}
+};
+Q_DECLARE_METATYPE(NamedRef)
 struct ExRef : public Ref<Expression>
 {
     ExRef(Expression* n = 0):Ref(n) {}
@@ -116,6 +122,8 @@ public:
     void setExt( bool on )
     {
         d_hl->setEnableExt(on);
+        d_hl->addBuiltIn("WCHAR");
+        d_hl->addBuiltIn("WCHR");
     }
 
     void clearBackHisto()
@@ -196,7 +204,7 @@ public:
         if( !d_link.isEmpty() )
         {
             QTextCursor cur = cursorForPosition(e->pos());
-            d_ide->pushLocation( Ide::Location( getPath(), cur.blockNumber(), cur.positionInBlock() ) );
+            d_ide->pushLocation( Ide::Location( getPath(), cur.blockNumber(), cur.positionInBlock(), verticalScrollBar()->value() ) );
             QApplication::restoreOverrideCursor();
             d_link.clear();
         }
@@ -208,7 +216,7 @@ public:
             if( e )
             {
                 Named* sym = e->getIdent();
-                d_ide->pushLocation( Ide::Location( getPath(), cur.blockNumber(), cur.positionInBlock() ) );
+                d_ide->pushLocation( Ide::Location( getPath(), cur.blockNumber(), cur.positionInBlock(), verticalScrollBar()->value() ) );
                 const int tag = sym->getTag();
                 if( tag == Thing::T_Import && e->d_loc == sym->d_loc )
                     sym = cast<Import*>(sym)->d_mod.data();
@@ -225,7 +233,7 @@ public:
                 if( sym->getTag() == Thing::T_Module && cast<Module*>(sym)->d_synthetic )
                     d_ide->fillXref(sym);
                 else
-                    d_ide->showEditor( sym );
+                    d_ide->showEditor( sym, false, true );
                 //setCursorPosition( sym->d_loc.d_row - 1, sym->d_loc.d_col - 1, true );
             }
             updateExtraSelections();
@@ -393,7 +401,7 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 }
 
 Ide::Ide(QWidget *parent)
-    : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false)
+    : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),d_lock2(false),d_lock3(false),d_lock4(false)
 {
     s_this = this;
 
@@ -466,6 +474,8 @@ Ide::Ide(QWidget *parent)
     createTerminal();
     createDumpView();
     createMods();
+    createMod();
+    createHier();
     createErrs();
     createXref();
     createStack();
@@ -584,6 +594,54 @@ void Ide::createMods()
     dock->setWidget(d_mods);
     addDockWidget( Qt::LeftDockWidgetArea, dock );
     connect( d_mods, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onModsDblClicked(QTreeWidgetItem*,int)) );
+}
+
+void Ide::createMod()
+{
+    QDockWidget* dock = new QDockWidget( tr("Module"), this );
+    dock->setObjectName("Module");
+    dock->setAllowedAreas( Qt::AllDockWidgetAreas );
+    dock->setFeatures( QDockWidget::DockWidgetMovable );
+    QWidget* pane = new QWidget(dock);
+    QVBoxLayout* vbox = new QVBoxLayout(pane);
+    vbox->setMargin(0);
+    vbox->setSpacing(0);
+    d_modTitle = new QLabel(pane);
+    d_modTitle->setMargin(2);
+    d_modTitle->setWordWrap(true);
+    vbox->addWidget(d_modTitle);
+    d_mod = new QTreeWidget(dock);
+    d_mod->setHeaderHidden(true);
+    d_mod->setExpandsOnDoubleClick(false);
+    d_mod->setAlternatingRowColors(true);
+    vbox->addWidget(d_mod);
+    dock->setWidget(pane);
+    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    connect( d_mod, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onModDblClicked(QTreeWidgetItem*,int)) );
+}
+
+void Ide::createHier()
+{
+    QDockWidget* dock = new QDockWidget( tr("Hierarchy"), this );
+    dock->setObjectName("Hierarchy");
+    dock->setAllowedAreas( Qt::AllDockWidgetAreas );
+    dock->setFeatures( QDockWidget::DockWidgetMovable );
+    QWidget* pane = new QWidget(dock);
+    QVBoxLayout* vbox = new QVBoxLayout(pane);
+    vbox->setMargin(0);
+    vbox->setSpacing(0);
+    d_hierTitle = new QLabel(pane);
+    d_hierTitle->setMargin(2);
+    d_hierTitle->setWordWrap(true);
+    vbox->addWidget(d_hierTitle);
+    d_hier = new QTreeWidget(dock);
+    d_hier->setHeaderHidden(true);
+    d_hier->setExpandsOnDoubleClick(false);
+    d_hier->setAlternatingRowColors(true);
+    vbox->addWidget(d_hier);
+    dock->setWidget(pane);
+    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    connect( d_hier, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onHierDblClicked(QTreeWidgetItem*,int)) );
 }
 
 void Ide::createErrs()
@@ -1066,6 +1124,31 @@ void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
     showEditor( s.data() );
 }
 
+void Ide::onModDblClicked(QTreeWidgetItem* item, int)
+{
+    NamedRef s = item->data(0,Qt::UserRole).value<NamedRef>();
+    if( s.isNull() )
+        return;
+
+    d_lock2 = true;
+    const QString path = d_tab->getCurrentDoc().toString();
+    item->setExpanded(true);
+    showEditor( path, s->d_loc.d_row, s->d_loc.d_col, false, true );
+    d_lock2 = false;
+}
+
+void Ide::onHierDblClicked(QTreeWidgetItem* item, int)
+{
+    NamedRef s = item->data(0,Qt::UserRole).value<NamedRef>();
+    if( s.isNull() )
+        return;
+
+    d_lock4 = true;
+
+    showEditor( s->getModule()->d_file, s->d_loc.d_row, s->d_loc.d_col, false, true );
+    d_lock4 = false;
+}
+
 void Ide::onStackDblClicked(QTreeWidgetItem* item, int)
 {
     if( item )
@@ -1103,6 +1186,7 @@ void Ide::onTabChanged()
             return;
         }
     }
+    fillModule(d_pro->getFiles().value(path).d_mod.data());
     // else
     d_bcv->clear();
 }
@@ -1148,8 +1232,10 @@ void Ide::onErrors()
 
     for( int i = 0; i < errs.size(); i++ )
     {
+#if 0
         if( !errs[i].d_isErr)
             continue; // TEST
+#endif
         QTreeWidgetItem* item = new QTreeWidgetItem(d_errs);
         item->setText(2, errs[i].d_msg );
         item->setToolTip(2, item->text(2) );
@@ -1377,8 +1463,9 @@ void Ide::fillMods()
         QTreeWidgetItem* item = new QTreeWidgetItem(d_mods);
         item->setText(0, n->d_name);
         item->setToolTip(0,n->d_file);
+        item->setIcon(0, QPixmap(":/images/module.png") );
         item->setData(0,Qt::UserRole,QVariant::fromValue(ScopeRef( n ) ) );
-        fillScope( item, cast<Scope*>(n));
+        // fillScope( item, cast<Scope*>(n));
     }
 }
 
@@ -1396,7 +1483,7 @@ void Ide::addTopCommands(Gui::AutoMenu* pop)
     pop->addAction(tr("Quit"),qApp,SLOT(quit()) );
 }
 
-void Ide::showEditor(const QString& path, int row, int col, bool setMarker )
+Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMarker, bool center )
 {
     Project::File pf = d_pro->getFiles().value(path);
     //if( pf.d_mod.isNull() )
@@ -1433,18 +1520,26 @@ void Ide::showEditor(const QString& path, int row, int col, bool setMarker )
     }
     if( row > 0 && col > 0 )
     {
-        edit->setCursorPosition( row-1, col-1, false );
+        edit->setCursorPosition( row-1, col-1, center );
         if( setMarker )
             edit->setPositionMarker(row-1);
     }
     edit->setFocus();
+    return edit;
 }
 
-void Ide::showEditor(Named* n, bool setMarker)
+void Ide::showEditor(Named* n, bool setMarker, bool center)
 {
     Module* mod = n->getModule();
     if( mod )
-        showEditor( mod->d_file, n->d_loc.d_row, n->d_loc.d_col, setMarker );
+        showEditor( mod->d_file, n->d_loc.d_row, n->d_loc.d_col, setMarker, center );
+}
+
+void Ide::showEditor(const Ide::Location& loc)
+{
+    Editor* e = showEditor( loc.d_file, loc.d_line+1, loc.d_col+1 );
+    if( e )
+        e->verticalScrollBar()->setValue(loc.d_yoff);
 }
 
 void Ide::createMenu(Ide::Editor* edit)
@@ -1540,6 +1635,34 @@ static bool sortExList( const Expression* lhs, Expression* rhs )
     return ln < rn || (!(rn < ln) && ll < rl);
 }
 
+static const char* roleName( Expression* e )
+{
+    switch( e->getIdentRole() )
+    {
+    case DeclRole:
+        return "Decl";
+    case LhsRole:
+        return "Lhs";
+//    case RhsRole:
+//        return "Rhs";
+    case VarRole:
+        return "Vpar";
+    case CallRole:
+        return "Call";
+    case ImportRole:
+        return "Impt";
+    case ThisRole:
+        return "This";
+    case MethRole:
+        return "Meth";
+    case SuperRole:
+        return "Base";
+    default:
+        break;
+    }
+    return "";
+}
+
 void Ide::fillXref()
 {
     Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
@@ -1558,6 +1681,15 @@ void Ide::fillXref()
     {
         Named* hitSym = hitEx->getIdent();
         Q_ASSERT( hitSym != 0 );
+
+        QTreeWidgetItem* mi = d_modIdx.value(hitSym);
+        if( mi && !d_lock2 )
+        {
+            d_mod->scrollToItem(mi,QAbstractItemView::PositionAtCenter);
+            mi->setExpanded(true);
+            d_mod->setCurrentItem(mi);
+        }
+        fillHier(hitSym);
 
         ExpList exp = d_pro->getUsage(hitSym);
 
@@ -1613,6 +1745,7 @@ void Ide::fillXref()
         d_xrefTitle->setText(QString("%1 '%2'").arg(type).arg(hitSym->d_name.constData()));
 
         d_xref->clear();
+        QTreeWidgetItem* black = 0;
         foreach( Expression* e, l2 )
         {
             Named* ident = e->getIdent();
@@ -1621,16 +1754,24 @@ void Ide::fillXref()
                 continue;
             Q_ASSERT( ident != 0 && mod != 0 );
             QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
-            i->setText( 0, QString("%1 (%2:%3%4)")
+            i->setText( 0, QString("%1 (%2:%3 %4)")
                         .arg(e->getModule()->d_name.constData())
                         .arg(e->d_loc.d_row).arg(e->d_loc.d_col)
-                        .arg( ident->d_loc == e->d_loc ? " decl" : "" ));
+                        .arg( roleName(e) ));
             if( e == hitEx )
+            {
                 i->setFont(0,f);
+                black = i;
+            }
             i->setToolTip( 0, i->text(0) );
             i->setData( 0, Qt::UserRole, QVariant::fromValue( ExRef(e) ) );
             if( mod->d_file != edit->getPath() )
                 i->setForeground( 0, Qt::gray );
+        }
+        if( black && !d_lock3 )
+        {
+            d_xref->scrollToItem(black, QAbstractItemView::PositionAtCenter);
+            d_xref->setCurrentItem(black);
         }
     }
 }
@@ -1809,6 +1950,252 @@ void Ide::fillLocals()
     }
 }
 
+static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx );
+
+template<class T>
+static void createModItem(T* parent, Named* n, bool nonbound, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
+{
+    if( n->d_type.isNull() )
+        return;
+    if( idx.contains(n) )
+    {
+        // qWarning() << "fillMod recursion at" << n->getModule()->d_file << n->d_loc.d_row << n->d_name;
+        return; // can legally happen if record decl contains a typedef using record, as e.g. Meta.Item.ParamCallVal.IP
+    }
+    switch( n->getTag() )
+    {
+    case Thing::T_NamedType:
+        switch( n->d_type->getTag() )
+        {
+        case Thing::T_Record:
+            {
+                QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+                Record* r = cast<Record*>(n->d_type.data());
+                fillModItems(item,n, 0, r, sort, idx);
+                if( r->d_baseRec )
+                    item->setText(0, item->text(0) + " ⇑");
+                if( !r->d_subRecs.isEmpty() )
+                    item->setText(0, item->text(0) + QString(" ⇓%1").arg(r->d_subRecs.size()));
+                item->setToolTip( 0, item->text(0) );
+            }
+            break;
+        case Thing::T_Pointer:
+            {
+                Pointer* p = cast<Pointer*>(n->d_type.data());
+                Type* t = p->d_to ? p->d_to->derefed() : 0;
+                if( t && t->getTag() == Thing::T_Record )
+                {
+                    QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+                    Record* r = cast<Record*>(t);
+                    fillModItems(item,n, 0, r, sort, idx );
+                    if( r->d_baseRec )
+                        item->setText(0, item->text(0) + " ⇑");
+                    if( !r->d_subRecs.isEmpty() )
+                        item->setText(0, item->text(0) + QString(" ⇓%1").arg(r->d_subRecs.size()));
+                    item->setToolTip( 0, item->text(0) );
+                }
+            }
+            break;
+        }
+        break;
+    case Thing::T_Procedure:
+        {
+            Procedure* p = cast<Procedure*>(n);
+            if( !nonbound || p->d_receiver.isNull())
+            {
+                QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+                fillModItems(item,n, p, 0, sort, idx);
+                if( p->d_super )
+                    item->setText(0, item->text(0) + " ⇑");
+                if( !p->d_subs.isEmpty() )
+                    item->setText(0, item->text(0) + QString(" ⇓%1").arg(p->d_subs.size()));
+                item->setToolTip( 0, item->text(0) );
+                }
+        }
+        break;
+    }
+}
+
+template <class T>
+static void walkModItems(T* parent, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx)
+{
+    typedef QMap<QByteArray,Named*> Sort;
+    if( p && sort)
+    {
+        Sort tmp;
+        foreach( const Ref<Named>& n, p->d_order )
+            tmp.insert( n->d_name.toLower(), n.data() );
+        Sort::const_iterator i;
+        for( i = tmp.begin(); i != tmp.end(); ++i )
+            createModItem(parent,i.value(),true, sort, idx);
+    }else if( p )
+    {
+        foreach( const Ref<Named>& n, p->d_order )
+            createModItem(parent,n.data(),true, sort, idx);
+    }
+    if( r && sort )
+    {
+        Sort tmp;
+        foreach( const Ref<Procedure>& n, r->d_methods )
+            tmp.insert( n->d_name.toLower(), n.data() );
+        Sort::const_iterator i;
+        for( i = tmp.begin(); i != tmp.end(); ++i )
+            createModItem(parent,i.value(),false, sort, idx);
+    }else if( r )
+    {
+        foreach( const Ref<Procedure>& n, r->d_methods )
+            createModItem(parent,n.data(),false, sort, idx);
+    }
+}
+
+static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
+{
+    const bool pub = n->d_visibility >= Named::Private;
+    item->setText(0,n->d_name);
+    item->setData(0, Qt::UserRole, QVariant::fromValue(NamedRef(n)) );
+    idx.insert(n,item);
+    switch( n->getTag() )
+    {
+    case Thing::T_NamedType:
+        if( r && r->d_baseRec == 0 && r->d_methods.isEmpty() )
+            item->setIcon(0, QPixmap( pub ? ":/images/struct.png" : ":/images/struct_priv.png" ) );
+        else
+            item->setIcon(0, QPixmap( pub ? ":/images/class.png" : ":/images/class_priv.png" ) );
+        break;
+    case Thing::T_Procedure:
+        item->setIcon(0, QPixmap( pub ? ":/images/func.png" : ":/images/func_priv.png" ) );
+        break;
+    }
+
+    walkModItems(item,p,r,sort, idx);
+}
+
+void Ide::fillModule(Module* m)
+{
+    d_mod->clear();
+    d_modIdx.clear();
+    d_modTitle->clear();
+    if( m == 0 )
+        return;
+    d_modTitle->setText( QString("'%1'").arg(m->d_name.constData()) );
+    walkModItems(d_mod, m, 0, true, d_modIdx );
+}
+
+template<class T>
+static QTreeWidgetItem* fillHierProc( T* parent, Procedure* p, Named* ref )
+{
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+    Q_ASSERT( p->d_receiver && !p->d_receiver->d_type.isNull() );
+    Q_ASSERT( p->d_receiver->d_type->getTag() == Thing::T_QualiType );
+    item->setText(0, QString("%1.%2").arg(p->getModule()->d_name.constData())
+                  .arg(cast<QualiType*>(p->d_receiver->d_type.data())->d_quali->getIdent()->d_name.constData()));
+    item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(p) ) );
+    item->setIcon(0, QPixmap( p->d_visibility >= Named::ReadWrite ? ":/images/func.png" : ":/images/func_priv.png" ) );
+    item->setToolTip(0,item->text(0));
+
+    QTreeWidgetItem* ret = 0;
+    foreach( Procedure* sub, p->d_subs )
+    {
+        QTreeWidgetItem* tmp = fillHierProc(item, sub, ref);
+        if( tmp )
+            ret = tmp;
+    }
+    if( ret == 0 && p == ref )
+            ret = item;
+    return ret;
+}
+
+template<class T>
+static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
+{
+    QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+    Named* name = p->d_ident;
+    if( name == 0 && p->d_binding )
+        name = p->d_binding->d_ident;
+    Q_ASSERT( name != 0 );
+    item->setText(0, QString("%1.%2").arg(name->getModule()->d_name.constData()).arg(name->d_name.constData()));
+    item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );
+    item->setIcon(0, QPixmap( name->d_visibility >= Named::ReadWrite ? ":/images/class.png" : ":/images/class_priv.png" ) );
+    item->setToolTip(0,item->text(0));
+    QTreeWidgetItem* ret = 0;
+    foreach( Record* sub, p->d_subRecs )
+    {
+        QTreeWidgetItem* tmp = fillHierClass(item, sub, ref);
+        if( tmp )
+            ret = tmp;
+    }
+    if( ret == 0 && p == ref )
+            ret = item;
+    return ret;
+}
+void Ide::fillHier(Named* n)
+{
+    if( d_lock4 )
+        return;
+    d_hier->clear();
+    d_hierTitle->clear();
+    if( n == 0 )
+        return;
+    QFont f = d_hier->font();
+    f.setBold(true);
+    QTreeWidgetItem* ref = 0;
+    switch( n->getTag() )
+    {
+    case Thing::T_NamedType:
+        switch( n->d_type->getTag() )
+        {
+        case Thing::T_Record:
+            {
+                Record* r = cast<Record*>(n->d_type.data());
+                Record* r0 = r;
+                d_hierTitle->setText( QString("Inheritance of class '%1'").arg( n->d_name.constData() ) );
+                while( r->d_baseRec )
+                    r = r->d_baseRec;
+                ref = fillHierClass( d_hier, r, r0 );
+                Q_ASSERT( ref );
+            }
+            break;
+        case Thing::T_Pointer:
+            {
+                Pointer* p = cast<Pointer*>(n->d_type.data());
+                Type* t = p->d_to ? p->d_to->derefed() : 0;
+                if( t && t->getTag() == Thing::T_Record )
+                {
+                    Record* r = cast<Record*>(t);
+                    Record* r0 = r;
+                    d_hierTitle->setText( QString("Inheritance of class '%1'").arg( n->d_name.constData() ) );
+                    while( r->d_baseRec )
+                        r = r->d_baseRec;
+                    ref = fillHierClass( d_hier, r, r0 );
+                    Q_ASSERT( ref );
+                }
+            }
+            break;
+        }
+        break;
+    case Thing::T_Procedure:
+        {
+            Procedure* p = cast<Procedure*>(n);
+            if( p->d_receiver.isNull() )
+                return;
+            d_hierTitle->setText( QString("Overrides of procedure '%1'").arg( n->d_name.constData() ) );
+            while( p->d_super )
+                p = p->d_super;
+            ref = fillHierProc( d_hier, p, n );
+            Q_ASSERT( ref );
+        }
+        break;
+    }
+    d_hier->sortByColumn(0,Qt::AscendingOrder);
+    if( ref )
+    {
+        ref->setFont(0,f);
+        d_hier->expandAll();
+        d_hier->scrollToItem(ref,QAbstractItemView::PositionAtCenter);
+        d_hier->setCurrentItem(ref);
+    }
+}
+
 void Ide::removePosMarkers()
 {
     for( int i = 0; i < d_tab->count(); i++ )
@@ -1833,7 +2220,7 @@ void Ide::handleGoBack()
     d_pushBackLock = true;
     d_forwardHisto.push_back( d_backHisto.last() );
     d_backHisto.pop_back();
-    showEditor( d_backHisto.last().d_file, d_backHisto.last().d_line+1, d_backHisto.last().d_col+1 );
+    showEditor( d_backHisto.last() );
     d_pushBackLock = false;
 }
 
@@ -1843,14 +2230,14 @@ void Ide::handleGoForward()
 
     Location cur = d_forwardHisto.last();
     d_forwardHisto.pop_back();
-    showEditor( cur.d_file, cur.d_line+1, cur.d_col+1 );
+    showEditor( cur );
 }
 
 void Ide::onUpdateLocation(int line, int col)
 {
     Editor* e = static_cast<Editor*>( sender() );
     e->clearBackHisto();
-    pushLocation(Location(e->getPath(), line,col));
+    pushLocation(Location(e->getPath(), line,col,e->verticalScrollBar()->value()));
 }
 
 void Ide::onXrefDblClicked()
@@ -1860,7 +2247,9 @@ void Ide::onXrefDblClicked()
     {
         ExRef e = item->data(0,Qt::UserRole).value<ExRef>();
         Q_ASSERT( !e.isNull() );
-        showEditor( e->getModule()->d_file, e->d_loc.d_row, e->d_loc.d_col );
+        d_lock3 = true;
+        showEditor( e->getModule()->d_file, e->d_loc.d_row, e->d_loc.d_col, false, true );
+        d_lock3 = false;
     }
 }
 
@@ -1970,7 +2359,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.1");
+    a.setApplicationVersion("0.3");
     a.setStyle("Fusion");
 
     Ide w;

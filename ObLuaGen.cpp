@@ -1132,6 +1132,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
         }
         error( Errors::Semantics, dopl.last().d_arg, tr("'FLT()' with invalid arguments") );
         break;
+#if 0
     case CodeModel::Element::WriteChar:
         if( args.size() == 1 )
         {
@@ -1170,6 +1171,7 @@ bool LuaGen::emitPredefProc(const CodeModel::Unit* ds, const CodeModel::DesigOpL
         }
         error( Errors::Semantics, dopl.last().d_arg, tr("'WriteLn()' with invalid arguments") );
         break;
+#endif
     default:
         warning( Errors::Generator, dopl.last().d_arg, tr("built-in '%1()' not yet supported").arg(pp->d_name.data()) );
         break;

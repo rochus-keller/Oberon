@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-01-23</span>
+      <span id="revdate">2021-01-29</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -205,10 +205,12 @@ end Lists</code></pre>
       <h2 id="_vocabulary_and_representation">3. Vocabulary and Representation</h2>
       <div class="sectionbody">
         <div class="paragraph">
-          <p>The representation of (terminal) symbols in terms of characters is defined
-            using the ISO/IEC 8859-1 character set. Symbols are identifiers, numbers,
-            strings, operators, and delimiters. Source files are encoded with one
-            byte per character.</p>
+          <p>Oberon+ source code is a string of characters encoded using the UTF-8 variable-width
+            encoding as defined in ISO/IEC 10646. Identifiers, numbers, operators,
+            and delimiters are represented using the ASCII character set; strings
+            and comments can be either represented in the ASCII, Latin-1 (as defined
+            in ISO/IEC 8859-1) or the Unicode Basic Multilingual Plane (BMP, plane
+            0, as defined in ISO/IEC 10646) character set.</p>
         </div>
         <div class="paragraph">
           <p>The following lexical rules apply: blanks and line breaks must not occur
@@ -293,19 +295,19 @@ digit    = '0' ... '9'</pre>
             </div>
           </div>
           <div class="paragraph">
-            <p>Each character is encoded as a single eight-bit code value using the
-              ISO/IEC 8859-1 encoding scheme.</p>
+            <p>A character is either encoded as a 8-bit code value using the ISO/IEC
+              8859-1 Latin-1 encoding scheme or a 16-bit code value using the Unicode
+              BMP scheme.</p>
           </div>
         </div>
         <div class="sect2">
           <h3 id="_strings">3.4. Strings</h3>
           <div class="paragraph">
-            <p>Strings are sequences of characters encoded using the ISO/IEC 8859-1
-              scheme and enclosed in single (') or double (") quote marks. The opening
-              quote must be the same as the closing quote and must not occur within
-              the string. The number of characters in a string is called its length.
-              A string of length 1 can be used wherever a character constant is allowed
-              and vice versa.</p>
+            <p>Strings are sequences of characters enclosed in single (') or double
+              (") quote marks. The opening quote must be the same as the closing
+              quote and must not occur within the string. The number of characters
+              in a string is called its length. A string of length 1 can be used
+              wherever a character constant is allowed and vice versa.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -812,7 +814,9 @@ identdef  = ident ['*' | '-']</pre>
               <td class="tableblock halign-left valign-top">
                 <p class="tableblock">VAL</p>
               </td>
-              <td class="tableblock halign-left valign-top"></td>
+              <td class="tableblock halign-left valign-top">
+                <p class="tableblock">WCHR</p>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -825,9 +829,7 @@ identdef  = ident ['*' | '-']</pre>
               <td class="content">
                 BYTE, ASR, FLOOR, ROR, LSL, FLT, PACK and UNPK are predeclared identifiers in Oberon-07
                 and Oberon+, but not in Oberon-2. All lower-case versions are only
-                predeclared in Oberon+. The compiler is supposed to offer a dedicated
-                Oberon-2 and Oberon-07 compatibility mode to support legacy code
-                with predeclared identifier collisions.
+                predeclared in Oberon+.
               </td>
             </tr>
           </table>
@@ -987,6 +989,15 @@ Function = procedure(x: integer): integer</pre>
                   <p class="tableblock">the sets of integers between 0 and MAX(SET)</p>
                 </td>
               </tr>
+              <tr>
+                <td class="tableblock halign-left valign-top">
+                  <p class="tableblock">WCHAR, wchar</p>
+                </td>
+                <td class="tableblock halign-left valign-top">
+                  <p class="tableblock">the characters of the Unicode BMP set (0x .. 0d7ffx, 0f900x ..
+                    0ffffx)</p>
+                </td>
+              </tr>
             </tbody>
           </table>
           <div class="paragraph">
@@ -1002,7 +1013,8 @@ Function = procedure(x: integer): integer</pre>
               <pre>LONGINT &gt;= INTEGER &gt;= SHORTINT &gt;= BYTE
 LONGREAL &gt;= REAL
 REAL &gt;= SHORTINT
-LONGREAL &gt;= LONGINT</pre>
+LONGREAL &gt;= LONGINT
+WCHAR &gt;= CHAR</pre>
             </div>
           </div>
           <div class="admonitionblock note">
@@ -1012,13 +1024,14 @@ LONGREAL &gt;= LONGINT</pre>
                   <div class="title">Note</div>
                 </td>
                 <td class="content">
-                  The precision of BYTE and CHAR is 8 bits. The bit precision of LONGINT is limited
-                  by the bit precision of the LONGREAL mantissa bit precision (which
-                  is 52 bits in case of IEEE 754 double precision representation).
-                  REAL is not expected to (fully) include INTEGER; if an INTEGER
-                  is assigned to a REAL, the compiler issues a warning unless the
-                  predeclared function FLT is used. The bit precision of SHORTINT
-                  is equal or greater than the bit precision of BYTE.
+                  The precision of BYTE and CHAR is 8 bits. The precision of WCHAR is 16 bits. The
+                  bit precision of LONGINT is limited by the bit precision of the
+                  LONGREAL mantissa bit precision (which is 52 bits in case of IEEE
+                  754 double precision representation). REAL is not expected to (fully)
+                  include INTEGER; if an INTEGER is assigned to a REAL, the compiler
+                  issues a warning unless the predeclared function FLT is used. The
+                  bit precision of SHORTINT is equal or greater than the bit precision
+                  of BYTE.
                 </td>
               </tr>
             </table>
@@ -1064,8 +1077,7 @@ array Ln of T</pre>
             <p>Arrays declared without length are called <em>open arrays</em>. They
               are restricted to pointer base types (see <a href="#_pointer_types">Pointer types</a>),
               element types of open array types, and formal parameter types (see
-              <a href="#_formal_parameters">Formal parameters</a>). Arrays declared
-              with length are called <em>closed arrays</em>.</p>
+              <a href="#_formal_parameters">Formal parameters</a>).</p>
           </div>
           <div class="literalblock">
             <div class="title">Examples:</div>
@@ -1165,7 +1177,9 @@ end</pre>
               &#8230;&#8203;, e<sub>n-1</sub>. In either case a pointer to the allocated
               variable is assigned to <code>p</code>. <code>p</code> is of type P.
               The referenced variable <code>p^</code> is of type T. Any pointer variable
-              may assume the value NIL, which points to no variable at all.</p>
+              may assume the value NIL, which points to no variable at all. All pointer
+              fields or elements of a newly allocated record or array are set to
+              NIL.</p>
           </div>
         </div>
         <div class="sect2">
@@ -1175,8 +1189,9 @@ end</pre>
               a procedure P is assigned to a variable of type T, the formal parameter
               lists and result types (see <a href="#_formal_parameters">Formal parameters</a>)
               of P and T must <em>match</em> (see <a href="#_definition_of_terms">Definition of terms</a>).
-              P must not be a predeclared or type-bound procedure nor may it be local
-              to another procedure.</p>
+              A procedure P assigned to a variable or a formal parameter must not
+              be a predeclared or type-bound procedure nor may it be local to another
+              procedure.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -2248,6 +2263,19 @@ FormalType       = type</pre>
               If T<sub>f</sub> is an open array, then T<sub>a</sub> must be <em>array compatible</em>              to <code>f</code>; the lengths of <code>f</code> are taken from <code>a</code>.
               Otherwise T<sub>a</sub> must be <em>parameter compatible</em> to <code>f</code>              (see <a href="#_definition_of_terms">Definition of terms</a>).</p>
           </div>
+          <div class="admonitionblock note">
+            <table>
+              <tr>
+                <td class="icon">
+                  <div class="title">Note</div>
+                </td>
+                <td class="content">
+                  Also value parameters can have an open array type, but for efficiency reasons (to
+                  avoid unneccessary copying) open arrays should be VAR or IN parameters.
+                </td>
+              </tr>
+            </table>
+          </div>
           <div class="literalblock">
             <div class="title">Examples:</div>
             <div class="content">
@@ -2450,6 +2478,16 @@ end Insert</pre>
                   </td>
                 </tr>
                 <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">WCHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">WCHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top"></td>
+                </tr>
+                <tr>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">CHR(x)</p>
                   </td>
@@ -2460,7 +2498,7 @@ end Insert</pre>
                     <p class="tableblock">CHAR</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">character with ordinal number x</p>
+                    <p class="tableblock">Latin-1 character with ordinal number x</p>
                   </td>
                 </tr>
                 <tr>
@@ -2684,7 +2722,7 @@ end Insert</pre>
                     <p class="tableblock">ORD(x)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">CHAR</p>
+                    <p class="tableblock">CHAR or WCHAR</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">INTEGER</p>
@@ -2808,6 +2846,20 @@ end Insert</pre>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">the value with the ordinal number x.</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">WCHR(x)</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">integer type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">WCHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">Unicode BMP character with ordinal number x</p>
                   </td>
                 </tr>
               </tbody>
@@ -3275,9 +3327,8 @@ declarations = { CONST { ConstDeclaration [';'] }
             </dd>
             <dt class="hdlist1">Type inclusion</dt>
             <dd>
-              <p>Numeric types include (the values of) smaller numeric types. See
-                <a
-                  href="#type-inclusion-relations">here</a> for more information.</p>
+              <p>Numeric types include (the values of) smaller numeric types. WCHAR
+                includes the values of CHAR. See <a href="#type-inclusion-relations">here</a>                for more information.</p>
             </dd>
             <dt class="hdlist1">Type extension (record)</dt>
             <dd>
@@ -3313,19 +3364,16 @@ declarations = { CONST { ConstDeclaration [';'] }
                     <p>T<sub>e</sub> and T<sub>v</sub> are the <em>same type</em>;</p>
                   </li>
                   <li>
-                    <p>T<sub>e</sub> and T<sub>v</sub> are numeric types and T<sub>v</sub>                      <em>includes</em> T<sub>e</sub>;</p>
+                    <p>T<sub>e</sub> and T<sub>v</sub> are numeric or character types
+                      and T<sub>v</sub> <em>includes</em> T<sub>e</sub> <sup class="footnote">[<a id="_footnoteref_5" class="footnote" href="#_footnote_5" title="View footnote.">5</a>]</sup>;</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> is a SET type and T<sub>e</sub> is of INTEGER or
                       smaller type;</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is a CHAR type and T<sub>e</sub> is a string with
-                      one character;</p>
-                  </li>
-                  <li>
-                    <p>T<sub>v</sub> is a BYTE type and T<sub>e</sub> is a CHAR or a
-                      string with one character;</p>
+                    <p>T<sub>v</sub> is a BYTE type and T<sub>e</sub> is a Latin-1 character
+                      type;</p>
                   </li>
                   <li>
                     <p>T<sub>e</sub> and T<sub>v</sub> are record types and T<sub>e</sub>                      is a <em>type extension</em> of T<sub>v</sub> and the dynamic
@@ -3339,17 +3387,18 @@ declarations = { CONST { ConstDeclaration [';'] }
                     <p>T<sub>v</sub> is a pointer or a procedure type and <code>e</code>                      is NIL;</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is ARRAY n OF CHAR and <code>e</code> is a string
-                      <sup class="footnote">[<a id="_footnoteref_5" class="footnote" href="#_footnote_5" title="View footnote.">5</a>]</sup>                      with LEN(e) &lt;= LEN(v);</p>
+                    <p>T<sub>v</sub> is an array of WCHAR, T<sub>e</sub> is a Unicode
+                      BMP or Latin-1 string or character array, and STRLEN(e) &lt;
+                      LEN(v);</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> and T<sub>e</sub> are open or closed CHAR arrays,
-                      or T<sub>v</sub> is an open CHAR array and <code>e</code> is
-                      a string;</p>
+                    <p>T<sub>v</sub> is an array of CHAR, T<sub>e</sub> is a Latin-1
+                      string or character array, and STRLEN(e) &lt; LEN(v);</p>
                   </li>
                   <li>
-                    <p>T<sub>v</sub> is a procedure type and e is the name of a procedure
-                      whose formal parameters match those of T<sub>v</sub>.</p>
+                    <p>T<sub>v</sub> is a procedure type and <code>e</code> is the name
+                      of a procedure whose formal parameters <em>match</em> those
+                      of T<sub>v</sub>.</p>
                   </li>
                 </ol>
               </div>
@@ -3390,7 +3439,12 @@ declarations = { CONST { ConstDeclaration [';'] }
                       their element types are <em>array compatible</em>, or</p>
                   </li>
                   <li>
-                    <p>T<sub>f</sub> is a CHAR array and <code>a</code> is a string.</p>
+                    <p>T<sub>f</sub> is an open array of CHAR and T<sub>a</sub> is a
+                      Latin-1 string, or</p>
+                  </li>
+                  <li>
+                    <p>T<sub>f</sub> is an open array of WCHAR and T<sub>a</sub> is
+                      a Unicode BMP or Latin-1 string.</p>
                   </li>
                 </ol>
               </div>
@@ -3399,9 +3453,9 @@ declarations = { CONST { ConstDeclaration [';'] }
             <dd>
               <p>For a given operator, the types of its operands are expression compatible
                 if they conform to the following table (which shows also the result
-                type of the expression). CHAR arrays that are to be compared must
-                contain 0X as a terminator. Type T1 must be an extension of type
-                T0:</p>
+                type of the expression). CHAR and WCHAR arrays that are to be compared
+                must contain 0X as a terminator. Type T1 must be an extension of
+                type T0:</p>
             </dd>
           </dl>
         </div>
@@ -3818,8 +3872,8 @@ DeclarationSequence2 =
       with modifications from <a href="#Om01">[Om01]</a>
     </div>
     <div class="footnote" id="_footnote_5">
-      <a href="#_footnoteref_5">5</a>. which includes single characters corresponding
-      to strings with length 1
+      <a href="#_footnoteref_5">5</a>. character types include strings with length
+      1
     </div>
   </div>
 </body>

@@ -31,6 +31,7 @@ namespace Ob
         enum { TokenProp = QTextFormat::UserProperty };
         explicit Highlighter(QTextDocument *parent = 0);
         void setEnableExt( bool b );
+        void addBuiltIn(const QByteArray& bi);
 
     protected:
         QTextCharFormat formatForCategory(int) const;
