@@ -2,7 +2,7 @@
 #define OBXEVALUATOR_H
 
 /*
-* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2020-2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the OBX parser/code model library.
 *
@@ -28,42 +28,18 @@ namespace Obx
     class Evaluator : public QObject // for tr()
     {
     public:
-        Evaluator();
 
-        QVariant eval( Expression*, Module*, Ob::Errors* = 0 );
+        struct Result
+        {
+            QVariant d_value;
+            Literal::ValueType d_type;
+            Result():d_type(Literal::Invalid){}
+        };
 
-    protected:
-        QVariant eval(Expression* e);
-
-        QVariant NEG(const QVariant&, Expression* e );
-        QVariant NOT(const QVariant&, Expression* e );
-        QVariant ADD(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant SUB(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant FDIV(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant MUL(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant DIV(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant MOD(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant AND(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant OR(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant EQ(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant NEQ(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant LE(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant LEQ(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant GT(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant GEQ(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant IN(const QVariant& lhs, const QVariant& rhs, Expression* e );
-        QVariant binOp(BinExpr* e, const QVariant& lhs, const QVariant& rhs );
-        QVariant unOp(UnExpr* e, const QVariant& rhs );
-
-        QVariant expErr( Expression* e, const QString& msg );
-        QVariant evalNamedConst(Expression* e);
-        QVariant evalBuiltIn( BuiltIn* f, ArgExpr* );
-        bool setSet( Set& s, Expression* e );
-        bool setSet( Set& s, Expression* lhs, Expression* rhs );
+        static Result eval( Expression*, Module*, Ob::Errors* = 0 );
 
     private:
-        Ob::Errors* d_err;
-        Module* d_mod;
+        Evaluator();
     };
 }
 

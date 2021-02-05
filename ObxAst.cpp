@@ -20,6 +20,7 @@
 #include "ObxAst.h"
 #include "ObLexer.h"
 #include <QtDebug>
+#include <limits>
 using namespace Obx;
 using namespace Ob;
 
@@ -312,14 +313,23 @@ Named*Record::find(const QByteArray& name, bool recursive) const
     return 0;
 }
 
-Type*Array::getTypeDim(int& dims) const
+Type*Array::getTypeDim(int& dims, bool openOnly) const
 {
     Type* t = d_type.isNull() ? 0 : d_type->derefed();
     if( t && t->getTag() == Thing::T_Array )
     {
         Array* a = cast<Array*>( t );
+        if( openOnly )
+        {
+            if( !a->d_lenExpr.isNull() )
+                return d_type.data();
+        }else
+        {
+            if( a->d_lenExpr.isNull() )
+                return d_type.data();
+        }
         dims += 1;
-        return a->getTypeDim(dims);
+        return a->getTypeDim(dims, openOnly);
     }else
     {
         dims = 1;
@@ -332,6 +342,16 @@ QString Array::pretty() const
     if( d_type.isNull() )
         return "ARRAY OF ?";
     return QString("ARRAY OF %1").arg(d_type->pretty());
+}
+
+QList<Array*> Array::getDims()
+{
+    QList<Array*> res;
+    res << this;
+    Type* t = d_type.isNull() ? 0 : d_type->derefed();
+    if( t && t->getTag() == Thing::T_Array )
+        res << cast<Array*>(t)->getDims();
+    return res;
 }
 
 ProcType*Procedure::getProcType() const
@@ -360,10 +380,12 @@ Const::Const(const QByteArray& name, Literal* lit)
 {
     d_name = name;
     d_constExpr = lit;
+    d_vtype = 0;
     if( lit )
     {
         d_type = lit->d_type.data();
         d_val = lit->d_val;
+        d_vtype = lit->d_vtype;
     }
 }
 
@@ -387,4 +409,58 @@ QList<Expression*> Expression::getSubList() const
         sub = sub->getSub();
     }
     return res;
+}
+
+
+QVariant BaseType::maxVal() const
+{
+    switch( d_type )
+    {
+    case BOOLEAN:
+        return true;
+    case CHAR:
+        return std::numeric_limits<quint8>::max();
+    case WCHAR:
+        return std::numeric_limits<quint16>::max();
+    case BYTE:
+        return std::numeric_limits<quint8>::max();
+    case SET:
+        return 31;
+    case SHORTINT:
+        return std::numeric_limits<qint16>::max();
+    case INTEGER:
+        return std::numeric_limits<qint32>::max();
+    case LONGINT:
+        return std::numeric_limits<qint64>::max();
+    case REAL:
+        return std::numeric_limits<float>::max();
+    case LONGREAL:
+        return std::numeric_limits<double>::max();
+    }
+    return QVariant();
+}
+
+QVariant BaseType::minVal() const
+{
+    switch( d_type )
+    {
+    case BOOLEAN:
+        return false;
+    case CHAR:
+    case WCHAR:
+    case BYTE:
+    case SET:
+        return 0;
+    case SHORTINT:
+        return std::numeric_limits<qint16>::min();
+    case INTEGER:
+        return std::numeric_limits<qint32>::min();
+    case LONGINT:
+        return std::numeric_limits<qint64>::min();
+    case REAL:
+        return std::numeric_limits<float>::min();
+    case LONGREAL:
+        return std::numeric_limits<double>::min();
+    }
+    return QVariant();
 }

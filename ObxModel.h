@@ -50,11 +50,14 @@ namespace Obx
         Ref<Module> parseFile( const QString& path );
         Ref<Module> parseFile(QIODevice* , const QString& path);
         const QList<Module*>& getDepOrder() const { return d_depOrder; }
+        Module* findModule( const QByteArray& name ) const;
         quint32 getSloc() const { return d_sloc; }
 
         void setFillXref( bool b ) { d_fillXref = b; }
         typedef QHash<Named*, ExpList > XRef; // name used by ident expression
         const XRef& getXref() const { return d_xref; }
+
+        Ref<Module> treeShaken(Module*) const;
 
         Ob::Errors* getErrs() const { return d_errs; }
         Ob::FileCache* getFc() const { return d_fc; }

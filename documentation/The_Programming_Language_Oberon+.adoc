@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-01-29
+:revdate: 2021-02-05
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -1082,23 +1082,32 @@ The following table lists the predeclared procedures. Some are generic procedure
 |LEN(v, n)   |v: array n: integer  |INTEGER        |length of v in dimension n (first dimension = 0)
 |LEN(v)      |v: array             |INTEGER        |equivalent to LEN(v, 0)
 |            |v: string            |INTEGER        |length of string (up to but without the first 0X)
-|LONG(x)     |SHORTINT             |INTEGER        |identity
-|            |INTEGER              |LONGINT		   |
-|            |REAL                 |LONGREAL	   |
+|LONG(x)     |x: SHORTINT          |INTEGER        |identity
+|            |x: INTEGER           |LONGINT		   |
+|            |x: REAL              |LONGREAL	   |
+|            |x: CHAR			   |WCHAR		   |projection 
+|			 |x: array of char or Latin-1 string | Unicode string | projection 
 |LSL(x,n)    |x, n: INTEGER        |INTEGER        |logical shift left, x * 2^n^
 |MAX(T)      |T = basic type       |T              |maximum value of type T
 |            |T = SET              |INTEGER        |maximum element of a set
 |            |T = enumeration type |T              |last element of the enumeration
+|MAX(x,y)    |x,y: numeric type    |numeric type   |greater of x and y, returns smallest numeric type including both arguments
+|			 |x,y: character type  |character type |greater of x and y, returns smallest character type including both arguments
 |MIN(T)      |T = basic type       |T              |minimum value of type T
 |            |T = SET              |INTEGER        |0
 |            |T = enumeration type |T              |first element of the enumeration
+|MIN(x,y)    |x,y: numeric type    |numeric type   |smaller of x and y, returns smallest numeric type including both arguments
+|			 |x,y: character type  |character type |smaller of x and y, returns smallest character type including both arguments
 |ODD(x)      |integer type         |BOOLEAN        |x MOD 2 = 1
-|ORD(x)      |CHAR or WCHAR        |INTEGER        |ordinal number of x
-|            |enumeration type     |INTEGER        |ordinal number of the given identifier
+|ORD(x)      |x: CHAR or WCHAR     |BYTE or SHORT  |ordinal number of x
+|            |x: enumeration type  |INTEGER        |ordinal number of the given identifier
+|            |x: set type		   |INTEGER		   |number representing the set; the first element corresponds to the least significant digit of the number and the last element to the most significant digit. 
 |ROR(x, n)   |x, n: INTEGER        |INTEGER        |x rotated right by n bits
-|SHORT(x)    |LONGINT              |INTEGER        |identity
-|            |INTEGER              |SHORTINT       |identity
-|            |LONGREAL             |REAL           |identity (truncation possible)
+|SHORT(x)    |x: LONGINT           |INTEGER        |identity
+|            |x: INTEGER           |SHORTINT       |identity
+|            |x: LONGREAL          |REAL           |identity (truncation possible)
+|            |x: WCHAR			   |CHAR		   |projection (0x if there is no projection)
+|			 |x: array of wchar or Unicode string | Latin-1 string | projection ("?" for characters where there is no projection)
 |SIZE(T)     |any type             |INTEGER        |number of bytes required by T
 |STRLEN(s)   |s: array of char     |INTEGER        |dynamic length of the string up to and not including the first 0X
 |            |s: string            |               |same as LEN(s)

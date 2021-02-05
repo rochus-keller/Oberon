@@ -80,6 +80,7 @@ namespace Obx
         ExpList getUsage( Named* ) const;
         QString getWorkingDir(bool resolved = false) const;
         void setWorkingDir( const QString& );
+        bool printTreeShaken( const QString& module, const QString& fileName );
 
         Ob::Errors* getErrs() const;
         Ob::FileCache* getFc() const;

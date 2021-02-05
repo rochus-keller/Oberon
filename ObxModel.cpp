@@ -356,11 +356,46 @@ struct Model::CrossReferencer : public AstVisitor
             me->d_rhs->accept(this);
     }
 
+    void visit( Literal* l)
+    {
+        if( l->d_vtype == Literal::String )
+        {
+            QByteArray str = l->d_val.toByteArray();
+            if( str.isEmpty() || !::isalpha(str[0]) || str.endsWith(".dll") )
+                return;
+            for( int i = 1; i < str.size(); i++ )
+            {
+                if( str[i] != '_' && str[i] != '.' && !::isalnum(str[i]) )
+                    return;
+            }
+            QByteArrayList quali = str.split('.');
+            Module* m = d_mdl->findModule(quali.first());
+            if( m )
+            {
+                RowCol rc = l->d_loc;
+                rc.d_col += 1;
+                IdentLeaf* e1 = new IdentLeaf( m, rc, d_mod, 0, StringRole );
+                d_mod->d_helper.append( e1 );
+                d_mdl->d_xref[m].append( e1 );
+
+                // qDebug() << "CallByString" << d_mod->d_file << l->d_loc.d_row << l->d_loc.d_col << str;
+                Named* n = quali.size() > 1 ? m->find( Lexer::getSymbol(quali.last()) ) : 0;
+                if( n )
+                {
+                    rc.d_col += quali.first().size() + 1;
+                    IdentLeaf* e2 = new IdentLeaf( n, rc, d_mod, 0, StringRole );
+                    d_mod->d_helper.append( e2 );
+                    d_mdl->d_xref[n].append( e2 );
+                }
+            }
+        }
+    }
+
+
     // NOP
     void visit( BaseType* ) {}
     void visit( Exit* ) {}
     void visit( BuiltIn* ) {}
-    void visit( Literal* ) {}
 
 };
 
@@ -535,6 +570,202 @@ Ref<Module> Model::parseFile(QIODevice* in, const QString& path)
     return res;
 }
 
+Module*Model::findModule(const QByteArray& name) const
+{
+    return d_modules.value(QByteArrayList() << name ).data();
+}
+
+struct TreeShaker : public AstVisitor
+{
+    QSet<Named*>& used;
+    Module* mod;
+    TreeShaker( QSet<Named*>& u, Module* m ):mod(m),used(u){}
+    void visit( Pointer* me)
+    {
+        if( me->d_to )
+            me->d_to->accept(this);
+    }
+    void visit( Array* me)
+    {
+        if( me->d_lenExpr )
+            me->d_lenExpr->accept(this);
+        if( me->d_type )
+            me->d_type->accept(this);
+    }
+    void visit( Record* me)
+    {
+        if( me->d_base )
+            me->d_base->accept(this);
+        foreach( const Ref<Field>& f, me->d_fields )
+            f->accept(this);
+    }
+    void visit( ProcType* me)
+    {
+        if( me->d_return )
+            me->d_return->accept(this);
+        foreach( const Ref<Parameter>& p, me->d_formals )
+            p->accept(this);
+    }
+    void visit( QualiType* me )
+    {
+        if( me->d_quali )
+            me->d_quali->accept(this);
+    }
+    void rememberUsed( Named* me )
+    {
+        const bool alreadySeen = used.contains(me);
+        if( !alreadySeen )
+        {
+            used.insert(me);
+            me->accept(this);
+        }
+    }
+    void visitNamed(Named* me)
+    {
+        rememberUsed(me);
+        if( me->d_type )
+            me->d_type->accept(this);
+    }
+    void visit( Field* me)
+    {
+        visitNamed(me);
+    }
+    void visit( Variable* me)
+    {
+        visitNamed(me);
+    }
+    void visit( LocalVar* me)
+    {
+        visitNamed(me);
+    }
+    void visit( Parameter* me)
+    {
+        visitNamed(me);
+    }
+    void visit( NamedType* me)
+    {
+        visitNamed(me);
+    }
+    void visit( Const* me)
+    {
+        if( me->d_constExpr )
+            me->d_constExpr->accept(this);
+    }
+    void visit( Procedure* me)
+    {
+        if( me->d_receiver )
+            me->d_receiver->accept(this);
+        ProcType* t = me->getProcType();
+        t->accept(this);
+    }
+    void visit( SetExpr* me)
+    {
+        foreach( const Ref<Expression>& e, me->d_parts )
+            e->accept(this);
+    }
+    void visit( IdentLeaf* me )
+    {
+        if( !me->d_ident.isNull() && me->d_ident->getModule() == mod )
+            rememberUsed(me->d_ident.data());
+    }
+    void visit( IdentSel* me)
+    {
+        if( me->d_sub )
+            me->d_sub->accept(this);
+        if( !me->d_ident.isNull() && me->d_ident->getModule() == mod )
+            rememberUsed(me->d_ident.data());
+    }
+    void visit( UnExpr* me)
+    {
+        if( me->d_sub )
+            me->d_sub->accept(this);
+    }
+    void visit( ArgExpr* me)
+    {
+        foreach( const Ref<Expression>& e, me->d_args )
+            e->accept(this);
+    }
+    void visit( BinExpr* me)
+    {
+        if( me->d_lhs )
+            me->d_lhs->accept(this);
+        if( me->d_rhs )
+            me->d_rhs->accept(this);
+    }
+
+    void visit( Literal* ) {}
+    void visit( Import* ) {}
+    void visit( BuiltIn* ) {}
+    void visit( Module* ) {}
+    void visit( Call* ) {}
+    void visit( Return* ) {}
+    void visit( Assign* ) {}
+    void visit( IfLoop* ) {}
+    void visit( ForLoop* ) {}
+    void visit( CaseStmt* ) {}
+    void visit( Enumeration* ) {}
+    void visit( GenericName* ) {}
+    void visit( Exit* ) {}
+};
+
+Ref<Module> Model::treeShaken(Module* m) const
+{
+    QSet<Named*> used;
+    foreach( const Ref<Named>& n, m->d_order )
+    {
+        foreach( const Ref<Expression>& e, d_xref.value(n.data()) )
+        {
+            // if there is at least one e outside of m referencing n
+            if( e->getModule() != m )
+                used.insert(n.data());
+        }
+    }
+
+#if 0
+    // doesn't work because d_xref has no relation between e.g. a named pointer and its type
+    bool change = false;
+    do
+    {
+        const int before = used.size();
+        foreach( const Ref<Named>& n, m->d_order )
+        {
+            foreach( const Ref<Expression>& e, d_xref.value(n.data()) )
+            {
+                if( used.contains(e->getIdent()) )
+                    used.insert( n.data() );
+            }
+        }
+        change = used.size() != before;
+    }while( change );
+#else
+    QSet<Named*> tmp = used;
+    foreach( Named* n, tmp )
+    {
+        TreeShaker ts(used,m);
+        n->accept(&ts);
+    }
+
+#endif
+
+
+    Ref<Module> nm = new Module();
+    nm->d_file = m->d_file;
+    nm->d_name = m->d_name;
+    nm->d_isDef = m->d_isDef;
+    nm->d_isExt = m->d_isExt;
+    nm->d_fullName = m->d_fullName;
+    nm->d_imports = m->d_imports;
+    foreach( const Ref<Named>& n, m->d_order )
+    {
+        if( used.contains(n.data()) )
+        {
+            nm->d_names[n->d_name.constData()] = n.data();
+            nm->d_order.append(n);
+        }
+    }
+    return nm;
+}
+
 void Model::unbindFromGlobal()
 {
     if( d_globals.isNull() )
@@ -626,7 +857,7 @@ void Model::fillGlobals()
     bi = new BuiltIn(BuiltIn::ASR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) );
     d_globals->add( bi.data());
 
-    bi = new BuiltIn(BuiltIn::ROR, new ProcType( Type::List() << d_anyType.data() // integer type or SET in Oberon System
+    bi = new BuiltIn(BuiltIn::ROR, new ProcType( Type::List() << d_intType.data() // integer type or SET in Oberon System
                                                  << d_intType.data(), d_intType.data() ) );
     d_globals->add( bi.data());
 
@@ -688,11 +919,11 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::CAP, new ProcType( Type::List() << d_charType.data(), d_charType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::LONG, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::SHORT, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::HALT, new ProcType( Type::List() << d_anyNum.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::HALT, new ProcType( Type::List() << d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::COPY, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::ASH, new ProcType( Type::List() << d_anyNum.data() << d_anyNum.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::ASH, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::SIZE, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::ENTIER, new ProcType( Type::List() << d_anyNum.data(), d_longType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::ENTIER, new ProcType( Type::List() << d_longrealType.data(), d_longType.data() ) ) );
 
     // Oberon+
     d_globals->add( new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) ) );
@@ -720,11 +951,13 @@ void Model::fillGlobals()
     ptr->d_to = d_anyType.data();
     sys->add( new NamedType(Lexer::getSymbol("PTR"), ptr.data() ) );
 
+#if 0
     d_globals->add( new Const( Lexer::getSymbol("untagged"), 0 ) );
     d_globals->add( new Const( Lexer::getSymbol("union"), 0 ) );
     d_globals->add( new Const( Lexer::getSymbol("align8"), 0 ) );
     d_globals->add( new Const( Lexer::getSymbol("noalign"), 0 ) );
     d_globals->add( new Const( Lexer::getSymbol("align2"), 0 ) );
+#endif
 
     // TODO THISRECORD
 #endif

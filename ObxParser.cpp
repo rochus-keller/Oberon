@@ -594,10 +594,10 @@ Ref<Expression> Parser::literal()
         return new Literal(Literal::String, d_cur.toRowCol(),d_cur.d_val.mid(1,d_cur.d_val.size()-2));
     case Tok_hexstring:
         next();
-        return new Literal(Literal::String, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
+        return new Literal(Literal::Bytes, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
     case Tok_hexchar:
         next();
-        return new Literal( Literal::Char, d_cur.toRowCol(), d_cur.d_val.left( d_cur.d_val.size() - 1 ).toUInt(0,16));
+        return new Literal( Literal::Char, d_cur.toRowCol(), quint16(d_cur.d_val.left( d_cur.d_val.size() - 1 ).toUInt(0,16)));
     case Tok_NIL:
         next();
         return new Literal( Literal::Nil, d_cur.toRowCol());

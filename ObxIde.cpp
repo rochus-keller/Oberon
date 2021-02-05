@@ -740,6 +740,7 @@ void Ide::createMenu()
     pop->addSeparator();
     pop->addCommand( "Add Modules...", this, SLOT(onAddFiles()) );
     pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
+    pop->addCommand( "Export minimized Module...", this, SLOT(onExpMod()) );
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
     pop->addCommand( "Built-in Oberon System Inner", this, SLOT(onObSysInner()) );
@@ -951,9 +952,26 @@ void Ide::onNewPro()
     if( !checkSaved( tr("New Project")) )
         return;
 
+    // we need a path up front because this path is also the first root path to the source code
+    QString fileName = QFileDialog::getSaveFileName(this, tr("New Project"),
+                                                          QFileInfo(d_pro->getFilePath()).absolutePath(),
+                                                          tr("Oberon+ Project (*.obxpro)") );
+
+    if (fileName.isEmpty())
+        return;
+
+    QDir::setCurrent(QFileInfo(fileName).absolutePath());
+
+    if( !fileName.endsWith(".obxpro",Qt::CaseInsensitive ) )
+        fileName += ".obxpro";
+
     d_pro->createNew();
     d_tab->onCloseAll();
     compile();
+
+
+    d_pro->saveTo(fileName);
+
 }
 
 void Ide::onOpenPro()
@@ -1146,6 +1164,7 @@ void Ide::onHierDblClicked(QTreeWidgetItem* item, int)
     d_lock4 = true;
 
     showEditor( s->getModule()->d_file, s->d_loc.d_row, s->d_loc.d_col, false, true );
+    item->setExpanded(true);
     d_lock4 = false;
 }
 
@@ -1409,6 +1428,9 @@ bool Ide::compile(bool generate )
         d_pro->generate();
     onErrors();
     fillMods();
+    fillModule(0);
+    fillHier(0);
+    fillXref(0);
     onTabChanged();
     return errCount == d_pro->getErrs()->getErrCount();
 }
@@ -1657,6 +1679,8 @@ static const char* roleName( Expression* e )
         return "Meth";
     case SuperRole:
         return "Base";
+    case StringRole:
+        return "Str";
     default:
         break;
     }
@@ -1780,6 +1804,9 @@ void Ide::fillXref(Named* sym)
 {
     d_xref->clear();
     d_xrefTitle->clear();
+
+    if( sym == 0 )
+        return;
 
     ExpList exp = d_pro->getUsage(sym);
 
@@ -2190,7 +2217,8 @@ void Ide::fillHier(Named* n)
     if( ref )
     {
         ref->setFont(0,f);
-        d_hier->expandAll();
+        // d_hier->expandAll();
+        ref->setExpanded(true);
         d_hier->scrollToItem(ref,QAbstractItemView::PositionAtCenter);
         d_hier->setCurrentItem(ref);
     }
@@ -2353,13 +2381,31 @@ void Ide::onQt()
     QMessageBox::aboutQt(this,tr("About the Qt Framework") );
 }
 
+void Ide::onExpMod()
+{
+    ENABLED_IF( d_mods->currentItem() );
+
+    ScopeRef s = d_mods->currentItem()->data(0,Qt::UserRole).value<ScopeRef>();
+    if( s.isNull() || s->getTag() != Thing::T_Module )
+        return;
+
+    Module* m = cast<Module*>(s.data());
+
+    const QString path = QFileDialog::getSaveFileName( this, tr("Export Module"), m->d_fullName.join('/') + ".obx" );
+
+    if( path.isEmpty() )
+        return;
+
+    d_pro->printTreeShaken( m->d_file, path );
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.3");
+    a.setApplicationVersion("0.4");
     a.setStyle("Fusion");
 
     Ide w;

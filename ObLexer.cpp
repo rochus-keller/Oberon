@@ -288,8 +288,7 @@ Token Lexer::ident()
     while( true )
     {
         const char c = lookAhead(off);
-        if( !QChar(c).isLetterOrNumber() // QChar wegen möglichen Umlauten
-                && c != '_' )
+        if( !::isalnum(c) && c != '_' )
             break;
         else
             off++;

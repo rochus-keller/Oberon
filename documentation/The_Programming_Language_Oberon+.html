@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-01-29</span>
+      <span id="revdate">2021-02-05</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -2584,7 +2584,7 @@ end Insert</pre>
                     <p class="tableblock">LONG(x)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">SHORTINT</p>
+                    <p class="tableblock">x: SHORTINT</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">INTEGER</p>
@@ -2596,7 +2596,7 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">INTEGER</p>
+                    <p class="tableblock">x: INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">LONGINT</p>
@@ -2606,12 +2606,36 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">REAL</p>
+                    <p class="tableblock">x: REAL</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">LONGREAL</p>
                   </td>
                   <td class="tableblock halign-left valign-top"></td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x: CHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">WCHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">projection</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x: array of char or Latin-1 string</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">Unicode string</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">projection</p>
+                  </td>
                 </tr>
                 <tr>
                   <td class="tableblock halign-left valign-top">
@@ -2667,6 +2691,34 @@ end Insert</pre>
                 </tr>
                 <tr>
                   <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">MAX(x,y)</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x,y: numeric type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">numeric type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">greater of x and y, returns smallest numeric type including both
+                      arguments</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x,y: character type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">character type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">greater of x and y, returns smallest character type including
+                      both arguments</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top">
                     <p class="tableblock">MIN(T)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
@@ -2705,6 +2757,34 @@ end Insert</pre>
                 </tr>
                 <tr>
                   <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">MIN(x,y)</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x,y: numeric type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">numeric type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">smaller of x and y, returns smallest numeric type including both
+                      arguments</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x,y: character type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">character type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">smaller of x and y, returns smallest character type including
+                      both arguments</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top">
                     <p class="tableblock">ODD(x)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
@@ -2722,10 +2802,10 @@ end Insert</pre>
                     <p class="tableblock">ORD(x)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">CHAR or WCHAR</p>
+                    <p class="tableblock">x: CHAR or WCHAR</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">INTEGER</p>
+                    <p class="tableblock">BYTE or SHORT</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">ordinal number of x</p>
@@ -2734,13 +2814,27 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">enumeration type</p>
+                    <p class="tableblock">x: enumeration type</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">ordinal number of the given identifier</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x: set type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">INTEGER</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">number representing the set; the first element corresponds to
+                      the least significant digit of the number and the last element
+                      to the most significant digit.</p>
                   </td>
                 </tr>
                 <tr>
@@ -2762,7 +2856,7 @@ end Insert</pre>
                     <p class="tableblock">SHORT(x)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">LONGINT</p>
+                    <p class="tableblock">x: LONGINT</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">INTEGER</p>
@@ -2774,7 +2868,7 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">INTEGER</p>
+                    <p class="tableblock">x: INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">SHORTINT</p>
@@ -2786,13 +2880,37 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">LONGREAL</p>
+                    <p class="tableblock">x: LONGREAL</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">REAL</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">identity (truncation possible)</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x: WCHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">CHAR</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">projection (0x if there is no projection)</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x: array of wchar or Unicode string</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">Latin-1 string</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">projection ("?" for characters where there is no projection)</p>
                   </td>
                 </tr>
                 <tr>

@@ -274,9 +274,397 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
-    void checkBuiltInArgs( ProcType* p, ArgExpr* args )
+    inline bool isBasicOrSet( Type* lhs ) const
     {
-        // TODO
+        return lhs == bt.d_boolType || lhs == bt.d_charType || lhs == bt.d_wcharType ||
+                lhs == bt.d_byteType || lhs == bt.d_intType || lhs == bt.d_shortType || lhs == bt.d_longType ||
+                lhs == bt.d_realType || lhs == bt.d_longrealType || lhs == bt.d_setType;
+    }
+
+    bool checkBuiltInArgs( ProcType* p, ArgExpr* args )
+    {
+        Q_ASSERT( p->d_ident && p->d_ident->getTag() == Thing::T_BuiltIn );
+        BuiltIn* bi = cast<BuiltIn*>(p->d_ident);
+
+        switch( bi->d_func )
+        {
+        case BuiltIn::SYS_BIT:
+        case BuiltIn::SYS_H:
+        case BuiltIn::SYS_LDREG:
+        case BuiltIn::SYS_REG:
+        case BuiltIn::SYS_COPY:
+        case BuiltIn::ODD:
+        case BuiltIn::LSL:
+        case BuiltIn::ASR:
+        case BuiltIn::FLOOR:
+        case BuiltIn::FLT:
+        case BuiltIn::CHR:
+        case BuiltIn::INCL:
+        case BuiltIn::EXCL:
+        case BuiltIn::PACK:
+        case BuiltIn::UNPK:
+        case BuiltIn::LED:
+        case BuiltIn::TRAP:
+        case BuiltIn::TRAPIF:
+        case BuiltIn::WCHR:
+        case BuiltIn::BITS:
+        case BuiltIn::HALT:
+        case BuiltIn::ASH:
+        case BuiltIn::ROR:
+        case BuiltIn::ENTIER:
+            return false; // these can be handled by ordinary arg checker
+
+
+        case BuiltIn::INC:
+        case BuiltIn::DEC:
+            if( args->d_args.size() == 1 || args->d_args.size() == 2 )
+            {
+                Parameter lhs;
+                lhs.d_var = true;
+                lhs.d_type = derefed(args->d_args.first()->d_type.data());
+                if( !isInteger( lhs.d_type.data() ) )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting integer argument"));
+                checkCallArg( &lhs, args->d_args[0] );
+                if( args->d_args.size() == 2 )
+                {
+                    Parameter rhs;
+                    rhs.d_type = derefed(args->d_args[1]->d_type.data());
+                    if( !isInteger( rhs.d_type.data() ) )
+                        error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
+                    checkCallArg( &rhs, args->d_args[1] );
+                }
+            }else
+                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+            break;
+        case BuiltIn::ASSERT: // optional arg
+            if( args->d_args.size() == 1 || args->d_args.size() == 2 )
+            {
+                Parameter lhs;
+                lhs.d_type = bt.d_boolType;
+                checkCallArg( &lhs, args->d_args[0] );
+                if( args->d_args.size() == 2 )
+                {
+                    Parameter rhs;
+                    rhs.d_type = derefed(args->d_args[1]->d_type.data());
+                    if( !isInteger( rhs.d_type.data() ) )
+                        error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
+                    checkCallArg( &rhs, args->d_args[1] );
+                }
+            }else
+                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+            break;
+        case BuiltIn::CAP:
+            if( args->d_args.size() == 1 )
+            {
+                Parameter a,b;
+                a.d_type = bt.d_charType;
+                b.d_type = bt.d_wcharType;
+                if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data()) )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting char or wchar argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::ORD:
+            if( args->d_args.size() == 1 )
+            {
+                Parameter a,b,c,d;
+                a.d_type = bt.d_charType;
+                b.d_type = bt.d_wcharType;
+                c.d_type = bt.d_setType;
+                d.d_type = derefed(args->d_args[0]->d_type.data());
+                if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data())
+                        && !paramCompatible( &c, args->d_args[0].data()) && d.d_type->getTag() != Thing::T_Enumeration )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting char, wchar, set or enumeration argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::ABS:
+            if( args->d_args.size() == 1 )
+            {
+                Parameter lhs;
+                lhs.d_type = derefed(args->d_args.first()->d_type.data());
+                if( !isNumeric( lhs.d_type.data() ) )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting numeric argument"));
+                checkCallArg( &lhs, args->d_args[0] );
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::LEN:
+            if( args->d_args.size() == 1 || args->d_args.size() == 2 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                if( lhs->getTag() == Thing::T_Pointer )
+                    lhs = derefed(cast<Pointer*>(lhs)->d_to.data());
+                const int ltag = lhs->getTag();
+                if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
+                else if( args->d_args.size() == 2 )
+                {
+                    if( ltag != Thing::T_Array )
+                        error( args->d_args.first()->d_loc, Validator::tr("expecting array argument"));
+                    Type* rhs = derefed(args->d_args[1]->d_type.data());
+                    if( !isInteger( rhs ) )
+                        error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
+                }
+            }else
+                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+            break;
+        case BuiltIn::MAX:
+        case BuiltIn::MIN:
+            if( args->d_args.size() == 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                if( !isBasicOrSet(lhs) && lhs->getTag() != Thing::T_Enumeration )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting basic, set or enumeration type"));
+            }else if( args->d_args.size() == 2 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                Type* rhs = derefed(args->d_args.last()->d_type.data());
+                const bool ok = ( lhs == bt.d_charType && rhs == bt.d_charType ) ||
+                        ( lhs == bt.d_charType && rhs == bt.d_wcharType ) ||
+                        ( lhs == bt.d_wcharType && rhs == bt.d_charType ) ||
+                        ( lhs == bt.d_wcharType && rhs == bt.d_wcharType ) ||
+                        ( isNumeric(lhs) && isNumeric(rhs) );
+                if( !ok )
+                    error( args->d_loc, Validator::tr("expecting both arguments of numeric or character type"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+            break;
+        case BuiltIn::SHORT:
+            if( args->d_args.size() == 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                const bool ok = lhs == bt.d_wcharType ||
+                        lhs == bt.d_intType || lhs == bt.d_shortType || lhs == bt.d_longType ||
+                        lhs == bt.d_longrealType;
+                if( !ok && lhs != bt.d_wstringType && charArrayType(lhs,false) != bt.d_wcharType )
+                    error( args->d_args.first()->d_loc, Validator::tr("incompatible argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::LONG:
+            if( args->d_args.size() == 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                const bool ok = lhs == bt.d_charType ||
+                        lhs == bt.d_byteType || lhs == bt.d_intType || lhs == bt.d_shortType ||
+                        lhs == bt.d_realType;
+                if( !ok && lhs != bt.d_stringType && charArrayType(lhs,false) != bt.d_charType )
+                    error( args->d_args.first()->d_loc, Validator::tr("incompatible argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::NEW:
+            if( args->d_args.size() >= 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                if( lhs->getTag() != Thing::T_Pointer )
+                {
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting a pointer"));
+                    break;
+                } // else
+                lhs = derefed(cast<Pointer*>(lhs)->d_to.data());
+                const int ltag = lhs->getTag();
+                if( ltag == Thing::T_Array )
+                {
+                    QList<Array*> dims = cast<Array*>(lhs)->getDims();
+                    int dim = 0;
+                    for( int i = 0; i < dims.size(); i++ )
+                    {
+                        if( dims[i]->d_lenExpr.isNull() )
+                            dim++;
+                        else
+                            break;
+                    }
+                    if( args->d_args.size() - 1 != dim )
+                        error( args->d_loc, Validator::tr("the number of arguments is not compatible with the given array"));
+                }else if( ltag == Thing::T_Record )
+                {
+                    if( args->d_args.size() > 1 )
+                        error( args->d_args[1]->d_loc, Validator::tr("too many arguments"));
+                }else
+                    Q_ASSERT( false );
+            }else
+                error( args->d_loc, Validator::tr("expecting at least one argument"));
+            break;
+        case BuiltIn::SIZE:
+            if( args->d_args.size() != 1 )
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break; // accepts any type
+        case BuiltIn::COPY:
+            if( args->d_args.size() != 2 )
+                error( args->d_loc, Validator::tr("expecting two arguments"));
+            else
+            {
+                if( toCharArray( args->d_args.last()->d_type.data(), false ) == 0 ||
+                    assignmentCompatible( args->d_args.last()->d_type.data(), args->d_args.first().data() ) )
+                    error( args->d_loc, Validator::tr("incompatible arguments"));
+            }
+            break;
+        case BuiltIn::VAL:
+            if( args->d_args.size() == 2 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                Type* rhs = derefed(args->d_args.last()->d_type.data());
+                if( lhs->getTag() != Thing::T_Enumeration && !isInteger(rhs) )
+                    error( args->d_loc, Validator::tr("incompatible arguments"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+            break;
+        case BuiltIn::STRLEN:
+            if( args->d_args.size() == 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                if( lhs->getTag() == Thing::T_Pointer )
+                    lhs = derefed(cast<Pointer*>(lhs)->d_to.data());
+                const int ltag = lhs->getTag();
+                if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+            break;
+        case BuiltIn::SYS_ADR:
+        case BuiltIn::SYS_GET:
+        case BuiltIn::SYS_PUT:
+        case BuiltIn::SYS_VAL:
+        case BuiltIn::SYS_MOVE:
+        case BuiltIn::SYS_NEW:
+        case BuiltIn::SYS_ROT:
+        case BuiltIn::SYS_LSH:
+        case BuiltIn::SYS_GETREG:
+        case BuiltIn::SYS_PUTREG:
+        case BuiltIn::SYS_TYP:
+            break; // TODO ignored for now
+        }
+        return true;
+    }
+
+    void checkCallArg( Parameter* formal, Ref<Expression>& actual )
+    {
+        Type* tf = derefed(formal->d_type.data());
+        Type* ta = derefed(actual->d_type.data());
+        if( tf == 0 || ta == 0 )
+            return; // error already handled
+
+        const int tftag = tf->getTag();
+        Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
+        const int tatag = ta->getTag();
+
+        // TODO: do we check readability of actual param idents?
+
+#ifdef OBX_BBOX
+        if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && tatag == Thing::T_Pointer )
+        {
+            // BBOX does implicit deref of actual pointer when passing to a formal record or array parameter
+            Ref<Expression> arg = new UnExpr(UnExpr::DEREF, actual.data() );
+            Pointer* p = cast<Pointer*>(ta);
+            ta = derefed(p->d_to.data());
+            arg->d_type = p->d_to.data();
+            actual = arg;
+        }
+
+        // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters, implicit address of operation
+        if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
+                                           || ta == bt.d_stringType || ta == bt.d_wstringType  ) )
+        {
+            Pointer* p = cast<Pointer*>(tf);
+            if( p->d_unsafe )
+            {
+                Ref<UnExpr> ue = new UnExpr();
+                ue->d_loc = actual->d_loc;
+                ue->d_op = UnExpr::ADDROF;
+                ue->d_sub = actual;
+                Ref<Pointer> ptr = new Pointer();
+                ptr->d_loc = actual->d_loc;
+                ptr->d_unsafe = true;
+                ptr->d_to = actual->d_type.data();
+                ta = ptr.data();
+                ue->d_type = ptr.data();
+                actual = ue.data();
+                mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
+            }
+        }
+#endif
+
+        if( formal->d_var && !formal->d_const )
+        {
+            // check if VAR really gets a physical location
+            bool ok = false;
+            switch( actual->getTag() )
+            {
+            case Thing::T_UnExpr:
+                ok = actual->getUnOp() == UnExpr::DEREF;
+                break;
+            case Thing::T_IdentLeaf:
+                cast<IdentLeaf*>(actual.data())->d_role = VarRole;
+                ok = true;
+                break;
+            case Thing::T_IdentSel:
+                cast<IdentSel*>(actual.data())->d_role = VarRole;
+                ok = true;
+                break;
+            case Thing::T_ArgExpr:
+                if( actual->getUnOp() == UnExpr::CALL )
+                {
+                    ArgExpr* ae = cast<ArgExpr*>(actual.data());
+                    if( ae->d_sub && ae->d_sub->getIdent() )
+                    {
+                        if( ae->d_sub->getIdent()->getTag() == Thing::T_BuiltIn )
+                        {
+                            // VAL does not actually return something but is just a cast
+                            BuiltIn* bi = cast<BuiltIn*>(ae->d_sub->getIdent());
+                            ok = bi->d_func == BuiltIn::SYS_VAL;
+                        }
+                    }
+                }else
+                    ok = true; // TODO: is readoly checked for pointers derefs or array elements?
+                break;
+            default:
+                break;
+            }
+#ifdef OBX_BBOX
+            if( ta == bt.d_nilType )
+                ok = true;
+#endif
+            if( !ok )
+                error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR parameter") );
+        }
+
+        const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
+
+        if( af && af->d_lenExpr.isNull() )
+        {
+            // If Tf is an open array, then a must be array compatible with f
+            if( !arrayCompatible( af, actual->d_type.data() ) )
+                error( actual->d_loc,
+                       Validator::tr("actual parameter type %1 not compatible with formal type of %2%3 of '%4'")
+                       .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
+                       .arg(formal->d_name.constData()));
+        }
+        else
+        {
+            if( tatag == Thing::T_ProcType )
+            {
+                Named* n = actual->getIdent();
+                const int tag = n ? n->getTag() : 0;
+                if( tag == Thing::T_Procedure )
+                {
+                    Procedure* p = cast<Procedure*>(n);
+                    if( p->d_receiverRec )
+                        error( actual->d_loc, Validator::tr("a type-bound procedure cannot be passed to a procedure type parameter"));
+                    if( p->d_scope->getTag() != Thing::T_Module )
+                        error( actual->d_loc, Validator::tr("a procedure local to another procedure cannot be passed to a procedure type parameter"));
+                }else if( tag == Thing::T_BuiltIn )
+                    error( actual->d_loc, Validator::tr("a predeclared procedure cannot be passed to a procedure type parameter"));
+            }
+
+            // Otherwise Ta must be parameter compatible to f
+            if( !paramCompatible( formal, actual.data() ) )
+                error( actual->d_loc,
+                   Validator::tr("actual parameter type %1 not compatible with formal type %2%3 of '%4'")
+                   .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
+                   .arg(formal->d_name.constData()));
+        }
     }
 
     void checkCallArgs( ProcType* p, ArgExpr* me )
@@ -289,132 +677,7 @@ struct ValidatorImp : public AstVisitor
 
         for( int i = 0; i < p->d_formals.size(); i++ )
         {
-            Parameter* formal = p->d_formals[i].data();
-            Expression* actual = me->d_args[i].data();
-            Type* tf = derefed(formal->d_type.data());
-            Type* ta = derefed(actual->d_type.data());
-            if( tf == 0 || ta == 0 )
-                continue; // error already handled
-
-            const int tftag = tf->getTag();
-            Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
-            const int tatag = ta->getTag();
-
-            // TODO: do we check readability of actual param idents?
-
-#ifdef OBX_BBOX
-            if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && tatag == Thing::T_Pointer )
-            {
-                // BBOX does implicit deref of actual pointer when passing to a formal record or array parameter
-                me->d_args[i] = new UnExpr(UnExpr::DEREF, actual );
-                Pointer* p = cast<Pointer*>(ta);
-                ta = derefed(p->d_to.data());
-                me->d_args[i]->d_type = p->d_to.data();
-                actual = me->d_args[i].data();
-            }
-
-            // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters, implicit address of operation
-            if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
-                                               || ta == bt.d_stringType || ta == bt.d_wstringType  ) )
-            {
-                Pointer* p = cast<Pointer*>(tf);
-                if( p->d_unsafe )
-                {
-                    Ref<UnExpr> ue = new UnExpr();
-                    ue->d_loc = actual->d_loc;
-                    ue->d_op = UnExpr::ADDROF;
-                    ue->d_sub = actual;
-                    Ref<Pointer> ptr = new Pointer();
-                    ptr->d_loc = actual->d_loc;
-                    ptr->d_unsafe = true;
-                    ptr->d_to = actual->d_type.data();
-                    ta = ptr.data();
-                    ue->d_type = ptr.data();
-                    me->d_args[i] = ue.data();
-                    mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
-                    actual = ue.data();
-                }
-            }
-#endif
-            const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
-
-            if( formal->d_var && !formal->d_const )
-            {
-                // check if VAR really gets a physical location
-                bool ok = false;
-                switch( actual->getTag() )
-                {
-                case Thing::T_UnExpr:
-                    ok = actual->getUnOp() == UnExpr::DEREF;
-                    break;
-                case Thing::T_IdentLeaf:
-                    cast<IdentLeaf*>(actual)->d_role = VarRole;
-                    ok = true;
-                    break;
-                case Thing::T_IdentSel:
-                    cast<IdentSel*>(actual)->d_role = VarRole;
-                    ok = true;
-                    break;
-                case Thing::T_ArgExpr:
-                    if( actual->getUnOp() == UnExpr::CALL )
-                    {
-                        ArgExpr* ae = cast<ArgExpr*>(actual);
-                        if( ae->d_sub && ae->d_sub->getIdent() )
-                        {
-                            if( ae->d_sub->getIdent()->getTag() == Thing::T_BuiltIn )
-                            {
-                                // VAL does not actually return something but is just a cast
-                                BuiltIn* bi = cast<BuiltIn*>(ae->d_sub->getIdent());
-                                ok = bi->d_func == BuiltIn::SYS_VAL;
-                            }
-                        }
-                    }else
-                        ok = true; // TODO: is readoly checked for pointers derefs or array elements?
-                    break;
-                default:
-                    break;
-                }
-#ifdef OBX_BBOX
-                if( ta == bt.d_nilType )
-                    ok = true;
-#endif
-                if( !ok )
-                    error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR parameter") );
-            }
-
-            if( af && af->d_lenExpr.isNull() )
-            {
-                // If Tf is an open array, then a must be array compatible with f
-                if( !arrayCompatible( af, actual->d_type.data() ) )
-                    error( actual->d_loc,
-                           Validator::tr("actual parameter type %1 not compatible with formal type of %2%3 of '%4'")
-                           .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
-                           .arg(formal->d_name.constData()));
-            }
-            else
-            {
-                if( tatag == Thing::T_ProcType )
-                {
-                    Named* n = actual->getIdent();
-                    const int tag = n ? n->getTag() : 0;
-                    if( tag == Thing::T_Procedure )
-                    {
-                        Procedure* p = cast<Procedure*>(n);
-                        if( p->d_receiverRec )
-                            error( actual->d_loc, Validator::tr("a type-bound procedure cannot be passed to a procedure type parameter"));
-                        if( p->d_scope->getTag() != Thing::T_Module )
-                            error( actual->d_loc, Validator::tr("a procedure local to another procedure cannot be passed to a procedure type parameter"));
-                    }else if( tag == Thing::T_BuiltIn )
-                        error( actual->d_loc, Validator::tr("a predeclared procedure cannot be passed to a procedure type parameter"));
-                }
-
-                // Otherwise Ta must be parameter compatible to f
-                if( !paramCompatible( formal, actual ) )
-                    error( actual->d_loc,
-                       Validator::tr("actual parameter type %1 not compatible with formal type %2%3 of '%4'")
-                       .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
-                       .arg(formal->d_name.constData()));
-            }
+            checkCallArg( p->d_formals[i].data(), me->d_args[i] );
         }
     }
 
@@ -473,13 +736,14 @@ struct ValidatorImp : public AstVisitor
             break;
         case BuiltIn::MIN:
         case BuiltIn::MAX:
-            if( !args.isEmpty() )
+            if( args.size() == 1 )
             {
                 if( derefed(args.first()->d_type.data()) == bt.d_setType )
                     return bt.d_intType;
                 else
                     return args.first()->d_type.data();
-            }
+            }else if( args.size() == 2 )
+                return inclusiveType1(derefed(args.first()->d_type.data()),derefed(args.last()->d_type.data()));
             break;
         case BuiltIn::ORD:
             if( !args.isEmpty() )
@@ -521,9 +785,7 @@ struct ValidatorImp : public AstVisitor
                 // this is a call
                 ProcType* p = cast<ProcType*>( subType );
                 const bool isBuiltIn = p->d_ident && p->d_ident->getTag() == Thing::T_BuiltIn;
-                if( isBuiltIn )
-                    checkBuiltInArgs( p, me );
-                else
+                if( !isBuiltIn || !checkBuiltInArgs( p, me ) )
                     checkCallArgs( p, me );
                 if( me->d_sub->getIdent() )
                 {
@@ -734,7 +996,7 @@ struct ValidatorImp : public AstVisitor
                 me->d_type = bt.d_boolType;
             else
             {
-                qDebug() << "lhsT" << lhsT->getTagName() << "rhsT" << rhsT->getTagName();
+                // qDebug() << "lhsT" << lhsT->getTagName() << "rhsT" << rhsT->getTagName();
                 error( me->d_loc, Validator::tr("operands of the given type cannot be compared") );
             }
             break;
@@ -820,17 +1082,17 @@ struct ValidatorImp : public AstVisitor
     {
         const qint64 i = me->d_val.toLongLong();
         const double d = me->d_val.toDouble();
-        switch( me->d_kind )
+        switch( me->d_vtype )
         {
         case Literal::Integer:
-            if( i >= 0 && i <= 255)
+            if( i >= 0 && i <= bt.d_byteType->maxVal().toInt() )
                 me->d_type = bt.d_byteType;
-            else if( i >= SHRT_MIN && i <= SHRT_MAX )
+            else if( i >= bt.d_shortType->minVal().toInt() && i <= bt.d_shortType->maxVal().toInt() )
                 me->d_type = bt.d_shortType;
-            else if( i >= INT_MIN && i <= INT_MAX )
+            else if( i >= bt.d_intType->minVal().toInt() && i <= bt.d_intType->maxVal().toInt() )
                 me->d_type = bt.d_intType;
             else
-                me->d_type = bt.d_intType;
+                me->d_type = bt.d_longType;
             break;
         case Literal::Real:
             me->d_type = bt.d_realType; // TODO: adjust precision
@@ -850,15 +1112,18 @@ struct ValidatorImp : public AstVisitor
                         break;
                     }
                 }
-                me->d_len = tmp.size();
+                me->d_strLen = tmp.size();
                 if( needs16bit )
                     me->d_type = bt.d_wstringType;
                 else
                     me->d_type = bt.d_stringType;
             }
             break;
+        case Literal::Bytes:
+            me->d_type = bt.d_stringType;
+            break;
         case Literal::Char:
-            me->d_len = 1;
+            me->d_strLen = 1;
             if( i > 255 )
                 me->d_type = bt.d_wcharType;
             else
@@ -927,9 +1192,9 @@ struct ValidatorImp : public AstVisitor
             else
             {
                 bool ok;
-                Evaluator e;
-                const int len = e.eval(me->d_lenExpr.data(), mod,err).toInt(&ok);
-                if( ok && len <= 0 )
+                Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), mod,err);
+                const int len = res.d_value.toInt(&ok);
+                if( res.d_type != Literal::Integer || !ok || len <= 0 )
                     error( me->d_lenExpr->d_loc, Validator::tr("expecting positive non-zero integer for array length") );
                 me->d_len = len;
             }
@@ -1132,8 +1397,9 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_constExpr->accept(this);
         me->d_type = me->d_constExpr->d_type.data();
-        Evaluator e;
-        me->d_val = e.eval( me->d_constExpr.data(), mod, err );
+        Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, err);
+        me->d_val = res.d_value;
+        me->d_vtype = res.d_type;
     }
 
     void visit( Field* me )
@@ -1391,9 +1657,9 @@ struct ValidatorImp : public AstVisitor
         {
             // TODO: check wchar vs char compat
             Literal* lit = cast<Literal*>( me->d_rhs.data() );
-            if( str->d_len && lit->d_kind == Literal::String && lit->d_len > str->d_len )
+            if( str->d_len && lit->d_vtype == Literal::String && lit->d_strLen > str->d_len )
                 error( me->d_rhs->d_loc, Validator::tr("string is too long to assign to given character array"));
-            if( str->d_len && lit->d_kind == Literal::Char && 1 > str->d_len )
+            if( str->d_len && lit->d_vtype == Literal::Char && 1 > str->d_len )
                 error( me->d_rhs->d_loc, Validator::tr("the character array is too small for the character"));
             // TODO: runtime checks for var length arrays
 
@@ -1502,8 +1768,10 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
             else
             {
-                Evaluator e;
-                me->d_byVal = e.eval( me->d_by.data(), mod, err );
+                Evaluator::Result res = Evaluator::eval(me->d_by.data(), mod, err);
+                if( res.d_type != Literal::Integer )
+                    error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
+                me->d_byVal = res.d_value;
             }
         }
         foreach( const Ref<Statement>& s, me->d_do )
@@ -1685,9 +1953,9 @@ struct ValidatorImp : public AstVisitor
             return bt.d_longrealType;
     }
 
-    Type* charArrayType( Type* t ) const
+    Type* charArrayType( Type* t, bool resolvePointer = true ) const
     {
-        Array* a = toCharArray(t);
+        Array* a = toCharArray(t, resolvePointer);
         if( a )
             return derefed(a->d_type.data());
         else
@@ -1735,7 +2003,7 @@ struct ValidatorImp : public AstVisitor
         {
             if( e->getTag() == Thing::T_Literal )
             {
-                if( cast<Literal*>(e)->d_len == 1 )
+                if( cast<Literal*>(e)->d_strLen == 1 )
                     return true;
             }
         }
@@ -1886,11 +2154,11 @@ struct ValidatorImp : public AstVisitor
             return true;
 
         if( lhsT == bt.d_charType && ( rhs->getTag() == Thing::T_Literal && rhsT == bt.d_stringType ) )
-            return cast<Literal*>(rhs)->d_len == 1;
+            return cast<Literal*>(rhs)->d_strLen == 1;
 
         if( lhsT == bt.d_wcharType && ( rhs->getTag() == Thing::T_Literal &&
                                         ( rhsT == bt.d_stringType || rhsT == bt.d_wstringType ) ) )
-            return cast<Literal*>(rhs)->d_len == 1;
+            return cast<Literal*>(rhs)->d_strLen == 1;
 
 
         if( ltag == Thing::T_Array )
@@ -2096,7 +2364,7 @@ bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err)
 
 Validator::BaseTypes::BaseTypes()
 {
-    ::memset(this,sizeof(BaseTypes),0);
+    ::memset(this,0,sizeof(BaseTypes));
 }
 
 void Validator::BaseTypes::assert() const

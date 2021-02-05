@@ -27,6 +27,7 @@
 #include <QtDebug>
 #include <QSettings>
 #include <QCoreApplication>
+#include <qdatetime.h>
 using namespace Obx;
 using namespace Ob;
 
@@ -280,6 +281,496 @@ struct ObxHitTest : public AstVisitor
 
 };
 
+struct ObxModuleDump : public AstVisitor
+{
+    QTextStream out;
+    int level;
+    RowCol last;
+    Module* mod;
+
+    ObxModuleDump():level(0),mod(0){}
+
+    QByteArray ws() const
+    {
+        return QByteArray( level, '\t' );
+    }
+
+    void checkNl( Thing* me )
+    {
+        if( last.isValid() && me->d_loc.d_row > last.d_row )
+            out << endl << ws();
+        last = me->d_loc;
+    }
+
+    void visit( BaseType* me )
+    {
+        Q_ASSERT( false );
+        last = me->d_loc;
+        out << QByteArray(me->getTypeName()).toLower();
+    }
+    void visit( Pointer* me )
+    {
+        last = me->d_loc;
+        if( me->d_unsafe )
+            out << "unsafe ";
+        out << "pointer to ";
+        if( me->d_to )
+            me->d_to->accept(this);
+        else
+            out << "?";
+    }
+    void visit( Array* me)
+    {
+        last = me->d_loc;
+        if( me->d_unsafe )
+            out << "carray ";
+        else
+            out << "array ";
+        if( me->d_lenExpr )
+        {
+            me->d_lenExpr->accept(this);
+            out << " ";
+        }
+        out << "of ";
+        if( me->d_type )
+            me->d_type->accept(this);
+        else
+            out << "?";
+    }
+    void visit( Record* me )
+    {
+        last = me->d_loc;
+        if( me->d_unsafe )
+            out << "cstruct ";
+        else
+            out << "record ";
+        if( me->d_base )
+        {
+            out << "(";
+            me->d_base->accept(this);
+            out << ") ";
+        }
+        level++;
+        level++;
+        for( int i = 0; i < me->d_fields.size(); i++ )
+        {
+            out << endl << ws();
+            me->d_fields[i]->accept(this);
+        }
+        level--;
+        out << endl << ws();
+        out << "end";
+        level--;
+    }
+    void visitPt( ProcType* me )
+    {
+        if( !me->d_formals.isEmpty() )
+        {
+            out << "(";
+            for( int i = 0; i < me->d_formals.size(); i++ )
+            {
+                if( i != 0 )
+                {
+                    out << "; ";
+                    checkNl(me->d_formals[i].data());
+                }
+                if( me->d_formals[i]->d_const )
+                    out << "in ";
+                else if( me->d_formals[i]->d_var )
+                    out << "var ";
+                me->d_formals[i]->accept(this);
+            }
+            out << ")";
+        }
+        if( !me->d_return.isNull() )
+        {
+            if( me->d_formals.isEmpty() )
+                out << "()";
+            out << ": ";
+            me->d_return->accept(this);
+        }
+    }
+    void visit( ProcType* me )
+    {
+        last = me->d_loc;
+        out << "proc ";
+        visitPt(me);
+    }
+    void visit( QualiType* me)
+    {
+        last = me->d_loc;
+        if( me->d_quali )
+            me->d_quali->accept(this);
+        else
+            out << "?";
+    }
+    void printVar( Named* me )
+    {
+        last = me->d_loc;
+        visitIdentdef(me);
+        out << ": ";
+        if( me->d_type )
+            me->d_type->accept(this);
+        else
+            "?";
+    }
+    void visit( Field* me)
+    {
+        printVar(me);
+    }
+    void visit( Variable* me)
+    {
+        printVar(me);
+    }
+    void visit( LocalVar* me)
+    {
+        printVar(me);
+    }
+    void visit( Parameter* me)
+    {
+        printVar(me);
+    }
+    void visit( NamedType* me)
+    {
+        checkNl(me);
+        level++;
+        visitIdentdef(me);
+        out << " = ";
+        if( me->d_type )
+            me->d_type->accept(this);
+        else
+            out << "?";
+        out << " ";
+        level--;
+    }
+    void visit( Const* me)
+    {
+        checkNl(me);
+        level++;
+        visitIdentdef(me);
+        out << " = ";
+        if( me->d_constExpr )
+            me->d_constExpr->accept(this);
+        else
+            out << "?";
+        out << " ";
+        level--;
+    }
+    static inline QByteArray modName( const QByteArrayList& in )
+    {
+        if( in.isEmpty() )
+            return "SYSTEM";
+        else
+            return in.join('/');
+    }
+
+    void visit( Import* me)
+    {
+        checkNl(me);
+        level++;
+        if( me->d_aliasPos.isValid() )
+        {
+            out << me->d_name;
+            out << " := ";
+            if( me->d_mod )
+                out << modName(me->d_mod->d_fullName);
+            else
+                out << "?";
+        }else
+        {
+            if( me->d_mod )
+                out << modName(me->d_mod->d_fullName);
+            else
+                out << "?";
+        }
+        level--;
+    }
+    void visitIdentdef( Named* me )
+    {
+        Q_ASSERT( mod );
+        const bool isModLevel = me->d_scope && me->d_scope->getTag() != Thing::T_Procedure;
+        out << me->d_name;
+        switch(me->d_visibility)
+        {
+        case Named::ReadWrite:
+            if( !mod->d_isDef && isModLevel )
+                out << "*";
+            break;
+        case Named::ReadOnly:
+            if( isModLevel )
+                out << "-";
+            break;
+        }
+    }
+    void visit( Procedure* me)
+    {
+        checkNl(me);
+        out << "proc ";
+        if( me->d_receiver )
+        {
+            out << "(";
+            me->d_receiver->accept(this);
+            out << ") ";
+        }
+        visitIdentdef(me);
+        ProcType* pt = me->getProcType();
+        Q_ASSERT( pt );
+        visitPt(pt);
+        out << " ";
+        // TODO proc body?
+    }
+
+    void visitScope( Scope* s )
+    {
+        QList<Named*> CONST, TYPE, VAR, PROC;
+        for( int i = 0; i < s->d_order.size(); i++ )
+        {
+            switch( s->d_order[i]->getTag() )
+            {
+            case Thing::T_Const:
+                CONST << s->d_order[i].data();
+                break;
+            case Thing::T_NamedType:
+                TYPE << s->d_order[i].data();
+                break;
+            case Thing::T_LocalVar:
+            case Thing::T_Variable:
+                VAR << s->d_order[i].data();
+                break;
+            case Thing::T_Procedure:
+                PROC << s->d_order[i].data();
+                break;
+            }
+        }
+        if( !CONST.isEmpty() )
+        {
+            out << "const ";
+            level++;
+            for( int i = 0; i < CONST.size(); i++ )
+                CONST[i]->accept(this);
+            level--;
+            out << endl << ws();
+        }
+        if( !TYPE.isEmpty() )
+        {
+            out << "type ";
+            level++;
+            for( int i = 0; i < TYPE.size(); i++ )
+                TYPE[i]->accept(this);
+            level--;
+            out << endl << ws();
+        }
+        if( !VAR.isEmpty() )
+        {
+            out << "var ";
+            level++;
+            for( int i = 0; i < VAR.size(); i++ )
+                VAR[i]->accept(this);
+            level--;
+            out << endl << ws();
+        }
+        level++;
+        for( int i = 0; i < PROC.size(); i++ )
+            PROC[i]->accept(this);
+        level--;
+        out << endl << ws();
+    }
+
+    void visit( Module* me)
+    {
+        out << "// Automatically generated by the tree shaker of Oberon+ IDE on " <<
+               QDateTime::currentDateTime().toString(Qt::ISODate) << endl << endl;
+        mod = me;
+        if( me->d_isDef )
+            out << "definition ";
+        else
+            out << "module ";
+        out << me->d_name;
+        level++;
+        out << endl << ws();
+        out << "import";
+        level++;
+        out << endl << ws();
+        for( int i = 0; i < me->d_imports.size(); i++ )
+        {
+            if( i != 0 )
+                out << ", ";
+            me->d_imports[i]->accept(this);
+        }
+        level--;
+        out << endl << ws();
+        visitScope( me );
+        level --;
+        out << endl;
+        out << "end " << me->d_name;
+    }
+    void visit( Literal* me)
+    {
+        switch( me->d_vtype )
+        {
+        case Literal::Integer:
+            out << me->d_val.toLongLong();
+            break;
+        case Literal::Real:
+            out << me->d_val.toDouble();
+            break;
+        case Literal::Boolean:
+            out << ( me->d_val.toBool() ? "true" : "false" );
+            break;
+        case Literal::String:
+            out << "\"" << me->d_val.toByteArray() << "\"";
+            break;
+        case Literal::Bytes:
+            out << "$" << me->d_val.toByteArray().toHex() << "$";
+            break;
+        case Literal::Char:
+            out << '0' << QByteArray::number(me->d_val.toUInt(),16) << 'x';
+            break;
+        case Literal::Nil:
+            out << "nil";
+            break;
+        default:
+            Q_ASSERT( false );
+            break;
+        }
+
+    }
+    void visit( SetExpr* me)
+    {
+        out << "{";
+        for( int i = 0; i < me->d_parts.size(); i++ )
+        {
+            if( i != 0 )
+                out << ", ";
+            me->d_parts[i]->accept(this);
+        }
+        out << "} ";
+    }
+    void visit( IdentLeaf* me)
+    {
+        out << me->d_name;
+    }
+    void visit( UnExpr* me)
+    {
+        if( me->d_op == UnExpr::NEG )
+            out << "-";
+        else if( me->d_op == UnExpr::NOT )
+            out << "not ";
+        if( me->d_sub )
+            me->d_sub->accept(this);
+        else
+            out << "?";
+        if( me->d_op == UnExpr::DEREF )
+            out << "^";
+    }
+    void visit( IdentSel* me)
+    {
+        if( me->d_sub )
+            me->d_sub->accept(this);
+        else
+            out << "?";
+        out << ".";
+        out << me->d_name;
+    }
+    void visit( ArgExpr* me)
+    {
+        if( me->d_op == UnExpr::IDX )
+            out << "[";
+        else
+            out << "(";
+        for( int i = 0; i < me->d_args.size(); i++ )
+        {
+            if( i != 0 )
+                out << ", ";
+            me->d_args[i]->accept(this);
+        }
+        if( me->d_op == UnExpr::IDX )
+            out << "]";
+        else
+            out << ") ";
+    }
+    void visit( BinExpr* me)
+    {
+        out << "(";
+        if( me->d_lhs )
+            me->d_lhs->accept(this);
+        out << " ";
+        switch( me->d_op )
+        {
+        case BinExpr::Range:
+            out << "..";
+            break;
+        case BinExpr::EQ:
+            out << "=";
+            break;
+        case BinExpr::NEQ:
+            out << "#";
+            break;
+        case BinExpr::LT:
+            out << "<";
+            break;
+        case BinExpr::LEQ:
+            out << "<=";
+            break;
+        case BinExpr::GT:
+            out << ">";
+            break;
+        case BinExpr::GEQ:
+            out << ">=";
+            break;
+        case BinExpr::IN:
+            out << "in";
+            break;
+        case BinExpr::IS:
+            out << "is";
+            break;
+        case BinExpr::ADD:
+            out << "+";
+            break;
+        case BinExpr::SUB:
+            out << "-";
+            break;
+        case BinExpr::OR:
+            out << "or";
+            break;
+        case BinExpr::MUL:
+            out << "*";
+            break;
+        case BinExpr::FDIV:
+            out << "/";
+            break;
+        case BinExpr::DIV:
+            out << "div";
+            break;
+        case BinExpr::MOD:
+            out << "mod";
+            break;
+        case BinExpr::AND:
+            out << "&";
+            break;
+        default:
+            out << "?";
+            break;
+        }
+        out << " ";
+        if( me->d_rhs )
+            me->d_rhs->accept(this);
+        out << ")";
+    }
+
+    // TODO
+    void visit( BuiltIn* ) {}
+    void visit( Call* ) {}
+    void visit( Return* ) {}
+    void visit( Assign* ) {}
+    void visit( IfLoop* ) {}
+    void visit( ForLoop* ) {}
+    void visit( CaseStmt* ) {}
+    void visit( Enumeration* ) {}
+    void visit( GenericName* ) {}
+    void visit( Exit* ) {}
+};
+
 Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInOakwood(false),
     d_useBuiltInObSysInner(false)
 {
@@ -421,6 +912,23 @@ void Project::setWorkingDir(const QString& wd)
 {
     d_workingDir = wd;
     touch();
+}
+
+bool Project::printTreeShaken(const QString& module, const QString& fileName)
+{
+    File f = d_files.value(module);
+    if( f.d_mod.isNull() )
+        return false;
+    Ref<Module> m = d_mdl->treeShaken(f.d_mod.data());
+    QFile out(fileName);
+    if( !out.open(QIODevice::WriteOnly) )
+        return false;
+
+
+    ObxModuleDump dump;
+    dump.out.setDevice( &out );
+    m->accept(&dump);
+    return true;
 }
 
 Errors* Project::getErrs() const

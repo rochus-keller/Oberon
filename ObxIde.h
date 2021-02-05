@@ -146,6 +146,7 @@ namespace Obx
         void onLuaNotify( int messageType, QByteArray val1, int val2 );
         void onAbout();
         void onQt();
+        void onExpMod();
     private:
         class DocTab;
         class Debugger;

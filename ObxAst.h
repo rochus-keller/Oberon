@@ -31,8 +31,6 @@ namespace Obx
 {
 // adopted from Ob::Ast
 
-    enum { SET_BIT_LEN = 32 };
-    typedef std::bitset<SET_BIT_LEN> Set;
     struct AstVisitor;
 
     template <class T>
@@ -192,6 +190,8 @@ namespace Obx
         static const char* s_typeName[];
 
         BaseType(quint8 t = NIL ) { d_type = t; }
+        QVariant maxVal() const;
+        QVariant minVal() const;
         int getTag() const { return T_BaseType; }
         void accept(AstVisitor* v) { v->visit(this); }
         const char* getTypeName() const { return s_typeName[d_type]; }
@@ -215,8 +215,9 @@ namespace Obx
         int getTag() const { return T_Array; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured() const { return true; }
-        Type* getTypeDim( int& dims ) const;
+        Type* getTypeDim(int& dims , bool openOnly = false) const;
         QString pretty() const;
+        QList<Array*> getDims();
     };
 
     struct Record : public Type
@@ -348,8 +349,9 @@ namespace Obx
     struct Const : public Named
     {
         QVariant d_val;
+        quint8 d_vtype;
         Ref<Expression> d_constExpr;
-        Const(){}
+        Const():d_vtype(0){}
         Const(const QByteArray& name, Literal* lit );
         int getTag() const { return T_Const; }
         void accept(AstVisitor* v) { v->visit(this); }
@@ -527,7 +529,7 @@ namespace Obx
     };
 
     enum IdentRole { NoRole, DeclRole, LhsRole, VarRole, RhsRole, SuperRole, SubRole, CallRole,
-                     ImportRole, ThisRole, MethRole };
+                     ImportRole, ThisRole, MethRole, StringRole };
 
     struct Expression : public Thing
     {
@@ -543,12 +545,15 @@ namespace Obx
 
     struct Literal : public Expression
     {
-        enum Kind { Integer, Real, Boolean, String, Char /* uint */, Nil, Set };
+        enum { SET_BIT_LEN = 32 };
+        typedef std::bitset<SET_BIT_LEN> SET;
+
+        enum ValueType { Invalid, Integer, Real, Boolean, String /* QBA utf8 */, Bytes /* QBA */, Char /* quint16 */, Nil, Set };
         QVariant d_val;
-        uint d_kind : 8;
-        uint d_len : 24;
-        Literal( Kind t = Nil, Ob::RowCol l = Ob::RowCol(),
-                 const QVariant& v = QVariant(), Type* typ = 0 ):d_val(v),d_kind(t),d_len(0){ d_loc = l; d_type = typ; }
+        uint d_vtype : 8;
+        uint d_strLen : 24;
+        Literal( ValueType t = Invalid, Ob::RowCol l = Ob::RowCol(),
+                 const QVariant& v = QVariant(), Type* typ = 0 ):d_val(v),d_vtype(t),d_strLen(0){ d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }
         void accept(AstVisitor* v) { v->visit(this); }
     };
@@ -634,5 +639,7 @@ namespace Obx
     };
 
 }
+
+Q_DECLARE_METATYPE( Obx::Literal::SET )
 
 #endif // OBXAST_H
