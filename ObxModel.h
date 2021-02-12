@@ -61,7 +61,7 @@ namespace Obx
 
         Ob::Errors* getErrs() const { return d_errs; }
         Ob::FileCache* getFc() const { return d_fc; }
-
+        void addPreload(const QByteArray& name, const QByteArray& source);
     protected:
         void unbindFromGlobal();
         void fillGlobals();

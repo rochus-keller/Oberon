@@ -21,7 +21,7 @@
 #include "ObxAst.h"
 #include "ObxModel.h"
 #include "ObErrors.h"
-#include "ObLjbcGen.h"
+#include "ObxLjbcGen.h"
 #include <QBuffer>
 #include <QDir>
 #include <QtDebug>
@@ -618,7 +618,7 @@ struct ObxModuleDump : public AstVisitor
             out << ( me->d_val.toBool() ? "true" : "false" );
             break;
         case Literal::String:
-            out << "\"" << me->d_val.toByteArray() << "\"";
+            out << "\"" << QString::fromUtf8(me->d_val.toByteArray()) << "\"";
             break;
         case Literal::Bytes:
             out << "$" << me->d_val.toByteArray().toHex() << "$";
@@ -1010,7 +1010,7 @@ bool Project::generate()
             qDebug() << "generating" << i.value().d_mod->d_name;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
-            // TODO LjbcGen::translate(i.value().d_mod.data(), &buf, d_mdl->getErrs() );
+            LjbcGen::translate(i.value().d_mod.data(), &buf, d_mdl->getErrs() );
             buf.close();
             i.value().d_sourceCode = buf.buffer();
         }

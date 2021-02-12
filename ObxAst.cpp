@@ -414,7 +414,7 @@ QList<Expression*> Expression::getSubList() const
 
 QVariant BaseType::maxVal() const
 {
-    switch( d_type )
+    switch( d_baseType )
     {
     case BOOLEAN:
         return true;
@@ -442,7 +442,7 @@ QVariant BaseType::maxVal() const
 
 QVariant BaseType::minVal() const
 {
-    switch( d_type )
+    switch( d_baseType )
     {
     case BOOLEAN:
         return false;
@@ -463,4 +463,30 @@ QVariant BaseType::minVal() const
         return std::numeric_limits<double>::min();
     }
     return QVariant();
+}
+
+bool Type::isText(bool* wide) const
+{
+    if( isString() || isChar() )
+    {
+        if( wide )
+            *wide = d_baseType == WCHAR || d_baseType == WSTRING;
+        return true;
+    }
+    if( getTag() == Thing::T_Array )
+    {
+        Array* a = cast<Array*>(const_cast<Type*>(this));
+        Type* t = a->d_type.data();
+        if( t )
+            t = t->derefed();
+        if( t && t->isChar() )
+        {
+            if( wide )
+                *wide = d_baseType == WCHAR;
+            return true;
+        }
+    }
+    if( wide )
+        *wide = false;
+    return false;
 }

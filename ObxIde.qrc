@@ -3,7 +3,6 @@
         <file>images/close.png</file>
         <file>images/exclamation-circle.png</file>
         <file>images/exclamation-red.png</file>
-        <file>scripts/obnlj.lua</file>
         <file>oakwood/Files.Def</file>
         <file>oakwood/In.Def</file>
         <file>oakwood/Input.Def</file>
@@ -31,5 +30,6 @@
         <file>images/module.png</file>
         <file>images/class_priv.png</file>
         <file>images/struct_priv.png</file>
+        <file>scripts/obxlj.lua</file>
     </qresource>
 </RCC>

@@ -590,14 +590,38 @@ Ref<Expression> Parser::literal()
     case Tok_real:
         return number().data();
     case Tok_string:
-        next();
-        return new Literal(Literal::String, d_cur.toRowCol(),d_cur.d_val.mid(1,d_cur.d_val.size()-2));
+        {
+            next();
+            const QByteArray utf8 = d_cur.d_val.mid(1,d_cur.d_val.size()-2);
+            const QString tmp = QString::fromUtf8( utf8 );
+            bool needs16bit = false;
+            for( int i = 0; i < tmp.size(); i++ )
+            {
+                if( tmp[i].unicode() > 255 )
+                {
+                    needs16bit = true;
+                    break;
+                }
+            }
+            Ref<Literal> lit =  new Literal(Literal::String, d_cur.toRowCol(), utf8);
+            lit->d_strLen = tmp.size();
+            lit->d_wide = needs16bit;
+            return lit.data();
+        }
+        break;
     case Tok_hexstring:
         next();
         return new Literal(Literal::Bytes, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
     case Tok_hexchar:
-        next();
-        return new Literal( Literal::Char, d_cur.toRowCol(), quint16(d_cur.d_val.left( d_cur.d_val.size() - 1 ).toUInt(0,16)));
+        {
+            next();
+            const quint16 ch = d_cur.d_val.left( d_cur.d_val.size() - 1 ).toUInt(0,16);
+            Ref<Literal> lit = new Literal( Literal::Char, d_cur.toRowCol(), ch);
+            if( ch > 255 )
+                lit->d_wide = true;
+            return lit.data();
+        }
+        break;
     case Tok_NIL:
         next();
         return new Literal( Literal::Nil, d_cur.toRowCol());

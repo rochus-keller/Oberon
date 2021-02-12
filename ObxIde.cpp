@@ -20,14 +20,11 @@
 #include "ObxIde.h"
 #include "ObnHighlighter.h"
 #include "ObFileCache.h"
-#include "ObLjLib.h"
 #include "ObxAst.h"
 #include "ObxEvaluator.h"
 #include "ObErrors.h"
-#include "ObLjbcGen.h"
 #include "ObxProject.h"
 #include "ObxModel.h"
-#include "ObSysInnerLib.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
@@ -415,8 +412,8 @@ Ide::Ide(QWidget *parent)
     d_lua->addLibrary(Engine2::JIT);
     d_lua->addLibrary(Engine2::FFI);
     d_lua->addLibrary(Engine2::OS);
-    LjLib::install(d_lua->getCtx());
-    loadLuaLib( d_lua, "obnlj" );
+    // TODO LjLib::install(d_lua->getCtx());
+    loadLuaLib( d_lua, "obxlj" );
 
     d_dbg = new Debugger(this);
     d_lua->setDbgShell(d_dbg);
@@ -544,7 +541,7 @@ void Ide::closeEvent(QCloseEvent* event)
     if( ok )
     {
         d_lua->terminate(true);
-        SysInnerLib::quit();
+        // TODO SysInnerLib::quit();
     }
 }
 
@@ -881,7 +878,7 @@ void Ide::onRun()
     }
 
     if( d_pro->useBuiltInObSysInner() )
-        SysInnerLib::install(d_lua->getCtx());
+        ; // TODO SysInnerLib::install(d_lua->getCtx());
 
     bool hasErrors = false;
     foreach( const Project::File& f, files )
@@ -2405,7 +2402,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.4");
+    a.setApplicationVersion("0.4.1");
     a.setStyle("Fusion");
 
     Ide w;

@@ -37,22 +37,19 @@ SOURCES += ObxIde.cpp \
     ../LjTools/LuaJitEngine.cpp \
     ../LjTools/LuaJitComposer.cpp \
     ObnHighlighter.cpp \
-    ObLjLib.cpp \
     ../LjTools/LjDisasm.cpp \
-    ObLjbcGen.cpp \
     ../LjTools/BcViewer2.cpp \
-    ObLjProject.cpp \
     ../GuiTools/DocSelector.cpp \
     ../GuiTools/DocTabWidget.cpp \
-    ObSysInnerLib.cpp \
     ../LjTools/BcViewer.cpp \
-    ObLjLibFfi.c \
     ObxProject.cpp \
     ObxModel.cpp \
     ObxParser.cpp \
     ObxValidator.cpp \
     ObxEvaluator.cpp \
-    ObxAst.cpp
+    ObxAst.cpp \
+    ObxLjbcGen.cpp \
+    ObxLibFfi.cpp
 
 HEADERS  += ObxIde.h \
     ../GuiTools/CodeEditor.h \
@@ -63,21 +60,18 @@ HEADERS  += ObxIde.h \
     ../LjTools/LuaJitEngine.h \
     ../LjTools/LuaJitComposer.h \
     ObnHighlighter.h \
-    ObLjLib.h \
     ../LjTools/LjDisasm.h \
-    ObLjbcGen.h \
     ../LjTools/BcViewer2.h \
-    ObLjProject.h \
     ../GuiTools/DocSelector.h \
     ../GuiTools/DocTabWidget.h \
-    ObSysInnerLib.h \
     ../LjTools/BcViewer.h \
     ObxProject.h \
     ObxModel.h \
     ObxParser.h \
     ObxValidator.h \
     ObxEvaluator.h \
-    ObxAst.h
+    ObxAst.h \
+    ObxLjbcGen.h
 
 # NOTE on LuaJIT: to make use of the line:column position information used in
 # OberonIDE please use this version: https://github.com/rochus-keller/LuaJIT/tree/LjTools

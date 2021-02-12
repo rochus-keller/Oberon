@@ -358,7 +358,7 @@ struct Model::CrossReferencer : public AstVisitor
 
     void visit( Literal* l)
     {
-        if( l->d_vtype == Literal::String )
+        if( l->d_vtype == Literal::String && !l->d_wide )
         {
             QByteArray str = l->d_val.toByteArray();
             if( str.isEmpty() || !::isalpha(str[0]) || str.endsWith(".dll") )
@@ -766,6 +766,11 @@ Ref<Module> Model::treeShaken(Module* m) const
     return nm;
 }
 
+void Model::addPreload(const QByteArray& name, const QByteArray& source)
+{
+    d_fc->addFile( name, source, true );
+}
+
 void Model::unbindFromGlobal()
 {
     if( d_globals.isNull() )
@@ -777,18 +782,18 @@ void Model::unbindFromGlobal()
 void Model::fillGlobals()
 {
     // Built-in types
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_type]),d_boolType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_type]),d_charType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_wcharType->d_type]),d_wcharType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_type]),d_intType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_type]),d_realType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_type]),d_setType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_nilType->d_type]),d_nilType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longType->d_type]),d_longType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_shortType->d_type]),d_shortType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longrealType->d_type]),d_longrealType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_baseType]),d_boolType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_baseType]),d_charType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_wcharType->d_baseType]),d_wcharType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_baseType]),d_intType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_baseType]),d_realType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_baseType]),d_setType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_nilType->d_baseType]),d_nilType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longType->d_baseType]),d_longType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_shortType->d_baseType]),d_shortType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longrealType->d_baseType]),d_longrealType.data() ) );
 
-    Ref<NamedType> byteType = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_byteType->d_type]),d_byteType.data() );
+    Ref<NamedType> byteType = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_byteType->d_baseType]),d_byteType.data() );
     d_globals->add( byteType.data() );
 
     Ref<BuiltIn> bi;

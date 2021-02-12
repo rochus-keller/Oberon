@@ -183,6 +183,20 @@ struct ValidatorImp : public AstVisitor
 
     ///////// Expressions
 
+    void checkNonLocalAccess( Named* n, Expression* e )
+    {
+        const int tag = n->getTag();
+        if( tag == Thing::T_Parameter || tag == Thing::T_LocalVar )
+        {
+            if( n->d_scope != levels.back().scope )
+            {
+                n->d_usedFromSubs = true;
+                warning( e->d_loc, Validator::tr("access to variables and parameters of outer procedure not yet supported") );
+                //qDebug() << "non-local access to" << n->d_name << "at" << mod->d_name << e->d_loc.d_row << e->d_loc.d_col;
+            }
+        }
+    }
+
     void visit( IdentLeaf* me )
     {
         Q_ASSERT( !levels.isEmpty() );
@@ -193,6 +207,7 @@ struct ValidatorImp : public AstVisitor
             error( me->d_loc, Validator::tr("cannot resolve identifier '%1'").arg(me->d_name.constData()) );
         }else
         {
+            checkNonLocalAccess(me->d_ident.data(),me);
             //if( me->d_ident->getTag() == Thing::T_Import )
             //    me->d_mod = static_cast<Import*>( me->d_ident.data() )->d_mod.data();
             me->d_type = me->d_ident->d_type.data();
@@ -1020,7 +1035,7 @@ struct ValidatorImp : public AstVisitor
         case BinExpr::MUL:  // set num
             if( isNumeric(lhsT) && isNumeric(rhsT) )
                 me->d_type = inclusiveType1(lhsT,rhsT);
-            else if( lhsT == bt.d_setType || rhsT == bt.d_setType )
+            else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
             else if( me->d_op == BinExpr::ADD && (lhsT=isTextual(lhsT)) && (rhsT=isTextual(rhsT)) )
@@ -1101,23 +1116,10 @@ struct ValidatorImp : public AstVisitor
             me->d_type = bt.d_boolType;
             break;
         case Literal::String:
-            {
-                const QString tmp = QString::fromUtf8( me->d_val.toByteArray() );
-                bool needs16bit = false;
-                for( int i = 0; i < tmp.size(); i++ )
-                {
-                    if( tmp[i].unicode() > 255 )
-                    {
-                        needs16bit = true;
-                        break;
-                    }
-                }
-                me->d_strLen = tmp.size();
-                if( needs16bit )
-                    me->d_type = bt.d_wstringType;
-                else
-                    me->d_type = bt.d_stringType;
-            }
+            if( me->d_wide )
+                me->d_type = bt.d_wstringType;
+            else
+                me->d_type = bt.d_stringType;
             break;
         case Literal::Bytes:
             me->d_type = bt.d_stringType;
@@ -1886,21 +1888,26 @@ struct ValidatorImp : public AstVisitor
 
     inline bool isNumeric(Type* t) const
     {
-        return isInteger(t) || isReal(t);
+        // return isInteger(t) || isReal(t);
+        if( t == 0 )
+            return false;
+        return t->isNumeric();
     }
 
     inline bool isInteger(Type* t) const
     {
         if( t == 0 )
-            return 0;
-        return t == bt.d_byteType || t == bt.d_intType || t == bt.d_shortType || t == bt.d_longType;
+            return false;
+        return t->isInteger();
+        // return t == bt.d_byteType || t == bt.d_intType || t == bt.d_shortType || t == bt.d_longType;
     }
 
     inline bool isReal(Type* t) const
     {
         if( t == 0 )
-            return 0;
-        return t == bt.d_realType || t == bt.d_longrealType;
+            return false;
+        return t->isReal();
+        // return t == bt.d_realType || t == bt.d_longrealType;
     }
 
     inline bool isPointerToRecord(Type* t) const
@@ -1980,7 +1987,7 @@ struct ValidatorImp : public AstVisitor
             a = cast<Array*>( t );
             t = derefed(a->d_type.data());
         }
-        if( t && ( t == bt.d_charType || t == bt.d_wcharType ) )
+        if( t && t->isChar() )
             return a;
         else
             return 0;
@@ -1988,8 +1995,7 @@ struct ValidatorImp : public AstVisitor
 
     inline Type* isTextual( Type* t ) const
     {
-        if( t == bt.d_charType || t == bt.d_stringType ||
-                t == bt.d_wcharType || t == bt.d_wstringType )
+        if( t && ( t->isChar() || t->isString() ) )
             return t;
         return charArrayType(t);
     }
@@ -1997,9 +2003,11 @@ struct ValidatorImp : public AstVisitor
     inline bool isCharConst( Expression* e ) const
     {
         Type* t = derefed(e->d_type.data());
-        if( t == bt.d_charType || t == bt.d_wcharType )
+        if( t == 0 )
+            return false;
+        if( t->isChar() )
             return true;
-        if( t == bt.d_stringType || t == bt.d_wstringType )
+        if( t->isString() )
         {
             if( e->getTag() == Thing::T_Literal )
             {

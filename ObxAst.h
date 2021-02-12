@@ -165,36 +165,45 @@ namespace Obx
 
     struct Type : public Thing
     {
+        enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
+               INTEGER, LONGINT, REAL, LONGREAL, SET };
+
         Named* d_ident; // a reference to the ident or null if type is anonymous
 
         uint d_visited : 1;
-        uint d_type : 4;    // used by BaseType
+        uint d_baseType : 4;    // used by BaseType
         uint d_selfRef : 1; // used by QualiType
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
 
         Ref<Expression> d_flag; // optional system flag
 
-        Type():d_ident(0),d_visited(false),d_type(0),d_selfRef(false),d_unsafe(false),d_union(false) {}
+        Type():d_ident(0),d_visited(false),d_baseType(0),d_selfRef(false),d_unsafe(false),d_union(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
+        int getBaseType() const { return d_baseType; }
+        bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
+        bool isReal() const { return d_baseType == REAL || d_baseType == LONGREAL; }
+        bool isNumeric() const { return isInteger() || isReal(); }
+        bool isString() const { return d_baseType == STRING || d_baseType == WSTRING; }
+        bool isChar() const { return d_baseType == CHAR || d_baseType == WCHAR; }
+        bool isSet() const { return d_baseType == SET; }
+        bool isText(bool* wide = 0) const;
     };
 
     struct BaseType : public Type
     {
-        enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
-               INTEGER, LONGINT, REAL, LONGREAL, SET };
         static const char* s_typeName[];
 
-        BaseType(quint8 t = NIL ) { d_type = t; }
+        BaseType(quint8 t = NIL ) { d_baseType = t; }
         QVariant maxVal() const;
         QVariant minVal() const;
         int getTag() const { return T_BaseType; }
         void accept(AstVisitor* v) { v->visit(this); }
-        const char* getTypeName() const { return s_typeName[d_type]; }
+        const char* getTypeName() const { return s_typeName[d_baseType]; }
         QString pretty() const { return getTypeName(); }
     };
 
@@ -284,9 +293,9 @@ namespace Obx
         Scope* d_scope; // owning scope up to module (whose scope is nil)
 
         // Bytecode generator helpers
-        uint d_liveFrom : 24; // 0..undefined
-        uint d_slot : 8;
-        uint d_liveTo : 24; // 0..undefined
+        uint d_liveFrom : 19; // 0..500k
+        uint d_slot : 13; // slots from 0..250, table index from 0..max
+        uint d_liveTo : 20; // 0..1m
         uint d_usedFromSubs : 1;
         uint d_usedFromLive : 1; // indirectly used named types
         uint d_initialized: 1;
@@ -551,9 +560,11 @@ namespace Obx
         enum ValueType { Invalid, Integer, Real, Boolean, String /* QBA utf8 */, Bytes /* QBA */, Char /* quint16 */, Nil, Set };
         QVariant d_val;
         uint d_vtype : 8;
-        uint d_strLen : 24;
+        uint d_strLen : 23;
+        uint d_wide : 1; // mark WSTRING and WCHAR
         Literal( ValueType t = Invalid, Ob::RowCol l = Ob::RowCol(),
-                 const QVariant& v = QVariant(), Type* typ = 0 ):d_val(v),d_vtype(t),d_strLen(0){ d_loc = l; d_type = typ; }
+                 const QVariant& v = QVariant(), Type* typ = 0 ):
+                        d_val(v),d_vtype(t),d_strLen(0),d_wide(0){ d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }
         void accept(AstVisitor* v) { v->visit(this); }
     };
@@ -640,6 +651,8 @@ namespace Obx
 
 }
 
+#ifdef OBX_AST_DECLARE_SET_METATYPE_IN_HEADER
 Q_DECLARE_METATYPE( Obx::Literal::SET )
+#endif
 
 #endif // OBXAST_H

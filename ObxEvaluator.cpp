@@ -22,6 +22,10 @@
 using namespace Obx;
 using namespace Ob;
 
+#ifndef OBX_AST_DECLARE_SET_METATYPE_IN_HEADER
+Q_DECLARE_METATYPE( Obx::Literal::SET )
+#endif
+
 struct EvalVisitor : public AstVisitor
 {
     Module* mod;
@@ -405,13 +409,13 @@ struct EvalVisitor : public AstVisitor
                     else
                         val.d_value = bi->minVal();
                     val.d_type = Literal::Invalid;
-                    if( bi->d_type == BaseType::CHAR || bi->d_type == BaseType::WCHAR )
+                    if( bi->d_baseType == BaseType::CHAR || bi->d_baseType == BaseType::WCHAR )
                         val.d_type = Literal::Char;
-                    else if( bi->d_type >= BaseType::BYTE && bi->d_type <= BaseType::LONGINT )
+                    else if( bi->d_baseType >= BaseType::BYTE && bi->d_baseType <= BaseType::LONGINT )
                         val.d_type = Literal::Integer;
-                    else if( bi->d_type >= BaseType::REAL && bi->d_type <= BaseType::LONGREAL )
+                    else if( bi->d_baseType >= BaseType::REAL && bi->d_baseType <= BaseType::LONGREAL )
                         val.d_type = Literal::Real;
-                    else if( bi->d_type == BaseType::SET )
+                    else if( bi->d_baseType == BaseType::SET )
                         val.d_type = Literal::Integer;
                     return;
                 }else
@@ -439,7 +443,7 @@ struct EvalVisitor : public AstVisitor
                 }else if( tag == Thing::T_BaseType )
                 {
                     BaseType* bt = cast<BaseType*>(t);
-                    if( bt->d_type == BaseType::STRING || bt->d_type == BaseType::WSTRING )
+                    if( bt->d_baseType == BaseType::STRING || bt->d_baseType == BaseType::WSTRING )
                     {
                         me->d_args.first()->accept(this);
                         if( val.d_type == Literal::String )

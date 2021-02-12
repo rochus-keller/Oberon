@@ -85,6 +85,19 @@ static bool preloadLib( Ob::Ast::Model& mdl, const QByteArray& name )
     return true;
 }
 
+static bool preloadLib( Obx::Model& mdl, const QByteArray& name )
+{
+    QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
+    if( !f.open(QIODevice::ReadOnly) )
+    {
+        qCritical() << "unknown preload" << name;
+        return false;
+    }
+    mdl.addPreload( name, f.readAll() );
+    return true;
+}
+
+
 #ifdef OBNLC_USING_LUAJIT
 static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
 {
@@ -233,11 +246,7 @@ static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
     Obx::Model model;
     model.getErrs()->setReportToConsole(true);
 
-#if 0
-    if( forceObnExt )
-        model.setEnableExt(true);
-    else
-        model.setSenseExt(true);
+#if 1
     if( useOakwood )
     {
         preloadLib(model,"In");
@@ -260,7 +269,7 @@ static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
         qDebug() << "completed with" << model.getErrs()->getErrCount() << "errors and" <<
                     model.getErrs()->getWrnCount() << "warnings";
     }
-#ifdef _DEBUG
+#ifdef _DEBUG_
         qDebug() << "things count peak" << Obx::Thing::insts.size();
 #endif
 
@@ -471,7 +480,7 @@ int main(int argc, char *argv[])
         qDebug() << "things count before" << before;
 #endif
         const int res = docompile2(fgs,mod,outPath,forceObnExt,useOakwood,dump);
-#ifdef _DEBUG
+#ifdef _DEBUG_
         const quint32 after = Obx::Thing::insts.size();
         qDebug() << "things count after" << after;
         QHash<int,int> counts; // tag -> inst count
