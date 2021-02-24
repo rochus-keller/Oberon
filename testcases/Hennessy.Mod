@@ -61,22 +61,22 @@ TYPE
 	node = POINTER TO nodeDesc;
 	nodeDesc = RECORD
 		left, right: node;
-		val: LONGINT;
+		val: INTEGER
 	END;
 	
 	(* Towers
 	discsizrange = 1..maxcells;
 	cellcursor = 0..maxcells; *)
 	element = RECORD
-		discsize: LONGINT;
-		next: LONGINT;
+		discsize: INTEGER;
+		next: INTEGER
 	END ;
 	
 (*    emsgtype = packed array[1..15] of char;
 *)
     (* Intmm, Mm *) (*
     index = 1 .. rowsize; *)
-    intmatrix = ARRAY rowsize+1,rowsize+1 OF LONGINT;
+    intmatrix = ARRAY rowsize+1,rowsize+1 OF INTEGER;
     realmatrix = ARRAY rowsize+1,rowsize+1 OF REAL;
 
     (* Puzzle *) (*
@@ -101,37 +101,37 @@ VAR
 	fixed,floated: REAL;
 
     (* global *)
-	seed: LONGINT;
+	seed: INTEGER;
 
     (* Perm *)
-	permarray: ARRAY permrange+1 OF LONGINT;
-	pctr: LONGINT;
+	permarray: ARRAY permrange+1 OF INTEGER;
+	pctr: INTEGER;
 
     (* tree *)
 	tree: node;
 
 	(* Towers *)
-    stack: ARRAY stackrange+1 OF LONGINT;
+    stack: ARRAY stackrange+1 OF INTEGER;
 	cellspace: ARRAY maxcells+1 OF element;
-	freelist: LONGINT;
-	movesdone: LONGINT;
+	freelist: INTEGER;
+	movesdone: INTEGER;
 
 	(* Intmm, Mm *)
 	ima, imb, imr: intmatrix;	(*Nun lokal definiert PM 24.09.94*)
 	rma, rmb, rmr: realmatrix;
 
 	(* Puzzle *)
-	piececount: ARRAY classmax+1 OF LONGINT;
-	class, piecemax: ARRAY typemax+1 OF LONGINT;
+	piececount: ARRAY classmax+1 OF INTEGER;
+	class, piecemax: ARRAY typemax+1 OF INTEGER;
 	puzzl: ARRAY size+1 OF BOOLEAN;
 	p: ARRAY typemax+1, size+1 OF BOOLEAN;
 	n,
-	kount: LONGINT;
+	kount: INTEGER;
 
 	(* Bubble, Quick *)
-	sortlist: ARRAY sortelements+1 OF LONGINT;
+	sortlist: ARRAY sortelements+1 OF INTEGER;
     biggest, littlest,
-    top: LONGINT;
+    top: INTEGER;
 
     (* FFT *)
 	z, w: carray;
@@ -150,7 +150,7 @@ BEGIN
 	END;
 END Str;
 
-PROCEDURE Getclock (): LONGINT;
+PROCEDURE Getclock (): INTEGER;
 BEGIN
 	RETURN Input.Time()
 END Getclock;
@@ -159,7 +159,7 @@ PROCEDURE Initrand ();
 BEGIN seed := 74755
 END Initrand;
 
-PROCEDURE Rand (): LONGINT;
+PROCEDURE Rand (): INTEGER;
 BEGIN
     seed := (seed * 1309 + 13849) MOD 65535;
     RETURN (seed)
@@ -168,13 +168,13 @@ END Rand;
 
     (* Permutation program, heavily recursive, written by Denny Brown. *)
 	
-	PROCEDURE Swap (VAR a,b: LONGINT);
-		VAR t: LONGINT;
+	PROCEDURE Swap (VAR a,b: INTEGER);
+		VAR t: INTEGER;
 	BEGIN t := a;  a := b;  b := t;
 	END Swap;
 	
 	PROCEDURE Initialize ();
-		VAR i: LONGINT;
+		VAR i: INTEGER;
 	BEGIN i := 1;
 		WHILE i <= 7 DO
 			permarray[i] := i-1;
@@ -182,8 +182,8 @@ END Rand;
 		END
 	END Initialize;
 	
-	PROCEDURE Permute (n: LONGINT);
-		VAR k: LONGINT;
+	PROCEDURE Permute (n: INTEGER);
+		VAR k: INTEGER;
 	BEGIN
 		pctr := pctr + 1;
 		IF ( n#1 ) THEN
@@ -199,7 +199,7 @@ END Rand;
 	END Permute;
 	
 PROCEDURE Perm* ();
-	VAR i: LONGINT;
+	VAR i: INTEGER;
 BEGIN
 	pctr := 0; i := 1;
 	WHILE i <= 5 DO
@@ -213,12 +213,12 @@ END Perm;
 
     (*  Program to Solve the Towers of Hanoi *)
 
-	PROCEDURE Makenull (s: LONGINT);
+	PROCEDURE Makenull (s: INTEGER);
 	BEGIN stack[s] := 0
 	END Makenull;
 
-	PROCEDURE Getelement (): LONGINT;
-		VAR temp: LONGINT;
+	PROCEDURE Getelement (): INTEGER;
+		VAR temp: INTEGER;
 	BEGIN
 		IF ( freelist>0 ) THEN
 			temp := freelist;
@@ -229,8 +229,8 @@ END Perm;
 		RETURN (temp)
 	END Getelement;
 	
-	PROCEDURE Push(i,s: LONGINT);
-        VAR localel: LONGINT; errorfound: BOOLEAN;
+	PROCEDURE Push(i,s: INTEGER);
+        VAR localel: INTEGER; errorfound: BOOLEAN;
 	BEGIN
 		errorfound := FALSE;
 		IF ( stack[s] > 0 ) THEN
@@ -247,8 +247,8 @@ END Perm;
 		END
 	END Push;
 	
-	PROCEDURE Init (s,n: LONGINT);
-		VAR discctr: LONGINT;
+	PROCEDURE Init (s,n: INTEGER);
+		VAR discctr: INTEGER;
 	BEGIN
 		Makenull(s); discctr := n;
 		WHILE discctr >= 1 DO
@@ -257,8 +257,8 @@ END Perm;
 		END
 	END Init;
 
-	PROCEDURE Pop (s: LONGINT): LONGINT;
-		VAR temp, temp1: LONGINT;
+	PROCEDURE Pop (s: INTEGER): INTEGER;
+		VAR temp, temp1: INTEGER;
 	BEGIN
 		IF ( stack[s] > 0 ) THEN
 			temp1 := cellspace[stack[s]].discsize;
@@ -273,14 +273,14 @@ END Perm;
 		RETURN (temp1)
 	END Pop;
 
-	PROCEDURE Move (s1,s2: LONGINT);
+	PROCEDURE Move (s1,s2: INTEGER);
 	BEGIN
 		Push(Pop(s1),s2);
 		movesdone := movesdone+1;
 	END Move;
 
-	PROCEDURE tower(i,j,k: LONGINT);
-		VAR other: LONGINT;
+	PROCEDURE tower(i,j,k: INTEGER);
+		VAR other: INTEGER;
 	BEGIN
 		IF ( k=1 ) THEN
 			Move(i,j);
@@ -293,7 +293,7 @@ END Perm;
 	END tower;
 
 PROCEDURE Towers* ();
-	VAR i: LONGINT;
+	VAR i: INTEGER;
 BEGIN i := 1;
 	WHILE i <= maxcells DO cellspace[i].next := i-1; INC(i) END ;
 	freelist := maxcells;
@@ -318,8 +318,8 @@ END Towers;
       xarray      =   array [boardrange] of boardrange;
 *)
 
-	PROCEDURE Try(i: LONGINT; VAR q: BOOLEAN; VAR a, b, c: ARRAY OF BOOLEAN; VAR x: ARRAY OF LONGINT);
-    	VAR j: LONGINT;
+	PROCEDURE Try(i: INTEGER; VAR q: BOOLEAN; VAR a, b, c: ARRAY OF BOOLEAN; VAR x: ARRAY OF INTEGER);
+    	VAR j: INTEGER;
 	BEGIN
 		j := 0;
 		q := FALSE;
@@ -345,11 +345,11 @@ END Towers;
 	END Try;
 
 	PROCEDURE Doit ();
-		VAR i: LONGINT; q: BOOLEAN;
+		VAR i: INTEGER; q: BOOLEAN;
 			a: ARRAY 9 OF BOOLEAN;
 			b: ARRAY 17 OF BOOLEAN;
 			c: ARRAY 15 OF BOOLEAN;
-			x: ARRAY 9 OF LONGINT;
+			x: ARRAY 9 OF INTEGER;
 	BEGIN
 		i := 0 - 7;
 		WHILE i <= 16 DO
@@ -363,7 +363,7 @@ END Towers;
 	END Doit;
 
 PROCEDURE Queens* ();
-	VAR i: LONGINT;
+	VAR i: INTEGER;
 BEGIN i := 1;
 	WHILE i <= 50 DO Doit(); INC(i) END
 END Queens;
@@ -372,7 +372,7 @@ END Queens;
     (* Multiplies two integer matrices. *)
 
 	PROCEDURE Initmatrix (VAR m: intmatrix);
-		VAR temp, i, j: LONGINT;
+		VAR temp, i, j: INTEGER;
 	BEGIN i := 1;
 		WHILE i <= rowsize DO
 			j := 1;
@@ -385,8 +385,8 @@ END Queens;
 		END
 	END Initmatrix;
 
-	PROCEDURE Innerproduct(VAR result: LONGINT; VAR a,b: intmatrix; row,column: LONGINT);
-		VAR i: LONGINT;
+	PROCEDURE Innerproduct(VAR result: INTEGER; VAR a,b: intmatrix; row,column: INTEGER);
+		VAR i: INTEGER;
   (* computes the inner product of A[row,*] and B[*,column] *)
 	BEGIN
 		result := 0; i := 1;
@@ -394,7 +394,7 @@ END Queens;
 	END Innerproduct;
 
 PROCEDURE Intmm* ();
-	VAR i, j: LONGINT; (*ima, imb, imr: intmatrix;*)
+	VAR i, j: INTEGER; (*ima, imb, imr: intmatrix;*)
 BEGIN
 	Initrand();
 	Initmatrix (ima);
@@ -410,7 +410,7 @@ END Intmm;
     (* Multiplies two real matrices. *)
 
 	PROCEDURE rInitmatrix (VAR m: realmatrix);
-		VAR temp, i, j: LONGINT;
+		VAR temp, i, j: INTEGER;
 	BEGIN i := 1;
 		WHILE i <= rowsize DO j := 1;
 			WHILE j <= rowsize DO
@@ -422,16 +422,16 @@ END Intmm;
 		END
 	END rInitmatrix;
 
-	PROCEDURE rInnerproduct(VAR result: REAL; VAR a,b: realmatrix; row,column: LONGINT);
+	PROCEDURE rInnerproduct(VAR result: REAL; VAR a,b: realmatrix; row,column: INTEGER);
 	(* computes the inner product of A[row,*] and B[*,column] *)
-		VAR i: LONGINT;
+		VAR i: INTEGER;
 	BEGIN
 		result := 0.0; i := 1;
 		WHILE i<=rowsize DO result := result+a[row][i]*b[i][column]; INC(i) END
 	END rInnerproduct;
 
 PROCEDURE Mm* ();
-	VAR i, j: LONGINT; (*rma, rmb, rmr: realmatrix;*)
+	VAR i, j: INTEGER; (*rma, rmb, rmr: realmatrix;*)
 BEGIN
 	Initrand();
 	rInitmatrix (rma);
@@ -445,8 +445,8 @@ END Mm;
 
     (* A compute-bound program from Forest Baskett. *)
 
-	PROCEDURE Fit (i, j: LONGINT): BOOLEAN;
-		VAR k: LONGINT; res: BOOLEAN;
+	PROCEDURE Fit (i, j: INTEGER): BOOLEAN;
+		VAR k: INTEGER; res: BOOLEAN;
 	BEGIN 
 		k := 0; res := TRUE;
 		WHILE k <= piecemax[i] DO
@@ -461,8 +461,8 @@ END Mm;
 		RETURN res
 	END Fit;
 	
-	PROCEDURE Place (i, j: LONGINT): LONGINT;
-		VAR k, res: LONGINT;
+	PROCEDURE Place (i, j: INTEGER): INTEGER;
+		VAR k, res: INTEGER;
 	BEGIN k := 0; res := 0;
 		WHILE k <= piecemax[i] DO
 			IF ( p[i][k] ) THEN puzzl[j+k] := TRUE END;
@@ -477,8 +477,8 @@ END Mm;
 		RETURN res
 	END Place;
 	
-	PROCEDURE Remove (i, j: LONGINT);
-		VAR k: LONGINT;
+	PROCEDURE Remove (i, j: INTEGER);
+		VAR k: INTEGER;
 	BEGIN k := 0;
 		WHILE k <= piecemax[i] DO
 			IF ( p[i][k] ) THEN puzzl[j+k] := FALSE END;
@@ -487,8 +487,8 @@ END Mm;
 		piececount[class[i]] := piececount[class[i]] + 1
 	END Remove;
 	
-	PROCEDURE Trial (j: LONGINT): BOOLEAN;
-		VAR i, k: LONGINT; res: BOOLEAN;
+	PROCEDURE Trial (j: INTEGER): BOOLEAN;
+		VAR i, k: INTEGER; res: BOOLEAN;
 	BEGIN i := 0; 
 		kount := kount + 1;
 		res := FALSE;
@@ -507,7 +507,7 @@ END Mm;
 	END Trial;
 	
 PROCEDURE Puzzle* ();
-	VAR i, j, k, m: LONGINT;
+	VAR i, j, k, m: INTEGER;
 BEGIN
 	m := 0; WHILE m <= size DO puzzl[m] := TRUE; INC(m) END ;
 	i := 1;
@@ -717,7 +717,7 @@ END Puzzle;
    (* Sorts an array using quicksort *)
 
 	PROCEDURE Initarr();
-		VAR i, temp: LONGINT;
+		VAR i, temp: INTEGER;
 	BEGIN
 		Initrand();
 		biggest := 0; littlest := 0; i := 1;
@@ -731,9 +731,9 @@ END Puzzle;
 		END
 	END Initarr;
 
-	PROCEDURE Quicksort(VAR a: ARRAY OF LONGINT; l,r: LONGINT);
+	PROCEDURE Quicksort(VAR a: ARRAY OF INTEGER; l,r: INTEGER);
   (* quicksort the array A from start to finish *)
-		VAR i,j,x,w: LONGINT;
+		VAR i,j,x,w: INTEGER;
 	BEGIN
 		i:=l; j:=r;
 		x:=a[(l+r) DIV 2];
@@ -762,7 +762,7 @@ END Quick;
     (* Sorts an array using bubblesort *)
 
 	PROCEDURE bInitarr();
-		VAR i, temp: LONGINT;
+		VAR i, temp: INTEGER;
 	BEGIN
 		Initrand();
 		biggest := 0; littlest := 0; i := 1;
@@ -777,7 +777,7 @@ END Quick;
 	END bInitarr;
 
 PROCEDURE Bubble*();
-	VAR i, j: LONGINT;
+	VAR i, j: INTEGER;
 BEGIN
 	bInitarr();
 	top:=srtelements;
@@ -799,7 +799,7 @@ END Bubble;
     (* Sorts an array using treesort *)
 
 	PROCEDURE tInitarr();
-		VAR i, temp: LONGINT;
+		VAR i, temp: INTEGER;
 	BEGIN
 		Initrand();
 		biggest := 0; littlest := 0; i := 1;
@@ -813,14 +813,14 @@ END Bubble;
 		END
 	END tInitarr;
 
-	PROCEDURE CreateNode (VAR t: node; n: LONGINT);
+	PROCEDURE CreateNode (VAR t: node; n: INTEGER);
 	BEGIN
     	NEW(t);
 		t.left := NIL; t.right := NIL;
 		t.val := n
 	END CreateNode;
 
-	PROCEDURE Insert(n: LONGINT; t: node);
+	PROCEDURE Insert(n: INTEGER; t: node);
 	(* insert n into tree *)
 	BEGIN
 		IF n > t.val THEN
@@ -853,7 +853,7 @@ END Bubble;
 	END Checktree;
 
 PROCEDURE Trees* ();
-	VAR i: LONGINT;
+	VAR i: INTEGER;
 BEGIN
 	tInitarr();
 	NEW(tree);
@@ -868,7 +868,7 @@ END Trees;
 
 	PROCEDURE Cos (x: REAL): REAL;
 	(* computes cos of x (x in radians) by an expansion *)
-		VAR i, factor: LONGINT;
+		VAR i, factor: INTEGER;
 			result,power: REAL;
 	BEGIN
 		result := 1.0; factor := 1;  power := x; i := 2;
@@ -884,8 +884,8 @@ END Trees;
 		RETURN result
 	END Cos;
 	
-	PROCEDURE Min0( arg1, arg2: LONGINT): LONGINT;
-		VAR res : LONGINT;
+	PROCEDURE Min0( arg1, arg2: INTEGER): INTEGER;
+		VAR res : INTEGER;
 	BEGIN res := 0;
 		IF arg1 < arg2 THEN res := arg1
 		ELSE res := arg2
@@ -893,15 +893,15 @@ END Trees;
 		RETURN res
 	END Min0;
 
-	PROCEDURE Uniform11(iy: LONGINT; yfl: REAL);
+	PROCEDURE Uniform11(iy: INTEGER; yfl: REAL);
 	BEGIN
 		iy := (4855*iy + 1731) MOD 8192;
 		yfl := FLT(iy)/8192.0;
 	END Uniform11;
 
-	PROCEDURE Exptab(n: LONGINT; VAR e: c2array);
+	PROCEDURE Exptab(n: INTEGER; VAR e: c2array);
 		VAR theta, divisor, d3: REAL; h: ARRAY 26 OF REAL; (* d1 by pm 12.02.96 *)
-			i, j, k, l, m, d1, d2: LONGINT;
+			i, j, k, l, m, d1, d2: INTEGER;
 	BEGIN
 		theta := 3.1415926536;
 		divisor := 4.0; i:=1;
@@ -933,8 +933,8 @@ END Trees;
 		UNTIL ( l <= 1 );
 	END Exptab;
 
-	PROCEDURE Fft( n: LONGINT; VAR z, w: carray; VAR e: c2array; sqrinv: REAL);
-		VAR i, j, k, l, m, index: LONGINT; h, d1, d2: REAL;	(* d1, d2 added pm 12.02.96*)
+	PROCEDURE Fft( n: INTEGER; VAR z, w: carray; VAR e: c2array; sqrinv: REAL);
+		VAR i, j, k, l, m, index: INTEGER; h, d1, d2: REAL;	(* d1, d2 added pm 12.02.96*)
 	BEGIN
 		m := n DIV 2 ;
 		l := 1 ;
@@ -971,7 +971,7 @@ END Trees;
 	END Fft;
 	
 PROCEDURE Oscar* ();
-	VAR i: LONGINT;
+	VAR i: INTEGER;
 BEGIN
 	Exptab(fftsize,e) ;
 	seed := 5767 ; i := 1;
@@ -987,7 +987,7 @@ BEGIN
 END Oscar;
 
 PROCEDURE Time(s: ARRAY OF CHAR; p: Proc; base, fbase: REAL);
-	VAR timer: LONGINT; i: LONGINT;
+	VAR timer: INTEGER; i: INTEGER;
 BEGIN
 	Str(s);
 	i := 0;

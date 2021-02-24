@@ -37,6 +37,7 @@ namespace Obx
     public:
         static bool translate(Model*,const QString& outdir, const QString& mod, Ob::Errors* = 0 );
         static bool translate(Module*, QIODevice* out, Ob::Errors* = 0 );
+        static bool allocateDef(Module*, QIODevice* out,Ob::Errors* = 0);
     private:
         LjbcGen();
     };

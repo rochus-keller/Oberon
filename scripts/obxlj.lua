@@ -59,6 +59,10 @@ ffi.cdef[[
 	    int count; 
 	    double data[?];
 	} DoubleArray;
+	typedef struct{
+		int count;
+		uint32_t data[?];
+	} UIntArray;
 
 	void ObxFfi_initString( ByteArray* ba, const char* str );
 	void ObxFfi_initWstring( WordArray* wa, const char* str );
@@ -118,6 +122,11 @@ function module.createIntArray(len)
 end
 function module.createLongArray(len)
 	local a = ffi.new( LongArray, len ) 
+	a.count = len
+	return a
+end
+function module.createSetArray(len)
+	local a = ffi.new( UIntArray, len ) 
 	a.count = len
 	return a
 end
@@ -222,6 +231,13 @@ end
 function module.setTest( elem, set )
 	return bit.band( set, bit.lshift( 1, elem ) ) ~= 0
 end
+function module.is_a( obj, class )
+	local meta = getmetatable(obj)
+	while meta and class and meta ~= class do
+		meta = getmetatable(meta)
+	end
+	return meta == class
+end
 
 -- Magic mumbers used by the compiler
 module[1] = module.charToStringArray
@@ -245,6 +261,9 @@ module[18] = module.setSub
 module[19] = bit.band
 module[20] = module.setDiv
 module[21] = module.setTest
+module[22] = setmetatable
+module[23] = module.is_a
+module[24] = module.createSetArray
 
 return module
 

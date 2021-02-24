@@ -1,0 +1,10 @@
+[General]
+BuiltInOakwood=true
+MainModule=@ByteArray()
+MainProc=@ByteArray()
+Suffixes=.Mod, .obn, .obx
+
+[Modules]
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/HennessyV4.Mod
+1\RelPath=HennessyV4.Mod
+size=1

@@ -598,7 +598,7 @@ void Ide::createMod()
     QDockWidget* dock = new QDockWidget( tr("Module"), this );
     dock->setObjectName("Module");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
-    dock->setFeatures( QDockWidget::DockWidgetMovable );
+    dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
     QWidget* pane = new QWidget(dock);
     QVBoxLayout* vbox = new QVBoxLayout(pane);
     vbox->setMargin(0);
@@ -622,7 +622,7 @@ void Ide::createHier()
     QDockWidget* dock = new QDockWidget( tr("Hierarchy"), this );
     dock->setObjectName("Hierarchy");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
-    dock->setFeatures( QDockWidget::DockWidgetMovable );
+    dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
     QWidget* pane = new QWidget(dock);
     QVBoxLayout* vbox = new QVBoxLayout(pane);
     vbox->setMargin(0);
@@ -1052,8 +1052,11 @@ void Ide::onGotoLnr(quint32 lnr)
     if( edit )
     {
         if( RowCol::isPacked(lnr) )
-            edit->setCursorPosition(RowCol::unpackRow(lnr)-1,RowCol::unpackCol(lnr)-1);
-        else
+        {
+            const int row = RowCol::unpackRow(lnr)-1;
+            const int col = RowCol::unpackCol(lnr)-1;
+            edit->setCursorPosition(row,col);
+        }else
             edit->setCursorPosition(lnr-1,0);
         edit->setFocus();
     }

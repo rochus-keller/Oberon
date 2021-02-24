@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-02-05
+:revdate: 2021-02-20
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -683,6 +683,15 @@ w[i].name <= "John"    // boolean
 t is CenterTree        // boolean
 ....
 
+==== Function Call
+A function call is a factor in an expression. In contrast to <<Procedure calls>> in a function call the actual parameter list is mandatory. Each expression in the actual parameters list (if any) is used to initialize a corresponding formal parameter. The number of expressions in the actual parameter list must correspond the number of formal parameters. See also <<Formal parameters>>.
+
+.Syntax:
+....
+FunctionCall           = designator ActualParameters
+ActualParameters = '(' [ ExpList ] ')'  
+....
+
 == Statements
 Statements denote actions. There are elementary and structured statements. Elementary statements are not composed of any parts that are themselves statements. They are the assignment, the procedure call, the return, and the `exit` statement. Structured statements are composed of parts that are themselves statements. They are used to express sequencing and conditional, selective, and repetitive execution. 
 
@@ -1016,7 +1025,7 @@ end log2
 ....
 
 === Type-bound procedures
-Globally declared procedures may be associated with a record type declared in the same module. The procedures are said to be bound to the record type. The binding is expressed by the type of the receiver in the heading of a procedure declaration. The receiver may be either a variable (VAR) parameter of record type T or a value parameter of type POINTER TO T (where T is a record type). The procedure is bound to the type T and is considered local to it.
+Procedures declared on module level may be associated with a record type declared in the same module. The procedures are said to be bound to the record type. The binding is expressed by the type of the receiver in the heading of a procedure declaration. The receiver may be either a variable (VAR) parameter of record type T or a value parameter of type POINTER TO T (where T is a record type). The procedure is bound to the type T and is considered local to it.
 
 .Syntax:
 ....

@@ -5,7 +5,7 @@ using namespace Ob;
 RowCol::RowCol(quint32 row, quint32 col)
 {
     if( !setRowCol(row,col) )
-        qWarning() << "exceeding maximum row or column number";
+        qWarning() << "invalid row or column number";
 }
 
 bool RowCol::setRowCol(quint32 row, quint32 col)
@@ -17,11 +17,19 @@ bool RowCol::setRowCol(quint32 row, quint32 col)
     {
         d_row = maxRow;
         err++;
+    }else if( row == 0 )
+    {
+        d_row = 1;
+        err++;
     }else
         d_row = row;
     if( col > maxCol )
     {
         d_col = maxCol;
+        err++;
+    }else if( col == 0 )
+    {
+        d_col = 1;
         err++;
     }else
         d_col = col;

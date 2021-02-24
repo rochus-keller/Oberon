@@ -55,7 +55,8 @@ struct ValidatorImp : public AstVisitor
         }
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_Variable )
+            const int tag = n->getTag();
+            if( tag == Thing::T_Variable || tag == Thing::T_LocalVar )
                 n->accept(this);
         }
         foreach( const Ref<Named>& n, me->d_order )
@@ -154,6 +155,9 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_receiver.isNull() )
         {
+            if( me->d_scope != mod )
+                error( me->d_loc, Validator::tr("type bound procedures can only be declared on module level"));
+
             // receiver was already accepted in visitScope
             visitBoundProc(me);
         }
@@ -781,6 +785,8 @@ struct ValidatorImp : public AstVisitor
 
     void visit( ArgExpr* me )
     {
+        // NOTE: a function call has always an ArgExpr even if it is empty.
+
         Q_ASSERT( me->d_op == UnExpr::CALL || me->d_op == UnExpr::IDX ); // defaults to CALL
 
         if( me->d_sub.isNull() )
@@ -858,27 +864,48 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("index selector only available for arrays") );
                 return;
             }
-            Array* a = cast<Array*>(subType);
-            subType = derefed(a->d_type.data());
+
+            // subType before points to array
+            subType = cast<Array*>(subType)->d_type.data();
             if( subType == 0 )
                 return; // already reported
+            // subType after points to array base type (which might be yet another array)
 
-            // check if we are really indexing an array and it has the appropriate dimension
-            for( int j = 1; j < me->d_args.size() ; j++ )
+            if( me->d_args.size() > 1 )
             {
-                if( subType->getTag() == Thing::T_Array )
+                // Modify AST so that each IDX only has one dimension and me is the last element in the chain
+                Ref<ArgExpr> prev;
+                for( int i = 0; i < me->d_args.size() - 1; i++ )
                 {
-                    a = cast<Array*>(subType);
-                    subType = derefed(a->d_type.data());
-                    if( subType == 0 )
-                        break;
-                }else
-                {
-                    error( me->d_loc, Validator::tr("index has more dimensions than array") );
-                    break;
+                    Ref<ArgExpr> dim = new ArgExpr();
+                    if( i == 0 )
+                        dim->d_sub = me->d_sub;
+                    else
+                        dim->d_sub = prev.data();
+                    prev = dim;
+                    dim->d_args << me->d_args[i];
+                    dim->d_loc = me->d_args[i]->d_loc;
+                    dim->d_type = subType;
+                    subType = derefed(subType);
+                    if( subType && subType->getTag() == Thing::T_Array )
+                    {
+                        subType = cast<Array*>(subType)->d_type.data();
+                        if( subType == 0 )
+                            return;
+                    }else
+                    {
+                        error( me->d_loc, Validator::tr("index has more dimensions than array") );
+                        return;
+                    }
                 }
-            }
-            me->d_type = subType;
+                me->d_sub = prev.data();
+                Ref<Expression> idx = me->d_args.last();
+                me->d_args.clear();
+                me->d_args << idx;
+                me->d_loc = idx->d_loc;
+                me->d_type = subType;
+            }else
+                me->d_type = subType;
         }else
             Q_ASSERT(false);
     }
@@ -1358,7 +1385,7 @@ struct ValidatorImp : public AstVisitor
                     if( sub && sub->getTag() == Thing::T_Pointer && super && super->getTag() == Thing::T_Pointer &&
                             typeExtension( super, sub ) )
                     {
-                        f->d_specialization = true;
+                        f->d_super = ff;
                         ok = true;
                     }
                 }
@@ -1402,6 +1429,7 @@ struct ValidatorImp : public AstVisitor
         Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, err);
         me->d_val = res.d_value;
         me->d_vtype = res.d_type;
+        me->d_wide = res.d_wide;
     }
 
     void visit( Field* me )
@@ -1696,6 +1724,7 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Call* me )
     {
+        // TODO: check that bound proc is not directly (ie without designator) called
         if( !me->d_what.isNull() )
         {
             me->d_what->accept(this);
@@ -1711,6 +1740,7 @@ struct ValidatorImp : public AstVisitor
                 ProcType* pt = cast<ProcType*>(t);
                 Ref<ArgExpr> ae = new ArgExpr();
                 ae->d_op = UnExpr::CALL;
+                ae->d_loc = me->d_what->d_loc;
                 ae->d_type = pt->d_return.data();
                 ae->d_sub = proc;
                 me->d_what = ae.data();

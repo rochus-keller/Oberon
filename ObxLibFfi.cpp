@@ -118,6 +118,10 @@ typedef struct{
 } IntArray;
 typedef struct{
     int count;
+    uint32_t data[];
+} UIntArray;
+typedef struct{
+    int count;
     int64_t data[];
 } LongArray;
 typedef struct{

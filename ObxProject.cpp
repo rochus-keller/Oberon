@@ -1000,19 +1000,30 @@ bool Project::recompile()
 bool Project::generate()
 {
     const quint32 errs = d_mdl->getErrs()->getErrCount();
-    FileHash::iterator i;
-    for( i = d_files.begin(); i != d_files.end(); ++i )
+    QList<Module*> mods = d_mdl->getDepOrder();
+    foreach( Module* m, mods )
     {
-        if( i.value().d_mod.isNull() || i.value().d_mod->d_hasErrors || i.value().d_mod->d_isDef )
-            i.value().d_sourceCode.clear();
-        else
+        FileHash::iterator f = d_files.find(m->d_file);
+        if( f != d_files.end() )
+            f.value().d_sourceCode.clear();
+        if( m->d_synthetic )
+            ; // NOP
+        else if( m->d_hasErrors )
         {
-            qDebug() << "generating" << i.value().d_mod->d_name;
+            qDebug() << "terminating because of errors in" << m->d_name;
+            return false;
+        }else if( m->d_isDef )
+        {
+            qDebug() << "allocating" << m->d_name;
+            LjbcGen::allocateDef(m, 0, d_mdl->getErrs());
+        }else if( f != d_files.end() )
+        {
+            qDebug() << "generating" << m->d_name;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
-            LjbcGen::translate(i.value().d_mod.data(), &buf, d_mdl->getErrs() );
+            LjbcGen::translate(m, &buf, d_mdl->getErrs() );
             buf.close();
-            i.value().d_sourceCode = buf.buffer();
+            f.value().d_sourceCode = buf.buffer();
         }
     }
     return errs == d_mdl->getErrs()->getErrCount();

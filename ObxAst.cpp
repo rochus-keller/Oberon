@@ -220,6 +220,14 @@ const char*Named::visibilitySymbol() const
     }
 }
 
+void Thing::setSlot(quint32 s)
+{
+    Q_ASSERT( !d_slotValid );
+    d_slotValid = true;
+    Q_ASSERT( s <= MAX_SLOT );
+    d_slot = s;
+}
+
 QualiType::ModItem QualiType::getQuali() const
 {
     Q_ASSERT( !d_quali.isNull() );
@@ -291,7 +299,7 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
 
 QSet<Thing*> Thing::insts;
 
-Thing::Thing()
+Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false)
 {
     insts.insert(this);
 }
@@ -311,6 +319,23 @@ Named*Record::find(const QByteArray& name, bool recursive) const
     if( recursive && d_baseRec != 0 )
         return d_baseRec->find(name,recursive);
     return 0;
+}
+
+QList<Field*> Record::getOrderedFields() const
+{
+    QList<Field*> res;
+    if( d_baseRec )
+        res = d_baseRec->getOrderedFields();
+    for( int i = 0; i < d_fields.size(); i++ )
+    {
+        if( d_fields[i]->d_super )
+        {
+            Q_ASSERT( d_fields[i]->d_super->d_slotValid && d_fields[i]->d_super->d_slot < d_fields.size() );
+            res[ d_fields[i]->d_super->d_slot ] = d_fields[i].data();
+        }else
+            res.append( d_fields[i].data() );
+    }
+    return res;
 }
 
 Type*Array::getTypeDim(int& dims, bool openOnly) const
@@ -381,11 +406,13 @@ Const::Const(const QByteArray& name, Literal* lit)
     d_name = name;
     d_constExpr = lit;
     d_vtype = 0;
+    d_wide = false;
     if( lit )
     {
         d_type = lit->d_type.data();
         d_val = lit->d_val;
         d_vtype = lit->d_vtype;
+        d_wide = lit->d_wide;
     }
 }
 
@@ -488,5 +515,16 @@ bool Type::isText(bool* wide) const
     }
     if( wide )
         *wide = false;
+    return false;
+}
+
+
+bool Literal::isWide(const QString& str)
+{
+    for( int i = 0; i < str.size(); i++ )
+    {
+        if( str[i].unicode() > 255 )
+            return true;
+    }
     return false;
 }

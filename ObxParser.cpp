@@ -594,18 +594,9 @@ Ref<Expression> Parser::literal()
             next();
             const QByteArray utf8 = d_cur.d_val.mid(1,d_cur.d_val.size()-2);
             const QString tmp = QString::fromUtf8( utf8 );
-            bool needs16bit = false;
-            for( int i = 0; i < tmp.size(); i++ )
-            {
-                if( tmp[i].unicode() > 255 )
-                {
-                    needs16bit = true;
-                    break;
-                }
-            }
             Ref<Literal> lit =  new Literal(Literal::String, d_cur.toRowCol(), utf8);
             lit->d_strLen = tmp.size();
-            lit->d_wide = needs16bit;
+            lit->d_wide = Literal::isWide(tmp);
             return lit.data();
         }
         break;
@@ -752,13 +743,20 @@ void Parser::formalParameters(Scope* scope, ProcType* p)
 
 void Parser::variableDeclaration(Scope* scope)
 {
-    QList<Ref<Variable> > vars;
-    vars << new Variable();
+    QList<Ref<Named> > vars;
+    const bool moduleLevel = scope == d_mod.data();
+    if( moduleLevel )
+        vars << new Variable();
+    else
+        vars << new LocalVar();
     identdef(vars.back().data(),scope);
     while( d_la == Tok_Comma )
     {
         next();
-        vars << new Variable();
+        if( moduleLevel )
+            vars << new Variable();
+        else
+            vars << new LocalVar();
         identdef(vars.back().data(),scope);
     }
     MATCH( Tok_Colon, tr("expecting ':' between identifier list and type in field list") );

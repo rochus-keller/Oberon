@@ -59,13 +59,20 @@ namespace Obx
                    T_Enumeration, T_GenericName, T_Exit,
                    T_MAX };
         static const char* s_tagName[];
+
         Ob::RowCol d_loc;
+
+        enum { MAX_SLOT = 1048575 };
+        uint d_slot : 20; // slots from 0..250, table index from 0..max
+        uint d_slotValid : 1;
+        uint d_slotAllocated : 1;
+
     #ifdef _DEBUG
         static QSet<Thing*> insts;
         Thing();
         virtual ~Thing();
     #else
-        Thing() {}
+        Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false) {}
         virtual ~Thing() {}
     #endif
         virtual bool isScope() const { return false; }
@@ -73,6 +80,7 @@ namespace Obx
         virtual int getTag() const { return T_Thing; }
         virtual void accept(AstVisitor* v){}
         const char* getTagName() const { return s_tagName[getTag()]; }
+        void setSlot( quint32 );
     };
 
     template <typename T>
@@ -166,7 +174,7 @@ namespace Obx
     struct Type : public Thing
     {
         enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
-               INTEGER, LONGINT, REAL, LONGREAL, SET };
+               INTEGER, LONGINT, REAL, LONGREAL, SET }; // BaseType
 
         Named* d_ident; // a reference to the ident or null if type is anonymous
 
@@ -178,7 +186,8 @@ namespace Obx
 
         Ref<Expression> d_flag; // optional system flag
 
-        Type():d_ident(0),d_visited(false),d_baseType(0),d_selfRef(false),d_unsafe(false),d_union(false) {}
+        Type():d_ident(0),d_visited(false),d_baseType(0),d_selfRef(false),
+            d_unsafe(false),d_union(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
@@ -240,13 +249,15 @@ namespace Obx
         Names d_names;
         QList< Ref<Field> > d_fields;
         QList< Ref<Procedure> > d_methods;
+        quint16 d_fieldCount, d_methCount;
 
-        Record():d_binding(0),d_baseRec(0) {}
+        Record():d_binding(0),d_baseRec(0),d_fieldCount(0),d_methCount(0) {}
         int getTag() const { return T_Record; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured() const { return true; }
         Named* find(const QByteArray& name , bool recursive) const;
         QString pretty() const { return "RECORD"; }
+        QList<Field*> getOrderedFields() const;
     };
 
     struct ProcType : public Type
@@ -292,23 +303,18 @@ namespace Obx
         Ref<Type> d_type;
         Scope* d_scope; // owning scope up to module (whose scope is nil)
 
-        // Bytecode generator helpers
-        uint d_liveFrom : 19; // 0..500k
-        uint d_slot : 13; // slots from 0..250, table index from 0..max
-        uint d_liveTo : 20; // 0..1m
+        uint d_liveFrom : 20;
         uint d_usedFromSubs : 1;
         uint d_usedFromLive : 1; // indirectly used named types
         uint d_initialized: 1;
-        // end helpers
-
-        uint d_slotValid : 1;
         uint d_visibility : 2; // Visibility
         uint d_synthetic: 1;
         uint d_hasErrors : 1;
+        uint d_liveTo : 20;
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
             d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
-            d_slot(0),d_slotValid(0),d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0),
+            d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0),
             d_hasErrors(0) {}
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
@@ -326,8 +332,8 @@ namespace Obx
 
     struct Field : public Named // Record field
     {
-        bool d_specialization; // field corresponds to inherited with same name, but more specific type
-        Field():d_specialization(false){}
+        Field* d_super; // the field of the super class this field overrides, or zero
+        Field():d_super(0){}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Field; }
     };
@@ -359,8 +365,9 @@ namespace Obx
     {
         QVariant d_val;
         quint8 d_vtype;
+        bool d_wide;
         Ref<Expression> d_constExpr;
-        Const():d_vtype(0){}
+        Const():d_vtype(0),d_wide(false){}
         Const(const QByteArray& name, Literal* lit );
         int getTag() const { return T_Const; }
         void accept(AstVisitor* v) { v->visit(this); }
@@ -567,6 +574,7 @@ namespace Obx
                         d_val(v),d_vtype(t),d_strLen(0),d_wide(0){ d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }
         void accept(AstVisitor* v) { v->visit(this); }
+        static bool isWide( const QString& );
     };
 
     struct SetExpr : public Expression

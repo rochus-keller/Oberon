@@ -41,10 +41,11 @@ struct EvalVisitor : public AstVisitor
         throw msg;
     }
 
-    void push( const QVariant& v, Literal::ValueType t )
+    void push( const QVariant& v, Literal::ValueType t, bool wide = false )
     {
         val.d_value = v;
         val.d_type = t;
+        val.d_wide = wide;
     }
 
     void NEG(const Evaluator::Result& r, Expression* e )
@@ -74,6 +75,7 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_type == Literal::Set && rhs.d_type == Literal::Set )
             push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() | rhs.d_value.value<Literal::SET>() ), lhs.d_type);
         else
+            // TODO: add string literals
             return error( e,Evaluator::tr("operand types incompatible with operator") );
     }
 
@@ -272,6 +274,7 @@ struct EvalVisitor : public AstVisitor
     {
         val.d_value = me->d_val;
         val.d_type = (Literal::ValueType)me->d_vtype;
+        val.d_wide = me->d_wide;
     }
 
     void visit( SetExpr* me)

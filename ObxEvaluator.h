@@ -33,7 +33,8 @@ namespace Obx
         {
             QVariant d_value;
             Literal::ValueType d_type;
-            Result():d_type(Literal::Invalid){}
+            bool d_wide;
+            Result():d_type(Literal::Invalid),d_wide(false){}
         };
 
         static Result eval( Expression*, Module*, Ob::Errors* = 0 );
