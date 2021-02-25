@@ -540,7 +540,14 @@ struct ValidatorImp : public AstVisitor
                 if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
             }else
-                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::PRINTLN:
+            if( args->d_args.size() == 1 )
+            {
+                // NOP
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
             break;
         case BuiltIn::SYS_ADR:
         case BuiltIn::SYS_GET:

@@ -986,8 +986,10 @@ bool Project::recompile()
             continue; // e.g. SYSTEM
         FileHash::iterator i = d_files.find(m->d_file);
         if( i != d_files.end() )
+        {
             i.value().d_mod = m;
-        else
+            // m->dump();
+        }else
         {
             qDebug() << "missing" << m->d_name;
             Q_ASSERT( false );

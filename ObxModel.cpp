@@ -934,6 +934,7 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::STRLEN, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::WCHR, new ProcType( Type::List() << d_intType.data(), d_wcharType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::PRINTLN, new ProcType( Type::List() << d_anyType.data() ) ) );
 
     // Blackbox
 #ifdef OBX_BBOX

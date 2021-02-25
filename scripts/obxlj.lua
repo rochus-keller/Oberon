@@ -38,7 +38,7 @@ ffi.cdef[[
 	typedef struct{
 	    int count; 
 	    uint16_t data[?];
-	} WordArray;
+	} WcharArray;
 	typedef struct{
 	    int count; 
 	    int16_t data[?];
@@ -63,31 +63,32 @@ ffi.cdef[[
 		int count;
 		uint32_t data[?];
 	} UIntArray;
-
-	void ObxFfi_initString( ByteArray* ba, const char* str );
-	void ObxFfi_initWstring( WordArray* wa, const char* str );
+	typedef struct{
+		int count;
+		char data[?];
+	} CharArray;
+	
+	void ObxFfi_initString( CharArray* ba, const char* utf8 );
+	void ObxFfi_initWstring( WcharArray* wa, const char* str );
 	void ObxFfi_initByteArray( ByteArray* ba, const char* str );
-	int ObxFfi_strRelOp( ByteArray* lhs, ByteArray* rhs, int op );
-	int ObxFfi_wstrRelOp( WordArray* lhs, WordArray* rhs, int op );
+	int ObxFfi_strRelOp( CharArray* lhs, CharArray* rhs, int op );
+	int ObxFfi_wstrRelOp( WcharArray* lhs, WcharArray* rhs, int op );
+	void ObxFfi_printString( const char* str );
+	void ObxFfi_printCharArray( CharArray* str );
+	void ObxFfi_printWcharArray( WcharArray* wa );
 ]]
 
+local CharArray = ffi.typeof("CharArray")
 local ByteArray = ffi.typeof("ByteArray")
-local WordArray = ffi.typeof("WordArray")
+local WcharArray = ffi.typeof("WcharArray")
 local ShortArray = ffi.typeof("ShortArray")
 local IntArray = ffi.typeof("IntArray")
 local LongArray = ffi.typeof("LongArray")
 local FloatArray = ffi.typeof("FloatArray")
 local DoubleArray = ffi.typeof("DoubleArray")
-module.ByteArray = ByteArray
-module.WordArray = WordArray
-module.ShortArray = ShortArray
-module.IntArray = IntArray
-module.LongArray = LongArray
-module.FloatArray = FloatArray
-module.DoubleArray = DoubleArray
 
 function module.charToStringArray(len, str)
-	local a = ffi.new( ByteArray, len ) 
+	local a = ffi.new( CharArray, len ) 
 	a.count = len
 	if str then
 		C.ObxFfi_initString(a,str)
@@ -95,7 +96,7 @@ function module.charToStringArray(len, str)
 	return a
 end
 function module.createWcharArray(len, str)
-	local a = ffi.new( WordArray, len ) 
+	local a = ffi.new( WcharArray, len ) 
 	a.count = len
 	if str then
 		C.ObxFfi_initWstring(a,str)
@@ -173,9 +174,9 @@ function module.joinStrings( lhs, rhs, wide )
 	local count = lhslen + rhslen + 1
 	local res
 	if wide then
-		res = ffi.new( WordArray, count )
+		res = ffi.new( WcharArray, count )
 	else
-		res = ffi.new( ByteArray, count )
+		res = ffi.new( CharArray, count )
 	end
 	local i
 	for i = 0,lhslen-1 do
@@ -190,9 +191,9 @@ end
 function module.charToString(ch,forceWide)
 	local a 
 	if ch > 255 or forceWide then
-		a = ffi.new( WordArray, 2 )
+		a = ffi.new( WcharArray, 2 )
 	else
-		a = ffi.new( ByteArray, 2 ) 
+		a = ffi.new( CharArray, 2 ) 
 	end
 	a.count = 2
 	a.data[0] = ch
@@ -200,7 +201,7 @@ function module.charToString(ch,forceWide)
 	return a
 end
 local function toWide(str)
-	local res = ffi.new( WordArray, str.count )
+	local res = ffi.new( WcharArray, str.count )
 	for i=0,str.count do
 		res.data[i] = str.data[i]
 	end
@@ -238,6 +239,30 @@ function module.is_a( obj, class )
 	end
 	return meta == class
 end
+local function printArray(arr)
+	-- TODO
+end
+function module.println( val )
+	if ffi.istype(CharArray,val) then
+		C.ObxFfi_printCharArray(val)
+	elseif ffi.istype(WcharArray,val) then
+		C.ObxFfi_printWcharArray(val)
+	elseif ffi.istype(ByteArray,val) then
+		printArray(val)
+	elseif ffi.istype(ShortArray,val) then
+		printArray(val)
+	elseif ffi.istype(IntArray,val) then
+		printArray(val)
+	elseif ffi.istype(LongArray,val) then
+		printArray(val)
+	elseif ffi.istype(FloatArray,val) then
+		printArray(val)
+	elseif ffi.istype(DoubleArray,val) then
+		printArray(val)
+	else
+		C.ObxFfi_printString(tostring(val))
+	end
+end
 
 -- Magic mumbers used by the compiler
 module[1] = module.charToStringArray
@@ -264,6 +289,7 @@ module[21] = module.setTest
 module[22] = setmetatable
 module[23] = module.is_a
 module[24] = module.createSetArray
+module[25] = module.println
 
 return module
 

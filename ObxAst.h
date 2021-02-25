@@ -81,6 +81,7 @@ namespace Obx
         virtual void accept(AstVisitor* v){}
         const char* getTagName() const { return s_tagName[getTag()]; }
         void setSlot( quint32 );
+        void dump( QIODevice* = 0 );
     };
 
     template <typename T>
@@ -409,7 +410,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR
+               VAL, STRLEN, WCHR, PRINTLN
              };
         static const char* s_typeName[];
         quint8 d_func;

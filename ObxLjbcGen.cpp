@@ -445,6 +445,44 @@ struct ObxLjbcGenImp : public AstVisitor
         // WHILE i <= to DO statements; i := i + by END
         // WHILE i >= to DO statements; i := i + by END
 
+        Ref<Assign> a = new Assign();
+        a->d_loc = me->d_loc;
+        a->d_lhs = me->d_id;
+        a->d_rhs = me->d_from;
+
+        Ref<IfLoop> loop = new IfLoop();
+        loop->d_loc = me->d_loc;
+        loop->d_op = IfLoop::WHILE;
+
+        Ref<BinExpr> cond = new BinExpr();
+        cond->d_loc = me->d_loc;
+        if( me->d_byVal.toInt() > 0 )
+            cond->d_op = BinExpr::LEQ;
+        else
+            cond->d_op = BinExpr::GEQ;
+        cond->d_lhs = me->d_id;
+        cond->d_rhs = me->d_to;
+        loop->d_if.append( cond.data() );
+
+        loop->d_then.append( me->d_do );
+
+        Ref<BinExpr> add = new BinExpr();
+        add->d_loc = me->d_loc;
+        add->d_op = BinExpr::ADD;
+        add->d_lhs = me->d_id;
+        add->d_rhs = me->d_by;
+
+        Ref<Assign> a2 = new Assign();
+        a2->d_loc = me->d_loc;
+        a2->d_lhs = me->d_id;
+        a2->d_rhs = add.data();
+
+        loop->d_then.back().append( a2.data() );
+
+        a->accept(this);
+        loop->accept(this);
+
+#if 0
         Q_ASSERT( me->d_id );
         Named* i = me->d_id->getIdent();
         Q_ASSERT( i && i->d_slotValid );
@@ -477,9 +515,10 @@ struct ObxLjbcGenImp : public AstVisitor
             s->accept(this);
         bc.ADD( i->d_slot, i->d_slot, me->d_byVal, me->d_loc.packed() ); // i := i + by
 
-        bc.JMP( ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // end while
         bc.patch(loopStart);
+        bc.JMP( ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // end while
         bc.patch(jumpToEnd);
+#endif
     }
 
     void visit( IfLoop* me)
@@ -582,13 +621,16 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( !me->d_sub.isNull() );
 
         me->d_sub->accept(this);
+        Q_ASSERT( !slotStack.isEmpty() );
 
         Q_ASSERT( !me->d_sub->d_type.isNull() );
         // prev must be a pointer or a record
         Type* prevT = me->d_sub->d_type->derefed();
         Q_ASSERT( prevT );
 
-        const int res = ctx.back().buySlots(1);
+        // const int res = ctx.back().buySlots(1);
+        // reuse slot instead
+        const int res = slotStack.back();
 
         switch( me->d_op )
         {
@@ -612,15 +654,15 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         case UnExpr::DEREF:
             // NOP
-            bc.MOV(res,slotStack.back(),me->d_loc.packed());
+            // bc.MOV(res,slotStack.back(),me->d_loc.packed());
             break;
         default:
             qDebug() << "ERR" << mod->d_name << me->d_loc.d_row << me->d_loc.d_col;
             Q_ASSERT( false );
             break;
         }
-        releaseSlot();
-        slotStack.push_back(res);
+        //releaseSlot();
+        //slotStack.push_back(res);
     }
 
     void visit( BinExpr* me)
@@ -1346,6 +1388,26 @@ struct ObxLjbcGenImp : public AstVisitor
         slotStack.push_back(res);
     }
 
+    void emitBuiltIn( BuiltIn* bi, ArgExpr* me )
+    {
+        switch( bi->d_func )
+        {
+        case BuiltIn::PRINTLN:
+            {
+                Q_ASSERT( me->d_args.size() == 1 );
+                me->d_args.first()->accept(this);
+                Q_ASSERT( !slotStack.isEmpty() );
+                int tmp = ctx.back().buySlots(2,true);
+                fetchObxlibMember(tmp,25,me->d_loc); // module.println
+                bc.MOV(tmp+1,slotStack.back(),me->d_loc.packed() );
+                bc.CALL(tmp,0,1,me->d_loc.packed());
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
     void emitCall( ArgExpr* me )
     {
         Q_ASSERT( me->d_sub );
@@ -1354,7 +1416,7 @@ struct ObxLjbcGenImp : public AstVisitor
         Named* func = me->d_sub->getIdent();
         if( func && func->getTag() == Thing::T_BuiltIn )
         {
-            // TODO handle built-in
+            emitBuiltIn( cast<BuiltIn*>(func), me );
             return;
         }
 
@@ -1554,8 +1616,8 @@ struct ObxLjbcGenImp : public AstVisitor
         for( int i = 0; i < me->d_then[0].size(); i++ )
             me->d_then[0][i]->accept(this);
 
+        bc.patch(loopStart);
         bc.JMP(ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() );
-
         bc.patch(afterFirst);
 
         QList<quint32> afterEnd;
@@ -1598,6 +1660,7 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() ); // if true jump to afterEnd
         const quint32 afterEnd = bc.getCurPc();
 
+        bc.patch(loopStart);
         bc.JMP( ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // if false jump to loopStart
 
         bc.patch( afterEnd );
@@ -1611,6 +1674,7 @@ struct ObxLjbcGenImp : public AstVisitor
         for( int i = 0; i < me->d_then.first().size(); i++ )
             me->d_then.first()[i]->accept(this);
 
+        bc.patch(loopStart);
         bc.JMP( ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // jump to loopStart
 
         foreach( quint32 pc, exitJumps )

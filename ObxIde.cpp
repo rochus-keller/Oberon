@@ -121,6 +121,7 @@ public:
         d_hl->setEnableExt(on);
         d_hl->addBuiltIn("WCHAR");
         d_hl->addBuiltIn("WCHR");
+        d_hl->addBuiltIn("PRINTLN");
     }
 
     void clearBackHisto()
@@ -349,6 +350,10 @@ public:
     }
 };
 
+typedef void (*SendToLog)( const QString& );
+extern SendToLog sendToLog; // TODO: provisoric
+
+
 static Ide* s_this = 0;
 static void report(QtMsgType type, const QString& message )
 {
@@ -377,6 +382,12 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
     report(type,message);
 }
 
+static void log( const QString& msg )
+{
+    if( s_this )
+        s_this->logMessage(msg);
+}
+
 static void loadLuaLib( Lua::Engine2* lua, const QByteArray& name )
 {
     QFile lib( QString(":/scripts/%1.lua").arg(name.constData()) );
@@ -401,10 +412,12 @@ Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),d_lock2(false),d_lock3(false),d_lock4(false)
 {
     s_this = this;
+    sendToLog = log;
 
     d_pro = new Project(this);
 
     d_lua = new Engine2(this);
+    Engine2::setInst(d_lua);
     d_lua->addStdLibs();
     d_lua->addLibrary(Engine2::PACKAGE);
     d_lua->addLibrary(Engine2::IO);
@@ -419,8 +432,6 @@ Ide::Ide(QWidget *parent)
     d_lua->setDbgShell(d_dbg);
     // d_lua->setAliveSignal(true); // reduces performance by factor 2 to 5
     connect( d_lua, SIGNAL(onNotify(int,QByteArray,int)),this,SLOT(onLuaNotify(int,QByteArray,int)) );
-
-    Engine2::setInst(d_lua);
 
     d_tab = new DocTab(this);
     d_tab->setCloserIcon( ":/images/close.png" );

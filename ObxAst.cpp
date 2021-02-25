@@ -52,7 +52,7 @@ const char* BuiltIn::s_typeName[] =
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR"
+    "VAL", "STRLEN", "WCHR", "PRINTLN"
 };
 
 const char* UnExpr::s_opName[] =
@@ -70,45 +70,390 @@ const char* BinExpr::s_opName[] =
     "MUL", "FDIV", "DIV", "MOD", "AND"
 };
 
-static void markUsed( Type* t )
+struct ObxAstPrinter : public AstVisitor
 {
-    if( t == 0 )
-        return;
-
-    if( t->d_ident )
+    bool namedType( Type* t )
     {
-        if( t->d_ident->d_usedFromLive )
-            return; // already visited
-        t->d_ident->d_usedFromLive = true;
-    }
-
-    const int tag = t->getTag();
-    switch( tag )
-    {
-    case Thing::T_Pointer:
-        markUsed( cast<Pointer*>(t)->d_to.data() );
-        break;
-    case Thing::T_Array:
-        markUsed( cast<Array*>(t)->d_type.data() );
-        break;
-    case Thing::T_Record:
+        if( t->d_ident && t->d_ident != curNamed )
         {
-            Record* r = cast<Record*>(t);
-            if( !r->d_base.isNull() )
-                markUsed( r->d_base.data() );
-            if( r->d_binding && r->d_binding->d_ident )
-                r->d_binding->d_ident->d_usedFromLive = true;
+            out << "( TREF " << t->d_ident->d_name << " ) ";
+            return true;
         }
-        break;
-    case Thing::T_QualiType:
-        markUsed( cast<QualiType*>(t)->d_quali->d_type.data() );
-        break;
+        return false;
     }
 
-    // if d_ident is in another module then it must be public, otherwise it could not be
-    // used as type here; with d_usedFromLive we cover also local use for records
-    // not public and with no direct live range
-}
+    void visit( BaseType* t)
+    {
+        if( namedType(t) )
+            return;
+        out << BaseType::s_typeName[t->d_baseType] << " ";
+    }
+    void visit( Pointer* t)
+    {
+        if( namedType(t) )
+            return;
+        out << "POINTER ";
+        if( t->d_to.isNull() )
+            out << "? ";
+        else
+            t->d_to->accept(this);
+    }
+    void visit( Array* t )
+    {
+        if( namedType(t) )
+            return;
+        out << "ARRAY " << t->d_len << " ";
+        if( t->d_type.isNull() )
+            out << "? ";
+        else
+            t->d_type->accept(this);
+    }
+    void visit( Record* t )
+    {
+        if( namedType(t) )
+            return;
+        out << "RECORD ";
+        if( !t->d_base.isNull() )
+        {
+            out << "( TREF ";
+            t->d_base->accept(this);
+            out << " )";
+        }
+        d_level++;
+        for( int i = 0; i < t->d_fields.size(); i++ )
+        {
+            out << endl;
+            out << ws() << t->d_fields[i]->d_name << " ";
+            if( t->d_fields[i].isNull() )
+                out << "? ";
+            else
+                t->d_fields[i]->d_type->accept(this);
+        }
+        d_level--;
+    }
+    void visit( ProcType* t )
+    {
+        if( namedType(t) )
+            return;
+        out << "PROC ";
+        if( !t->d_formals.isEmpty() )
+            out << "( ";
+        for( int i = 0; i < t->d_formals.size(); i++ )
+        {
+            out << t->d_formals[i]->d_name << " ";
+            // formals also appear as part of scope names
+        }
+        if( !t->d_formals.isEmpty() )
+            out << ")";
+    }
+    void visit( QualiType* t )
+    {
+        if( namedType(t) )
+            return;
+        t->d_quali->accept(this);
+    }
+    void visit( Field* n)
+    {
+        out << ws() << n->d_name << " ";
+        if( n->d_type.isNull() )
+            out << "? ";
+        else
+            n->d_type->accept(this);
+        out << endl;
+    }
+
+    void renderLive( Named* r )
+    {
+        out << " ";
+        if( r->d_liveFrom )
+            out << "live " << r->d_liveFrom << "-" << r->d_liveTo << " ";
+        if( r->d_usedFromSubs )
+            out << "subs ";
+        if( r->d_slotValid )
+            out << "slot " << r->d_slot;
+    }
+
+    void renderVar( Named* r )
+    {
+        out << r->d_name << " ";
+        if( r->d_type.isNull() )
+            out << "?";
+        else
+            r->d_type->accept(this);
+        renderLive(r);
+        out << endl;
+    }
+
+    void visit( Variable* n )
+    {
+        out << ws() << "V ";
+        renderVar( n );
+    }
+
+    void visit( LocalVar* n )
+    {
+        out << ws() << "V ";
+        renderVar( n );
+    }
+
+    void visit( Parameter* n )
+    {
+        out << ws() << "P ";
+        renderVar( n );
+    }
+
+    void visit( NamedType* n )
+    {
+        curNamed = n;
+        out << ws() << "T " << n->d_name << " ";
+        if( n->d_type.isNull() )
+            out << "? ";
+        else
+            n->d_type->accept(this);
+        out << endl;
+        curNamed = 0;
+    }
+    void visit( Const* n )
+    {
+        out << ws() << "C " << n->d_name << " ";
+        if( n->d_type.isNull() )
+            out << "? ";
+        else
+            n->d_type->accept(this);
+        out << "'" << n->d_val.toByteArray().simplified() << "'";
+        out << " " << endl;
+    }
+    void visit( Import* n)
+    {
+        out << ws() << "I " << n->d_name << " ";
+        out << n->d_mod->d_name;
+        out << endl;
+    }
+    void visit( Procedure* m )
+    {
+        out << ws() << "PROCEDURE " << m->d_name << " ";
+        if( m->d_type.isNull() )
+            out << "? ";
+        else
+            m->d_type->accept(this);
+        renderLive(m);
+        out << endl;
+        d_level++;
+        for( int i = 0; i < m->d_order.size(); i++ )
+            m->d_order[i]->accept(this);
+        if( !m->d_body.isEmpty() )
+        {
+            out << ws() << "BEGIN" << endl;
+            d_level++;
+
+            for( int i = 0; i < m->d_body.size(); i++ )
+                m->d_body[i]->accept(this);
+            d_level--;
+        }
+        d_level--;
+    }
+    void visit( BuiltIn* ) {}
+    void visit( Module* m )
+    {
+        out << ws() << ( m->d_isDef ? "DEFINITION " : "MODULE " ) << m->d_name << endl;
+        d_level++;
+        for( int i = 0; i < m->d_order.size(); i++ )
+            m->d_order[i]->accept(this);
+        if( !m->d_body.isEmpty() )
+        {
+            out << ws() << "BEGIN" << endl;
+            d_level++;
+
+            for( int i = 0; i < m->d_body.size(); i++ )
+                m->d_body[i]->accept(this);
+            d_level--;
+        }
+        d_level--;
+    }
+    void visit( Call* s)
+    {
+        out << ws();
+        s->d_what->accept(this);
+        out << endl;
+    }
+    void visit( Return* s)
+    {
+        out << ws() << "RETURN ";
+        s->d_what->accept(this);
+        out << endl;
+    }
+    void visit( Assign* s )
+    {
+        out << ws() << "ASSIG ";
+        s->d_lhs->accept(this);
+        out << ":= ";
+        s->d_rhs->accept(this);
+        out << endl;
+    }
+    void visit( IfLoop* s)
+    {
+        Q_ASSERT( s->d_if.size() == s->d_then.size() );
+        for( int i = 0; i < s->d_if.size(); i++ )
+        {
+            out << ws();
+            if( i == 0 )
+            {
+                switch( s->d_op )
+                {
+                case IfLoop::IF:
+                    out << "IF ";
+                    break;
+                case IfLoop::WHILE:
+                    out << "WHILE ";
+                    break;
+                case IfLoop::REPEAT:
+                    out << "REPEAT ";
+                    break;
+                case IfLoop::WITH:
+                    out << "WITH ";
+                    break;
+                case IfLoop::LOOP:
+                    out << "LOOP ";
+                    break;
+                default:
+                    Q_ASSERT(false);
+                }
+            }else
+                out << "ELSIF ";
+            s->d_if[i]->accept(this);
+            out << "THEN " << endl;
+            d_level++;
+            const StatSeq& body = s->d_then[i];
+            for( int j = 0; j < body.size(); j++ )
+                body[j]->accept(this);
+            d_level--;
+        }
+        if( !s->d_else.isEmpty() )
+        {
+            out << ws() << "ELSE" << endl;
+            d_level++;
+            const StatSeq& body = s->d_else;
+            for( int j = 0; j < body.size(); j++ )
+                body[j]->accept(this);
+            d_level--;
+        }
+    }
+    void visit( ForLoop* s )
+    {
+        out << ws() << "FOR " << s->d_id->getIdent()->d_name << " := ";
+        s->d_from->accept(this);
+        out << "TO ";
+        s->d_to->accept(this);
+        out << "BY ";
+        s->d_by->accept(this);
+        out << "DO " << endl;
+        d_level++;
+        const StatSeq& body = s->d_do;
+        for( int j = 0; j < body.size(); j++ )
+            body[j]->accept(this);
+        d_level--;
+    }
+    void visit( CaseStmt* s )
+    {
+        out << ws() << "SWITCH ";
+        s->d_exp->accept(this);
+        out << endl;
+        d_level++;
+        for( int i = 0; i < s->d_cases.size(); i++ )
+        {
+            out << ws() << "CASE ";
+            for( int j = 0; j < s->d_cases[i].d_labels.size(); j++ )
+            {
+                if( j != 0 )
+                    out << "| ";
+                s->d_cases[i].d_labels[j]->accept(this);
+            }
+            out << endl;
+            d_level++;
+            const StatSeq& body = s->d_cases[i].d_block;
+            for( int j = 0; j < body.size(); j++ )
+                body[j]->accept(this);
+            d_level--;
+        }
+        d_level--;
+    }
+    void visit( Literal* e )
+    {
+        out << "'" << e->d_val.toByteArray().simplified() << "' ";
+    }
+    void visit( SetExpr* e )
+    {
+        out << "( SET ";
+        for( int i = 0; i < e->d_parts.size(); i++ )
+            e->d_parts[i]->accept(this);
+        out << ") ";
+    }
+    void visit( IdentLeaf* e )
+    {
+        out << e->d_ident->d_name << " ";
+    }
+    void visit( UnExpr* e)
+    {
+        out << "( " << UnExpr::s_opName[e->d_op] << " ";
+        e->d_sub->accept(this);
+        if( e->d_op == UnExpr::CAST && !e->d_type.isNull() )
+            e->d_type->accept(this);
+        out << ") ";
+    }
+    void visit( IdentSel* e)
+    {
+        out << "( . ";
+        e->d_sub->accept(this);
+        out << e->d_ident->d_name << " ) ";
+    }
+    void visit( ArgExpr* e)
+    {
+        out << "( ";
+        switch( e->d_op )
+        {
+        case ArgExpr::CALL:
+            out << "CALL ";
+            break;
+        case ArgExpr::CAST:
+            out << "CAST ";
+            break;
+        case ArgExpr::IDX:
+            out << "IDX ";
+            break;
+        default:
+            Q_ASSERT( false );
+        }
+
+        e->d_sub->accept(this);
+        for( int i = 0; i < e->d_args.size(); i++ )
+            e->d_args[i]->accept(this);
+        out << ") ";
+    }
+    void visit( BinExpr* e )
+    {
+        out << "( " << BinExpr::s_opName[e->d_op] << " ";
+        e->d_lhs->accept(this);
+        e->d_rhs->accept(this);
+        out << ") ";
+    }
+
+    void visit( Exit* me)
+    {
+        out << ws() << "EXIT ";
+    }
+
+    QByteArray ws() const
+    {
+        QByteArray ws;
+        for( int i = 0; i < d_level; i++ )
+            ws += "|  ";
+        return ws;
+    }
+    QTextStream& out;
+    Named* curNamed;
+    int d_level;
+    ObxAstPrinter(QTextStream& o):out(o),d_level(0),curNamed(0) {}
+};
 
 Named*Scope::find(const QByteArray& name, bool recursive) const
 {
@@ -226,6 +571,21 @@ void Thing::setSlot(quint32 s)
     d_slotValid = true;
     Q_ASSERT( s <= MAX_SLOT );
     d_slot = s;
+}
+
+void Thing::dump(QIODevice* d)
+{
+    if( d )
+    {
+        QTextStream out(d);
+        ObxAstPrinter p(out);
+        accept(&p);
+    }else
+    {
+        QTextStream out(stdout);
+        ObxAstPrinter p(out);
+        accept(&p);
+    }
 }
 
 QualiType::ModItem QualiType::getQuali() const
