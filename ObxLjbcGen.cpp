@@ -715,14 +715,15 @@ struct ObxLjbcGenImp : public AstVisitor
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
                 checkHandleChar(lhsT,rhsT,lwide,rwide,me->d_loc);
-                int tmp = ctx.back().buySlots(4,true);
+                int tmp = ctx.back().buySlots(5,true);
                 fetchObxlibMember(tmp,13,me->d_loc); // module.joinStrings
                 bc.MOV(tmp+1,slotStack[slotStack.size()-2],me->d_loc.packed());
                 bc.MOV(tmp+2, slotStack.back(), me->d_loc.packed() );
-                bc.KSET(tmp+3, lwide || rwide );
-                bc.CALL(tmp,1,3,me->d_loc.packed());
+                bc.KSET(tmp+3, lwide );
+                bc.KSET(tmp+4, rwide );
+                bc.CALL(tmp,1,4,me->d_loc.packed());
                 bc.MOV(res,tmp,me->d_loc.packed());
-                ctx.back().sellSlots(tmp,4);
+                ctx.back().sellSlots(tmp,5);
             }else
                 Q_ASSERT(false);
             break;

@@ -1072,8 +1072,13 @@ struct ValidatorImp : public AstVisitor
             else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
-            else if( me->d_op == BinExpr::ADD && (lhsT=isTextual(lhsT)) && (rhsT=isTextual(rhsT)) )
-                me->d_type = inclusiveType1(lhsT,rhsT); // allow concat of mixed latin/unicode strings
+            else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT)) && (rhsT = isTextual(rhsT)) )
+            {
+                if( includes(lhsT,rhsT) ) // allow concat of mixed latin/unicode strings
+                    me->d_type = me->d_lhs->d_type;
+                else
+                    me->d_type = me->d_rhs->d_type;
+            }
 #endif
             else
                 error( me->d_loc, Validator::tr("operator '%1' expects both operands to "
@@ -1977,6 +1982,8 @@ struct ValidatorImp : public AstVisitor
                     rhs == bt.d_realType;
         if( lhs == bt.d_wcharType )
             return rhs == bt.d_charType;
+        if( lhs == bt.d_wstringType )
+            return rhs == bt.d_stringType || rhs == bt.d_charType;
         // can happen if QualiType not relovable Q_ASSERT( false );
         return false;
     }

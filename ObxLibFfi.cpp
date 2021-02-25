@@ -120,67 +120,35 @@ DllExport int ObxFfi_MOD( int a, int b )
         return a % b;
 }
 
-typedef struct{
-    int count;
-    char data[];
-} CharArray;
-typedef struct{
-    int count;
-    uint8_t data[];
-} ByteArray;
-typedef struct{
-    int count;
-    uint16_t data[];
-} WcharArray;
-typedef struct{
-    int count;
-    int16_t data[];
-} ShortArray;
-typedef struct{
-    int count;
-    int32_t data[];
-} IntArray;
-typedef struct{
-    int count;
-    uint32_t data[];
-} UIntArray;
-typedef struct{
-    int count;
-    int64_t data[];
-} LongArray;
-typedef struct{
-    int count;
-    float data[];
-} FloatArray;
-typedef struct{
-    int count;
-    double data[];
-} DoubleArray;
+typedef uint8_t CharArray[];
+typedef uint16_t WcharArray[];
+typedef uint8_t ByteArray[];
 
-DllExport void ObxFfi_initString( CharArray* ba, const char* utf8 )
+
+DllExport void ObxFfi_initString( CharArray data, int count, const char* utf8 )
 {
-    copystr(ba->data,ba->count,utf8);
+    copystr((char*)data,count,utf8);
 }
 
-DllExport void ObxFfi_initWstring( WcharArray* wa, const char* utf8 )
+DllExport void ObxFfi_initWstring( WcharArray wa, int count, const char* utf8 )
 {
-    copywstr(wa->data,wa->count,utf8);
+    copywstr(wa,count,utf8);
 }
 
-DllExport void ObxFfi_initByteArray( ByteArray* ba, const char* data )
+DllExport void ObxFfi_initByteArray( ByteArray ba, int count, const char* data )
 {
-    memcpy(ba->data,data,ba->count-1); // data might or might not have terminating zero
-    ba->data[ba->count-1] = 0;
+    memcpy(ba,data,count-1); // data might or might not have terminating zero
+    ba[count-1] = 0;
 }
 
-DllExport int ObxFfi_strRelOp( CharArray* lhs, CharArray* rhs, int op )
+DllExport int ObxFfi_strRelOp( char* lhs, char* rhs, int op )
 {
-    return strRelOp(lhs->data,rhs->data,op);
+    return strRelOp(lhs,rhs,op);
 }
 
-DllExport int ObxFfi_wstrRelOp( WcharArray* lhs, WcharArray* rhs, int op )
+DllExport int ObxFfi_wstrRelOp( WcharArray lhs, int lcount, WcharArray rhs, int rcount, int op )
 {
-    return wstrRelOp(lhs->data,lhs->count,rhs->data,rhs->count,op);
+    return wstrRelOp(lhs, lcount,rhs, rcount,op);
 }
 
 DllExport void ObxFfi_printString( const char* str )
@@ -188,14 +156,9 @@ DllExport void ObxFfi_printString( const char* str )
     printstring(str);
 }
 
-DllExport void ObxFfi_printCharArray( CharArray* str )
+DllExport void ObxFfi_printWcharArray( WcharArray wa, int count )
 {
-    printstring(str->data);
-}
-
-DllExport void ObxFfi_printWcharArray( WcharArray* wa )
-{
-    printwstring(wa->data, wa->count);
+    printwstring(wa, count);
 }
 
 
