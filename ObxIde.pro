@@ -26,7 +26,7 @@ TEMPLATE = app
 
 INCLUDEPATH += .. ../LuaJIT/src
 
-DEFINES += OBX_BBOX
+DEFINES += OBX_BBOX LUAIDE_EMBEDDED
 
 SOURCES += ObxIde.cpp \
     ../GuiTools/CodeEditor.cpp \
@@ -49,7 +49,8 @@ SOURCES += ObxIde.cpp \
     ObxEvaluator.cpp \
     ObxAst.cpp \
     ObxLjbcGen.cpp \
-    ObxLibFfi.cpp
+    ObxLibFfi.cpp \
+    ../LjTools/LjBcDebugger.cpp
 
 HEADERS  += ObxIde.h \
     ../GuiTools/CodeEditor.h \
@@ -71,7 +72,9 @@ HEADERS  += ObxIde.h \
     ObxValidator.h \
     ObxEvaluator.h \
     ObxAst.h \
-    ObxLjbcGen.h
+    ObxLjbcGen.h \
+    ObxLibFfi.h \
+    ../LjTools/LjBcDebugger.h
 
 # NOTE on LuaJIT: to make use of the line:column position information used in
 # OberonIDE please use this version: https://github.com/rochus-keller/LuaJIT/tree/LjTools

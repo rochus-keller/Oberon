@@ -25,11 +25,13 @@
 #include "ObErrors.h"
 #include "ObxProject.h"
 #include "ObxModel.h"
+#include "ObxLibFfi.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
 #include <LjTools/BcViewer.h>
 #include <LjTools/LuaJitEngine.h>
+#include <LjTools/LjBcDebugger.h>
 #include <QtDebug>
 #include <QDockWidget>
 #include <QApplication>
@@ -54,7 +56,6 @@
 #include <GuiTools/DocTabWidget.h>
 using namespace Obx;
 using namespace Ob;
-using namespace Lua;
 
 #ifdef Q_OS_MAC
 #define OBN_BREAK_SC "SHIFT+F8"
@@ -122,6 +123,8 @@ public:
         d_hl->addBuiltIn("WCHAR");
         d_hl->addBuiltIn("WCHR");
         d_hl->addBuiltIn("PRINTLN");
+        d_hl->addBuiltIn("TRAP");
+        d_hl->addBuiltIn("TRAPIF");
     }
 
     void clearBackHisto()
@@ -312,12 +315,12 @@ public:
     }
 };
 
-class Ide::Debugger : public DbgShell
+class Ide::Debugger : public Lua::DbgShell
 {
 public:
     Ide* d_ide;
     Debugger(Ide* ide):d_ide(ide){}
-    void handleBreak( Engine2* lua, const QByteArray& source, quint32 line )
+    void handleBreak( Lua::Engine2* lua, const QByteArray& source, quint32 line )
     {
         d_ide->enableDbgMenu();
         d_ide->fillStack();
@@ -343,15 +346,12 @@ public:
         d_ide->d_stack->clear();
         d_ide->d_locals->clear();
     }
-    void handleAliveSignal(Engine2* e)
+    void handleAliveSignal(Lua::Engine2* e)
     {
         QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
         QApplication::flush();
     }
 };
-
-typedef void (*SendToLog)( const QString& );
-extern SendToLog sendToLog; // TODO: provisoric
 
 
 static Ide* s_this = 0;
@@ -409,22 +409,24 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 }
 
 Ide::Ide(QWidget *parent)
-    : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),d_lock2(false),d_lock3(false),d_lock4(false)
+    : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
+      d_lock2(false),d_lock3(false),d_lock4(false),d_bcDebug(false)
 {
     s_this = this;
-    sendToLog = log;
+    LibFfi::setSendToLog(log);
 
     d_pro = new Project(this);
 
-    d_lua = new Engine2(this);
-    Engine2::setInst(d_lua);
+    d_lua = new Lua::Engine2(this);
+    Lua::Engine2::setInst(d_lua);
+    LibFfi::install(d_lua->getCtx());
     d_lua->addStdLibs();
-    d_lua->addLibrary(Engine2::PACKAGE);
-    d_lua->addLibrary(Engine2::IO);
-    d_lua->addLibrary(Engine2::BIT);
-    d_lua->addLibrary(Engine2::JIT);
-    d_lua->addLibrary(Engine2::FFI);
-    d_lua->addLibrary(Engine2::OS);
+    d_lua->addLibrary(Lua::Engine2::PACKAGE);
+    d_lua->addLibrary(Lua::Engine2::IO);
+    d_lua->addLibrary(Lua::Engine2::BIT);
+    d_lua->addLibrary(Lua::Engine2::JIT);
+    d_lua->addLibrary(Lua::Engine2::FFI);
+    d_lua->addLibrary(Lua::Engine2::OS);
     // TODO LjLib::install(d_lua->getCtx());
     loadLuaLib( d_lua, "obxlj" );
 
@@ -562,7 +564,7 @@ void Ide::createTerminal()
     dock->setObjectName("Terminal");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
-    d_term = new Terminal2(dock, d_lua);
+    d_term = new Lua::Terminal2(dock, d_lua);
     dock->setWidget(d_term);
     addDockWidget( Qt::BottomDockWidgetArea, dock );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+C"), this, d_term, SLOT(onClear()) );
@@ -574,7 +576,7 @@ void Ide::createDumpView()
     dock->setObjectName("Bytecode");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
-    d_bcv = new BcViewer2(dock);
+    d_bcv = new Lua::BcViewer2(dock);
     dock->setWidget(d_bcv);
     addDockWidget( Qt::RightDockWidgetArea, dock );
     connect(d_bcv,SIGNAL(sigGotoLine(quint32)),this,SLOT(onGotoLnr(quint32)));
@@ -827,6 +829,7 @@ void Ide::createMenuBar()
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
     pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
+    pop->addCommand( "Enable Bytecode Debugger", this, SLOT(onBcDebug()) );
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     pop->addAction( d_dbgStepIn );
     pop->addAction( d_dbgBreak );
@@ -890,6 +893,10 @@ void Ide::onRun()
 
     if( d_pro->useBuiltInObSysInner() )
         ; // TODO SysInnerLib::install(d_lua->getCtx());
+
+    Lua::BcDebugger* dbg = 0;
+    if( d_bcDebug )
+        dbg = new Lua::BcDebugger(d_lua);
 
     bool hasErrors = false;
     foreach( const Project::File& f, files )
@@ -1543,8 +1550,8 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
             edit->setExt(pf.d_mod->d_isExt);
         edit->loadFromFile(path);
 
-        const Engine2::Breaks& br = d_lua->getBreaks( path.toUtf8() );
-        Engine2::Breaks::const_iterator j;
+        const Lua::Engine2::Breaks& br = d_lua->getBreaks( path.toUtf8() );
+        Lua::Engine2::Breaks::const_iterator j;
         for( j = br.begin(); j != br.end(); ++j )
             edit->addBreakPoint((*j) - 1);
 
@@ -1848,12 +1855,12 @@ void Ide::fillXref(Named* sym)
 void Ide::fillStack()
 {
     d_stack->clear();
-    Engine2::StackLevels ls = d_lua->getStackTrace();
+    Lua::Engine2::StackLevels ls = d_lua->getStackTrace();
 
     bool opened = false;
     for( int level = 0; level < ls.size(); level++ )
     {
-        const Engine2::StackLevel& l = ls[level];
+        const Lua::Engine2::StackLevel& l = ls[level];
         // Level, Name, Pos, Mod
         QTreeWidgetItem* item = new QTreeWidgetItem(d_stack);
         item->setText(0,QString::number(l.d_level));
@@ -1892,16 +1899,16 @@ static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
             item->setToolTip(1, QString("address 0x%1").arg(ptrdiff_t(addr.d_addr),8,16,QChar('0')));
         switch( addr.d_type )
         {
-        case Engine2::LocalVar::NIL:
+        case Lua::Engine2::LocalVar::NIL:
             item->setText(1, "nil");
             break;
-        case Engine2::LocalVar::FUNC:
+        case Lua::Engine2::LocalVar::FUNC:
             item->setText(1, "func");
             break;
-        case Engine2::LocalVar::TABLE:
+        case Lua::Engine2::LocalVar::TABLE:
             item->setText(1, "table");
             break;
-        case Engine2::LocalVar::STRUCT:
+        case Lua::Engine2::LocalVar::STRUCT:
             item->setText(1, "struct");
             break;
         }
@@ -1941,8 +1948,8 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
 void Ide::fillLocals()
 {
     d_locals->clear();
-    Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50);
-    foreach( const Engine2::LocalVar& v, vs )
+    Lua::Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50,true);
+    foreach( const Lua::Engine2::LocalVar& v, vs )
     {
         QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
         QString name = v.d_name;
@@ -1956,7 +1963,7 @@ void Ide::fillLocals()
         {
             typeAddr(item,v.d_value);
             fillLocalSubs(item,v.d_value.toMap() );
-        }else if( JitBytecode::isString(v.d_value) )
+        }else if( Lua::JitBytecode::isString(v.d_value) )
         {
             item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
             item->setToolTip(1, v.d_value.toString() );
@@ -1966,19 +1973,19 @@ void Ide::fillLocals()
         {
             switch( v.d_type )
             {
-            case Engine2::LocalVar::NIL:
+            case Lua::Engine2::LocalVar::NIL:
                 item->setText(1, "nil");
                 break;
-            case Engine2::LocalVar::FUNC:
+            case Lua::Engine2::LocalVar::FUNC:
                 item->setText(1, "func");
                 break;
-            case Engine2::LocalVar::TABLE:
+            case Lua::Engine2::LocalVar::TABLE:
                 item->setText(1, "table");
                 break;
-            case Engine2::LocalVar::STRUCT:
+            case Lua::Engine2::LocalVar::STRUCT:
                 item->setText(1, "struct");
                 break;
-            case Engine2::LocalVar::STRING:
+            case Lua::Engine2::LocalVar::STRING:
                 item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
                 break;
             default:
@@ -2323,7 +2330,7 @@ void Ide::onShowLlBc()
 {
     ENABLED_IF( d_bcv->topLevelItemCount() );
 
-    BcViewer* bc = new BcViewer();
+    Lua::BcViewer* bc = new Lua::BcViewer();
     QBuffer buf( &d_curBc );
     buf.open(QIODevice::ReadOnly);
     bc->loadFrom( &buf );
@@ -2347,13 +2354,13 @@ void Ide::onLuaNotify(int messageType, QByteArray val1, int val2)
 {
     switch( messageType )
     {
-    case Engine2::Started:
-    case Engine2::Continued:
-    case Engine2::LineHit:
-    case Engine2::BreakHit:
-    case Engine2::ErrorHit:
-    case Engine2::Finished:
-    case Engine2::Aborted:
+    case Lua::Engine2::Started:
+    case Lua::Engine2::Continued:
+    case Lua::Engine2::LineHit:
+    case Lua::Engine2::BreakHit:
+    case Lua::Engine2::ErrorHit:
+    case Lua::Engine2::Finished:
+    case Lua::Engine2::Aborted:
         enableDbgMenu();
         break;
     }
@@ -2410,17 +2417,23 @@ void Ide::onExpMod()
     d_pro->printTreeShaken( m->d_file, path );
 }
 
+void Ide::onBcDebug()
+{
+    CHECKED_IF( true, d_bcDebug );
+
+    d_bcDebug = !d_bcDebug;
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.4.1");
+    a.setApplicationVersion("0.5.0");
     a.setStyle("Fusion");
 
     Ide w;
-
     if( a.arguments().size() > 1 )
         w.loadFile(a.arguments()[1] );
 

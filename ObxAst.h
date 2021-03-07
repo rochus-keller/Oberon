@@ -202,6 +202,7 @@ namespace Obx
         bool isChar() const { return d_baseType == CHAR || d_baseType == WCHAR; }
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0) const;
+        Record* toRecord() const;
     };
 
     struct BaseType : public Type
@@ -365,10 +366,11 @@ namespace Obx
     struct Const : public Named
     {
         QVariant d_val;
-        quint8 d_vtype;
-        bool d_wide;
+        uint d_vtype : 8;
+        uint d_strLen : 23;
+        uint d_wide : 1; // mark WSTRING and WCHAR
         Ref<Expression> d_constExpr;
-        Const():d_vtype(0),d_wide(false){}
+        Const():d_vtype(0),d_wide(false),d_strLen(0){}
         Const(const QByteArray& name, Literal* lit );
         int getTag() const { return T_Const; }
         void accept(AstVisitor* v) { v->visit(this); }

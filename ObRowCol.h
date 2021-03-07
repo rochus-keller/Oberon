@@ -17,7 +17,7 @@ namespace Ob
         bool isValid() const { return d_row > 0 && d_col > 0; } // valid lines and cols start with 1; 0 is invalid
         quint32 packed() const { return ( d_row << COL_BIT_LEN ) | d_col | MSB; }
         static bool isPacked( quint32 rowCol ) { return rowCol & MSB; }
-        static quint32 unpackCol(quint32 rowCol ) { return ( rowCol & ( ( 1 << COL_BIT_LEN ) ) - 1 ); }
+        static quint32 unpackCol(quint32 rowCol ) { return rowCol & ( ( 1 << COL_BIT_LEN ) -1 ); }
         static quint32 unpackCol2(quint32 rowCol ) { return isPacked(rowCol) ? unpackCol(rowCol) : 1; }
         static quint32 unpackRow(quint32 rowCol ) { return ( ( rowCol & ~MSB ) >> COL_BIT_LEN ); }
         static quint32 unpackRow2(quint32 rowCol ) { return isPacked(rowCol) ? unpackRow(rowCol) : rowCol; }

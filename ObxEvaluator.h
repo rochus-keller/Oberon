@@ -32,9 +32,10 @@ namespace Obx
         struct Result
         {
             QVariant d_value;
-            Literal::ValueType d_type;
-            bool d_wide;
-            Result():d_type(Literal::Invalid),d_wide(false){}
+            uint d_vtype : 8; // Literal::ValueType
+            uint d_strLen : 23;
+            uint d_wide : 1; // mark WSTRING and WCHAR
+            Result():d_vtype(Literal::Invalid),d_wide(false),d_strLen(0){}
         };
 
         static Result eval( Expression*, Module*, Ob::Errors* = 0 );

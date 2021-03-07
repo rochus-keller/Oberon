@@ -37,6 +37,8 @@
 #include "ObLuaGen2.h"
 #include "ObxModel.h"
 #include "ObxValidator.h"
+#include "ObxLjbcGen.h"
+#include "ObxLibFfi.h"
 #endif
 
 static QStringList collectFiles( const QDir& dir )
@@ -101,9 +103,9 @@ static bool preloadLib( Obx::Model& mdl, const QByteArray& name )
 #ifdef OBNLC_USING_LUAJIT
 static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
 {
-    QFile obnlj( QString(":/scripts/%1.lua").arg(name.constData()) );
-    obnlj.open(QIODevice::ReadOnly);
-    if( !lua.addSourceLib( obnlj.readAll(), name ) )
+    QFile lib( QString(":/scripts/%1.lua").arg(name.constData()) );
+    lib.open(QIODevice::ReadOnly);
+    if( !lua.addSourceLib( lib.readAll(), name ) )
         qCritical() << "compiling" << name << ":" << lua.getLastError();
 }
 #endif
@@ -273,7 +275,14 @@ static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
         qDebug() << "things count peak" << Obx::Thing::insts.size();
 #endif
 
-    return model.getErrs()->getErrCount() ? -1 : 0;
+    if( model.getErrs()->getErrCount() != 0 )
+        return -1;
+
+    qDebug() << "generating files using gen=4 ...";
+
+    Obx::LjbcGen::translate(&model, outPath,mod);
+
+    return 0;
 }
 
 static int dorun( const QStringList& files, QString run, const QString& mod,
@@ -326,6 +335,8 @@ static int dorun( const QStringList& files, QString run, const QString& mod,
         lua.addLibrary(Lua::Engine2::OS);
         lua.addLibrary(Lua::Engine2::FFI);
         Ob::LjLib::install(lua.getCtx());
+        Obx::LibFfi::install(lua.getCtx());
+        loadLuaLib( lua, "obxlj" );
         loadLuaLib( lua, "obnlj" );
         if( useOakwood )
         {
@@ -370,7 +381,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2021-01-24");
+    a.setApplicationVersion("2021-03-06");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -490,7 +501,8 @@ int main(int argc, char *argv[])
         for( i = counts.begin(); i != counts.end(); ++i )
             qDebug() << Obx::Thing::s_tagName[i.key()] << i.value();
 #endif
-        return res;
+        if( res < 0 )
+            return res;
     }else
     {
         qCritical() << "invalid generator selected (see -h for more information):" << gen;

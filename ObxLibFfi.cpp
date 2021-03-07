@@ -17,12 +17,17 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#include "ObxLibFfi.h"
+#include <LjTools/Engine2.h>
+#include <lua.hpp>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include <QString>
 #include <QtDebug>
+using namespace Obx;
 
 #ifdef _WIN32
 #define DllExport __declspec(dllexport)
@@ -30,8 +35,55 @@
 #define DllExport
 #endif
 
-typedef void (*SendToLog)( const QString& );
-SendToLog sendToLog = 0;
+static SendToLog s_sendToLog = 0;
+
+void LibFfi::setSendToLog(SendToLog f)
+{
+    s_sendToLog = f;
+}
+
+extern "C" {
+    static int _ASSERT(lua_State* L)
+    {
+        const bool ok = lua_toboolean(L,1);
+        if( !ok )
+        {
+            //qCritical() << "failed at line" << lua_tointeger(L,3);
+            luaL_error(L,"assert fail at %s %d", lua_tostring(L,2), lua_tointeger(L,3) );
+        }
+    #ifdef _DEBUG
+        else
+            qDebug() << "passed line" << lua_tointeger(L,3);
+    #endif
+        return 0;
+    }
+
+    static int _TRACE(lua_State* L)
+    {
+    #ifdef _DEBUG
+        QByteArray str;
+        for( int i = 1; i <= lua_gettop(L); i++ )
+        {
+            if( i != 0 )
+                str += "\t";
+            str += lua_tostring(L,i);
+        }
+        qDebug() << "TRACE:" << str.constData();
+    #endif
+        return 0;
+    }
+
+}
+
+void LibFfi::install(lua_State* L)
+{
+    lua_pushcfunction( L, Lua::Engine2::TRAP );
+    lua_setglobal( L, "TRAP" );
+    lua_pushcfunction( L, _ASSERT );
+    lua_setglobal( L, "ASSERT" );
+    lua_pushcfunction( L, _TRACE );
+    lua_setglobal( L, "TRACE" );
+}
 
 static void copystr( char* to, int len, const char* from )
 {
@@ -52,16 +104,16 @@ static void printstring( const char* str )
 {
     const QString tmp = QString::fromLatin1(str);
     qDebug() << tmp;
-    if( sendToLog )
-        sendToLog(tmp);
+    if( s_sendToLog )
+        s_sendToLog(tmp);
 }
 
 static void printwstring( const uint16_t* str, int len )
 {
     const QString tmp = QString::fromRawData((QChar*)str, len);
     qDebug() << tmp;
-    if( sendToLog )
-        sendToLog(tmp);
+    if( s_sendToLog )
+        s_sendToLog(tmp);
 }
 
 static int relOp( const QString& l, const QString& r, int op )
@@ -163,3 +215,5 @@ DllExport void ObxFfi_printWcharArray( WcharArray wa, int count )
 
 
 }
+
+

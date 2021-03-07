@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-02-05</span>
+      <span id="revdate">2021-03-06</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -1732,6 +1732,24 @@ t is CenterTree        // boolean</pre>
               </div>
             </div>
           </div>
+          <div class="sect3">
+            <h4 id="_function_call">8.2.5. Function Call</h4>
+            <div class="paragraph">
+              <p>A function call is a factor in an expression. In contrast to <a href="#_procedure_calls">Procedure calls</a>                in a function call the actual parameter list is mandatory. Each expression
+                in the actual parameters list (if any) is used to initialize a corresponding
+                formal parameter. The number of expressions in the actual parameter
+                list must correspond the number of formal parameters. See also
+                <a
+                  href="#_formal_parameters">Formal parameters</a>.</p>
+            </div>
+            <div class="literalblock">
+              <div class="title">Syntax:</div>
+              <div class="content">
+                <pre>FunctionCall           = designator ActualParameters
+ActualParameters = '(' [ ExpList ] ')'</pre>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1959,7 +1977,11 @@ end</pre>
           <div class="paragraph">
             <p>While statements specify the repeated execution of a statement sequence
               while the Boolean expression (its guard) yields TRUE. The guard is
-              checked before every execution of the statement sequence.</p>
+              checked before every execution of the statement sequence. The ELSIF
+              part is integrated in the loop; as long as any of the Boolean expressions
+              (either the WHILE or ELSIF guard) yields TRUE, the corresponding statement
+              sequence is executed; repetition only terminates, when all guards are
+              FALSE.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -1972,10 +1994,42 @@ end</pre>
             <div class="title">Examples:</div>
             <div class="content">
               <pre>while i &gt; 0 do i := i div 2; k := k + 1 end
+
 while (t # nil) &amp; (t.key # i) do t := t.left end
-while m &gt; n do m := m – n
-elsif n &gt; m do n := n – m end</pre>
+
+// Euclidean algorithm to compute the greatest common divisor of m and n:
+while m &gt; n do
+	m := m – n
+elsif n &gt; m do
+	n := n – m
+end
+// is equivalent to:
+loop
+	if m &gt; 0 then
+		m := m – n
+	elsif n &gt; m then
+		n := n – m
+	else
+		exit
+	end
+end</pre>
             </div>
+          </div>
+          <div class="admonitionblock note">
+            <table>
+              <tr>
+                <td class="icon">
+                  <div class="title">Note</div>
+                </td>
+                <td class="content">
+                  The ELSIF part was added to Oberon-07. It is noteably Dijkstra’s form of the WHILE
+                  loop. Contrary to intuition, the ELSIF part is not executed only
+                  if the first check of the WHILE guard evaluates to FALSE; instead,
+                  both parts are checked and executed until both guards evaluate
+                  to FALSE.
+                </td>
+              </tr>
+            </table>
           </div>
         </div>
         <div class="sect2">
@@ -2313,13 +2367,13 @@ end log2</pre>
         <div class="sect2">
           <h3 id="_type_bound_procedures">10.2. Type-bound procedures</h3>
           <div class="paragraph">
-            <p>Globally declared procedures may be associated with a record type declared
-              in the same module. The procedures are said to be bound to the record
-              type. The binding is expressed by the type of the receiver in the heading
-              of a procedure declaration. The receiver may be either a variable (VAR)
-              parameter of record type T or a value parameter of type POINTER TO
-              T (where T is a record type). The procedure is bound to the type T
-              and is considered local to it.</p>
+            <p>Procedures declared on module level may be associated with a record type
+              declared in the same module. The procedures are said to be bound to
+              the record type. The binding is expressed by the type of the receiver
+              in the heading of a procedure declaration. The receiver may be either
+              a variable (VAR) parameter of record type T or a value parameter of
+              type POINTER TO T (where T is a record type). The procedure is bound
+              to the type T and is considered local to it.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -2826,6 +2880,18 @@ end Insert</pre>
                 <tr>
                   <td class="tableblock halign-left valign-top"></td>
                   <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">x: BOOLEAN</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">BYTE</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">TRUE = 1, FALSE = 0</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
                     <p class="tableblock">x: set type</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
@@ -3204,7 +3270,7 @@ end Insert</pre>
                     <p class="tableblock">PACK(x, n)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">x:REAL; n:INTEGER</p>
+                    <p class="tableblock">VAR x:REAL; n:INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">pack x and n into x</p>
@@ -3503,6 +3569,10 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                   <li>
                     <p>T<sub>v</sub> is a pointer or a procedure type and <code>e</code>                      is NIL;</p>
+                  </li>
+                  <li>
+                    <p>T<sub>e</sub> is an open array and T<sub>v</sub> is an array
+                      of <em>equal</em> base type;</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> is an array of WCHAR, T<sub>e</sub> is a Unicode

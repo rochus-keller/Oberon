@@ -147,6 +147,7 @@ namespace Obx
         void onAbout();
         void onQt();
         void onExpMod();
+        void onBcDebug();
     private:
         class DocTab;
         class Debugger;
@@ -177,6 +178,7 @@ namespace Obx
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
+        bool d_bcDebug;
     };
 }
 

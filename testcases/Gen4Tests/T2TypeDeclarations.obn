@@ -1,0 +1,142 @@
+(*Copyright (C) 2017, 2018, 2019 Karl Landstrom <karl@miasap.se>
+
+This file is part of OBNC.
+
+OBNC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+OBNC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
+
+MODULE T2TypeDeclarations;
+
+	CONST left = 0;
+
+	TYPE
+		String = ARRAY 32 OF CHAR;
+		StringAlias = String;
+
+		ProcTable = ARRAY 1 OF PROCEDURE;
+
+		Element = POINTER TO RECORD END;
+
+		Tree = POINTER TO RECORD
+			content: Element;
+			proc: PROCEDURE (t: Tree; VAR t1: Tree): Tree;
+			n: POINTER TO Node;
+			left, right: Tree
+		END;
+
+		IntegerNode = POINTER TO RECORD (Element)
+			value: INTEGER
+		END;
+
+		List = POINTER TO Node;
+		List1 = POINTER TO Node;
+		Node = RECORD
+			elem: INTEGER;
+			next: List;
+			next1: POINTER TO Node;
+			next2: List1;
+			p: PROCEDURE (n: Node; VAR n1: Node)
+		END;
+
+		ArrayRecPtr = POINTER TO RECORD
+			f: ARRAY 10 OF ArrayRecPtr;
+			g: RECORD
+				f: ArrayRecPtr
+			END
+		END;
+
+		ProcRecArray = ARRAY 10 OF RECORD
+			f: PROCEDURE (x: ArrayRecPtr): INTEGER
+		END;
+
+		T1 = RECORD i: INTEGER END; // RK: original T
+
+	VAR
+		s: String;
+		s1: StringAlias;
+		table: ProcTable;
+		t: Tree;
+		e: Element;
+		i: IntegerNode;
+		n: Node;
+		p: ArrayRecPtr;
+		a: ProcRecArray;
+
+	PROCEDURE TestMemoryAllocation;
+		TYPE
+			Ta0 = RECORD
+				ptr: POINTER TO RECORD END
+			END;
+			Tb0 = RECORD
+				proc: PROCEDURE
+			END;
+			Ta1 = RECORD (Ta0) END;
+			Tb1 = RECORD (Tb0) END;
+
+		VAR
+			x: POINTER TO Ta1;
+			y: POINTER TO Tb1;
+			z: POINTER TO RECORD
+				ptr: POINTER TO RECORD END;
+				proc: PROCEDURE
+			END;
+	BEGIN
+		NEW(x);
+		ASSERT(x.ptr = NIL);
+		NEW(y);
+		ASSERT(y.proc = NIL);
+		NEW(z);
+		ASSERT(z.ptr = NIL);
+		ASSERT(z.proc = NIL)
+	END TestMemoryAllocation;
+
+
+	PROCEDURE TreeProc(t: Tree; VAR t1: Tree): Tree;
+	RETURN NIL
+	END TreeProc;
+
+
+	PROCEDURE NodeProc(n: Node; VAR n1: Node);
+	END NodeProc;
+
+	
+	PROCEDURE TestScope;
+		TYPE P = POINTER TO T1; // RK: original T
+			T = RECORD f: INTEGER END;
+		VAR x: P;
+			y: T;
+	BEGIN
+		NEW(x);
+		x.i := 1;
+		y.f := 1
+	END TestScope;
+
+BEGIN
+	PRINTLN("start T2");
+	TestMemoryAllocation;
+	s1 := s;
+	table[0] := NIL;
+	NEW(t);
+	NEW(i);
+	t.content := i;
+	t.content(IntegerNode).value := 1;
+	t.proc := TreeProc;
+	NEW(e);
+	n.elem := left;
+	n.next := NIL;
+	n.p := NodeProc;
+	NEW(p);
+	a[0].f := NIL;
+	TestScope;
+	PRINTLN("done T2");
+END T2TypeDeclarations.

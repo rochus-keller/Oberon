@@ -878,6 +878,19 @@ bool Type::isText(bool* wide) const
     return false;
 }
 
+Record*Type::toRecord() const
+{
+    Type* t = const_cast<Type*>(this)->derefed();
+    if( t && t->getTag() == Thing::T_Pointer )
+        t = cast<Pointer*>(t)->d_to.data();
+    if( t )
+        t = t->derefed();
+    if( t && t->getTag() == Thing::T_Record )
+        return cast<Record*>(t);
+    else
+        return 0;
+}
+
 
 bool Literal::isWide(const QString& str)
 {

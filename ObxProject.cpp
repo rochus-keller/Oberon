@@ -988,7 +988,7 @@ bool Project::recompile()
         if( i != d_files.end() )
         {
             i.value().d_mod = m;
-            // m->dump();
+            //m->dump();
         }else
         {
             qDebug() << "missing" << m->d_name;
@@ -1017,7 +1017,16 @@ bool Project::generate()
         }else if( m->d_isDef )
         {
             qDebug() << "allocating" << m->d_name;
+#ifdef _DEBUG
+            QBuffer buf;
+            buf.open(QIODevice::WriteOnly);
+            LjbcGen::allocateDef(m, &buf, d_mdl->getErrs());
+            buf.close();
+            qDebug() << "********** Definition of" << m->d_name;
+            qDebug() << buf.buffer();
+#else
             LjbcGen::allocateDef(m, 0, d_mdl->getErrs());
+#endif
         }else if( f != d_files.end() )
         {
             qDebug() << "generating" << m->d_name;

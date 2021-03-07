@@ -48,6 +48,7 @@ ffi.cdef[[
 	int ObxFfi_wstrRelOp( WcharArray lhs, int lcount, WcharArray rhs, int rcount, int op );
 	void ObxFfi_printString( const char* str );
 	void ObxFfi_printWcharArray( WcharArray wa, int count );
+	
 ]]
 
 local CharArray = ffi.typeof("CharArray")
@@ -59,6 +60,7 @@ local LongArray = ffi.typeof("LongArray")
 local FloatArray = ffi.typeof("FloatArray")
 local DoubleArray = ffi.typeof("DoubleArray")
 local bytesize = ffi.sizeof
+local frexp = math.frexp
 
 function module.charToStringArray(len, str)
 	local a = ffi.new( CharArray, len ) 
@@ -104,14 +106,14 @@ function module.createLuaArray(len)
 	return a
 end
 local function addElemToSet( set, elem )
-	set = bit.bor( set, bit.lshift( 1, elem ) )
-	return set
+	return bit.bor( set, bit.lshift( 1, elem ) )
+end
+function module.removeElemFromSet( set, elem )
+	return bit.band( set, bit.bnot( bit.lshift( 1, elem ) ) )
 end
 function module.addRangeToSet( set, from, to )
 	if from > to then
-		local tmp = from
-		from = to
-		to = tmp
+		return set
 	end
 	for i=from,to do
 		set = addElemToSet(set,i)
@@ -225,6 +227,26 @@ function module.println( val )
 		C.ObxFfi_printString(tostring(val))
 	end
 end
+function module.strcpy( lhs, rhs )
+	local i = 0
+	while rhs[i] ~= 0 do
+		lhs[i] = rhs[i]
+		i = i + 1
+	end
+	lhs[i] = 0
+end
+function module.ODD(num)
+	return ( num % 2 ) == 1
+end
+function module.bool_to_number(value)
+  return value and 1 or 0
+end
+function module.UNPACK(value)
+	local x,n = frexp(value)
+	x = x + x
+	n = n - 1
+	return x, n
+end
 
 -- Magic mumbers used by the compiler
 module[1] = module.charToStringArray
@@ -253,6 +275,19 @@ module[23] = module.is_a
 module[24] = module.createSetArray
 module[25] = module.println
 module[26] = bytesize
+module[27] = module.strcpy
+module[28] = TRAP
+module[29] = ASSERT
+module[30] = module.removeElemFromSet
+module[31] = math.ldexp
+module[32] = module.UNPACK
+module[33] = module.ODD
+module[34] = math.abs
+module[35] = bit.lshift
+module[36] = bit.arshift
+module[37] = bit.ror
+module[38] = math.floor
+module[39] = module.bool_to_number
 
 return module
 

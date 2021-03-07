@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-02-20
+:revdate: 2021-03-06
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -821,6 +821,7 @@ end
 
 === While statements
 While statements specify the repeated execution of a statement sequence while the Boolean expression (its guard) yields TRUE. The guard is checked before every execution of the statement sequence.
+The ELSIF part is integrated in the loop; as long as any of the Boolean expressions (either the WHILE or ELSIF guard) yields TRUE, the corresponding statement sequence is executed; repetition only terminates, when all guards are FALSE.
 
 .Syntax:
 ....
@@ -831,10 +832,29 @@ WhileStatement = WHILE expression DO StatementSequence
 .Examples:
 ....
 while i > 0 do i := i div 2; k := k + 1 end
+
 while (t # nil) & (t.key # i) do t := t.left end
-while m > n do m := m – n
-elsif n > m do n := n – m end
+
+// Euclidean algorithm to compute the greatest common divisor of m and n:
+while m > n do 
+	m := m – n
+elsif n > m do 
+	n := n – m 
+end
+// is equivalent to:
+loop
+	if m > 0 then
+		m := m – n
+	elsif n > m then
+		n := n – m
+	else
+		exit
+	end
+end
 ....
+
+[NOTE]
+The ELSIF part was added to Oberon-07. It is noteably Dijkstra’s form of the WHILE loop. Contrary to intuition, the ELSIF part is not executed only if the first check of the WHILE guard evaluates to FALSE; instead, both parts are checked and executed until both guards evaluate to FALSE.
 
 === Repeat statements
 A repeat statement specifies the repeated execution of a statement sequence until a condition specified by a Boolean expression is satisfied. The statement sequence is executed at least once.
@@ -1110,6 +1130,7 @@ The following table lists the predeclared procedures. Some are generic procedure
 |ODD(x)      |integer type         |BOOLEAN        |x MOD 2 = 1
 |ORD(x)      |x: CHAR or WCHAR     |BYTE or SHORT  |ordinal number of x
 |            |x: enumeration type  |INTEGER        |ordinal number of the given identifier
+|            |x: BOOLEAN           |BYTE           |TRUE = 1, FALSE = 0
 |            |x: set type		   |INTEGER		   |number representing the set; the first element corresponds to the least significant digit of the number and the last element to the most significant digit. 
 |ROR(x, n)   |x, n: INTEGER        |INTEGER        |x rotated right by n bits
 |SHORT(x)    |x: LONGINT           |INTEGER        |identity
@@ -1155,7 +1176,7 @@ FLOOR(1.5) = 1; FLOOR(-1.5) = -2
 |                   |fixed array                   |
 |NEW(v,x~0~,...,x~n~)   |v: pointer to open array  |allocate v^ with lengths
 |                   |x~i~: integer type              |x~0~..x~n~
-|PACK(x, n)         |x:REAL; n:INTEGER             |pack x and n into x
+|PACK(x, n)         |VAR x:REAL; n:INTEGER         |pack x and n into x
 |UNPK(x, n)         |VAR x:REAL; VAR n:INTEGER     |unpack x into x and n
 |===
 
@@ -1321,6 +1342,7 @@ Assignment compatible::
     . T~e~ and T~v~ are record types and T~e~ is a _type extension_ of T~v~ and the dynamic type of v is T~v~;
     . T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~ or the pointers have _equal_ base types;
     . T~v~ is a pointer or a procedure type and `e` is NIL;
+    . T~e~ is an open array and T~v~ is an array of _equal_ base type;
     . T~v~ is an array of WCHAR, T~e~ is a Unicode BMP or Latin-1 string or character array, and STRLEN(e) < LEN(v);
     . T~v~ is an array of CHAR, T~e~ is a Latin-1 string or character array, and STRLEN(e) < LEN(v);
     . T~v~ is a procedure type and `e` is the name of a procedure whose formal parameters _match_ those of T~v~. 

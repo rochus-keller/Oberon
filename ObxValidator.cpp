@@ -386,14 +386,16 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::ORD:
             if( args->d_args.size() == 1 )
             {
-                Parameter a,b,c,d;
+                Parameter a,b,c,d,e;
                 a.d_type = bt.d_charType;
                 b.d_type = bt.d_wcharType;
                 c.d_type = bt.d_setType;
                 d.d_type = derefed(args->d_args[0]->d_type.data());
+                e.d_type = bt.d_boolType;
                 if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data())
+                        && !paramCompatible( &e, args->d_args[0].data())
                         && !paramCompatible( &c, args->d_args[0].data()) && d.d_type->getTag() != Thing::T_Enumeration )
-                    error( args->d_args[0]->d_loc, Validator::tr("expecting char, wchar, set or enumeration argument"));
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting char, wchar, boolean, set or enumeration argument"));
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
@@ -439,10 +441,7 @@ struct ValidatorImp : public AstVisitor
             {
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
                 Type* rhs = derefed(args->d_args.last()->d_type.data());
-                const bool ok = ( lhs == bt.d_charType && rhs == bt.d_charType ) ||
-                        ( lhs == bt.d_charType && rhs == bt.d_wcharType ) ||
-                        ( lhs == bt.d_wcharType && rhs == bt.d_charType ) ||
-                        ( lhs == bt.d_wcharType && rhs == bt.d_wcharType ) ||
+                const bool ok = ( lhs->isChar() && rhs->isChar() ) ||
                         ( isNumeric(lhs) && isNumeric(rhs) );
                 if( !ok )
                     error( args->d_loc, Validator::tr("expecting both arguments of numeric or character type"));
@@ -477,6 +476,8 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() >= 1 )
             {
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
+                if( lhs == 0 )
+                    return false; // already reported
                 if( lhs->getTag() != Thing::T_Pointer )
                 {
                     error( args->d_args.first()->d_loc, Validator::tr("expecting a pointer"));
@@ -775,7 +776,7 @@ struct ValidatorImp : public AstVisitor
             if( !args.isEmpty() )
             {
                 Type* t = derefed(args.first()->d_type.data());
-                if( t == bt.d_charType )
+                if( t == bt.d_charType || t == bt.d_boolType )
                     return bt.d_byteType;
                 if( t == bt.d_wcharType )
                     return bt.d_shortType;
@@ -890,6 +891,7 @@ struct ValidatorImp : public AstVisitor
                     else
                         dim->d_sub = prev.data();
                     prev = dim;
+                    dim->d_op = ArgExpr::IDX;
                     dim->d_args << me->d_args[i];
                     dim->d_loc = me->d_args[i]->d_loc;
                     dim->d_type = subType;
@@ -1235,7 +1237,7 @@ struct ValidatorImp : public AstVisitor
                 bool ok;
                 Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), mod,err);
                 const int len = res.d_value.toInt(&ok);
-                if( res.d_type != Literal::Integer || !ok || len <= 0 )
+                if( res.d_vtype != Literal::Integer || !ok || len <= 0 )
                     error( me->d_lenExpr->d_loc, Validator::tr("expecting positive non-zero integer for array length") );
                 me->d_len = len;
             }
@@ -1440,8 +1442,9 @@ struct ValidatorImp : public AstVisitor
         me->d_type = me->d_constExpr->d_type.data();
         Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, err);
         me->d_val = res.d_value;
-        me->d_vtype = res.d_type;
+        me->d_vtype = res.d_vtype;
         me->d_wide = res.d_wide;
+        me->d_strLen = res.d_strLen;
     }
 
     void visit( Field* me )
@@ -1694,14 +1697,14 @@ struct ValidatorImp : public AstVisitor
             }
         }
 #endif
-        Array* str = toCharArray(lhsT,false);
-        if( str && me->d_rhs->getTag() == Thing::T_Literal )
+        Array* lstr = toCharArray(lhsT,false);
+        if( lstr && me->d_rhs->getTag() == Thing::T_Literal )
         {
             // TODO: check wchar vs char compat
             Literal* lit = cast<Literal*>( me->d_rhs.data() );
-            if( str->d_len && lit->d_vtype == Literal::String && lit->d_strLen > str->d_len )
+            if( lstr->d_len && lit->d_vtype == Literal::String && lit->d_strLen > lstr->d_len )
                 error( me->d_rhs->d_loc, Validator::tr("string is too long to assign to given character array"));
-            if( str->d_len && lit->d_vtype == Literal::Char && 1 > str->d_len )
+            if( lstr->d_len && lit->d_vtype == Literal::Char && 1 > lstr->d_len )
                 error( me->d_rhs->d_loc, Validator::tr("the character array is too small for the character"));
             // TODO: runtime checks for var length arrays
 
@@ -1730,7 +1733,7 @@ struct ValidatorImp : public AstVisitor
 
             error( me->d_rhs->d_loc, Validator::tr("right side %1 of assignment is not compatible with left side %2")
                    .arg(rhs).arg(lhs) );
-            assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() );
+            assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
         }
     }
 
@@ -1796,7 +1799,7 @@ struct ValidatorImp : public AstVisitor
         if( !me->d_from.isNull() )
         {
             me->d_from->accept(this);
-            if( !me->d_from->d_type.isNull() && !isInteger(derefed(me->d_from->d_type.data())) )
+            if( me->d_from->d_type.isNull() || !isInteger(derefed(me->d_from->d_type.data())) )
                 error( me->d_from->d_loc, Validator::tr("expecting an integer as start value of the for loop"));
         }
         if( !me->d_to.isNull() )
@@ -1813,7 +1816,7 @@ struct ValidatorImp : public AstVisitor
             else
             {
                 Evaluator::Result res = Evaluator::eval(me->d_by.data(), mod, err);
-                if( res.d_type != Literal::Integer )
+                if( res.d_vtype != Literal::Integer )
                     error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
                 me->d_byVal = res.d_value;
             }
@@ -2205,13 +2208,15 @@ struct ValidatorImp : public AstVisitor
                 matchingFormalParamLists( cast<ProcType*>(lhsT), cast<ProcType*>(rhsT) ))
             return true;
 
-        if( lhsT == bt.d_charType && ( rhs->getTag() == Thing::T_Literal && rhsT == bt.d_stringType ) )
-            return cast<Literal*>(rhs)->d_strLen == 1;
-
-        if( lhsT == bt.d_wcharType && ( rhs->getTag() == Thing::T_Literal &&
-                                        ( rhsT == bt.d_stringType || rhsT == bt.d_wstringType ) ) )
-            return cast<Literal*>(rhs)->d_strLen == 1;
-
+        if( ( lhsT == bt.d_charType && rhsT == bt.d_stringType ) ||
+            ( lhsT == bt.d_wcharType && rhsT->isString() ) )
+        {
+            Named* id = rhs->getIdent();
+            if( id && id->getTag() == Thing::T_Const )
+                return cast<Const*>(id)->d_strLen == 1;
+            if( rhs->getTag() == Thing::T_Literal )
+                return cast<Literal*>(rhs)->d_strLen == 1;
+        }
 
         if( ltag == Thing::T_Array )
         {
@@ -2222,16 +2227,17 @@ struct ValidatorImp : public AstVisitor
                 // Array := Array
                 Array* r = cast<Array*>(rhsT);
                 Type* rt = derefed(r->d_type.data());
+                if( r->d_lenExpr.isNull() && equalType( lt, rt ) )
+                    return true; // T~e~ is an open array and T~v~ is an array of _equal_ base type
                 if( lt == bt.d_charType && rt == bt.d_charType )
                     return true;
-                if( lt == bt.d_wcharType && ( rt == bt.d_wcharType || rt == bt.d_charType ) )
+                if( lt == bt.d_wcharType && rt->isChar() )
                     // TODO: does assig automatic long(char array)?
                     return true;
             }else if( lt == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
                 // Array := string
                 return true;
-            else if( lt == bt.d_wcharType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ||
-                                               rhsT == bt.d_wstringType || rhsT == bt.d_wcharType ) )
+            else if( lt == bt.d_wcharType && ( rhsT->isString() || rhsT->isChar() ) )
                 return true;
         }
 
@@ -2287,7 +2293,7 @@ struct ValidatorImp : public AstVisitor
 #ifdef OBX_BBOX
             if( lhs->d_const && rhs->getTag() == Thing::T_Literal &&
                     ( ( afT == bt.d_charType && ta == bt.d_stringType ) ||
-                      ( afT == bt.d_wcharType && ( ta == bt.d_stringType || ta == bt.d_wstringType  ) )
+                      ( afT == bt.d_wcharType && ta->isString() )
                       ) )
                 return true; // BBOX supports passing string literals to IN ARRAY TO CHAR/WCHAR
 
@@ -2344,8 +2350,7 @@ struct ValidatorImp : public AstVisitor
         if( la && laT == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
             return true;
         // T~f~ is an open array of WCHAR and T~a~ is a Unicode BMP or Latin-1 string
-        if( la && laT == bt.d_wcharType &&  ( rhsT == bt.d_stringType || rhsT == bt.d_charType ||
-                                              rhsT == bt.d_wstringType || rhsT == bt.d_wcharType ) )
+        if( la && laT == bt.d_wcharType &&  ( rhsT->isString() || rhsT->isChar() ) )
             return true;
 
         // Oberon 90: If a formal parameter is of type ARRAY OF BYTE, then the corresponding
