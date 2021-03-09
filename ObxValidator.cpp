@@ -215,6 +215,10 @@ struct ValidatorImp : public AstVisitor
             //if( me->d_ident->getTag() == Thing::T_Import )
             //    me->d_mod = static_cast<Import*>( me->d_ident.data() )->d_mod.data();
             me->d_type = me->d_ident->d_type.data();
+#if 0
+            if( me->d_ident->getTag() == Thing::T_Procedure && me->d_ident.data() == levels.back().scope )
+                qDebug() << "recursive call" << mod->d_name << me->d_loc.d_row;
+#endif
         }
     }
 

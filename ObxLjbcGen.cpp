@@ -1285,114 +1285,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 }
                 if( lenSlot >= 0 )
                     ctx.back().sellSlots(lenSlot);
-#if 0
-                // no longer used
-                Array* a = cast<Array*>(t);
-                Type* t = derefed(a->d_type.data());
-                Q_ASSERT( t );
-                bool lhsIsOpen = a->d_lenExpr.isNull();
-
-                int lenSlot = 0;
-                if( !lengths.isEmpty() )
-                {
-                    // len comes from NEW( ptr, expression ) instead of compile time constant
-                    Q_ASSERT( lhsIsOpen );
-                    lengths.first()->accept(this);
-                    lenSlot = slotStack.back();
-                    slotStack.pop_back();
-                }else
-                {
-                    qDebug() << "ERR" << mod->d_name << loc.d_row << loc.d_col;
-                    Q_ASSERT( !lhsIsOpen );
-                }
-
-                if( t->getBaseType() > 0 )
-                {
-                    int tmp = ctx.back().buySlots(2,true);
-                    switch( t->getBaseType() )
-                    {
-                    case Type::BOOLEAN:
-                    case Type::CHAR:
-                    case Type::BYTE:
-                        fetchObxlibMember(tmp,8,loc); // module.createByteArray
-                        break;
-                    case Type::SHORTINT:
-                        fetchObxlibMember(tmp,3,loc); // module.createShortArray
-                        break;
-                    case Type::WCHAR:
-                        fetchObxlibMember(tmp,2,loc); // module.createWcharArray
-                        break;
-                    case Type::INTEGER:
-                        fetchObxlibMember(tmp,4,loc); // module.createIntArray
-                        break;
-                    case Type::SET:
-                        fetchObxlibMember(tmp,24,loc); // module.createSetArray
-                        break;
-                    case Type::LONGINT:
-                        fetchObxlibMember(tmp,5,loc); // module.createLongArray
-                        break;
-                    case Type::REAL:
-                        fetchObxlibMember(tmp,6,loc); // module.createFloatArray
-                        break;
-                    case Type::LONGREAL:
-                        fetchObxlibMember(tmp,7,loc); // module.createDoubleArray
-                        break;
-                    default:
-                        Q_ASSERT( false );
-                        break;
-                    }
-                    if( !lhsIsOpen )
-                        bc.KSET(tmp+1,a->d_len, loc.packed() );
-                    else
-                    {
-                        bc.MOV(tmp+1, lenSlot, loc.packed() );
-                        ctx.back().sellSlots(lenSlot);
-                    }
-                    bc.CALL(tmp,1,1,loc.packed());
-                    bc.MOV(to,tmp,loc.packed());
-                    ctx.back().sellSlots(tmp,2);
-                }else
-                {
-                    bc.TNEW( to, a->d_len, 0, loc.packed() );
-                    const int tmp = ctx.back().buySlots(1);
-                    if( !lhsIsOpen )
-                        bc.KSET( tmp, a->d_len, loc.packed() );
-                    else
-                        bc.MOV( tmp, lenSlot, loc.packed() );
-                    bc.TSET(tmp,to,"count",loc.packed());
-
-                    if( t->isStructured() )
-                    {
-                        quint8 base = ctx.back().buySlots(4);
-                        bc.KSET(base,0,loc.packed());
-                        if( !lhsIsOpen )
-                            bc.KSET(base+1,a->d_len-1,loc.packed());
-                        else
-                        {
-                            bc.SUB(lenSlot, lenSlot, QVariant(1), loc.packed() );
-                            bc.MOV(base+1, lenSlot, loc.packed() );
-                            ctx.back().sellSlots(lenSlot);
-                        }
-                        bc.KSET(base+2,1,loc.packed());
-                        bc.FORI(base,0,loc.packed());
-                        const quint32 pc = bc.getCurPc();
-
-                        if( lengths.size() > 1 )
-                            emitInitializer(tmp, t, loc, lengths.mid(1) );
-                        else
-                            emitInitializer(tmp, t, loc );
-                        bc.TSET(tmp,to,base+3, loc.packed() );
-
-                        bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
-                        bc.patch(pc);
-
-                        ctx.back().sellSlots(base,4);
-                    }else if( lhsIsOpen )
-                        ctx.back().sellSlots(lenSlot);
-
-                    ctx.back().sellSlots(tmp);
-                }
-#endif
             }
             break;
         }
@@ -1707,72 +1599,6 @@ struct ObxLjbcGenImp : public AstVisitor
                         releaseSlot();
                     }
                 }
-
-#if 0
-                // no longer used
-                if( t->isString() || tag == Thing::T_Array )
-                {
-                    Array* a = tag == Thing::T_Array ? cast<Array*>(t) : 0;
-                    Type* at = a ? derefed( a->d_type.data() ) : 0;
-                    if( a && a->d_len > 0 )
-                    {
-                        bc.KSET( res, a->d_len, ae->d_loc.packed() );
-                    }else if( t->isString() || ( at && at->getTag() == Thing::T_BaseType ) )
-                    {
-                        ae->d_args.first()->accept(this);
-                        Q_ASSERT( !slotStack.isEmpty() );
-
-                        int tmp = ctx.back().buySlots(2,true);
-                        fetchObxlibMember(tmp, 26, ae->d_loc ); // bytesize
-                        bc.MOV( tmp+1, slotStack.back(), ae->d_loc.packed() );
-                        releaseSlot();
-                        bc.CALL( tmp, 1, 1, ae->d_loc.packed() );
-                        bc.MOV(res,tmp, ae->d_loc.packed() );
-                        ctx.back().sellSlots(tmp,2);
-                        int divisor = 1;
-                        if( t->isString() )
-                        {
-                            if( t->getBaseType() == Type::WSTRING )
-                                divisor = 2;
-                        }else
-                        {
-                            switch( at->getBaseType() )
-                            {
-                            case Type::BOOLEAN:
-                            case Type::CHAR:
-                            case Type::BYTE:
-                                // NOP
-                                break;
-                            case Type::SHORTINT:
-                            case Type::WCHAR:
-                                divisor = 2;
-                                break;
-                            case Type::INTEGER:
-                            case Type::SET:
-                            case Type::REAL:
-                                divisor = 4;
-                                break;
-                            case Type::LONGINT:
-                            case Type::LONGREAL:
-                                divisor = 8;
-                                break;
-                            default:
-                                Q_ASSERT( false );
-                                break;
-                            }
-                        }
-                        if( divisor > 1 )
-                            bc.DIV(res,res,QVariant(divisor),ae->d_loc.packed());
-                    }else
-                    {
-                        ae->d_args.first()->accept(this);
-                        Q_ASSERT( !slotStack.isEmpty() );
-                        bc.TGET( res, slotStack.back(), "count", ae->d_loc.packed() );
-                        releaseSlot();
-                    }
-                }else
-                    Q_ASSERT( false );
-#endif
             }
             break;
         case BuiltIn::INCL:
@@ -1888,6 +1714,14 @@ struct ObxLjbcGenImp : public AstVisitor
                     break;
                 }
             }
+            break;
+        case BuiltIn::SHORT:
+        case BuiltIn::LONG:
+            // TODO: other versions of short/long
+            ae->d_args.first()->accept(this);
+            Q_ASSERT( !slotStack.isEmpty() );
+            bc.MOV(res,slotStack.back(),ae->d_loc.packed());
+            releaseSlot();
             break;
         default:
             // TODO
@@ -2656,7 +2490,8 @@ struct ObxLjbcGenImp : public AstVisitor
         for( int i = 0; i < pt->d_formals.size(); i++)
         {
             accs[i] = trueVarParam( pt->d_formals[i].data() );
-            varcount++;
+            if( accs[i] )
+                varcount++;
         }
         if( varcount )
         {

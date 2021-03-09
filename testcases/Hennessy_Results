@@ -84,3 +84,17 @@ Tree       23
 FFT       21
 Nonfloating point composite is 2.107487e+02
 Floating point composite is 3.250239e+02
+
+**** ObxIde 0.5.1 + ObxLjbcGen, 2021-03-09
+No tail calls, redundant moves
+Perm        8 (TODO: this is a fast result; 46% of all attempts are fast; the other results are factor 10 to 20 slower; only Perm affected!)
+Towers        9
+Queens        1
+Intmm        6
+Mm        7
+Quick       14
+Bubble       13
+Tree       19
+FFT       25
+Nonfloating point composite is 1.411675e+02
+Floating point composite is 2.714228e+02
