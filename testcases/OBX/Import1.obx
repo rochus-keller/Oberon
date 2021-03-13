@@ -1,0 +1,13 @@
+module Import1
+
+	import i1 := Imported1
+	
+	type 
+		T1 = T
+		T = record end
+		
+	var t : i1.T1
+		t1 : T1
+begin
+	i1.Do
+end Import1

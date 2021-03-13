@@ -1997,6 +1997,16 @@ void Ide::fillLocals()
 
 static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx );
 
+static void fillRecord(QTreeWidgetItem* item, Named* n, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
+{
+    fillModItems(item,n, 0, r, sort, idx);
+    if( r->d_baseRec )
+        item->setText(0, item->text(0) + " ⇑");
+    if( !r->d_subRecs.isEmpty() )
+        item->setText(0, item->text(0) + QString(" ⇓%1").arg(r->d_subRecs.size()));
+    item->setToolTip( 0, item->text(0) );
+}
+
 template<class T>
 static void createModItem(T* parent, Named* n, bool nonbound, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
 {
@@ -2016,28 +2026,17 @@ static void createModItem(T* parent, Named* n, bool nonbound, bool sort, QHash<N
             {
                 QTreeWidgetItem* item = new QTreeWidgetItem(parent);
                 Record* r = cast<Record*>(n->d_type.data());
-                fillModItems(item,n, 0, r, sort, idx);
-                if( r->d_baseRec )
-                    item->setText(0, item->text(0) + " ⇑");
-                if( !r->d_subRecs.isEmpty() )
-                    item->setText(0, item->text(0) + QString(" ⇓%1").arg(r->d_subRecs.size()));
-                item->setToolTip( 0, item->text(0) );
+                fillRecord(item,n,r,sort,idx);
             }
             break;
         case Thing::T_Pointer:
             {
                 Pointer* p = cast<Pointer*>(n->d_type.data());
-                Type* t = p->d_to ? p->d_to->derefed() : 0;
-                if( t && t->getTag() == Thing::T_Record )
+                if( p->d_to && p->d_to->getTag() == Thing::T_Record )
                 {
                     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-                    Record* r = cast<Record*>(t);
-                    fillModItems(item,n, 0, r, sort, idx );
-                    if( r->d_baseRec )
-                        item->setText(0, item->text(0) + " ⇑");
-                    if( !r->d_subRecs.isEmpty() )
-                        item->setText(0, item->text(0) + QString(" ⇓%1").arg(r->d_subRecs.size()));
-                    item->setToolTip( 0, item->text(0) );
+                    Record* r = cast<Record*>(p->d_to.data());
+                    fillRecord(item,n,r,sort,idx);
                 }
             }
             break;
@@ -2064,7 +2063,7 @@ static void createModItem(T* parent, Named* n, bool nonbound, bool sort, QHash<N
 template <class T>
 static void walkModItems(T* parent, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx)
 {
-    typedef QMap<QByteArray,Named*> Sort;
+    typedef QMultiMap<QByteArray,Named*> Sort;
     if( p && sort)
     {
         Sort tmp;
@@ -2430,7 +2429,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.5.1");
+    a.setApplicationVersion("0.6.0");
     a.setStyle("Fusion");
 
     Ide w;

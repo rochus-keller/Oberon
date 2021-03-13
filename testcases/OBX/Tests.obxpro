@@ -1,0 +1,12 @@
+[General]
+BuiltInOakwood=true
+BuiltInObSysInner=false
+MainModule=@ByteArray()
+MainProc=@ByteArray()
+Suffixes=@Invalid()
+WorkingDir=
+
+[Modules]
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/Testdaten/obx/Proc6.obx
+1\RelPath=Proc6.obx
+size=1

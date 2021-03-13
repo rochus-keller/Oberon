@@ -1,0 +1,20 @@
+module Arrays4
+
+	type A = array 3, 4 of integer
+	var a : A
+		b: array 10 of pointer to record
+				a: array 10 of integer
+				f: proc (): integer
+			end
+
+
+begin
+	a[1,2] := 33
+	println(a[1][2])
+
+	new(b[0])
+	b[0].a[0] := 1
+	println(b[0].a[0])
+	assert(b[0].a[0] = 1)
+
+end Arrays4

@@ -1,0 +1,10 @@
+module Imported2
+	type T = record end
+		T1* = T
+	proc It*
+	begin
+		println("it")
+	end It
+begin
+	println("Imported2")
+end Imported2

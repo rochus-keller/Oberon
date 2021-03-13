@@ -74,7 +74,7 @@ struct ObxAstPrinter : public AstVisitor
 {
     bool namedType( Type* t )
     {
-        if( t->d_ident && t->d_ident != curNamed )
+        if( t->d_ident && t->d_ident->getTag() == Thing::T_NamedType && t->d_ident != curNamed )
         {
             out << "( TREF " << t->d_ident->d_name << " ) ";
             return true;
@@ -231,7 +231,13 @@ struct ObxAstPrinter : public AstVisitor
     }
     void visit( Procedure* m )
     {
-        out << ws() << "PROCEDURE " << m->d_name << " ";
+        if( m->d_receiver )
+        {
+            out << ws() << "METHOD ";
+            m->d_receiver->d_type->accept(this);
+            out << ". " << m->d_name << " ";
+        }else
+            out << ws() << "PROCEDURE " << m->d_name << " ";
         if( m->d_type.isNull() )
             out << "? ";
         else

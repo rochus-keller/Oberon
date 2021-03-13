@@ -1,0 +1,41 @@
+module Proc6
+
+	type
+		Super = ^record end
+		A = ^record (Super) end
+		B = ^record (Super) end
+		
+	proc (this: Super) Hello(var i : integer):integer return 0 end
+	
+	proc (this: A) Hello(var i : integer):integer
+	begin
+		println("Hello from A")
+		i := 22;
+		return 33
+	end Hello
+	
+	proc (this: B) Hello(var i : integer):integer
+	begin
+		println("Hello from B")
+		i := 44
+		return 55
+	end Hello
+	
+	proc SayHello( obj : Super )
+		var a,b : integer
+	begin
+		a := obj.Hello(b)
+		println(b)
+		println(a)
+	end SayHello
+	
+	var 
+		a : A
+		b : B
+
+begin
+	new(a)
+	new(b)
+	SayHello(a)
+	SayHello(b)
+end Proc6

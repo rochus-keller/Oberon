@@ -1,0 +1,75 @@
+// see Main.obx
+module Quick
+
+	import Util
+	
+	const
+		sortelements = 5000
+		srtelements = 500
+
+	var
+		sortlist: array sortelements + 1 of integer
+		biggest, littlest, 
+		top: integer
+
+	proc Initarr()
+		var 
+			i, temp: integer
+	begin 
+		Util.Initrand()
+		biggest := 0
+		littlest := 0
+		i := 1
+		while i <= sortelements do 
+			temp := Util.Rand()
+			sortlist[i] := temp - (temp div 100000) * 100000 - 50000
+			if sortlist[i] > biggest then
+				biggest := sortlist[i] 
+			elsif sortlist[i] < littlest then 
+				littlest := sortlist[i] 
+			end 
+			inc(i) 
+		end 
+	end Initarr
+	
+	proc Quicksort(var a: array of integer; l, r: integer)
+		// quicksort the array A from start to finish
+		var 
+			i, j, x, w: integer
+	begin 
+		i := l
+		j := r
+		x := a[(l + r) div 2]
+		repeat 
+			while a[i] < x do 
+				i := i + 1 
+			end 
+			while x < a[j] do 
+				j := j - 1 
+			end 
+			if i <= j then
+				w := a[i]
+				a[i] := a[j]
+				a[j] := w
+				i := i + 1
+				j := j - 1 
+			end  
+		until i > j 
+		if l < j then
+			Quicksort(a, l, j) 
+		end 
+		if i < r then
+			Quicksort(a, i, r) 
+		end 
+	end Quicksort
+	
+	proc Run*()
+	begin 
+		Initarr()
+		Quicksort(sortlist, 1, sortelements)
+		if (sortlist[1] # littlest) or (sortlist[sortelements] # biggest) then
+			Util.Str(" Error in Quick.$") 
+		end 
+	end Run
+	
+end Quick

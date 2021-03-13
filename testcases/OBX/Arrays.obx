@@ -1,0 +1,21 @@
+module Arrays
+
+	var a : array 20 of shortint
+		c : array 10 of char
+	
+	proc sub
+		var b : array 10 of byte
+	begin
+		b[1] := 30
+		println(b[1])
+		a[4] := 50
+	end sub
+begin
+	a[3] := 42
+	sub
+	println(a[3])
+	println(a[4])
+	c := "test"
+	println(c)
+	println(c[3])
+end Arrays

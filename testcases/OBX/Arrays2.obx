@@ -1,0 +1,34 @@
+module Arrays2
+
+	type A = array 4 of shortint
+		AA = array 4,10 of char
+	var a,b : A
+		c : AA 
+	
+	proc P( a: array of shortint )
+		var i : integer
+	begin
+		for i := 0 to len(a) - 1 do
+			println( a[i] )
+		end
+	end P
+	
+begin
+	a[0] := -2
+	a[1] := -1
+	a[2] := 1
+	a[3] := 2
+	b := a
+	println(b[0])
+	println(b[1])
+	println(b[2])
+	println(b[3])
+	
+	println(c[2])
+	c[0] := "alpha"
+	c[1] := "beta"
+	c[2] := "gamma"
+	println(c[2])
+	P(a)
+
+end Arrays2

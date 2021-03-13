@@ -1,0 +1,12 @@
+module Flow
+	var i : integer
+begin
+	i := 1
+	if i = 1 then
+		println("a")
+	elsif i = 2 then
+		println("b")
+	else
+		println("c")
+	end
+end Flow

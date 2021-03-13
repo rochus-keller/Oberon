@@ -1,0 +1,129 @@
+// see Main.obx
+module Towers
+
+	import Util
+	
+	const 
+		maxcells = 18
+		stackrange = (* 0.. *)3
+		
+	type
+		element = record 
+				discsize: integer
+				next: integer 
+		end 
+
+	var
+		stack: array stackrange + 1 of integer
+		cellspace: array maxcells + 1 of element
+		freelist: integer
+		movesdone: integer
+
+	proc Makenull(s: integer)
+	begin 
+		stack[s] := 0
+	end Makenull
+	
+	proc Getelement(): integer
+		var 
+			temp: integer
+	begin 
+		if (freelist > 0) then
+			temp := freelist
+			freelist := cellspace[freelist].next 
+		else 
+			Util.Str("out of space   $") 
+		end 
+		return (temp)
+	end Getelement
+	
+	proc Push(i, s: integer)
+		var 
+			localel: integer
+			errorfound: boolean
+	begin 
+		errorfound := false
+		if (stack[s] > 0) then
+			if (cellspace[stack[s]].discsize <= i) then
+				errorfound := true
+				Util.Str("disc size error$") 
+			end  
+		end 
+		if (~errorfound) then
+			localel := Getelement()
+			cellspace[localel].next := stack[s]
+			stack[s] := localel
+			cellspace[localel].discsize := i 
+		end 
+	end Push
+	
+	proc Init(s, n: integer)
+		var 
+			discctr: integer
+	begin 
+		Makenull(s)
+		discctr := n
+		while discctr >= 1 do 
+			Push(discctr, s)
+			dec(discctr) 
+		end 
+	end Init
+	
+	proc Pop(s: integer): integer
+		var 
+			temp, temp1: integer
+	begin 
+		if (stack[s] > 0) then
+			temp1 := cellspace[stack[s]].discsize
+			temp := cellspace[stack[s]].next
+			cellspace[stack[s]].next := freelist
+			freelist := stack[s]
+			stack[s] := temp 
+		else 
+			Util.Str("nothing to pop $")
+			temp1 := 0 
+		end 
+		return (temp1)
+	end Pop
+	
+	proc Move(s1, s2: integer)
+	begin 
+		Push(Pop(s1), s2)
+		movesdone := movesdone + 1
+	end Move
+	
+	proc tower(i, j, k: integer)
+		var 
+			other: integer
+	begin 
+		if (k = 1) then
+			Move(i, j) 
+		else 
+			other := 6 - i - j
+			tower(i, other, k - 1)
+			Move(i, j)
+			tower(other, j, k - 1) 
+		end 
+	end tower
+	
+	proc Run*()
+		var 
+			i: integer
+	begin 
+		i := 1
+		while i <= maxcells do 
+			cellspace[i].next := i - 1
+			inc(i) 
+		end 
+		freelist := maxcells
+		Init(1, 14)
+		Makenull(2)
+		Makenull(3)
+		movesdone := 0
+		tower(1, 2, 14)
+		if (movesdone # 16383) then
+			Util.Str(" Error in Towers.$") 
+		end 
+	end Run
+	
+end Towers

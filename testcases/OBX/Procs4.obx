@@ -1,0 +1,21 @@
+module Procs4
+
+	var a : array 1 of real
+	const eps = 0.01
+	var i : integer
+	
+	proc ReturnZero(var i : integer):integer
+	begin
+		inc(i)
+		return 0
+	end ReturnZero
+begin
+	println("Procs4")
+	a[0] := 1.0
+	i := 0
+	pack(a[ReturnZero(i)], 2);
+	println(i)
+	assert(a[0] >= 4.0 - eps);
+	assert(a[0] <= 4.0 + eps);
+	println("done")
+end Procs4

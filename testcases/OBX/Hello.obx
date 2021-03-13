@@ -1,0 +1,21 @@
+module Hello
+	const 
+		str1 = "これは日本語です。"
+		str2 = "Isto é português"
+	var 
+		tmp : array 32 of wchar
+		tmp2 : array 32 of char
+begin
+	println("Ölförderung für Äthiopien") 
+	println("美丽的世界，你好!") // 这就是中国人
+	tmp := str1
+	println(tmp)
+	tmp := str2
+	println(tmp)
+	tmp2 := str2
+	println(tmp2)
+	tmp2 := "Parlons aux Français"
+	println(tmp2)
+	println("alpha" + "beta" + "gamma")
+	println(str1 + " " + str2 + " " + "welcome 你好!")
+end Hello

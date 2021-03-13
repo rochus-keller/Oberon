@@ -1,0 +1,26 @@
+module Arrays3
+
+	type A = ^[4]integer // ^[4] -> pointer to array 4 of
+		B = pointer to []longint // [] -> array of
+		C = ^[][]char // pointer to array of array of -> ^[][]
+	var a : A
+		b : B
+		c : C
+begin
+	new(a)
+	new(b,5)
+	new(c,3,10)
+	
+	b[3] := 33
+	println(b[3])
+	println(a[2])
+	
+	
+	c[2] := "test"
+	println(c[2])
+	
+	println( len(a) )
+	println( len(b) )
+	println( len(c) )
+		
+end Arrays3

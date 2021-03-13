@@ -1,0 +1,42 @@
+module Procs1
+
+	proc Proc1(): integer
+		var i : integer
+	begin
+		i := 1
+		i := 2
+		return i
+		i := 3
+		i := 4
+	end Proc1
+	
+	proc Proc2():integer
+		var i : integer
+		proc Proc3(a,b:integer):integer
+			return a + b
+		end
+	begin
+		i := Proc3(40, 2)
+		return i
+	end Proc2
+	
+	proc Proc3( in str: array of char )
+	begin
+		println(str)
+	end Proc3
+	
+	var x : integer
+	proc Proc4( var x : integer )
+	begin
+		x := 13
+	end Proc4
+
+begin
+	println("Procs1")
+	println( Proc1() )
+	println( Proc2() )
+	Proc3("Test")
+	x := 12
+	Proc4(x)
+	println(x)
+end Procs1

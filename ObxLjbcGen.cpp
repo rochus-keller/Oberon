@@ -635,8 +635,33 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.NOT(res,slotStack.back(),me->d_loc.packed());
             break;
         case UnExpr::DEREF:
-            // NOP
-            // bc.MOV(res,slotStack.back(),me->d_loc.packed());
+            if( prevT->getTag() == Thing::T_ProcType )
+            {
+                Named* id = me->d_sub->getIdent();
+                if( id->getTag() == Thing::T_Procedure )
+                {
+                    Procedure* p = cast<Procedure*>(id);
+                    if( !p->d_receiver.isNull() )
+                    {
+                        int proc = ctx.back().buySlots(1);
+                        fetchObxlibMember( proc, 40, me->d_loc ); // getmetatable
+                        int tmp = ctx.back().buySlots(2,true);
+                        bc.MOV(tmp,proc,me->d_loc.packed());
+                        bc.MOV( tmp+1, slotStack[ slotStack.size() - 2 ], me->d_loc.packed() ); // this
+                        bc.CALL( tmp, 1, 1, me->d_loc.packed() );
+                        bc.MOV( tmp+1, tmp, me->d_loc.packed() ); // class of this
+                        bc.MOV(tmp,proc,me->d_loc.packed());
+                        bc.CALL( tmp, 1, 1, me->d_loc.packed() );
+                        emitGetTableByIndex( slotStack.back(), tmp, p->d_slot, me->d_loc );
+                        ctx.back().sellSlots(tmp,2);
+                        ctx.back().sellSlots(proc);
+                    }
+                }
+            }else
+            {
+                // NOP
+                // bc.MOV(res,slotStack.back(),me->d_loc.packed());
+            }
             break;
         default:
             qDebug() << "ERR" << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col;
@@ -993,11 +1018,26 @@ struct ObxLjbcGenImp : public AstVisitor
         case Thing::T_Procedure:
             if( !checkValidSlot(id,me->d_loc))
                 return;
-            Q_ASSERT( id->d_slotValid );
-            emitGetTableByIndex(res, slotStack.back(), id->d_slot, me->d_loc );
-            // TODO: bound procedures require this and fetch from module, not from record
-            // don't release if we use slotStack.back() as this
-            releaseSlot();
+            else
+            {
+                Procedure* p = cast<Procedure*>(id);
+                Q_ASSERT( id->d_slotValid );
+                if( !p->d_receiver.isNull() )
+                {
+                    // bound procedures require this and fetch from class, not from record
+                    // don't release if we use slotStack.back() as this
+                    int tmp = ctx.back().buySlots(2,true);
+                    fetchObxlibMember( tmp, 40, me->d_loc ); // getmetatable
+                    bc.MOV( tmp+1, slotStack.back(), me->d_loc.packed() );
+                    bc.CALL( tmp, 1, 1, me->d_loc.packed() );
+                    emitGetTableByIndex( res, tmp, id->d_slot, me->d_loc );
+                    ctx.back().sellSlots(tmp,2);
+                }else
+                {
+                    emitGetTableByIndex(res, slotStack.back(), id->d_slot, me->d_loc );
+                    releaseSlot();
+                }
+            }
             break;
         case Thing::T_Field:
         case Thing::T_Variable:
@@ -1114,15 +1154,7 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.TNEW( to, r->d_fieldCount, 0, loc.packed() );
 
         int tmp = ctx.back().buySlots(1);
-#if 0
-        if( ctx.back().scope == mod ) // emitInitializer is called both from module and proc level
-            bc.MOV( tmp, modSlot, loc.packed() );
-        else
-            fetchModule( tmp, loc ); // TODO: record could be in another module or a type alias
-        emitGetTableByIndex( tmp, tmp, r->d_slot, loc );
-#else
         fetchClass(tmp, t, loc );
-#endif
 
         // call setmetatable
         int base = ctx.back().buySlots(3,true);
@@ -1861,7 +1893,15 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( me->d_sub );
         me->d_sub->accept(this);
 
-        Named* func = me->d_sub->getIdent();
+        Named* func = 0;
+        if( me->d_sub->getUnOp() == UnExpr::DEREF )
+        {
+            // call to superclass method
+            UnExpr* ue = cast<UnExpr*>(me->d_sub.data());
+            func = ue->d_sub->getIdent();
+        }else
+            func = me->d_sub->getIdent();
+
         if( func && func->getTag() == Thing::T_BuiltIn )
         {
             emitBuiltIn( cast<BuiltIn*>(func), me );
@@ -1884,17 +1924,30 @@ struct ObxLjbcGenImp : public AstVisitor
             }
         }
 
-        int tmp = ctx.back().buySlots( me->d_args.size() + 1, true );
+        bool isBound = false;
+        if( func && func->getTag() == Thing::T_Procedure )
+        {
+            Procedure* p = cast<Procedure*>(func);
+            isBound = !p->d_receiver.isNull();
+        }
+
+        int tmp = ctx.back().buySlots( me->d_args.size() + 1 + ( isBound ? 1 : 0 ), true );
         bc.MOV( tmp, slotStack.back(), me->d_loc.packed() );
         releaseSlot();
 
-        // TODO: bound procs
+        if( isBound )
+        {
+            Q_ASSERT( slotStack.size() >= 1 );
+            bc.MOV(tmp+1, slotStack.back(), me->d_loc.packed() );
+            releaseSlot();
+        }
 
         for( int i = 0; i < me->d_args.size(); i++ )
         {
+            const int off = i + 1 + ( isBound ? 1 : 0 );
             if( accs[i].kind != Accessor::Invalid )
             {
-                emitAccToSlot(tmp+1+i, accs[i], me->d_args[i]->d_loc );
+                emitAccToSlot(tmp+off, accs[i], me->d_args[i]->d_loc );
             }else
             {
                 me->d_args[i]->accept(this);
@@ -1908,13 +1961,13 @@ struct ObxLjbcGenImp : public AstVisitor
                     emitCopy( true, pt->d_formals[i]->d_type.data(), tmp+1+i,
                               me->d_args[i]->d_type.data(), slotStack.back(), me->d_loc );
                 }else
-                    bc.MOV(tmp+1+i, slotStack.back(), me->d_args[i]->d_loc.packed() );
+                    bc.MOV(tmp+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
                 releaseSlot();
             }
         }
 
         // we always assume a return value even if there isn't any
-        bc.CALL( tmp, 1 + varcount, me->d_args.size(), me->d_loc.packed() );
+        bc.CALL( tmp, 1 + varcount, me->d_args.size() + ( isBound ? 1 : 0 ), me->d_loc.packed() );
         bc.MOV(res, tmp, me->d_loc.packed() );
 
         // handle returned accs
@@ -1928,7 +1981,7 @@ struct ObxLjbcGenImp : public AstVisitor
             releaseAcc(acc);
         }
 
-        ctx.back().sellSlots( tmp, me->d_args.size() + 1 );
+        ctx.back().sellSlots( tmp, me->d_args.size() + 1 + ( isBound ? 1 : 0 ) );
         slotStack.push_back(res);
     }
 
@@ -2502,13 +2555,13 @@ struct ObxLjbcGenImp : public AstVisitor
                 bc.MOV(tmp,slotStack.back(),loc.packed());
                 releaseSlot();
             }
-            // TODO: offset + 1 if bound proc
             int pos = 1;
             for( int i = 0; i < pt->d_formals.size(); i++ )
             {
                 if( accs[i] )
                 {
-                    bc.MOV(tmp+pos, i, loc.packed() );
+                    Q_ASSERT( pt->d_formals[i]->d_slotValid );
+                    bc.MOV(tmp+pos, pt->d_formals[i]->d_slot, loc.packed() );
                     pos++;
                 }
             }

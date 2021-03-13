@@ -1,0 +1,27 @@
+module Loops2
+	var n, n1: integer
+begin
+		n := 4;
+		n1 := 6;
+		println("start")
+		WHILE n > n1 DO
+			println("while")
+			n := n - n1
+			println(n)
+		ELSIF n1 > n DO
+			println("elsif")
+			n1 := n1 - n
+			println(n1)
+		END;
+		ASSERT(n = 2);
+		ASSERT(n1 = 2);
+		n := 5;
+		n1 := 6;
+		WHILE n > n1 DO
+			n := n - n1
+		ELSIF n1 > n DO
+			n1 := n1 - n
+		END;
+		ASSERT(n = 1);
+		ASSERT(n1 = 1);
+end Loops2

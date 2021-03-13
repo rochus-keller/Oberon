@@ -1,0 +1,112 @@
+// see Main.obx
+module Trees
+
+	import Util
+	
+	// Sorts an array using treesort
+	
+	const
+		sortelements = 5000
+		srtelements = 500
+
+	type 
+		node = pointer to nodeDesc
+		nodeDesc = record 
+				left, right: node
+				val_: integer 
+			end 
+
+	var
+		sortlist: array sortelements + 1 of integer
+		biggest, littlest: integer
+		tree: node
+
+	proc tInitarr()
+		var 
+			i, temp: integer
+	begin 
+		Util.Initrand()
+		biggest := 0
+		littlest := 0
+		i := 1
+		while i <= sortelements do 
+			temp := Util.Rand()
+			sortlist[i] := temp - (temp div 100000) * 100000 - 50000
+			if sortlist[i] > biggest then
+				biggest := sortlist[i] 
+			elsif sortlist[i] < littlest then 
+				littlest := sortlist[i] 
+			end 
+			inc(i) 
+		end 
+	end tInitarr
+	
+	proc CreateNode(var t: node; n: integer)
+	begin 
+		new(t)
+		t.left := nil
+		t.right := nil
+		t.val_ := n
+	end CreateNode
+	
+	proc Insert(n: integer; t: node)
+	// insert n into tree
+	begin 
+		if n > t.val_ then
+			if t.left = nil then
+				CreateNode(t.left, n) 
+			else 
+				Insert(n, t.left) 
+			end  
+		elsif n < t.val_ then 
+			if t.right = nil then
+				CreateNode(t.right, n) 
+			else 
+				Insert(n, t.right) 
+			end  
+		end 
+	end Insert
+	
+	proc Checktree(p: node): boolean
+		// check by inorder traversal
+		var 
+			result: boolean
+	begin 
+		result := true
+		if p.left # nil then
+			if p.left.val_ <= p.val_ then
+				result := false 
+			else 
+				result := Checktree(p.left) & result 
+			end  
+		end 
+		if p.right # nil then
+			if p.right.val_ >= p.val_ then
+				result := false 
+			else 
+				result := Checktree(p.right) & result 
+			end  
+		end 
+		return result
+	end Checktree
+	
+	proc Run*()
+		var 
+			i: integer
+	begin 
+		tInitarr()
+		new(tree)
+		tree.left := nil
+		tree.right := nil
+		tree.val_ := sortlist[1]
+		i := 2
+		while i <= sortelements do 
+			Insert(sortlist[i], tree)
+			inc(i) 
+		end 
+		if ~Checktree(tree) then
+			Util.Str(" Error in Tree.$") 
+		end 
+	end Run
+	
+end Trees

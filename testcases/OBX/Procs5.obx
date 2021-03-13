@@ -1,0 +1,22 @@
+module Procs5
+
+	type 
+		Superclass = record end
+		Class = record (Superclass) end
+	
+	var inst : Class
+	
+	proc ( var this : Superclass ) Hello()
+	begin
+		println("Hello Superclass!")
+	end Hello
+
+	proc ( var this : Class ) Hello()
+	begin
+		this.Hello^
+		println("Hello Class!")
+	end Hello
+	
+begin
+	inst.Hello
+end Procs5

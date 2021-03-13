@@ -1,0 +1,5 @@
+module Minimal
+
+begin
+	println("Hello!")
+end Minimal

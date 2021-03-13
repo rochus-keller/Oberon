@@ -1,0 +1,43 @@
+module Loops
+	var i : integer
+begin
+	i := 3
+	while i < 10 do
+		println(i)
+		i := i + 1
+	elsif i = 11 do
+		println("elsif")
+	end
+	
+	i := 1
+	repeat
+		println(i)
+		i := i + 1
+	until i >= 10
+	
+	i := 0
+	loop
+		println(i)
+		i := i + 1
+		if i >= 5 then 
+			exit 
+		end
+	end		
+	
+	for 
+		i := 1 
+		to 10 
+		by 2 
+		do
+		println(i)
+	end
+	
+	for 
+		i := 10
+		to 0 
+		by -3 
+		do
+		println(i)
+	end
+	
+end Loops

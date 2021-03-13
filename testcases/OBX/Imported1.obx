@@ -1,0 +1,14 @@
+module Imported1
+	import i2 := Imported2
+
+	type T* = record (i2.T1) end
+		T1* = T
+	proc Do*
+	begin
+		println("do")
+		i2.It
+	end Do
+	
+begin
+	println("Imported1")
+end Imported1

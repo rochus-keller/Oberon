@@ -1,0 +1,32 @@
+module Procs2
+	type A = array 4 of shortint
+	var a : A
+		i : integer
+
+	proc P1( var c : A )
+	begin
+		c[2] := 22
+	end P1
+	
+	proc P2( c : A )
+	begin
+		c[2] := 33
+		println(c[2])
+	end P2
+
+begin
+	println("Procs2")
+	a[0] := -4
+	a[1] := -3
+	a[2] := -2
+	a[3] := -1
+	P1(a)
+	println(a[2])
+	P2(a)
+	println(a[2])
+	i := 1
+	inc(i)
+	println(i)
+	dec(i)
+	println(i)
+end Procs2
