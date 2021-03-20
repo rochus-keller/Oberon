@@ -300,6 +300,9 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
 MetaParams Parser::typeParams()
 {
     MATCH( Tok_Lt, tr("expecting '<' to start type parameters") );
+#ifndef _HAS_GENERICS
+    syntaxError(tr("this version of the parser doesn't support generic types") );
+#endif
     MATCH( Tok_ident, tr("at least one identifier required as type parameter") );
     MetaParams res;
     Ref<GenericName> t = new GenericName();
@@ -358,8 +361,11 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Pointer* binding)
 MetaActuals Parser::typeActuals()
 {
     MATCH( Tok_Lt, tr("expecting '<' to start type actuals") );
+#ifndef _HAS_GENERICS
+    syntaxError(tr("this version of the parser doesn't support generic types") );
+#endif
     MetaActuals res;
-    Ref<Thing> t = typeActual();
+    Ref<Type> t = typeActual();
     if( !t.isNull() )
         res << t;
     while( d_la == Tok_Comma )
@@ -557,7 +563,7 @@ Ref<Type> Parser::procedureType(Scope* scope, Named* id)
     return p.data();
 }
 
-Ref<Thing> Parser::typeActual()
+Ref<Type> Parser::typeActual()
 {
     switch( d_la )
     {
@@ -573,10 +579,10 @@ Ref<Thing> Parser::typeActual()
     case Tok_TRUE:
     case Tok_FALSE:
     case Tok_Lbrace:
-        return literal().data();
+        //return literal().data();
 
     default:
-        syntaxError(tr("expecting type or literal as actual type parameters"));
+        syntaxError(tr("expecting type as actual type parameters"));
         break;
     }
     return 0;

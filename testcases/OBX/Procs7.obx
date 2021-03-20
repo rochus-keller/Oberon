@@ -1,0 +1,36 @@
+module Procs7
+
+	// this code is not supported by Oberon+:
+	
+	proc Outer()
+		var a,b,c: integer
+		
+		proc Mid1( i: integer )
+		
+			proc Inner( i: integer )
+			begin
+				a := a + i
+				Mid2(11)
+			end Inner
+			
+		begin
+			b := b + i
+			Inner(12)
+		end Mid1
+		
+		proc Mid2( i: integer )
+		begin
+			c := c + i
+		end Mid2
+		
+	begin
+		a := 0
+		b := 0
+		c := 0
+		Mid1( 13 )
+		Mid2( 14 )
+	end Outer
+	
+begin
+	Outer
+end Procs7

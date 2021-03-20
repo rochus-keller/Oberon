@@ -280,7 +280,7 @@ namespace Obx
         QString pretty() const { return "PROC"; }
     };
 
-    typedef QList< Ref<Thing> > MetaActuals;
+    typedef QList< Ref<Type> > MetaActuals;
 
     struct QualiType : public Type
     {

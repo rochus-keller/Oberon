@@ -147,6 +147,9 @@ struct ValidatorImp : public AstVisitor
     {
         levels.push_back(me);
 
+        foreach( const Ref<GenericName>& n, me->d_metaParams )
+            n->accept(this);
+
         ProcType* pt = me->getProcType();
         pt->accept(this);
 
@@ -195,8 +198,7 @@ struct ValidatorImp : public AstVisitor
             if( n->d_scope != levels.back().scope )
             {
                 n->d_usedFromSubs = true;
-                warning( e->d_loc, Validator::tr("access to variables and parameters of outer procedure not yet supported") );
-                //qDebug() << "non-local access to" << n->d_name << "at" << mod->d_name << e->d_loc.d_row << e->d_loc.d_col;
+                error( e->d_loc, Validator::tr("cannot access local variables and parameters of outer procedures") );
             }
         }
     }
@@ -683,8 +685,11 @@ struct ValidatorImp : public AstVisitor
                     Procedure* p = cast<Procedure*>(n);
                     if( p->d_receiverRec )
                         error( actual->d_loc, Validator::tr("a type-bound procedure cannot be passed to a procedure type parameter"));
+#if 0
+                    // supported since 2021-03-20 because OBX no longer supports outer procedure local var access
                     if( p->d_scope->getTag() != Thing::T_Module )
                         error( actual->d_loc, Validator::tr("a procedure local to another procedure cannot be passed to a procedure type parameter"));
+#endif
                 }else if( tag == Thing::T_BuiltIn )
                     error( actual->d_loc, Validator::tr("a predeclared procedure cannot be passed to a procedure type parameter"));
             }
@@ -1303,7 +1308,7 @@ struct ValidatorImp : public AstVisitor
         if( !me->d_quali.isNull() )
             me->d_quali->accept(this);
 
-        foreach( const Ref<Thing>& t, me->d_metaActuals )
+        foreach( const Ref<Type>& t, me->d_metaActuals )
             t->accept(this);
         // TODO selfRef
     }
@@ -1431,8 +1436,9 @@ struct ValidatorImp : public AstVisitor
 
     void visit( NamedType* me )
     {
-        // meta params don't have to be visited
         levels.push_back(me);
+        foreach( const Ref<GenericName>& n, me->d_metaParams )
+            n->accept(this);
         if( me->d_type )
             me->d_type->accept(this);
         levels.pop_back();
@@ -1723,8 +1729,11 @@ struct ValidatorImp : public AstVisitor
                 Procedure* p = cast<Procedure*>(n);
                 if( p->d_receiverRec )
                     error( me->d_rhs->d_loc, Validator::tr("a type-bound procedure cannot be assigned to a procedure variable"));
+#if 0
+                    // supported since 2021-03-20 because OBX no longer supports outer procedure local var access
                 if( p->d_scope->getTag() != Thing::T_Module )
                     error( me->d_rhs->d_loc, Validator::tr("a procedure local to another procedure cannot be assigned to a procedure variable"));
+#endif
             }else if( tag == Thing::T_BuiltIn )
                 error( me->d_rhs->d_loc, Validator::tr("a predeclared procedure cannot be assigned to a procedure variable"));
         }
@@ -1905,11 +1914,16 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
+    void visit( GenericName* me)
+    {
+        me->d_type = bt.d_anyType;
+    }
+
+
     ///////// NOP
 
     void visit( BaseType* ) { }
     void visit( BuiltIn* ) { }
-    void visit( GenericName* ) { }
     void visit( Import* ) {}
 
     ////////// Utility

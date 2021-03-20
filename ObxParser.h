@@ -54,7 +54,7 @@ namespace Obx
         Ref<Type> recordType(Scope* scope, Named* id, Pointer* binding);
         Ref<Type> pointerType(Scope* scope, Named* id);
         Ref<Type> procedureType(Scope* scope, Named* id);
-        Ref<Thing> typeActual();
+        Ref<Type> typeActual();
         Ref<Expression> literal();
         QList< Ref<Expression> > lengthList();
         Ref<Expression> length();

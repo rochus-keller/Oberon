@@ -34,11 +34,6 @@ MODULE T4Expressions;
 	RETURN {}
 	END IncReturnEmpty;
 
-		PROCEDURE F(): INTEGER; 
-		// F was local to TestDesignators originally which is not supported by Obx
-		RETURN 1
-		END F;
-
 	PROCEDURE TestDesignators;
 		VAR s: ARRAY 32 OF CHAR;
 			A: ARRAY 3, 4 OF INTEGER;
@@ -48,6 +43,9 @@ MODULE T4Expressions;
 				f: PROCEDURE (): INTEGER
 			END;
 
+		PROCEDURE F(): INTEGER; 
+		RETURN 1
+		END F;
 
 	BEGIN
 		s := "hello";

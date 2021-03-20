@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-03-06
+:revdate: 2021-03-20
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -26,11 +26,11 @@ Oberon+ (i.e. _Oberon with extensions_, abbreviated *OBX*, pronounced _obex_) is
 
 The most important features of Oberon+ are block structure, modularity, separate compilation, static typing with strong type checking, parametric polymorphism footnote:[adopted with modifications from <<Ro97>>], garbage collection, and type extension with type-bound procedures.
 
-A major design goal of Oberon in 1987 was to make the language as simple as possible <<Wi87>>. Oberon+ follows the same goal, but taking into account the current state of the art. Backwards compatibility remains ensured: each valid Oberon-2 or Oberon-07 program is also a valid Oberon+ program.
+A major design goal of Oberon in 1987 was to make the language as simple as possible <<Wi87>>. Oberon+ follows the same goal, but taking into account the current state of the art. Backwards compatibility remains mostly ensured: a valid Oberon-2 or Oberon-07 program is generally also a valid Oberon+ program footnote:[subject to basic type differences and limited access to objects declared in the environment of nestes procedures].
  
 The language allows several simplifications compared to previous Oberon versions: keywords can be written in lower case, all semicolons are optional, and for some keywords there are shorter variants; a declaration sequence can contain more than one CONST, TYPE and VAR section in arbitrary order, interleaved with procedures. 
 
-Furthermore, enumeration types (known as _scalar types_ in Pascal <<Wi73>>) have been added to the language. IN can be used instead of VAR for constant variable parameters, and procedures can access objects in their environment, also in case of nested procedure declarations.
+Furthermore, enumeration types (known as _scalar types_ in Pascal <<Wi73>>) have been added to the language. IN can be used instead of VAR for constant variable parameters.
 
 This report is not intended as a programmer's tutorial. It is intentionally kept concise. Its function is to serve as a reference for programmers, implementors, and tutorial writers. What remains unsaid is mostly left so intentionally, either because it can be derived from stated rules of the language, or because it would require to commit the definition when a general commitment appears as unwise.
 
@@ -461,7 +461,10 @@ PointerType = ( POINTER TO | '^' ) type
 If p is a variable of type `P = POINTER TO T`, a call of the predeclared procedure `NEW(p)` (see <<Predeclared procedures>>) allocates a variable of type T in free storage. If T is a record type or an array type with fixed length, the allocation has to be done with `NEW(p)`; if T is an n-dimensional open array type the allocation has to be done with `NEW(p, e~0~, ..., e~n-1~)` where T is allocated with lengths given by the expressions e~0~, ..., e~n-1~. In either case a pointer to the allocated variable is assigned to `p`. `p` is of type P. The referenced variable `p^` is of type T. Any pointer variable may assume the value NIL, which points to no variable at all. All pointer fields or elements of a newly allocated record or array are set to NIL.
 
 === Procedure types
-Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists and result types (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). A procedure P assigned to a variable or a formal parameter must not be a predeclared or type-bound procedure nor may it be local to another procedure.
+Variables of a procedure type T have a procedure (or NIL) as value. If a procedure P is assigned to a variable of type T, the formal parameter lists and result types (see <<Formal parameters>>) of P and T must _match_ (see <<Definition of terms>>). A procedure P assigned to a variable or a formal parameter must not be a predeclared or type-bound procedure.
+
+[NOTE]
+Oberon 90, 2 and 07 don't support assignment of procedures local to another procedure to a procedure type variable. Oberon+ doesn't make this restriction.
 
 .Syntax:
 ....
@@ -494,15 +497,14 @@ Oberon+ supports parametric polymorphism. Type and procedure declarations can be
 .Syntax:
 ....
 TypeParams       = '<' ident { ',' ident } '>'
-TypeActuals      = '<' TypeActual { ',' TypeActual } '>' 
-TypeActual       = NamedType | literal
+TypeActuals      = '<' NamedType { ',' NamedType } '>' 
 TypeDeclaration  = identdef [TypeParams] '=' type
 ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ] 
 				   [Receiver] identdef [ FormalParameters ]
 NamedType        = qualident [TypeActuals] 
 ....
 
-If the receiver of a type bound procedure declaration refers to a parametric type declaration, its actual type parameter must correspond to one of the formal type parameters of the procedure. But it is legal to bind generic procedures to non-generic types.
+If the receiver of a type bound procedure declaration refers to a parametric type declaration, its actual type parameter must correspond to one of the formal type parameters of the procedure. 
 
 .Example:
 ....
@@ -966,7 +968,10 @@ There are two kinds of procedures: proper procedures and function procedures. Th
 
 All constants, variables, types, and procedures declared within a procedure body are local to the procedure. Since procedures may be declared as local objects too, procedure declarations may be nested. The call of a procedure within its declaration implies recursive activation.
 
-Objects declared in the environment of the procedure are also visible in those parts of the procedure in which they are not concealed by a locally declared object with the same name.
+In case of nested procedure declarations, inner procedures have access to constants, types and procedures declared in the environment of the procedure (unless shadowed by a local declaration), but don't have access to the parameters or local variables of outer procedures. 
+
+[NOTE]
+In Oberon 90 and Oberon-2 (in contrast to Oberon-07) the parameters and local variables of an outer procedure can be accessed from an inner procedure, but this features is a cause for considerably higher complexity of the compiler, with questionable added value, and can easily be worked around in practice. 
 
 .Syntax:
 ....
@@ -1410,8 +1415,7 @@ type = NamedType | enumeration
 	| ArrayType | RecordType | PointerType | ProcedureType
 NamedType = qualident [TypeActuals] 
 TypeParams = '<' ident { ',' ident } '>'
-TypeActuals = '<' TypeActual { ',' TypeActual } '>' 
-TypeActual = NamedType | literal
+TypeActuals = '<' NamedType { ',' NamedType } '>' 
 enumeration = '('  ident { ',' ident } ')' 
 ArrayType = ARRAY [ LengthList ] OF type 
 	 | '[' [ LengthList ] ']' type

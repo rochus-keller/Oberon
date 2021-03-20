@@ -1,4 +1,4 @@
-module Proc6
+module Procs6
 
 	type
 		Super = ^record end
@@ -38,4 +38,4 @@ begin
 	new(b)
 	SayHello(a)
 	SayHello(b)
-end Proc6
+end Procs6

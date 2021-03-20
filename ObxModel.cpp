@@ -169,7 +169,7 @@ struct Model::CrossReferencer : public AstVisitor
     {
         if( me->d_quali )
             me->d_quali->accept(this);
-        foreach( const Ref<Thing>& t, me->d_metaActuals )
+        foreach( const Ref<Type>& t, me->d_metaActuals )
             t->accept(this);
     }
     void visitVar( Named* me, bool receiver = false )

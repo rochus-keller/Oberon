@@ -7,6 +7,6 @@ Suffixes=@Invalid()
 WorkingDir=
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/Testdaten/obx/Proc6.obx
-1\RelPath=Proc6.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Procs7.obx
+1\RelPath=Procs7.obx
 size=1

@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-03-06</span>
+      <span id="revdate">2021-03-20</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -116,8 +116,8 @@
           <p>A major design goal of Oberon in 1987 was to make the language as simple
             as possible <a href="#Wi87">[Wi87]</a>. Oberon+ follows the same goal,
             but taking into account the current state of the art. Backwards compatibility
-            remains ensured: each valid Oberon-2 or Oberon-07 program is also a valid
-            Oberon+ program.</p>
+            remains mostly ensured: a valid Oberon-2 or Oberon-07 program is generally
+            also a valid Oberon+ program <sup class="footnote">[<a id="_footnoteref_2" class="footnote" href="#_footnote_2" title="View footnote.">2</a>]</sup>.</p>
         </div>
         <div class="paragraph">
           <p>The language allows several simplifications compared to previous Oberon
@@ -129,9 +129,7 @@
         <div class="paragraph">
           <p>Furthermore, enumeration types (known as <em>scalar types</em> in Pascal
             <a href="#Wi73">[Wi73]</a>) have been added to the language. IN can be
-            used instead of VAR for constant variable parameters, and procedures
-            can access objects in their environment, also in case of nested procedure
-            declarations.</p>
+            used instead of VAR for constant variable parameters.</p>
         </div>
         <div class="paragraph">
           <p>This report is not intended as a programmer&#8217;s tutorial. It is intentionally
@@ -1129,7 +1127,7 @@ T1 = record (T0) y: real end</pre>
               in the extended record must be different from the identifiers declared
               in its base type record(s). A pointer field of the base record can
               be re-declared in the extended record with a pointer type which is
-              an extension of the corresponding base record field type <sup class="footnote">[<a id="_footnoteref_2" class="footnote" href="#_footnote_2" title="View footnote.">2</a>]</sup>.</p>
+              an extension of the corresponding base record field type <sup class="footnote">[<a id="_footnoteref_3" class="footnote" href="#_footnote_3" title="View footnote.">3</a>]</sup>.</p>
           </div>
           <div class="paragraph">
             <p>Alternatively, a pointer to record type can be specified as the base
@@ -1190,8 +1188,21 @@ end</pre>
               lists and result types (see <a href="#_formal_parameters">Formal parameters</a>)
               of P and T must <em>match</em> (see <a href="#_definition_of_terms">Definition of terms</a>).
               A procedure P assigned to a variable or a formal parameter must not
-              be a predeclared or type-bound procedure nor may it be local to another
-              procedure.</p>
+              be a predeclared or type-bound procedure.</p>
+          </div>
+          <div class="admonitionblock note">
+            <table>
+              <tr>
+                <td class="icon">
+                  <div class="title">Note</div>
+                </td>
+                <td class="content">
+                  Oberon 90, 2 and 07 don&#8217;t support assignment of procedures local to another
+                  procedure to a procedure type variable. Oberon+ doesn&#8217;t make
+                  this restriction.
+                </td>
+              </tr>
+            </table>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -1245,8 +1256,7 @@ end</pre>
             <div class="title">Syntax:</div>
             <div class="content">
               <pre>TypeParams       = '&lt;' ident { ',' ident } '&gt;'
-TypeActuals      = '&lt;' TypeActual { ',' TypeActual } '&gt;'
-TypeActual       = NamedType | literal
+TypeActuals      = '&lt;' NamedType { ',' NamedType } '&gt;'
 TypeDeclaration  = identdef [TypeParams] '=' type
 ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ]
 				   [Receiver] identdef [ FormalParameters ]
@@ -1256,8 +1266,7 @@ NamedType        = qualident [TypeActuals]</pre>
           <div class="paragraph">
             <p>If the receiver of a type bound procedure declaration refers to a parametric
               type declaration, its actual type parameter must correspond to one
-              of the formal type parameters of the procedure. But it is legal to
-              bind generic procedures to non-generic types.</p>
+              of the formal type parameters of the procedure.</p>
           </div>
           <div class="literalblock">
             <div class="title">Example:</div>
@@ -1360,7 +1369,7 @@ ExpList    = expression {',' expression}</pre>
             <p>Dereferencing is also implied if a pointer is assigned to a variable
               of a record or array type, if a pointer is used as actual parameter
               for a formal parameter of a record or array type, or if a pointer is
-              used as argument of the standard procedure LEN <sup class="footnote">[<a id="_footnoteref_3" class="footnote" href="#_footnote_3" title="View footnote.">3</a>]</sup>.</p>
+              used as argument of the standard procedure LEN <sup class="footnote">[<a id="_footnoteref_4" class="footnote" href="#_footnote_4" title="View footnote.">4</a>]</sup>.</p>
           </div>
           <div class="paragraph">
             <p>If <code>a</code> or <code>r</code> are read-only, then also <code>a[e]</code>              and <code>r.f</code> are read-only.</p>
@@ -2238,9 +2247,26 @@ Guard         = qualident ':' qualident</pre>
             a procedure within its declaration implies recursive activation.</p>
         </div>
         <div class="paragraph">
-          <p>Objects declared in the environment of the procedure are also visible in
-            those parts of the procedure in which they are not concealed by a locally
-            declared object with the same name.</p>
+          <p>In case of nested procedure declarations, inner procedures have access
+            to constants, types and procedures declared in the environment of the
+            procedure (unless shadowed by a local declaration), but don&#8217;t have
+            access to the parameters or local variables of outer procedures.</p>
+        </div>
+        <div class="admonitionblock note">
+          <table>
+            <tr>
+              <td class="icon">
+                <div class="title">Note</div>
+              </td>
+              <td class="content">
+                In Oberon 90 and Oberon-2 (in contrast to Oberon-07) the parameters and local variables
+                of an outer procedure can be accessed from an inner procedure, but
+                this features is a cause for considerably higher complexity of the
+                compiler, with questionable added value, and can easily be worked
+                around in practice.
+              </td>
+            </tr>
+          </table>
         </div>
         <div class="literalblock">
           <div class="title">Syntax:</div>
@@ -2391,7 +2417,7 @@ Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'</pre>
               T1. The formal parameter lists of P and P' must <em>match</em> (see
               <a href="#_definition_of_terms">Definition of terms</a>). Also the
               result types must <em>match</em>, or if P and P' both have pointer
-              result types, then the result type of P' must be an <em>extension</em>              of the result type of P <sup class="footnote">[<a id="_footnoteref_4" class="footnote" href="#_footnote_4" title="View footnote.">4</a>]</sup>.
+              result types, then the result type of P' must be an <em>extension</em>              of the result type of P <sup class="footnote">[<a id="_footnoteref_5" class="footnote" href="#_footnote_5" title="View footnote.">5</a>]</sup>.
               If P and T1 are exported (see <a href="#_declarations_and_scope_rules">Declarations and scope rules</a>)
               P' must be exported too.</p>
           </div>
@@ -3549,7 +3575,7 @@ declarations = { CONST { ConstDeclaration [';'] }
                   </li>
                   <li>
                     <p>T<sub>e</sub> and T<sub>v</sub> are numeric or character types
-                      and T<sub>v</sub> <em>includes</em> T<sub>e</sub> <sup class="footnote">[<a id="_footnoteref_5" class="footnote" href="#_footnote_5" title="View footnote.">5</a>]</sup>;</p>
+                      and T<sub>v</sub> <em>includes</em> T<sub>e</sub> <sup class="footnote">[<a id="_footnoteref_6" class="footnote" href="#_footnote_6" title="View footnote.">6</a>]</sup>;</p>
                   </li>
                   <li>
                     <p>T<sub>v</sub> is a SET type and T<sub>e</sub> is of INTEGER or
@@ -3897,8 +3923,7 @@ type = NamedType | enumeration
 	| ArrayType | RecordType | PointerType | ProcedureType
 NamedType = qualident [TypeActuals]
 TypeParams = '&lt;' ident { ',' ident } '&gt;'
-TypeActuals = '&lt;' TypeActual { ',' TypeActual } '&gt;'
-TypeActual = NamedType | literal
+TypeActuals = '&lt;' NamedType { ',' NamedType } '&gt;'
 enumeration = '('  ident { ',' ident } ')'
 ArrayType = ARRAY [ LengthList ] OF type
 	 | '[' [ LengthList ] ']' type
@@ -4049,18 +4074,22 @@ DeclarationSequence2 =
       <a href="#_footnoteref_1">1</a>. adopted with modifications from <a href="#Ro97">[Ro97]</a>
     </div>
     <div class="footnote" id="_footnote_2">
-      <a href="#_footnoteref_2">2</a>. this corresponds to the implementation of
-      the Blackbox framework 1.7, see <a href="https://blackboxframework.org" class="bare">https://blackboxframework.org</a>      <a href="#Om01">[Om01]</a>
+      <a href="#_footnoteref_2">2</a>. subject to basic type differences and limited
+      access to objects declared in the environment of nestes procedures
     </div>
     <div class="footnote" id="_footnote_3">
-      <a href="#_footnoteref_3">3</a>. adopted from <a href="#Om01">[Om01]</a>
+      <a href="#_footnoteref_3">3</a>. this corresponds to the implementation of
+      the Blackbox framework 1.7, see <a href="https://blackboxframework.org" class="bare">https://blackboxframework.org</a>      <a href="#Om01">[Om01]</a>
     </div>
     <div class="footnote" id="_footnote_4">
-      <a href="#_footnoteref_4">4</a>. this is called <em>covariance</em>, adopted
-      with modifications from <a href="#Om01">[Om01]</a>
+      <a href="#_footnoteref_4">4</a>. adopted from <a href="#Om01">[Om01]</a>
     </div>
     <div class="footnote" id="_footnote_5">
-      <a href="#_footnoteref_5">5</a>. character types include strings with length
+      <a href="#_footnoteref_5">5</a>. this is called <em>covariance</em>, adopted
+      with modifications from <a href="#Om01">[Om01]</a>
+    </div>
+    <div class="footnote" id="_footnote_6">
+      <a href="#_footnoteref_6">6</a>. character types include strings with length
       1
     </div>
   </div>

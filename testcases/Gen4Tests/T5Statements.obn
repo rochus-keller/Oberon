@@ -210,9 +210,6 @@ MODULE T5Statements;
 	RETURN 0
 	END F2;
 
-		PROCEDURE Local; (* RK originally local to TestProcedureAssignments *)
-		END Local;
-
 	PROCEDURE TestProcedureAssignments;
 		TYPE
 			PT = PROCEDURE;
@@ -225,6 +222,8 @@ MODULE T5Statements;
 			f: FT; f1: FT1; f2, g2: FT2;
 			n: INTEGER;
 
+		PROCEDURE Local; 
+		END Local;
 
 	BEGIN
 		p := NIL;
