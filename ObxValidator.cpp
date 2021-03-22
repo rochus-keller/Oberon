@@ -197,7 +197,12 @@ struct ValidatorImp : public AstVisitor
         {
             if( n->d_scope != levels.back().scope )
             {
-                n->d_usedFromSubs = true;
+                n->d_scope->d_upvalSource = true;
+                int i = levels.size() - 2;
+                while( i > 0 && levels[i].scope != n->d_scope )
+                    levels[i--].scope->d_upvalIntermediate = true;
+                levels.back().scope->d_upvalSink = true;
+                n->d_upvalSource = true;
                 error( e->d_loc, Validator::tr("cannot access local variables and parameters of outer procedures") );
             }
         }
@@ -685,11 +690,8 @@ struct ValidatorImp : public AstVisitor
                     Procedure* p = cast<Procedure*>(n);
                     if( p->d_receiverRec )
                         error( actual->d_loc, Validator::tr("a type-bound procedure cannot be passed to a procedure type parameter"));
-#if 0
-                    // supported since 2021-03-20 because OBX no longer supports outer procedure local var access
-                    if( p->d_scope->getTag() != Thing::T_Module )
-                        error( actual->d_loc, Validator::tr("a procedure local to another procedure cannot be passed to a procedure type parameter"));
-#endif
+                    if( p->d_upvalIntermediate || p->d_upvalSink )
+                        error( actual->d_loc, Validator::tr("this procedure cannot be passed to a procedure type parameter"));
                 }else if( tag == Thing::T_BuiltIn )
                     error( actual->d_loc, Validator::tr("a predeclared procedure cannot be passed to a procedure type parameter"));
             }
@@ -1729,11 +1731,8 @@ struct ValidatorImp : public AstVisitor
                 Procedure* p = cast<Procedure*>(n);
                 if( p->d_receiverRec )
                     error( me->d_rhs->d_loc, Validator::tr("a type-bound procedure cannot be assigned to a procedure variable"));
-#if 0
-                    // supported since 2021-03-20 because OBX no longer supports outer procedure local var access
-                if( p->d_scope->getTag() != Thing::T_Module )
-                    error( me->d_rhs->d_loc, Validator::tr("a procedure local to another procedure cannot be assigned to a procedure variable"));
-#endif
+                if( p->d_upvalIntermediate || p->d_upvalSink )
+                    error( me->d_rhs->d_loc, Validator::tr("this procedure cannot be assigned to a procedure variable"));
             }else if( tag == Thing::T_BuiltIn )
                 error( me->d_rhs->d_loc, Validator::tr("a predeclared procedure cannot be assigned to a procedure variable"));
         }

@@ -32,6 +32,8 @@ using namespace Lua;
 Q_DECLARE_METATYPE( Obx::Literal::SET )
 #endif
 
+// #define _HAVE_OUTER_LOCAL_ACCESS
+
 struct ObxLjbcGenImp : public AstVisitor
 {
     // This version of the code generator (in contrast to ObLjbcGen) uses a register for each expression evaluation to
@@ -162,6 +164,8 @@ struct ObxLjbcGenImp : public AstVisitor
     quint8 modSlot, obxlj, curClass;
     QList<quint8> slotStack;
     QList <quint32> exitJumps;
+
+    ObxLjbcGenImp():err(0),thisMod(0),ownsErr(false),modSlot(0),obxlj(0),curClass(0){}
 
     struct Accessor
     {
@@ -309,30 +313,76 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( Procedure* me)
     {
         ctx.push_back( Ctx(me) );
-        const int id = bc.openFunction(me->getProcType()->d_formals.size(),
-                                       me->d_name,me->d_loc.packed(), me->d_end.packed() );
+
+        const int parCount =
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+                ( me->d_upvalIntermediate || me->d_upvalSink ? 1 : 0 ) +
+#endif
+                me->d_parCount;
+
+        const int id = bc.openFunction( parCount, me->d_name,me->d_loc.packed(), me->d_end.packed() );
         Q_ASSERT( id >= 0 );
 
         QHash<quint8,QByteArray> names;
-        foreach( const Ref<Named>& n, me->d_order )
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+        if( me->d_upvalSource )
         {
-            if( n->getTag() == Thing::T_Parameter )
+            const int localSlotCount = parCount + me->d_varCount;
+            int reserve = ctx.back().buySlots(localSlotCount);
+            int tmp = ctx.back().buySlots(1);
+            bc.TNEW(tmp,localSlotCount, 0, me->d_loc.packed() );
+            foreach( const Ref<Named>& n, me->d_order )
             {
-                int slot = ctx.back().buySlots(1);
-                Q_ASSERT( n->d_slotValid && n->d_slot == slot );
-                names[n->d_slot] = n->d_name;
+                const int tag = n->getTag();
+                if( tag == Thing::T_Parameter )
+                {
+                    Q_ASSERT( n->d_slotValid );
+                    Q_ASSERT( n->d_slot < localSlotCount );
+                    emitSetTableByIndex( n->d_slot, tmp, n->d_slot, n->d_loc );
+                }else if( tag == Thing::T_LocalVar )
+                {
+                    Q_ASSERT( n->d_slotValid );
+                    Q_ASSERT( n->d_slot < localSlotCount );
+                    emitInitializer( n->d_slot, n->d_type.data(), n->d_loc );
+                    emitSetTableByIndex(n->d_slot ,tmp,n->d_slot, n->d_loc);
+                }
             }
-        }
-
-        foreach( const Ref<Named>& n, me->d_order )
+            if( me->d_upvalIntermediate || me->d_upvalSink )
+                emitSetTableByIndex( parCount, tmp, parCount, me->d_loc.packed() ); // transfer outer frame
+            ctx.back().sellSlots(tmp);
+            ctx.back().sellSlots(reserve);
+            int zero = ctx.back().buySlots(1);
+            Q_ASSERT( zero == 0 );
+            names[zero] = "@frame";
+            bc.MOV(zero,tmp,me->d_loc.packed());
+        }else
+#endif
         {
-            const int tag = n->getTag();
-            if( tag == Thing::T_LocalVar )
+            foreach( const Ref<Named>& n, me->d_order )
             {
-                int slot = ctx.back().buySlots(1);
-                Q_ASSERT( n->d_slotValid && n->d_slot == slot );
-                names[n->d_slot] = n->d_name;
-                emitInitializer(n.data());
+                // in d_order there is also the receiver, at 0 position as expected
+                if( n->getTag() == Thing::T_Parameter )
+                {
+                    int slot = ctx.back().buySlots(1);
+                    Q_ASSERT( n->d_slotValid && n->d_slot == slot );
+                    names[n->d_slot] = n->d_name;
+                }
+            }
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+            if( me->d_upvalIntermediate || me->d_upvalSink )
+                ctx.back().buySlots(1); // reserve slot for outer frame at the end of param list
+#endif
+
+            foreach( const Ref<Named>& n, me->d_order )
+            {
+                const int tag = n->getTag();
+                if( tag == Thing::T_LocalVar )
+                {
+                    int slot = ctx.back().buySlots(1);
+                    Q_ASSERT( n->d_slotValid && n->d_slot == slot );
+                    names[n->d_slot] = n->d_name;
+                    emitInitializer(n.data());
+                }
             }
         }
 
@@ -984,7 +1034,12 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( !checkValidSlot(id,me->d_loc) )
                     return;
                 Q_ASSERT( id->d_slotValid );
-                bc.MOV(res,id->d_slot,me->d_loc.packed());
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+                if( ctx.back().scope->d_upvalSource )
+                    emitGetTableByIndex(res,0,id->d_slot,me->d_loc);
+                else
+#endif
+                    bc.MOV(res,id->d_slot,me->d_loc.packed());
             }else
                 qWarning() << "non local access not yet implemented"; // TODO
             break;
@@ -1336,9 +1391,20 @@ struct ObxLjbcGenImp : public AstVisitor
             }
             break;
         case Thing::T_LocalVar:
-        case Thing::T_Parameter:
-            emitInitializer( me->d_slot, me->d_type.data(), me->d_loc );
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+            if( ctx.back().scope->d_upvalSource )
+            {
+                Q_ASSERT( false );
+                int tmp = ctx.back().buySlots(1);
+                emitInitializer( tmp, me->d_type.data(), me->d_loc );
+                emitSetTableByIndex(tmp,0,me->d_slot, me->d_loc);
+                ctx.back().sellSlots(tmp);
+            }else
+#endif
+                emitInitializer( me->d_slot, me->d_type.data(), me->d_loc );
             break;
+        case Thing::T_Parameter:
+            Q_ASSERT( false );
         }
     }
 
@@ -1912,6 +1978,11 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
         ProcType* pt = cast<ProcType*>( subT );
         Q_ASSERT( pt->d_formals.size() == me->d_args.size() );
+        bool passFrame = false;
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+        if( pt->d_ident && ( pt->d_ident->d_upvalIntermediate || pt->d_ident->d_upvalSink ) )
+            passFrame = true;
+#endif
 
         QVector<Accessor> accs(me->d_args.size());
         int varcount = 0;
@@ -1931,7 +2002,8 @@ struct ObxLjbcGenImp : public AstVisitor
             isBound = !p->d_receiver.isNull();
         }
 
-        int tmp = ctx.back().buySlots( me->d_args.size() + 1 + ( isBound ? 1 : 0 ), true );
+        const int argCount = me->d_args.size() + ( isBound ? 1 : 0 ) + ( passFrame ? 1 : 0 );
+        int tmp = ctx.back().buySlots( argCount + 1 , true );
         bc.MOV( tmp, slotStack.back(), me->d_loc.packed() );
         releaseSlot();
 
@@ -1965,9 +2037,25 @@ struct ObxLjbcGenImp : public AstVisitor
                 releaseSlot();
             }
         }
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+        if( passFrame )
+        {
+            Q_ASSERT( pt->d_ident );
+            // TODO: go up the frame chain corresponding to the position of pt in the chain
+            // outer frame is allocated at end of param list; subsequent local vars consider it in slot allocation
+            if( ctx.back().scope->d_upvalSource )
+                bc.MOV(tmp + 1 + me->d_args.size(), 0, me->d_loc.packed() );
+            else
+            {
+                Q_ASSERT( ctx.back().scope->getTag() == Thing::T_Procedure );
+                Procedure* p = cast<Procedure*>(ctx.back().scope);
+                bc.MOV(tmp + 1 + me->d_args.size(), p->d_parCount, me->d_loc.packed() );
+            }
+        }
+#endif
 
         // we always assume a return value even if there isn't any
-        bc.CALL( tmp, 1 + varcount, me->d_args.size() + ( isBound ? 1 : 0 ), me->d_loc.packed() );
+        bc.CALL( tmp, 1 + varcount, argCount, me->d_loc.packed() );
         bc.MOV(res, tmp, me->d_loc.packed() );
 
         // handle returned accs
@@ -1981,7 +2069,7 @@ struct ObxLjbcGenImp : public AstVisitor
             releaseAcc(acc);
         }
 
-        ctx.back().sellSlots( tmp, me->d_args.size() + 1 + ( isBound ? 1 : 0 ) );
+        ctx.back().sellSlots( tmp, argCount + 1 );
         slotStack.push_back(res);
     }
 
@@ -2154,6 +2242,10 @@ struct ObxLjbcGenImp : public AstVisitor
             if( n->getTag() == Thing::T_Parameter )
                 n->setSlot(slot++);
         }
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+        if( me->d_upvalIntermediate || me->d_upvalSink )
+            slot++; // reserve one slot for the frame of the outer proc passed as last param
+#endif
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_LocalVar )
@@ -2240,50 +2332,6 @@ struct ObxLjbcGenImp : public AstVisitor
         loop->d_then << ( StatSeq() << conds.data() );
 
         loop->accept(this); // now render
-
-#if 0
-        // no longer needed, even wrong
-        bc.LOOP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() ); // while
-        const quint32 loopStart = bc.getCurPc();
-
-        me->d_if[0]->accept(this); // condition
-        Q_ASSERT( !slotStack.isEmpty() );
-        bc.ISF( slotStack.back(), me->d_if[0]->d_loc.packed());
-        releaseSlot();
-
-        bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
-        const quint32 afterFirst = bc.getCurPc();
-
-        for( int i = 0; i < me->d_then[0].size(); i++ )
-            me->d_then[0][i]->accept(this);
-
-        bc.patch(loopStart);
-        bc.JMP(ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() );
-        bc.patch(afterFirst);
-
-        QList<quint32> afterEnd;
-        for( int i = 1; i < me->d_if.size(); i++ ) // ELSIF
-        {
-            me->d_if[i]->accept(this);
-            Q_ASSERT( !slotStack.isEmpty() );
-            bc.ISF( slotStack.back(), me->d_if[i]->d_loc.packed());
-            releaseSlot();
-
-            bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
-            const quint32 afterNext = bc.getCurPc();
-
-            for( int j = 0; j < me->d_then[i].size(); j++ )
-                me->d_then[i][j]->accept(this);
-
-            bc.JMP(ctx.back().pool.d_frameSize, 0, me->d_if[i]->d_loc.packed() );
-            afterEnd << bc.getCurPc();
-
-            bc.patch(afterNext);
-        }
-
-        foreach( quint32 pc, afterEnd )
-            bc.patch(pc);
-#endif
     }
 
     void emitRepeat(IfLoop* me)
@@ -2561,7 +2609,12 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( accs[i] )
                 {
                     Q_ASSERT( pt->d_formals[i]->d_slotValid );
-                    bc.MOV(tmp+pos, pt->d_formals[i]->d_slot, loc.packed() );
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+                    if( ctx.back().scope->d_upvalSource )
+                        emitGetTableByIndex(tmp+pos,0,pt->d_formals[i]->d_slot,loc);
+                    else
+#endif
+                        bc.MOV(tmp+pos, pt->d_formals[i]->d_slot, loc.packed() );
                     pos++;
                 }
             }
@@ -2763,7 +2816,12 @@ struct ObxLjbcGenImp : public AstVisitor
         switch( acc.kind )
         {
         case Accessor::Slot:
-            bc.MOV(slot, acc.slot, loc.packed() );
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+            if( ctx.back().scope->d_upvalSource )
+                emitGetTableByIndex( slot, 0, acc.slot, loc );
+            else
+#endif
+                bc.MOV(slot, acc.slot, loc.packed() );
             break;
         case Accessor::TableIdx:
             emitGetTableByIndex(slot, acc.slot, acc.index, loc );
@@ -2781,7 +2839,12 @@ struct ObxLjbcGenImp : public AstVisitor
         switch( acc.kind )
         {
         case Accessor::Slot:
-            bc.MOV( acc.slot, slot, loc.packed() );
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+            if( ctx.back().scope->d_upvalSource )
+                emitSetTableByIndex( slot, 0, acc.slot, loc );
+            else
+#endif
+                bc.MOV( acc.slot, slot, loc.packed() );
             break;
         case Accessor::TableIdx:
             emitSetTableByIndex( slot, acc.slot, acc.index, loc );

@@ -167,10 +167,14 @@ struct ObxAstPrinter : public AstVisitor
         out << " ";
         if( r->d_liveFrom )
             out << "live " << r->d_liveFrom << "-" << r->d_liveTo << " ";
-        if( r->d_usedFromSubs )
-            out << "subs ";
         if( r->d_slotValid )
             out << "slot " << r->d_slot;
+        if( r->d_upvalSource )
+            out << "uvsrc ";
+        if( r->d_upvalIntermediate )
+            out << "uvint ";
+        if( r->d_upvalSink )
+            out << "uvsnk ";
     }
 
     void renderVar( Named* r )
@@ -481,6 +485,17 @@ bool Scope::add(Named* n)
     d_names[n->d_name.constData()] = n;
     d_order.append(n);
     n->d_scope = this;
+    switch( n->getTag() )
+    {
+    case Thing::T_Parameter:
+        d_parCount++;
+        break;
+    case Thing::T_Variable:
+    case Thing::T_LocalVar:
+        d_varCount++;
+        break;
+    }
+
     return true;
 }
 

@@ -306,17 +306,17 @@ namespace Obx
         Scope* d_scope; // owning scope up to module (whose scope is nil)
 
         uint d_liveFrom : 20;
-        uint d_usedFromSubs : 1;
-        uint d_usedFromLive : 1; // indirectly used named types
-        uint d_initialized: 1;
-        uint d_visibility : 2; // Visibility
+        uint d_upvalSource : 1; // the scope from which locals are used; the local used as upval
+        uint d_upvalIntermediate: 1; // the scopes between source and user
+        uint d_upvalSink : 1; // the scope from which locals from the outer scope are used
+        uint d_visibility : 2; // Visibility enum
         uint d_synthetic: 1;
         uint d_hasErrors : 1;
         uint d_liveTo : 20;
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
             d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
-            d_usedFromSubs(0),d_initialized(0),d_usedFromLive(0),
+            d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
             d_hasErrors(0) {}
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
@@ -429,7 +429,10 @@ namespace Obx
         QList< Ref<IdentLeaf> > d_helper; // filled with helper decls when fillXref
         StatSeq d_body;
         Ob::RowCol d_end;
+        quint16 d_varCount; // Variable, LocalVar
+        quint8 d_parCount; // Parameter; incl. receiver
 
+        Scope():d_varCount(0),d_parCount(0){}
         bool isScope() const { return true; }
         int getTag() const { return T_Scope; }
 

@@ -6,10 +6,12 @@ module Procs7
 		var a,b,c: integer
 		
 		proc Mid1( i: integer )
-		
+			var d: integer
+			
 			proc Inner( i: integer )
 			begin
 				a := a + i
+				d := i
 				Mid2(11)
 			end Inner
 			
@@ -24,11 +26,14 @@ module Procs7
 		end Mid2
 		
 	begin
-		a := 0
-		b := 0
-		c := 0
-		Mid1( 13 )
+		a := 0 
+		b := 0 
+		c := 0 
+		Mid1( 13 ) // Mid1 -> Inner -> Mid2
 		Mid2( 14 )
+		println(a) // 12
+		println(b) // 13
+		println(c) // 11 + 14 = 25
 	end Outer
 	
 begin
