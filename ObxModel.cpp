@@ -445,23 +445,21 @@ bool Model::parseFiles(const FileGroups& files)
         qDebug() << "nothing to parse";
         return false;
     }
+
     clear();
+
+    const QString old = QDir::currentPath();
+    if( !d_fileRoot.isEmpty() )
+        QDir::setCurrent(d_fileRoot);
 
     const quint32 before = d_errs->getErrCount();
     foreach( const FileGroup& fg, files )
     {
-        const QString old = QDir::currentPath();
-        if( !fg.d_root.isEmpty() )
-            QDir::setCurrent(fg.d_root);
         foreach( const QString& file, fg.d_files )
         {
-            if( !fg.d_root.isEmpty() && !QFileInfo(file).isRelative() )
+            if( d_fileRoot.isEmpty() && QFileInfo(file).isRelative() )
             {
-                error( file, tr("file not relative to file group '%1'").arg(fg.d_root));
-                continue;
-            }else if( fg.d_root.isEmpty() && QFileInfo(file).isRelative() )
-            {
-                error( file, tr("with empty root file '%1' must have an absolute path").arg(file));
+                error( file, tr("cannot resolve relative path '%1'").arg(file));
                 continue;
             }
 
@@ -472,15 +470,9 @@ bool Model::parseFiles(const FileGroups& files)
                 error( path, tr("cannot open file") );
             else
             {
-                m->d_fullName = FileGroup::toFullName(file);
-#if 0
-                // ETH Oberon V3 and V4 violate this rule
-                if( m->d_fullName.isEmpty() || m->d_fullName.last() != m->d_name )
-                    error( path, tr("file name must correspond to module name '%1'").arg(m->d_name.constData() ) );
-                else
-#else
-                m->d_fullName.last() = m->d_name;
-#endif
+                m->d_fullName = fg.d_groupName;
+                m->d_fullName << m->d_name;
+
                 if( d_modules.contains( m->d_fullName ) )
                     error( path,tr("full name of module is not unique in file groups: %1").
                            arg(m->d_fullName.join('/').constData()));
@@ -494,8 +486,9 @@ bool Model::parseFiles(const FileGroups& files)
                 }
             }
         }
-        QDir::setCurrent(old);
     }
+
+    QDir::setCurrent(old);
 
     if( before != d_errs->getErrCount() )
         return false; // stop on parsing errors
@@ -1154,59 +1147,3 @@ bool Model::error(const Loc& loc, const QString& msg)
     return false;
 }
 
-QByteArrayList Model::FileGroup::toFullName(const QString& filePath)
-{
-    QFileInfo info(filePath);
-    if( !info.isRelative() )
-    {
-        //qCritical() << "filename not relative" << relativeFileName;
-        return QByteArrayList() << info.completeBaseName().toUtf8();
-    }
-    QByteArrayList res;
-    const QStringList segments = info.path().split( '/' );
-    foreach( const QString& seg, segments )
-    {
-        if( !seg.startsWith('.') )
-            res.append( seg.toUtf8() );
-    }
-    res.append( info.completeBaseName().toUtf8() );
-    return res;
-}
-
-QStringList Model::FileGroup::absolutePaths() const
-{
-    QStringList res;
-    QDir root(d_root);
-    foreach( const QString& f, d_files )
-    {
-        if( QFileInfo(f).isRelative() )
-            res << root.absoluteFilePath(f);
-        else
-            res << f;
-    }
-    return res;
-}
-
-Model::FileGroup Model::FileGroup::fromPaths(const QString& root, const QStringList& files)
-{
-    QFileInfo ri(root);
-
-    QDir rd;
-    if( ri.isFile() )
-        rd = ri.canonicalPath();
-    else
-        rd = ri.canonicalFilePath();
-
-    FileGroup res;
-    res.d_root = rd.canonicalPath();
-
-    foreach( const QString& f, files )
-    {
-        QFileInfo fi(f);
-        if( fi.isRelative() )
-            res.d_files << f;
-        else
-            res.d_files << rd.relativeFilePath(f);
-    }
-    return res;
-}

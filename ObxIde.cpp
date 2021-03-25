@@ -752,6 +752,9 @@ void Ide::createMenu()
     pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
     pop->addCommand( "Export minimized Module...", this, SLOT(onExpMod()) );
     pop->addSeparator();
+    pop->addCommand( "Add Import Path...", this, SLOT(onAddDir()) );
+    pop->addCommand( "Remove Import Path...", this, SLOT(onRemoveDir()) );
+    pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
     pop->addCommand( "Built-in Oberon System Inner", this, SLOT(onObSysInner()) );
     pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
@@ -899,10 +902,10 @@ void Ide::onRun()
         dbg = new Lua::BcDebugger(d_lua);
 
     bool hasErrors = false;
-    foreach( const Project::File& f, files )
+    foreach( const Project::FileRef& f, files )
     {
-        qDebug() << "loading" << f.d_mod->d_name;
-        if( !d_lua->addSourceLib( f.d_sourceCode, f.d_mod->d_name ) )
+        qDebug() << "loading" << f->d_mod->d_name;
+        if( !d_lua->addSourceLib( f->d_sourceCode, f->d_mod->d_fullName.join('.') ) )
         {
             hasErrors = true;
         }
@@ -924,7 +927,7 @@ void Ide::onRun()
     if( main.first.isNull() )
     {
         Q_ASSERT( !files.isEmpty() );
-        main.first = files.back().d_mod->d_name;
+        main.first = files.back()->d_mod->d_name;
     }
 
     QByteArray src;
@@ -1115,7 +1118,7 @@ void Ide::onCursor()
 void Ide::onExportBc()
 {
     const QString curPath = d_tab->getCurrentDoc().toString();
-    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath).d_sourceCode.isEmpty() );
+    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath)->d_sourceCode.isEmpty() );
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Binary"), curPath, tr("*.ljbc") );
 
@@ -1128,13 +1131,13 @@ void Ide::onExportBc()
         fileName += ".ljbc";
     QFile out(fileName);
     out.open(QIODevice::WriteOnly);
-    out.write(d_pro->getFiles().value(curPath).d_sourceCode);
+    out.write(d_pro->getFiles().value(curPath)->d_sourceCode);
 }
 
 void Ide::onExportAsm()
 {
     const QString curPath = d_tab->getCurrentDoc().toString();
-    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath).d_sourceCode.isEmpty() );
+    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath)->d_sourceCode.isEmpty() );
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Assembler"),
                                                           d_tab->getCurrentDoc().toString(),
@@ -1213,17 +1216,21 @@ void Ide::onTabChanged()
 
     if( !path.isEmpty() )
     {
-        d_curBc = d_pro->getFiles().value( path ).d_sourceCode;
-        if( !d_curBc.isEmpty() )
+        Project::FileRef f = d_pro->getFiles().value(path);
+        if( f.data() )
         {
-            QBuffer buf( &d_curBc );
-            buf.open(QIODevice::ReadOnly);
-            d_bcv->loadFrom(&buf);
-            onCursor();
-            return;
+            fillModule(f->d_mod.data());
+            d_curBc = f->d_sourceCode;
+            if( !d_curBc.isEmpty() )
+            {
+                QBuffer buf( &d_curBc );
+                buf.open(QIODevice::ReadOnly);
+                d_bcv->loadFrom(&buf);
+                onCursor();
+                return;
+            }
         }
     }
-    fillModule(d_pro->getFiles().value(path).d_mod.data());
     // else
     d_bcv->clear();
 }
@@ -1326,21 +1333,63 @@ void Ide::onAddFiles()
 {
     ENABLED_IF(true);
 
+    QByteArrayList path;
+
+    QList<QTreeWidgetItem*> sel = d_mods->selectedItems();
+    if( sel.size() == 1 && sel.first()->type() == 1 )
+        path = sel.first()->text(0).toLatin1().split('.');
+
     QString filter;
     foreach( const QString& suf, d_pro->getSuffixes() )
         filter += " *" + suf;
     const QStringList files = QFileDialog::getOpenFileNames(this,tr("Add Modules"),QString(),filter );
     foreach( const QString& f, files )
     {
-        if( !d_pro->addFile(f) )
+        if( !d_pro->addFile(f,path) )
             qWarning() << "cannot add module" << f;
     }
     compile();
 }
 
+void Ide::onAddDir()
+{
+    ENABLED_IF(true);
+
+    bool ok;
+    const QByteArray path = QInputDialog::getText(this,tr("Add Inport Path"), tr("Idents separated by '.':"),
+                                                  QLineEdit::Normal, QString(), &ok ).toLatin1();
+    if( !ok )
+        return;
+    if( !path.isEmpty() && !::isalpha( path[0] ) )
+    {
+        QMessageBox::critical(this,tr("Add Inport Path"),tr("import path starts with invalid character: %1").arg(path[0]));
+        return;
+    }
+    for( int i = 1; i < path.size(); i++ )
+    {
+        const char ch = path[i];
+        if( !::isalnum(ch) && ch != '.' )
+        {
+            QMessageBox::critical(this,tr("Add Inport Path"),tr("invalid character in import path: %1").arg(ch));
+            return;
+        }
+    }
+    QByteArrayList segments = path.split('.');
+    for( int i = 0; i < segments.size(); i++ )
+    {
+        if( segments[i].isEmpty() )
+        {
+            QMessageBox::critical(this,tr("Add Inport Path"),tr("identifier cannot be empty"));
+            return;
+        }
+    }
+    d_pro->addImportPath(segments);
+    fillMods();
+}
+
 void Ide::onRemoveFile()
 {
-    ENABLED_IF( d_mods->currentItem() );
+    ENABLED_IF( d_mods->currentItem() && d_mods->currentItem()->type() == 0 );
 
     ScopeRef s = d_mods->currentItem()->data(0,Qt::UserRole).value<ScopeRef>();
     if( s.isNull() )
@@ -1358,6 +1407,21 @@ void Ide::onRemoveFile()
         qWarning() << "cannot remove module" << m->d_name;
     else
         compile();
+}
+
+void Ide::onRemoveDir()
+{
+    ENABLED_IF( d_mods->currentItem() && d_mods->currentItem()->type() == 1
+                && d_mods->currentItem()->childCount() == 0 );
+
+    if( QMessageBox::warning( this, tr("Remove Import Path"),
+                              tr("Do you really want to remove '%1' from project?").arg(d_mods->currentItem()->text(0)),
+                           QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes ) != QMessageBox::Yes )
+        return;
+    QByteArrayList path = d_mods->currentItem()->text(0).toLatin1().split('.');
+    if( !d_pro->removeImportPath( path ) )
+        qWarning() << "cannot remove import path" << d_mods->currentItem()->text(0);
+    fillMods();
 }
 
 void Ide::onEnableDebug()
@@ -1477,36 +1541,70 @@ static void fillScope( QTreeWidgetItem* p, Scope* s )
     }
 }
 
-void Ide::fillMods()
+typedef QPair<QByteArray,QList<Project::File*> > Group;
+
+static bool sortNamed1( const Group& lhs, const Group& rhs )
 {
-    d_mods->clear();
-    const Project::FileHash& files = d_pro->getFiles();
-    Project::FileHash::const_iterator i;
-    QList< Ref<Module> > temp;
-    QList<Module*> sort;
-    for( i = files.begin(); i != files.end(); ++i )
+    return lhs.first.toLower() < rhs.first.toLower();
+}
+
+template<class T>
+static void fillModTree( T* parent, const QList<Module*>& mods )
+{
+    foreach( Module* n, mods )
     {
-        if( i.value().d_mod.isNull() )
-        {
-            Ref<Module> m = new Module();
-            // TODO m->d_hasErrors;
-            m->d_file = i.key();
-            m->d_name = QFileInfo(i.key()).baseName().toUtf8();
-            temp << m;
-            sort << m.data();
-        }else
-            sort << i.value().d_mod.data();
-    }
-    std::sort( sort.begin(), sort.end(), sortNamed );
-    foreach( Module* n, sort )
-    {
-        QTreeWidgetItem* item = new QTreeWidgetItem(d_mods);
+        QTreeWidgetItem* item = new QTreeWidgetItem(parent);
         item->setText(0, n->d_name);
         item->setToolTip(0,n->d_file);
         item->setIcon(0, QPixmap(":/images/module.png") );
         item->setData(0,Qt::UserRole,QVariant::fromValue(ScopeRef( n ) ) );
-        // fillScope( item, cast<Scope*>(n));
     }
+}
+
+void Ide::fillMods()
+{
+    d_mods->clear();
+
+    const Project::ImportPaths& paths = d_pro->getImportPaths();
+    typedef QList<Group> Sort1;
+    Sort1 sort1;
+    foreach( const Project::FileGroup& fg, paths )
+        sort1.append( qMakePair( fg.d_importPath.join('.'), fg.d_files ) );
+    std::sort( sort1.begin(), sort1.end(), sortNamed1 );
+
+    for( int j = 0; j < sort1.size(); j++ )
+    {
+        QTreeWidgetItem* item = 0;
+        if( !sort1[j].first.isEmpty() )
+        {
+            item = new QTreeWidgetItem(d_mods,1);
+            item->setText(0, sort1[j].first);
+            item->setToolTip( 0, item->text(0) );
+            item->setIcon(0, QPixmap(":/images/folder.png") );
+        }
+
+        const QList<Project::File*>& files = sort1[j].second;
+        QList< Ref<Module> > temp;
+        QList<Module*> sort;
+        for( int i = 0; i < files.size(); i++ )
+        {
+            if( files[i]->d_mod.isNull() )
+            {
+                Ref<Module> m = new Module();
+                m->d_file = files[i]->d_filePath;
+                m->d_name = QFileInfo(files[i]->d_filePath).baseName().toUtf8();
+                temp << m;
+                sort << m.data();
+            }else
+                sort << files[i]->d_mod.data();
+        }
+        std::sort( sort.begin(), sort.end(), sortNamed );
+        if( item )
+            fillModTree(item,sort);
+        else
+            fillModTree( d_mods, sort );
+    }
+    d_mods->expandAll();
 }
 
 void Ide::addTopCommands(Gui::AutoMenu* pop)
@@ -1525,7 +1623,7 @@ void Ide::addTopCommands(Gui::AutoMenu* pop)
 
 Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMarker, bool center )
 {
-    Project::File pf = d_pro->getFiles().value(path);
+    Project::FileRef pf = d_pro->getFiles().value(path);
     //if( pf.d_mod.isNull() )
     //    return;
 
@@ -1544,10 +1642,10 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         connect(edit,SIGNAL(cursorPositionChanged()),this,SLOT(onCursor()));
         connect(edit,SIGNAL(sigUpdateLocation(int,int)),this,SLOT(onUpdateLocation(int,int)));
 
-        if( pf.d_mod.isNull() )
+        if( pf->d_mod.isNull() )
             edit->setExt(true);
         else
-            edit->setExt(pf.d_mod->d_isExt);
+            edit->setExt(pf->d_mod->d_isExt);
         edit->loadFromFile(path);
 
         const Lua::Engine2::Breaks& br = d_lua->getBreaks( path.toUtf8() );
@@ -1752,6 +1850,7 @@ void Ide::fillXref()
         f.setBold(true);
 
         QString type;
+        QString name = hitSym->d_name;
         switch( hitSym->getTag() )
         {
         case Thing::T_Field:
@@ -1781,10 +1880,11 @@ void Ide::fillXref()
             break;
         case Thing::T_Module:
             type = "Module";
+            name = cast<Module*>(hitSym)->d_fullName.join('.');
             break;
         }
 
-        d_xrefTitle->setText(QString("%1 '%2'").arg(type).arg(hitSym->d_name.constData()));
+        d_xrefTitle->setText(QString("%1 '%2'").arg(type).arg(name));
 
         d_xref->clear();
         QTreeWidgetItem* black = 0;
@@ -1797,7 +1897,7 @@ void Ide::fillXref()
             Q_ASSERT( ident != 0 && mod != 0 );
             QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
             i->setText( 0, QString("%1 (%2:%3 %4)")
-                        .arg(e->getModule()->d_name.constData())
+                        .arg(e->getModule()->d_fullName.join('.').constData())
                         .arg(e->d_loc.d_row).arg(e->d_loc.d_col)
                         .arg( roleName(e) ));
             if( e == hitEx )
@@ -1846,7 +1946,7 @@ void Ide::fillXref(Named* sym)
             continue;
         Q_ASSERT( ident != 0 && mod != 0 );
         QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
-        i->setText( 0, e->getModule()->d_name );
+        i->setText( 0, e->getModule()->d_fullName.join('.') );
         i->setToolTip( 0, i->text(0) );
         i->setData( 0, Qt::UserRole, QVariant::fromValue( ExRef(e) ) );
     }
@@ -2121,7 +2221,7 @@ void Ide::fillModule(Module* m)
     d_modTitle->clear();
     if( m == 0 )
         return;
-    d_modTitle->setText( QString("'%1'").arg(m->d_name.constData()) );
+    d_modTitle->setText( QString("'%1'").arg(m->d_fullName.join('.').constData()) );
     walkModItems(d_mod, m, 0, true, d_modIdx );
 }
 
@@ -2131,7 +2231,7 @@ static QTreeWidgetItem* fillHierProc( T* parent, Procedure* p, Named* ref )
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
     Q_ASSERT( p->d_receiver && !p->d_receiver->d_type.isNull() );
     Q_ASSERT( p->d_receiver->d_type->getTag() == Thing::T_QualiType );
-    item->setText(0, QString("%1.%2").arg(p->getModule()->d_name.constData())
+    item->setText(0, QString("%1.%2").arg(p->getModule()->d_fullName.join('.').constData())
                   .arg(cast<QualiType*>(p->d_receiver->d_type.data())->d_quali->getIdent()->d_name.constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(p) ) );
     item->setIcon(0, QPixmap( p->d_visibility >= Named::ReadWrite ? ":/images/func.png" : ":/images/func_priv.png" ) );
@@ -2157,7 +2257,7 @@ static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
     if( name == 0 && p->d_binding )
         name = p->d_binding->d_ident;
     Q_ASSERT( name != 0 );
-    item->setText(0, QString("%1.%2").arg(name->getModule()->d_name.constData()).arg(name->d_name.constData()));
+    item->setText(0, QString("%1.%2").arg(name->getModule()->d_fullName.join('.').constData()).arg(name->d_name.constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );
     item->setIcon(0, QPixmap( name->d_visibility >= Named::ReadWrite ? ":/images/class.png" : ":/images/class_priv.png" ) );
     item->setToolTip(0,item->text(0));
@@ -2408,7 +2508,7 @@ void Ide::onExpMod()
 
     Module* m = cast<Module*>(s.data());
 
-    const QString path = QFileDialog::getSaveFileName( this, tr("Export Module"), m->d_fullName.join('/') + ".obx" );
+    const QString path = QFileDialog::getSaveFileName( this, tr("Export Module"), m->d_fullName.join('.') + ".obx" );
 
     if( path.isEmpty() )
         return;
@@ -2429,7 +2529,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.6.1");
+    a.setApplicationVersion("0.6.2");
     a.setStyle("Fusion");
 
     Ide w;

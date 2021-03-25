@@ -34,18 +34,15 @@ namespace Obx
     public:
         struct FileGroup
         {
-            QString d_root; // absolute path to root directory of file group, or empty
-            QStringList d_files; // file paths relative to root, or absolute if there is no root
-            static QByteArrayList toFullName(const QString& filePath);
-            QStringList absolutePaths() const;
-            static FileGroup fromPaths( const QString& root, const QStringList& files ); // root may be empty
-            static FileGroup fromPaths( const QStringList& files ) { return fromPaths( QString(), files ); }
+            QByteArrayList d_groupName; // the hierarchical name of the group (groups form a "virtual file system")
+            QStringList d_files; // absolute file paths
         };
         typedef QList<FileGroup> FileGroups;
 
         explicit Model(QObject *parent = 0);
         void clear();
 
+        void setFileRoot( const QString& root ) { d_fileRoot = root; }
         bool parseFiles(const FileGroups& files);
         Ref<Module> parseFile( const QString& path );
         Ref<Module> parseFile(QIODevice* , const QString& path);
@@ -96,6 +93,7 @@ namespace Obx
         Modules d_modules, d_others;
         XRef d_xref;
         quint32 d_sloc;
+        QString d_fileRoot;
 
         Ob::Errors* d_errs;
         Ob::FileCache* d_fc;

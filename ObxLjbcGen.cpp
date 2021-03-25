@@ -294,7 +294,7 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.UCLO( modSlot, 0, me->d_end.packed() );
 
         // make Module table a global variable
-        bc.GSET( modSlot, me->d_name, me->d_end.packed() );
+        bc.GSET( modSlot, me->d_fullName.join('.'), me->d_end.packed() );
         bc.RET( modSlot, 1, me->d_end.packed() ); // return module
 
         JitComposer::VarNameList sn(ctx.back().pool.d_frameSize);

@@ -1886,7 +1886,7 @@ void Parser::import()
         imp->d_path << suff.d_val;
     }else
         hasErr = true;
-    while( d_la == Tok_Slash )
+    while( d_la == Tok_Slash || d_la == Tok_Dot )
     {
         next();
         MATCH( Tok_ident, tr("expecting external module path") );

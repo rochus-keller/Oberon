@@ -22,6 +22,7 @@
 
 #include <QObject>
 #include <QStringList>
+#include <QExplicitlySharedDataPointer>
 #include <Oberon/ObxAst.h>
 
 class QDir;
@@ -40,16 +41,27 @@ namespace Obx
     {
         Q_OBJECT
     public:
-        struct File
+        struct FileGroup;
+        struct File : public QSharedData
         {
-            QString d_file;
+            QString d_filePath;
+            FileGroup* d_group;
             Ref<Module> d_mod;
             QByteArray d_sourceCode; // lua source or byte code
             bool d_isLib;
-            File(const QString& f = QString()):d_isLib(false),d_file(f){}
+            File():d_isLib(false),d_group(0){}
         };
-        typedef QHash<QString,File> FileHash;
-        typedef QList<File> FileList;
+        typedef QExplicitlySharedDataPointer<File> FileRef;
+
+        struct FileGroup
+        {
+            QByteArrayList d_importPath;
+            QList<File*> d_files;
+        };
+
+        typedef QList<FileGroup> ImportPaths; // ImportPath -> File
+        typedef QHash<QString,FileRef> FileHash; // FilePath -> File
+        typedef QList<FileRef> FileList;
         typedef QPair<QByteArray,QByteArray> ModProc; // module.procedure or just module
 
         explicit Project(QObject *parent = 0);
@@ -70,10 +82,14 @@ namespace Obx
         bool useBuiltInOakwood() const { return d_useBuiltInOakwood; }
         void setUseBuiltInObSysInner(bool);
         bool useBuiltInObSysInner() const { return d_useBuiltInObSysInner; }
-        bool addFile( const QString& );
-        bool removeFile( const QString& );
+        bool addFile( const QString& filePath, const QByteArrayList& importPath = QByteArrayList() );
+        bool addImportPath( const QByteArrayList& importPath );
+        bool removeFile( const QString& filePath );
+        bool removeImportPath( const QByteArrayList& importPath );
         const QString& getFilePath() const { return d_filePath; }
         const FileHash& getFiles() const { return d_files; }
+        const ImportPaths& getImportPaths() const { return d_dirs; }
+        FileGroup getRootModules() const;
         bool isDirty() const { return d_dirty; }
         FileList getFilesInExecOrder() const;
         Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col ) const;
@@ -91,10 +107,12 @@ namespace Obx
     protected:
         QStringList findFiles(const QDir& , bool recursive = false);
         void touch();
+        int findImportPath(const QByteArrayList& ) const;
     private:
         Model* d_mdl;
 
         FileHash d_files;
+        ImportPaths d_dirs;
         QString d_filePath;
         QStringList d_suffixes;
         QString d_workingDir;

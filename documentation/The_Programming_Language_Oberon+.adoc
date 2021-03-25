@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-03-20
+:revdate: 2021-03-25
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -1203,14 +1203,15 @@ module     = MODULE ident [';'] [ ImportList ]
              DeclarationSequence
 	         [ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import     = [ ident ':=' ] ident { '/' ident } 
+import     = [ ident ':=' ] ImportPath ident
+ImportPath = { ident '.' } 
 ....
 
 The import list specifies the names of the imported modules. If a module A is imported by a module M and A exports an identifier `x`, then `x` is referred to as `A.x` within M. 
 
 If A is imported as `B := A`, the object `x` must be referenced as `B.x`. This allows short alias names in qualified identifiers. 
 
-In Oberon+ the import can refer to a module by means of a relative path, where the last ident at the right end of the path corresponds to the imported module name, unless an alias name is defined.
+In Oberon+ the import can refer to a module by means of a module name optionally prefixed with an import path. There is no requirement that the import path actually exists in the file system, or that the source files corresponding to an import path are in the same file system directory. It is up to the compiler how source files are mapped to import paths.
 
 A module must not import itself. 
 
@@ -1497,7 +1498,8 @@ FormalType = type
 module = MODULE ident [';'] [ ImportList ] DeclarationSequence
 	[ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import = [ ident ':=' ] ident { '/' ident } 
+import = [ ident ':=' ] ImportPath ident 
+ImportPath = { ident '.' } 
 definition = DEFINITION ident [';']  [ ImportList ] 
 	DeclarationSequence2 END ident ['.']
 DeclarationSequence2 = 

@@ -806,7 +806,7 @@ bool Project::initializeFromDir(const QDir& dir, bool recursive)
 
     QStringList files = findFiles(dir, recursive);
     foreach( const QString& filePath, files )
-        d_files.insert(filePath,File(filePath));
+        addFile(filePath);
     emit sigRenamed();
     return true;
 }
@@ -835,22 +835,76 @@ void Project::setUseBuiltInObSysInner(bool on)
     touch();
 }
 
-bool Project::addFile(const QString& path)
+bool Project::addFile(const QString& filePath, const QByteArrayList& importPath)
 {
-    if( d_files.contains(path) )
+    if( d_files.contains(filePath) )
         return false;
-    d_files.insert(path,File(path));
+    int pos = findImportPath(importPath);
+    if( pos == -1 )
+    {
+        pos = d_dirs.size();
+        d_dirs.append( FileGroup() );
+        d_dirs.back().d_importPath = importPath;
+    }
+    FileGroup& fg = d_dirs[pos];
+    FileRef ref( new File() );
+    fg.d_files.append(ref.data());
+    ref->d_group = &fg;
+    ref->d_filePath = filePath;
+    d_files.insert(filePath,ref);
     touch();
     return true;
 }
 
+bool Project::addImportPath(const QByteArrayList& importPath)
+{
+    int pos = findImportPath(importPath);
+    if( pos == -1 )
+    {
+        pos = d_dirs.size();
+        d_dirs.append( FileGroup() );
+        d_dirs.back().d_importPath = importPath;
+        touch();
+        return true;
+    }else
+        return false;
+}
+
 bool Project::removeFile(const QString& path)
 {
-    if( !d_files.contains(path) )
+    FileHash::iterator i = d_files.find(path);
+    if( i == d_files.end() )
         return false;
-    d_files.remove(path);
+    const int pos = findImportPath( i.value()->d_group->d_importPath );
+    Q_ASSERT( pos != -1 );
+    d_dirs[pos].d_files.removeAll(i.value().data());
+    d_files.erase(i);
     touch();
     return true;
+}
+
+bool Project::removeImportPath(const QByteArrayList& importPath)
+{
+    if( importPath.isEmpty() )
+        return false;
+    int pos = findImportPath(importPath);
+    if( pos == -1 )
+        return false;
+    if( !d_dirs[pos].d_files.isEmpty() )
+        return false;
+    d_dirs.removeAt(pos);
+    touch();
+    return true;
+}
+
+Project::FileGroup Project::getRootModules() const
+{
+    for( int i = 0; i < d_dirs.size(); i++ )
+    {
+        if( d_dirs[i].d_importPath.isEmpty() )
+            return d_dirs[i];
+    }
+    return FileGroup();
 }
 
 Project::FileList Project::getFilesInExecOrder() const
@@ -861,7 +915,7 @@ Project::FileList Project::getFilesInExecOrder() const
     {
         Q_ASSERT( m );
         FileHash::const_iterator i = d_files.find( m->d_file );
-        if( i == d_files.end() || i.value().d_sourceCode.isEmpty() || i.value().d_mod.isNull() )
+        if( i == d_files.end() || i.value()->d_sourceCode.isEmpty() || i.value()->d_mod.isNull() )
             continue;
         res.append( i.value() );
     }
@@ -871,14 +925,14 @@ Project::FileList Project::getFilesInExecOrder() const
 Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
 {
     FileHash::const_iterator i = d_files.find(file);
-    if( i == d_files.end() || i.value().d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
+    if( i == d_files.end() || i.value()->d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
         return 0;
     try
     {
         ObxHitTest hit;
         hit.col = col;
         hit.line = line;
-        i.value().d_mod->accept(&hit);
+        i.value()->d_mod->accept(&hit);
     }catch( Expression* e )
     {
         return e;
@@ -916,10 +970,10 @@ void Project::setWorkingDir(const QString& wd)
 
 bool Project::printTreeShaken(const QString& module, const QString& fileName)
 {
-    File f = d_files.value(module);
-    if( f.d_mod.isNull() )
+    FileRef f = d_files.value(module);
+    if( f->d_mod.isNull() )
         return false;
-    Ref<Module> m = d_mdl->treeShaken(f.d_mod.data());
+    Ref<Module> m = d_mdl->treeShaken(f->d_mod.data());
     QFile out(fileName);
     if( !out.open(QIODevice::WriteOnly) )
         return false;
@@ -974,10 +1028,31 @@ void Project::touch()
     }
 }
 
+int Project::findImportPath(const QByteArrayList& importPath) const
+{
+    int pos = -1;
+    for( int i = 0; i < d_dirs.size(); i++ )
+    {
+        if( d_dirs[i].d_importPath == importPath )
+        {
+            pos = i;
+            break;
+        }
+    }
+    return pos;
+}
+
 bool Project::recompile()
 {
     Model::FileGroups fgs;
-    fgs << Obx::Model::FileGroup::fromPaths( d_files.keys() );
+    for( int i = 0; i < d_dirs.size(); i++ )
+    {
+        Model::FileGroup fg;
+        for( int j = 0; j < d_dirs[i].d_files.size(); j++ )
+            fg.d_files << d_dirs[i].d_files[j]->d_filePath;
+        fg.d_groupName = d_dirs[i].d_importPath;
+        fgs << fg;
+    }
     const bool res = d_mdl->parseFiles( fgs );
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
@@ -987,7 +1062,7 @@ bool Project::recompile()
         FileHash::iterator i = d_files.find(m->d_file);
         if( i != d_files.end() )
         {
-            i.value().d_mod = m;
+            i.value()->d_mod = m;
             //m->dump();
         }else
         {
@@ -1007,7 +1082,7 @@ bool Project::generate()
     {
         FileHash::iterator f = d_files.find(m->d_file);
         if( f != d_files.end() )
-            f.value().d_sourceCode.clear();
+            f.value()->d_sourceCode.clear();
         if( m->d_synthetic )
             ; // NOP
         else if( m->d_hasErrors )
@@ -1034,7 +1109,7 @@ bool Project::generate()
             buf.open(QIODevice::WriteOnly);
             LjbcGen::translate(m, &buf, d_mdl->getErrs() );
             buf.close();
-            f.value().d_sourceCode = buf.buffer();
+            f.value()->d_sourceCode = buf.buffer();
         }
     }
     return errs == d_mdl->getErrs()->getErrCount();
@@ -1058,18 +1133,41 @@ bool Project::save()
     out.setValue("MainProc", d_main.second );
     out.setValue("WorkingDir", d_workingDir );
 
-    out.beginWriteArray("Modules", d_files.size() );
-    FileHash::const_iterator i;
-    int n = 0;
-    for( i = d_files.begin(); i != d_files.end(); ++i )
+    FileGroup root = getRootModules();
+    out.beginWriteArray("Modules", root.d_files.size() ); // nested arrays don't work
+    for( int i = 0; i < root.d_files.size(); i++ )
     {
-        const QString absPath = i.key();
+        const QString absPath = root.d_files[i]->d_filePath;
         const QString relPath = dir.relativeFilePath( absPath );
-        out.setArrayIndex(n++);
+        out.setArrayIndex(i);
         out.setValue("AbsPath", absPath );
         out.setValue("RelPath", relPath );
     }
     out.endArray();
+
+    out.beginWriteArray("Packages", d_dirs.size() );
+    for( int i = 0; i < d_dirs.size(); i++ )
+    {
+        out.setArrayIndex(i);
+        out.setValue("Name", d_dirs[i].d_importPath.join('.') ); // '/' in key gives strange effects
+    }
+    out.endArray();
+
+    for( int i = 0; i < d_dirs.size(); i++ )
+    {
+        if(d_dirs[i].d_importPath.isEmpty())
+            continue;
+        out.beginWriteArray("." + d_dirs[i].d_importPath.join('.'), d_dirs[i].d_files.size() );
+        for( int j = 0; j < d_dirs[i].d_files.size(); j++ )
+        {
+            const QString absPath = d_dirs[i].d_files[j]->d_filePath;
+            const QString relPath = dir.relativeFilePath( absPath );
+            out.setArrayIndex(j);
+            out.setValue("AbsPath", absPath );
+            out.setValue("RelPath", relPath );
+        }
+        out.endArray();
+    }
 
     d_dirty = false;
     emit sigModified(d_dirty);
@@ -1081,6 +1179,7 @@ bool Project::loadFrom(const QString& filePath)
     clear();
 
     d_filePath = filePath;
+    d_mdl->setFileRoot(d_filePath);
 
     QDir dir = QFileInfo(d_filePath).dir();
 
@@ -1093,26 +1192,57 @@ bool Project::loadFrom(const QString& filePath)
     d_main.second = in.value("MainProc").toByteArray();
     d_workingDir = in.value("WorkingDir").toString();
 
-    const int count = in.beginReadArray("Modules");
-
+    int count = in.beginReadArray("Modules");
     for( int i = 0; i < count; i++ )
     {
         in.setArrayIndex(i);
         QString absPath = in.value("AbsPath").toString();
         const QString relPath = in.value("RelPath").toString();
         if( QFileInfo(absPath).exists() )
-            d_files.insert( absPath, File(absPath) );
+            addFile(absPath);
         else
         {
             absPath = dir.absoluteFilePath(relPath);
             if( QFileInfo(absPath).exists() )
-                d_files.insert( absPath, File(absPath) );
+                addFile(absPath);
             else
                 qCritical() << "Could not open module" << relPath;
         }
     }
-
     in.endArray();
+
+    QList<QByteArrayList> paths;
+    count = in.beginReadArray("Packages");
+    for( int i = 0; i < count; i++ )
+    {
+        in.setArrayIndex(i);
+        QString name = in.value("Name").toString();
+        paths << name.toLatin1().split('.');
+        addImportPath( paths.back() );
+    }
+    in.endArray();
+
+    for( int j = 0; j < paths.size(); j++ )
+    {
+        count = in.beginReadArray("." + paths[j].join('.'));
+        for( int i = 0; i < count; i++ )
+        {
+            in.setArrayIndex(i);
+            QString absPath = in.value("AbsPath").toString();
+            const QString relPath = in.value("RelPath").toString();
+            if( QFileInfo(absPath).exists() )
+                addFile(absPath, paths[j]);
+            else
+            {
+                absPath = dir.absoluteFilePath(relPath);
+                if( QFileInfo(absPath).exists() )
+                    addFile(absPath, paths[j]);
+                else
+                    qCritical() << "Could not open module" << relPath;
+            }
+        }
+        in.endArray();
+    }
 
     d_dirty = false;
     emit sigModified(d_dirty);
@@ -1123,6 +1253,7 @@ bool Project::loadFrom(const QString& filePath)
 bool Project::saveTo(const QString& filePath)
 {
     d_filePath = filePath;
+    d_mdl->setFileRoot(d_filePath);
     const bool res = save();
     emit sigRenamed();
     return res;

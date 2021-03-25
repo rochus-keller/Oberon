@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2021-03-20");
+    a.setApplicationVersion("2021-03-25");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -460,6 +460,7 @@ int main(int argc, char *argv[])
     }
 
     Obx::Model::FileGroups fgs;
+    fgs << Obx::Model::FileGroup();
     QStringList files;
     foreach( const QString& path, dirOrFilePaths )
     {
@@ -470,11 +471,11 @@ int main(int argc, char *argv[])
         {
             const QStringList tmp = collectFiles( info.absoluteFilePath() );
             files += tmp;
-            fgs << Obx::Model::FileGroup::fromPaths( path, tmp );
+            fgs.back().d_files += tmp;
         }else
         {
             files << path;
-            fgs << Obx::Model::FileGroup::fromPaths( path, QStringList() << path );
+            fgs.back().d_files << path;
         }
     }
 

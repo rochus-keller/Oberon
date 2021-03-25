@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-03-20</span>
+      <span id="revdate">2021-03-25</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -3360,7 +3360,8 @@ end Insert</pre>
              DeclarationSequence
 	         [ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import     = [ ident ':=' ] ident { '/' ident }</pre>
+import     = [ ident ':=' ] ImportPath ident
+ImportPath = { ident '.' }</pre>
           </div>
         </div>
         <div class="paragraph">
@@ -3374,9 +3375,11 @@ import     = [ ident ':=' ] ident { '/' ident }</pre>
             identifiers.</p>
         </div>
         <div class="paragraph">
-          <p>In Oberon+ the import can refer to a module by means of a relative path,
-            where the last ident at the right end of the path corresponds to the
-            imported module name, unless an alias name is defined.</p>
+          <p>In Oberon+ the import can refer to a module by means of a module name optionally
+            prefixed with an import path. There is no requirement that the import
+            path actually exists in the file system, or that the source files corresponding
+            to an import path are in the same file system directory. It is up to
+            the compiler how source files are mapped to import paths.</p>
         </div>
         <div class="paragraph">
           <p>A module must not import itself.</p>
@@ -4005,7 +4008,8 @@ FormalType = type
 module = MODULE ident [';'] [ ImportList ] DeclarationSequence
 	[ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import = [ ident ':=' ] ident { '/' ident }
+import = [ ident ':=' ] ImportPath ident
+ImportPath = { ident '.' }
 definition = DEFINITION ident [';']  [ ImportList ]
 	DeclarationSequence2 END ident ['.']
 DeclarationSequence2 =

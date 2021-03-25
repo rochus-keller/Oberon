@@ -1,0 +1,105 @@
+(*Copyright (C) 2017, 2018, 2019 Karl Landstrom <karl@miasap.se>
+
+This file is part of OBNC.
+
+OBNC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+OBNC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with OBNC.  If not, see <http://www.gnu.org/licenses/>.*)
+
+MODULE A;
+
+	IMPORT B;
+
+	CONST
+		boolConst* = TRUE;
+		charConst* = CHR(22H);
+		intConst* = 1;
+		realConst* = 2.3;
+		strConst* = "hello there";
+		nul* = 0X;
+		lf* = 0AX;
+		charMax* = 0FFX;
+		setConst* = {0, 2, 3, 5};
+
+	TYPE
+		Integer = INTEGER;
+		String = ARRAY 256 OF CHAR;
+		EmptyRecord* = RECORD END;
+		EmptyExtendedRecord* = RECORD (EmptyRecord) END;
+		EmptyPointer* = POINTER TO RECORD END;
+		EmptyExtendedPointer* = POINTER TO RECORD (EmptyPointer) END;
+		List* = POINTER TO Node;
+		Node = RECORD
+			key: String;
+			next: List
+		END;
+		Nested* = RECORD
+			f*: B.U
+		END;
+		Proc* = PROCEDURE;
+		Proc1* = PROCEDURE (n: Node);
+		Proc2* = PROCEDURE (): List;
+		Proc3* = PROCEDURE (n: Node): List;
+		Proc4* = PROCEDURE (n, n1: Node): List;
+		Proc5* = PROCEDURE (n: Node; i: INTEGER);
+		Proc6* = PROCEDURE (n, n1: Node; i: INTEGER);
+		T* = B.T;
+		P1* = B.P1;
+
+	VAR
+		boolVar*: BOOLEAN;
+		charVar*: CHAR;
+		intVar*: Integer;
+		realVar* : REAL;
+		byteVar*: BYTE;
+		setVar*: SET;
+		strVar*: String;
+		recVar*, recVar1: RECORD
+			f*: INTEGER
+		END;
+		ptrVar*: POINTER TO Node;
+		procVar*: PROCEDURE (s: String);
+		alias: B.CTAlias;
+
+	PROCEDURE P*(s: String);
+	END P;
+
+
+	PROCEDURE Q*(x: B.T);
+	END Q;
+
+
+	PROCEDURE R*(A: ARRAY OF ARRAY OF INTEGER);
+	END R;
+
+
+	PROCEDURE S*(x: T);
+	END S;
+
+
+	PROCEDURE S1*(VAR x: P1);
+	END S1;
+
+BEGIN
+		boolVar := boolConst;
+		charVar := charConst;
+		intVar := intConst;
+		realVar := realConst;
+		byteVar := intConst;
+		setVar := setConst;
+		strVar := strConst;
+		recVar.f := 1;
+		recVar1.f := 0;
+		ptrVar := NIL;
+		procVar := P;
+		B.P(alias)
+END A.

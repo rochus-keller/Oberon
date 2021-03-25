@@ -405,7 +405,7 @@ struct ValidatorImp : public AstVisitor
                 e.d_type = bt.d_boolType;
                 if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data())
                         && !paramCompatible( &e, args->d_args[0].data())
-                        && !paramCompatible( &c, args->d_args[0].data()) && d.d_type->getTag() != Thing::T_Enumeration )
+                        && !paramCompatible( &c, args->d_args[0].data()) && d.d_type && d.d_type->getTag() != Thing::T_Enumeration )
                     error( args->d_args[0]->d_loc, Validator::tr("expecting char, wchar, boolean, set or enumeration argument"));
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
@@ -425,8 +425,10 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 1 || args->d_args.size() == 2 )
             {
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
-                if( lhs->getTag() == Thing::T_Pointer )
+                if( lhs && lhs->getTag() == Thing::T_Pointer )
                     lhs = derefed(cast<Pointer*>(lhs)->d_to.data());
+                if( lhs == 0 )
+                    return false; // already reported
                 const int ltag = lhs->getTag();
                 if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
@@ -452,7 +454,7 @@ struct ValidatorImp : public AstVisitor
             {
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
                 Type* rhs = derefed(args->d_args.last()->d_type.data());
-                const bool ok = ( lhs->isChar() && rhs->isChar() ) ||
+                const bool ok = ( lhs && lhs->isChar() && rhs && rhs->isChar() ) ||
                         ( isNumeric(lhs) && isNumeric(rhs) );
                 if( !ok )
                     error( args->d_loc, Validator::tr("expecting both arguments of numeric or character type"));
@@ -513,7 +515,9 @@ struct ValidatorImp : public AstVisitor
                 {
                     if( args->d_args.size() > 1 )
                         error( args->d_args[1]->d_loc, Validator::tr("too many arguments"));
-                }else
+                }else if( ltag == Thing::T_QualiType )
+                    return false; // already reported
+                else
                     Q_ASSERT( false );
             }else
                 error( args->d_loc, Validator::tr("expecting at least one argument"));
