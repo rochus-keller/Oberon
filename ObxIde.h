@@ -44,6 +44,8 @@ namespace Obx
     class Named;
     class Module;
     class Expression;
+    class Scope;
+    class Type;
 
     class Ide : public QMainWindow
     {
@@ -96,6 +98,7 @@ namespace Obx
         void fillXref(Named*);
         void fillStack();
         void fillLocals();
+        void printLocalVal( QTreeWidgetItem* item, Type* type, int depth );
         void fillModule(Module*);
         void fillHier(Named*);
         void removePosMarkers();
@@ -142,6 +145,8 @@ namespace Obx
         void onXrefDblClicked();
         void onToggleBreakPt();
         void onSingleStep();
+        void onStepOver();
+        void onStepOut();
         void onContinue();
         void onShowLlBc();
         void onWorkingDir();
@@ -164,6 +169,7 @@ namespace Obx
         QTreeWidget* d_hier;
         QHash<Named*,QTreeWidgetItem*> d_modIdx;
         QTreeWidget* d_stack;
+        QVector<Scope*> d_scopes;
         QTreeWidget* d_locals;
         QLabel* d_xrefTitle;
         QLabel* d_modTitle;
@@ -176,6 +182,8 @@ namespace Obx
         QAction* d_dbgAbort;
         QAction* d_dbgContinue;
         QAction* d_dbgStepIn;
+        QAction* d_dbgStepOver;
+        QAction* d_dbgStepOut;
         QByteArray d_curBc;
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;

@@ -924,15 +924,20 @@ Project::FileList Project::getFilesInExecOrder() const
 
 Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
 {
-    FileHash::const_iterator i = d_files.find(file);
-    if( i == d_files.end() || i.value()->d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
-        return 0;
+    FileRef f = d_files.value(file);
+    if( f.data() == 0 || f->d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
+    {
+        f = d_modules.value(file.toLatin1());
+        if( f.data() == 0 || f->d_mod.isNull() )
+            return 0;
+    }
+
     try
     {
         ObxHitTest hit;
         hit.col = col;
         hit.line = line;
-        i.value()->d_mod->accept(&hit);
+        f->d_mod->accept(&hit);
     }catch( Expression* e )
     {
         return e;
@@ -1044,6 +1049,7 @@ int Project::findImportPath(const QByteArrayList& importPath) const
 
 bool Project::recompile()
 {
+    d_modules.clear();
     Model::FileGroups fgs;
     for( int i = 0; i < d_dirs.size(); i++ )
     {
@@ -1063,6 +1069,7 @@ bool Project::recompile()
         if( i != d_files.end() )
         {
             i.value()->d_mod = m;
+            d_modules.insert(m->getName(),i.value().data());
             //m->dump();
         }else
         {
@@ -1107,7 +1114,7 @@ bool Project::generate()
             qDebug() << "generating" << m->d_name;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
-            LjbcGen::translate(m, &buf, d_mdl->getErrs() );
+            LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
             buf.close();
             f.value()->d_sourceCode = buf.buffer();
         }

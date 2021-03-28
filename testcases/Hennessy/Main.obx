@@ -40,7 +40,6 @@ module Main
 begin
 	println("******** start")
 	// BEGIN Benchmarks
-	
 	Time("Perm", Perm.Run) 
 	Time("Towers", Towers.Run)
 	Time("Queens", Queens.Run)

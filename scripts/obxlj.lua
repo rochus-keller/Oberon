@@ -26,6 +26,7 @@ local bit = require 'bit'
 local os = require 'os'
 
 local module = {}
+obxlj = module -- directly publish the module by global var
 
 ffi.cdef[[
     int ObxFfi_DIV( int a, int b );

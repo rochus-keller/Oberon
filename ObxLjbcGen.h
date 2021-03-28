@@ -35,8 +35,8 @@ namespace Obx
     class LjbcGen
     {
     public:
-        static bool translate(Model*,const QString& outdir, const QString& mod, Ob::Errors* = 0 );
-        static bool translate(Module*, QIODevice* out, Ob::Errors* = 0 );
+        static bool translate(Model*,const QString& outdir, const QString& mod, bool strip = false, Ob::Errors* = 0 );
+        static bool translate(Module*, QIODevice* out, bool strip = false, Ob::Errors* = 0 );
         static bool allocateDef(Module*, QIODevice* out,Ob::Errors* = 0);
     private:
         LjbcGen();

@@ -54,6 +54,7 @@
 #include <GuiTools/CodeEditor.h>
 #include <GuiTools/AutoShortcut.h>
 #include <GuiTools/DocTabWidget.h>
+#include <lua.hpp>
 using namespace Obx;
 using namespace Ob;
 
@@ -62,6 +63,8 @@ using namespace Ob;
 #define OBN_ABORT_SC "CTRL+SHIFT+Y"
 #define OBN_CONTINUE_SC "CTRL+Y"
 #define OBN_STEPIN_SC "CTRL+SHIFT+I"
+#define OBN_STEPOVER_SC "CTRL+SHIFT+O"
+#define OBN_STEPOUT_SC "SHIFT+F11" // TODO
 #define OBN_ENDBG_SC "F4"
 #define OBN_TOGBP_SC "F8"
 #define OBN_GOBACK_SC "ALT+CTRL+Left"
@@ -73,6 +76,8 @@ using namespace Ob;
 #define OBN_ABORT_SC "SHIFT+F5"
 #define OBN_CONTINUE_SC "F5"
 #define OBN_STEPIN_SC "F11"
+#define OBN_STEPOVER_SC "F10"
+#define OBN_STEPOUT_SC "SHIFT+F11"
 #define OBN_ENDBG_SC "F8"
 #define OBN_TOGBP_SC "F9"
 #define OBN_GOBACK_SC "ALT+Left"
@@ -81,11 +86,11 @@ using namespace Ob;
 #define OBN_PREVDOC_SC "CTRL+SHIFT+TAB"
 #endif
 
-struct ScopeRef : public Ref<Scope>
+struct ModRef : public Ref<Module>
 {
-    ScopeRef(Scope* s = 0):Ref(s) {}
+    ModRef(Module* s = 0):Ref(s) {}
 };
-Q_DECLARE_METATYPE(ScopeRef)
+Q_DECLARE_METATYPE(ModRef)
 struct NamedRef : public Ref<Named>
 {
     NamedRef(Named* s = 0):Ref(s) {}
@@ -478,6 +483,16 @@ Ide::Ide(QWidget *parent)
     d_dbgStepIn->setShortcut(tr(OBN_STEPIN_SC));
     addAction(d_dbgStepIn);
     connect( d_dbgStepIn, SIGNAL(triggered(bool)),this,SLOT(onSingleStep()) );
+    d_dbgStepOver = new QAction(tr("Step Over"),this);
+    d_dbgStepOver->setShortcutContext(Qt::ApplicationShortcut);
+    d_dbgStepOver->setShortcut(tr(OBN_STEPOVER_SC));
+    addAction(d_dbgStepOver);
+    connect( d_dbgStepOver, SIGNAL(triggered(bool)),this,SLOT(onStepOver()) );
+    d_dbgStepOut = new QAction(tr("Step Out"),this);
+    d_dbgStepOut->setShortcutContext(Qt::ApplicationShortcut);
+    d_dbgStepOut->setShortcut(tr(OBN_STEPOUT_SC));
+    addAction(d_dbgStepOut);
+    connect( d_dbgStepOut, SIGNAL(triggered(bool)),this,SLOT(onStepOut()) );
 
     enableDbgMenu();
 
@@ -835,6 +850,8 @@ void Ide::createMenuBar()
     pop->addCommand( "Enable Bytecode Debugger", this, SLOT(onBcDebug()) );
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     pop->addAction( d_dbgStepIn );
+    pop->addAction( d_dbgStepOver );
+    pop->addAction( d_dbgStepOut );
     pop->addAction( d_dbgBreak );
     pop->addAction( d_dbgContinue );
     pop->addAction( d_dbgAbort );
@@ -905,7 +922,7 @@ void Ide::onRun()
     foreach( const Project::FileRef& f, files )
     {
         qDebug() << "loading" << f->d_mod->d_name;
-        if( !d_lua->addSourceLib( f->d_sourceCode, f->d_mod->d_fullName.join('.') ) )
+        if( !d_lua->addSourceLib( f->d_sourceCode, f->d_mod->getName() ) )
         {
             hasErrors = true;
         }
@@ -1156,7 +1173,7 @@ void Ide::onExportAsm()
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
 {
-    ScopeRef s = item->data(0,Qt::UserRole).value<ScopeRef>();
+    ModRef s = item->data(0,Qt::UserRole).value<ModRef>();
     if( s.isNull() )
         return;
 
@@ -1250,8 +1267,15 @@ void Ide::onEditorChanged()
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         if( e->isModified() )
             d_filesDirty = true;
-        QFileInfo info( d_tab->getDoc(i).toString() );
-        d_tab->setTabText(i, info.fileName() + ( e->isModified() ? "*" : "" ) );
+        const QString path = d_tab->getDoc(i).toString();
+        Module* m = d_pro->getFiles().value(path)->d_mod.data();
+        QString name;
+        if( m )
+            name = m->getName();
+        else
+            name = QFileInfo( path ).fileName();
+        d_tab->setTabText(i, name + ( e->isModified() ? "*" : "" ) );
+        d_tab->setTabToolTip( i, path );
     }
     onCaption();
 }
@@ -1391,7 +1415,7 @@ void Ide::onRemoveFile()
 {
     ENABLED_IF( d_mods->currentItem() && d_mods->currentItem()->type() == 0 );
 
-    ScopeRef s = d_mods->currentItem()->data(0,Qt::UserRole).value<ScopeRef>();
+    ModRef s = d_mods->currentItem()->data(0,Qt::UserRole).value<ModRef>();
     if( s.isNull() )
         return;
 
@@ -1522,25 +1546,6 @@ static bool sortNamed( Named* lhs, Named* rhs )
     return lhs->d_name.toLower() < rhs->d_name.toLower();
 }
 
-static void fillScope( QTreeWidgetItem* p, Scope* s )
-{
-    //bool foundConst = false, foundType = false, foundVar = false;
-    QList<Named*> sort;
-    for( int j = 0; j < s->d_order.size(); j++ )
-        sort << s->d_order[j].data();
-    std::sort( sort.begin(), sort.end(), sortNamed );
-    foreach( Named* n, sort )
-    {
-        if( n->getTag() == Thing::T_Procedure )
-        {
-            QTreeWidgetItem* item = new QTreeWidgetItem( p );
-            item->setText(0, n->d_name + n->visibilitySymbol() );
-            item->setData(0,Qt::UserRole, QVariant::fromValue(ScopeRef(cast<Scope*>(n))) );
-            fillScope(item, cast<Scope*>(n) );
-        }
-    }
-}
-
 typedef QPair<QByteArray,QList<Project::File*> > Group;
 
 static bool sortNamed1( const Group& lhs, const Group& rhs )
@@ -1551,13 +1556,13 @@ static bool sortNamed1( const Group& lhs, const Group& rhs )
 template<class T>
 static void fillModTree( T* parent, const QList<Module*>& mods )
 {
-    foreach( Module* n, mods )
+    foreach( Module* m, mods )
     {
         QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-        item->setText(0, n->d_name);
-        item->setToolTip(0,n->d_file);
+        item->setText(0, m->d_name);
+        item->setToolTip(0,m->d_file);
         item->setIcon(0, QPixmap(":/images/module.png") );
-        item->setData(0,Qt::UserRole,QVariant::fromValue(ScopeRef( n ) ) );
+        item->setData(0,Qt::UserRole,QVariant::fromValue(ModRef( m ) ) );
     }
 }
 
@@ -1624,10 +1629,12 @@ void Ide::addTopCommands(Gui::AutoMenu* pop)
 Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMarker, bool center )
 {
     Project::FileRef pf = d_pro->getFiles().value(path);
-    //if( pf.d_mod.isNull() )
-    //    return;
+    if( pf.data() == 0 )
+        pf = d_pro->getModules().value(path.toLatin1());
+    if( pf.data() == 0 )
+        return 0;
 
-    const int i = d_tab->findDoc(path);
+    const int i = d_tab->findDoc(pf->d_filePath);
     Editor* edit = 0;
     if( i != -1 )
     {
@@ -1646,14 +1653,14 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
             edit->setExt(true);
         else
             edit->setExt(pf->d_mod->d_isExt);
-        edit->loadFromFile(path);
+        edit->loadFromFile(pf->d_filePath);
 
-        const Lua::Engine2::Breaks& br = d_lua->getBreaks( path.toUtf8() );
+        const Lua::Engine2::Breaks& br = d_lua->getBreaks( pf->d_filePath.toUtf8() );
         Lua::Engine2::Breaks::const_iterator j;
         for( j = br.begin(); j != br.end(); ++j )
             edit->addBreakPoint((*j) - 1);
 
-        d_tab->addDoc(edit,path);
+        d_tab->addDoc(edit,pf->d_filePath);
         onEditorChanged();
     }
     if( row > 0 && col > 0 )
@@ -1722,6 +1729,8 @@ void Ide::addDebugMenu(Gui::AutoMenu* pop)
     sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
     sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     sub->addAction( d_dbgStepIn );
+    pop->addAction( d_dbgStepOver );
+    pop->addAction( d_dbgStepOut );
     sub->addAction( d_dbgBreak );
     sub->addAction( d_dbgContinue );
     sub->addAction( d_dbgAbort );
@@ -1850,7 +1859,7 @@ void Ide::fillXref()
         f.setBold(true);
 
         QString type;
-        QString name = hitSym->d_name;
+        QString name = hitSym->getName();
         switch( hitSym->getTag() )
         {
         case Thing::T_Field:
@@ -1880,7 +1889,6 @@ void Ide::fillXref()
             break;
         case Thing::T_Module:
             type = "Module";
-            name = cast<Module*>(hitSym)->d_fullName.join('.');
             break;
         }
 
@@ -1897,7 +1905,7 @@ void Ide::fillXref()
             Q_ASSERT( ident != 0 && mod != 0 );
             QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
             i->setText( 0, QString("%1 (%2:%3 %4)")
-                        .arg(e->getModule()->d_fullName.join('.').constData())
+                        .arg(e->getModule()->getName().constData())
                         .arg(e->d_loc.d_row).arg(e->d_loc.d_col)
                         .arg( roleName(e) ));
             if( e == hitEx )
@@ -1946,7 +1954,7 @@ void Ide::fillXref(Named* sym)
             continue;
         Q_ASSERT( ident != 0 && mod != 0 );
         QTreeWidgetItem* i = new QTreeWidgetItem(d_xref);
-        i->setText( 0, e->getModule()->d_fullName.join('.') );
+        i->setText( 0, e->getModule()->getName() );
         i->setToolTip( 0, i->text(0) );
         i->setData( 0, Qt::UserRole, QVariant::fromValue( ExRef(e) ) );
     }
@@ -1956,6 +1964,7 @@ void Ide::fillStack()
 {
     d_stack->clear();
     Lua::Engine2::StackLevels ls = d_lua->getStackTrace();
+    d_scopes = QVector<Scope*>(ls.size());
 
     bool opened = false;
     for( int level = 0; level < ls.size(); level++ )
@@ -1973,6 +1982,18 @@ void Ide::fillStack()
         {
             const int row = RowCol::unpackRow2(l.d_line);
             const int col = RowCol::unpackCol2(l.d_line);
+            const int row2 = RowCol::unpackRow2(l.d_lineDefined);
+            const int col2 = RowCol::unpackCol2(l.d_lineDefined);
+            Expression* e = d_pro->findSymbolBySourcePos(l.d_source,row2,col2);
+            if( e && e->getIdent() )
+            {
+                const int tag = e->getIdent()->getTag();
+                if( tag == Thing::T_Procedure || Thing::T_Module )
+                {
+                    item->setText(1,e->getIdent()->d_name );
+                    d_scopes[level] = cast<Scope*>(e->getIdent());
+                }
+            }
             item->setText(2,QString("%1:%2").arg(row).arg(col));
             item->setData(2, Qt::UserRole, l.d_line );
             item->setText(3, QFileInfo(l.d_source).baseName() );
@@ -1990,6 +2011,7 @@ void Ide::fillStack()
     d_stack->parentWidget()->show();
 }
 
+#if 0
 static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
 {
     if( val.canConvert<Lua::Engine2::VarAddress>() )
@@ -2044,14 +2066,59 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
             item->setText(1,i.value().toString());
     }
 }
+#endif
 
 void Ide::fillLocals()
 {
     d_locals->clear();
+    lua_Debug ar;
+    if( d_scopes[ d_lua->getActiveLevel() ] && lua_getstack( d_lua->getCtx(), d_lua->getActiveLevel(), &ar ) )
+    {
+        foreach( const Ref<Named>& n, d_scopes[ d_lua->getActiveLevel() ]->d_order )
+        {
+            const int tag = n->getTag();
+            if( tag == Thing::T_Parameter || tag == Thing::T_LocalVar )
+            {
+                QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
+                const int before = lua_gettop(d_lua->getCtx());
+                if( lua_getlocal( d_lua->getCtx(), &ar, n->d_slot + 1 ) )
+                {
+                    item->setText(0,n->d_name);
+                    printLocalVal(item,n->d_type.data(), 0);
+                    lua_pop( d_lua->getCtx(), 1 );
+                }else
+                    item->setText(0,"<invalid>");
+                Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+            }
+        }
+        Module* m = d_scopes[ d_lua->getActiveLevel() ]->getModule();
+        QTreeWidgetItem* parent = new QTreeWidgetItem(d_locals);
+        parent->setText(0,m->getName());
+        parent->setText(1,"<module>");
+        const int before = lua_gettop(d_lua->getCtx());
+        lua_getglobal( d_lua->getCtx(), m->getName() );
+        Q_ASSERT( !lua_isnil( d_lua->getCtx(), -1 ) );
+        const int mod = lua_gettop( d_lua->getCtx() );
+        foreach( const Ref<Named>& n, m->d_order )
+        {
+            if( n->getTag() == Thing::T_Variable )
+            {
+                QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+                item->setText(0,n->d_name);
+                const int before = lua_gettop(d_lua->getCtx());
+                lua_rawgeti( d_lua->getCtx(), mod, n->d_slot );
+                printLocalVal(item,n->d_type.data(), 0);
+                lua_pop( d_lua->getCtx(), 1 );
+                Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+            }
+        }
+        lua_pop( d_lua->getCtx(), 1 );
+        Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+    }
+#if 0
     Lua::Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50,true);
     foreach( const Lua::Engine2::LocalVar& v, vs )
     {
-        QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
         QString name = v.d_name;
         if( v.d_isUv )
             name = "(" + name + ")";
@@ -2092,6 +2159,226 @@ void Ide::fillLocals()
                 break;
            }
         }
+    }
+#endif
+}
+
+static inline Type* derefed( Type* type )
+{
+    if( type == 0 )
+        return 0;
+    return type->derefed();
+}
+
+template <class T>
+static inline void createArrayElems( QTreeWidgetItem* parent, const void* ptr,
+                                     int bytecount, int numOfFetchedElems, char format = 0 )
+{
+    const int count = bytecount / sizeof(T);
+    parent->setText(1, QString("<array length %1>").arg(count) );
+    const T* arr = (const T*)ptr;
+    for( int i = 0; i < qMin(count,numOfFetchedElems); i++ )
+    {
+        QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+        item->setText(0,QString::number(i));
+        switch(format)
+        {
+        case 'b':
+            item->setText(1, arr[i] ? "true" : "false" );
+            break;
+        case 's':
+            item->setText(1,QString("{%1}").arg((quint32)arr[i],32,2,QChar('0')));
+            break;
+        default:
+            item->setText(1,QString::number(arr[i]));
+            break;
+        }
+    }
+}
+
+void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
+{
+    static const int numOfFetchedElems = 50;
+
+    type = derefed(type);
+    Q_ASSERT( type );
+    const int tag = type->getTag();
+    if( tag == Thing::T_Pointer || tag == Thing::T_ProcType )
+    {
+        if( lua_isnil( d_lua->getCtx(), -1 ) )
+        {
+            item->setText(1,"nil");
+            return;
+        }
+        if( tag == Thing::T_Pointer )
+            type = derefed(cast<Pointer*>(type)->d_to.data());
+    }
+    switch( type->getBaseType() )
+    {
+    case Type::BOOLEAN:
+        if( lua_toboolean(d_lua->getCtx(), -1) )
+            item->setText(1,"true");
+        else
+            item->setText(1,"false");
+        return;
+    case Type::CHAR:
+    case Type::WCHAR:
+        {
+            const ushort uc = lua_tointeger(d_lua->getCtx(),-1);
+            const QString ch = QChar( uc );
+            item->setText(1,QString("'%1' %2x").arg(ch.simplified()).arg(uc,0,16));
+        }
+        return;
+    case Type::BYTE:
+        item->setText(1,QString("%1h").arg(lua_tointeger(d_lua->getCtx(),-1),0,16));
+        return;
+    case Type::SHORTINT:
+    case Type::INTEGER:
+    case Type::LONGINT:
+        item->setText(1,QString::number(lua_tointeger(d_lua->getCtx(),-1)));
+        return;
+    case Type::REAL:
+    case Type::LONGREAL:
+        item->setText(1,QString::number(lua_tonumber(d_lua->getCtx(),-1)));
+        return;
+    case Type::SET:
+        item->setText(1,QString("{%1}").arg((quint32)lua_tointeger(d_lua->getCtx(),-1),32,2,QChar('0')));
+        return;
+    case Type::NIL:
+    case Type::STRING:
+    case Type::WSTRING:
+        Q_ASSERT( false );
+        break;
+    }
+    switch( type->getTag() )
+    {
+    case Thing::T_Array:
+        {
+            Array* a = cast<Array*>(type);
+            Type* at = derefed(a->d_type.data());
+            Q_ASSERT( at );
+            const int arr = lua_gettop(d_lua->getCtx());
+            if( lua_type(d_lua->getCtx(), arr ) == 10 ) // cdata
+            {
+                const void* ptr = lua_topointer(d_lua->getCtx(), -1);
+                if( at->isChar() )
+                {
+                    // doesn't work:
+                    // const int count = lua_objlen( d_lua->getCtx(), -1 );
+                    // lua_rawgeti(d_lua->getCtx(), -1, i );
+                    QString str;
+                    if( at->getBaseType() == Type::CHAR )
+                    {
+                        const quint8* buf = (const quint8*)ptr;
+                        for(int i = 0; i < numOfFetchedElems; i++ )
+                        {
+                            quint8 ch = buf[i];
+                            if( ch == 0 )
+                                break;
+                            str += QChar((ushort) ch );
+                        }
+                    }else
+                    {
+                        const quint16* buf = (const quint16*)ptr;
+                        for(int i = 0; i < numOfFetchedElems; i++ )
+                        {
+                            quint16 ch = buf[i];
+                            if( ch == 0 )
+                                break;
+                            str += QChar((ushort) ch );
+                        }
+                    }
+                    item->setText(1,QString("\"%1\"").arg(str));
+                }else
+                {
+                    lua_getglobal(d_lua->getCtx(), "obxlj");
+                    lua_rawgeti(d_lua->getCtx(), -1, 26 ); // bytesize
+                    lua_pushvalue( d_lua->getCtx(), arr );
+                    lua_pcall( d_lua->getCtx(), 1, 1, 0 );
+                    const int bytesize = lua_tointeger( d_lua->getCtx(), -1 );
+                    lua_pop( d_lua->getCtx(), 2 ); // obxlj, count
+                    switch( at->getBaseType() )
+                    {
+                    case Type::BOOLEAN:
+                        createArrayElems<quint8>( item, ptr, bytesize, numOfFetchedElems, 'b');
+                        break;
+                    case Type::BYTE:
+                        createArrayElems<quint8>( item, ptr, bytesize, numOfFetchedElems);
+                        break;
+                    case Type::SHORTINT:
+                        createArrayElems<qint16>( item, ptr, bytesize, numOfFetchedElems);
+                        break;
+                    case Type::INTEGER:
+                        createArrayElems<qint32>( item, ptr, bytesize, numOfFetchedElems);
+                        break;
+                    case Type::LONGINT:
+                        createArrayElems<qint64>( item, ptr, bytesize, numOfFetchedElems);
+                        break;
+                    case Type::REAL:
+                        createArrayElems<float>( item, ptr, bytesize, numOfFetchedElems);
+                        break;
+                    case Type::LONGREAL:
+                        createArrayElems<double>( item, ptr, bytesize, numOfFetchedElems);
+                        break;
+                    case Type::SET:
+                        createArrayElems<quint32>( item, ptr, bytesize, numOfFetchedElems, 's');
+                        break;
+                    case Type::NIL:
+                    case Type::STRING:
+                    case Type::WSTRING:
+                        Q_ASSERT( false );
+                        break;
+                    }
+                }
+            }else
+            {
+                lua_getfield( d_lua->getCtx(), -1, "count" );
+                const int count = lua_tointeger( d_lua->getCtx(), -1 );
+                lua_pop( d_lua->getCtx(), 1 );
+                item->setText(1, QString("<array length %1>").arg(count) );
+                for( int i = 0; i < qMin(count,numOfFetchedElems); i++ )
+                {
+                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+                    sub->setText(0,QString::number(i));
+                    lua_rawgeti( d_lua->getCtx(), arr, i );
+                    printLocalVal(sub,at,depth+1);
+                    lua_pop( d_lua->getCtx(), 1 );
+                }
+            }
+        }
+        break;
+    case Thing::T_Enumeration:
+        item->setText(1,"<enum>");
+        break;
+    case Thing::T_ProcType:
+        {
+            const void* ptr = lua_topointer(d_lua->getCtx(), -1);
+#if Q_PROCESSOR_WORDSIZE == 4
+            const quint32 ptr2 = (quint32)ptr;
+#else
+            const quint64 ptr2 = (quint64)ptr;
+#endif
+            item->setText(1,QString("proc 0x%1").arg(ptr2,0,16));
+        }
+        break;
+    case Thing::T_Record:
+        {
+            const int rec = lua_gettop(d_lua->getCtx());
+            item->setText(1,"<record>");
+            Record* r = cast<Record*>(type);
+            QList<Field*> fs = r->getOrderedFields();
+            foreach( Field* f, fs )
+            {
+                QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+                sub->setText(0,f->d_name);
+                lua_rawgeti( d_lua->getCtx(), rec, f->d_slot );
+                printLocalVal(sub,derefed(f->d_type.data()),depth+1);
+                lua_pop( d_lua->getCtx(), 1 );
+            }
+        }
+        break;
+    default:
+        Q_ASSERT(false);
     }
 }
 
@@ -2221,7 +2508,7 @@ void Ide::fillModule(Module* m)
     d_modTitle->clear();
     if( m == 0 )
         return;
-    d_modTitle->setText( QString("'%1'").arg(m->d_fullName.join('.').constData()) );
+    d_modTitle->setText( QString("'%1'").arg(m->getName().constData()) );
     walkModItems(d_mod, m, 0, true, d_modIdx );
 }
 
@@ -2231,7 +2518,7 @@ static QTreeWidgetItem* fillHierProc( T* parent, Procedure* p, Named* ref )
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
     Q_ASSERT( p->d_receiver && !p->d_receiver->d_type.isNull() );
     Q_ASSERT( p->d_receiver->d_type->getTag() == Thing::T_QualiType );
-    item->setText(0, QString("%1.%2").arg(p->getModule()->d_fullName.join('.').constData())
+    item->setText(0, QString("%1.%2").arg(p->getModule()->getName().constData())
                   .arg(cast<QualiType*>(p->d_receiver->d_type.data())->d_quali->getIdent()->d_name.constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(p) ) );
     item->setIcon(0, QPixmap( p->d_visibility >= Named::ReadWrite ? ":/images/func.png" : ":/images/func_priv.png" ) );
@@ -2257,7 +2544,7 @@ static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
     if( name == 0 && p->d_binding )
         name = p->d_binding->d_ident;
     Q_ASSERT( name != 0 );
-    item->setText(0, QString("%1.%2").arg(name->getModule()->d_fullName.join('.').constData()).arg(name->d_name.constData()));
+    item->setText(0, QString("%1.%2").arg(name->getModule()->getName().constData()).arg(name->d_name.constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );
     item->setIcon(0, QPixmap( name->d_visibility >= Named::ReadWrite ? ":/images/class.png" : ":/images/class_priv.png" ) );
     item->setToolTip(0,item->text(0));
@@ -2356,6 +2643,8 @@ void Ide::enableDbgMenu()
     d_dbgAbort->setEnabled(d_lua->isWaiting());
     d_dbgContinue->setEnabled(d_lua->isWaiting());
     d_dbgStepIn->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
+    d_dbgStepOver->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
+    d_dbgStepOut->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
 }
 
 void Ide::handleGoBack()
@@ -2416,6 +2705,16 @@ void Ide::onSingleStep()
     // ENABLED_IF( d_lua->isWaiting() );
 
     d_lua->runToNextLine();
+}
+
+void Ide::onStepOver()
+{
+    d_lua->runToNextLine(Lua::Engine2::StepOver);
+}
+
+void Ide::onStepOut()
+{
+    d_lua->runToNextLine(Lua::Engine2::StepOut);
 }
 
 void Ide::onContinue()
@@ -2502,13 +2801,13 @@ void Ide::onExpMod()
 {
     ENABLED_IF( d_mods->currentItem() );
 
-    ScopeRef s = d_mods->currentItem()->data(0,Qt::UserRole).value<ScopeRef>();
+    ModRef s = d_mods->currentItem()->data(0,Qt::UserRole).value<ModRef>();
     if( s.isNull() || s->getTag() != Thing::T_Module )
         return;
 
     Module* m = cast<Module*>(s.data());
 
-    const QString path = QFileDialog::getSaveFileName( this, tr("Export Module"), m->d_fullName.join('.') + ".obx" );
+    const QString path = QFileDialog::getSaveFileName( this, tr("Export Module"), m->getName() + ".obx" );
 
     if( path.isEmpty() )
         return;
@@ -2529,7 +2828,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.6.2");
+    a.setApplicationVersion("0.7.0");
     a.setStyle("Fusion");
 
     Ide w;

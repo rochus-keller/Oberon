@@ -160,12 +160,12 @@ struct ObxLjbcGenImp : public AstVisitor
     JitComposer bc;
     Errors* err;
     Module* thisMod;
-    bool ownsErr;
+    bool ownsErr, stripped;
     quint8 modSlot, obxlj, curClass;
     QList<quint8> slotStack;
     QList <quint32> exitJumps;
 
-    ObxLjbcGenImp():err(0),thisMod(0),ownsErr(false),modSlot(0),obxlj(0),curClass(0){}
+    ObxLjbcGenImp():err(0),thisMod(0),ownsErr(false),modSlot(0),obxlj(0),curClass(0),stripped(0){}
 
     struct Accessor
     {
@@ -274,6 +274,8 @@ struct ObxLjbcGenImp : public AstVisitor
         foreach( Procedure* p, pc.allProcs )
             p->accept(this);
 
+        // make Module table a global variable
+        bc.GSET( modSlot, me->getName(), me->d_end.packed() );
 
         // the module body is in a synthetic procedure so that upvalue access is uniform
         if( !me->d_body.isEmpty() )
@@ -293,8 +295,6 @@ struct ObxLjbcGenImp : public AstVisitor
         }else
             bc.UCLO( modSlot, 0, me->d_end.packed() );
 
-        // make Module table a global variable
-        bc.GSET( modSlot, me->d_fullName.join('.'), me->d_end.packed() );
         bc.RET( modSlot, 1, me->d_end.packed() ); // return module
 
         JitComposer::VarNameList sn(ctx.back().pool.d_frameSize);
@@ -306,7 +306,7 @@ struct ObxLjbcGenImp : public AstVisitor
             n.d_to = bc.getCurPc();
         }
         bc.setVarNames( sn );
-        bc.closeFunction(ctx.back().pool.d_frameSize);
+        bc.closeFunction(ctx.back().pool.d_frameSize); // module function
         ctx.pop_back();
     }
 
@@ -327,6 +327,7 @@ struct ObxLjbcGenImp : public AstVisitor
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
         if( me->d_upvalSource )
         {
+            // this trick can also be used for procs where we run out of local slots
             const int localSlotCount = parCount + me->d_varCount;
             int reserve = ctx.back().buySlots(localSlotCount);
             int tmp = ctx.back().buySlots(1);
@@ -2230,6 +2231,18 @@ struct ObxLjbcGenImp : public AstVisitor
             for( int i = 0; i < r->d_methods.size(); i++ )
                 r->d_methods[i]->accept(this); // generate code for curMethod and store it in curClass
 
+#if 0
+            // not necessary!
+            if( !stripped )
+            {
+                int tmp = ctx.back().buySlots(1);
+                bc.KSET(tmp, thisMod->getName(), r->d_loc.packed() );
+                bc.TSET(tmp,curClass,"@mod",r->d_loc.packed() );
+                bc.KSET(tmp, r->d_loc.packed(), r->d_loc.packed() );
+                bc.TSET(tmp,curClass,"@loc",r->d_loc.packed() );
+                ctx.back().sellSlots(tmp);
+            }
+#endif
             r->d_slotAllocated = true;
         }
     }
@@ -2868,7 +2881,7 @@ struct ObxLjbcGenImp : public AstVisitor
 };
 
 
-bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, Ob::Errors* err)
+bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, bool strip, Ob::Errors* err)
 {
     Q_ASSERT( mdl );
     Q_ASSERT( RowCol::COL_BIT_LEN == JitComposer::COL_BIT_LEN && RowCol::ROW_BIT_LEN == JitComposer::ROW_BIT_LEN );
@@ -2899,7 +2912,7 @@ bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, O
             {
                 if( m->d_isDef )
                     allocateDef(m,&out,err);
-                else if( !translate(m,&out,err) )
+                else if( !translate(m,&out, strip, err) )
                     errs++;
             }
         }
@@ -2907,7 +2920,7 @@ bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, O
     return errs == 0;
 }
 
-bool LjbcGen::translate(Module* m, QIODevice* out, Ob::Errors* errs)
+bool LjbcGen::translate(Module* m, QIODevice* out, bool strip, Ob::Errors* errs)
 {
     Q_ASSERT( m != 0 && out != 0 );
 
@@ -2919,7 +2932,9 @@ bool LjbcGen::translate(Module* m, QIODevice* out, Ob::Errors* errs)
 
     ObxLjbcGenImp imp;
     imp.bc.setUseRowColFormat(true);
+    imp.bc.setStripped(strip);
     imp.thisMod = m;
+    imp.stripped = strip;
 
     if( errs == 0 )
     {

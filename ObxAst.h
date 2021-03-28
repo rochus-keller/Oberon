@@ -318,6 +318,7 @@ namespace Obx
             d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
             d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
             d_hasErrors(0) {}
+        virtual QByteArray getName() const { return d_name; }
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
         Module* getModule();
@@ -467,6 +468,7 @@ namespace Obx
         Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
+        QByteArray getName() const { return d_fullName.join('.'); }
     };
 
     struct NamedType : public Scope // TypeDeclaration (Scope because of MetaParams)
