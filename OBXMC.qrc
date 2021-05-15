@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>oakwood/Coroutines.Def</file>
+        <file>oakwood/Files.Def</file>
+        <file>oakwood/In.Def</file>
+        <file>oakwood/Input.Def</file>
+        <file>oakwood/Math.Def</file>
+        <file>oakwood/Out.Def</file>
+        <file>oakwood/Strings.Def</file>
+        <file>oakwood/XYPlane.Def</file>
+    </qresource>
+</RCC>

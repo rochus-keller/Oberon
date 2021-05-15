@@ -1,6 +1,6 @@
 module Procs7
 
-	// this code is not supported by Oberon+:
+	// this code is not (yet) supported by Oberon+:
 	
 	proc Outer()
 		var a,b,c: integer

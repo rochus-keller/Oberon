@@ -313,8 +313,8 @@ struct ValidatorImp : public AstVisitor
 
     bool checkBuiltInArgs( ProcType* p, ArgExpr* args )
     {
-        Q_ASSERT( p->d_ident && p->d_ident->getTag() == Thing::T_BuiltIn );
-        BuiltIn* bi = cast<BuiltIn*>(p->d_ident);
+        Q_ASSERT( p->d_decl && p->d_decl->getTag() == Thing::T_BuiltIn );
+        BuiltIn* bi = cast<BuiltIn*>(p->d_decl);
 
         switch( bi->d_func )
         {
@@ -828,7 +828,7 @@ struct ValidatorImp : public AstVisitor
             {
                 // this is a call
                 ProcType* p = cast<ProcType*>( subType );
-                const bool isBuiltIn = p->d_ident && p->d_ident->getTag() == Thing::T_BuiltIn;
+                const bool isBuiltIn = p->d_decl && p->d_decl->getTag() == Thing::T_BuiltIn;
                 if( !isBuiltIn || !checkBuiltInArgs( p, me ) )
                     checkCallArgs( p, me );
                 if( me->d_sub->getIdent() )
@@ -850,7 +850,7 @@ struct ValidatorImp : public AstVisitor
                 if( isBuiltIn )
                 {
                     // for some built-in procs the return type is dependent on proc arguments
-                    me->d_type = calcBuiltInReturnType( cast<BuiltIn*>(p->d_ident), me->d_args );
+                    me->d_type = calcBuiltInReturnType( cast<BuiltIn*>(p->d_decl), me->d_args );
                 }else
                     me->d_type = p->d_return.data();
             }else if( decl && decl->getTag() == Thing::T_NamedType )

@@ -2808,7 +2808,7 @@ struct ObxLjbcGenImp : public AstVisitor
         }
     }
 
-    static Type* derefed( Type* t )
+    static inline Type* derefed( Type* t )
     {
         if( t )
             return t->derefed();
@@ -3003,9 +3003,9 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
         ObxLjbcGenImp::allocateClasses(r,slotNr);
         if( out )
         {
-            Named* name = r->d_ident;
+            Named* name = r->d_decl;
             if( name == 0 && r->d_binding )
-                name = r->d_binding->d_ident;
+                name = r->d_binding->d_decl;
             if( name )
                 ts << "-- module[" << r->d_slot << "] = record " << name->d_name << endl;
             else

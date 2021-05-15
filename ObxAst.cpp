@@ -74,9 +74,9 @@ struct ObxAstPrinter : public AstVisitor
 {
     bool namedType( Type* t )
     {
-        if( t->d_ident && t->d_ident->getTag() == Thing::T_NamedType && t->d_ident != curNamed )
+        if( t->d_decl && t->d_decl->getTag() == Thing::T_NamedType && t->d_decl != curNamed )
         {
-            out << "( TREF " << t->d_ident->d_name << " ) ";
+            out << "( TREF " << t->d_decl->d_name << " ) ";
             return true;
         }
         return false;
@@ -506,8 +506,8 @@ BuiltIn::BuiltIn(quint8 f, ProcType* pt):d_func(f)
         d_type = pt;
     else
         d_type = new ProcType();
-    Q_ASSERT( d_type->d_ident == 0 );
-    d_type->d_ident = this;
+    Q_ASSERT( d_type->d_decl == 0 );
+    d_type->d_decl = this;
 }
 
 ProcType::ProcType(const Type::List& f, Type* r):d_return(r)
@@ -546,7 +546,7 @@ Parameter*ProcType::find(const QByteArray& name) const
 
 bool ProcType::isBuiltIn() const
 {
-    return d_ident && d_ident->getTag() == Thing::T_BuiltIn;
+    return d_decl && d_decl->getTag() == Thing::T_BuiltIn;
 }
 
 ProcType*ArgExpr::getProcType() const
@@ -871,6 +871,20 @@ QVariant BaseType::minVal() const
         return std::numeric_limits<double>::min();
     }
     return QVariant();
+}
+
+Named*Type::findDecl(bool recursive) const
+{
+    if( d_decl )
+        return d_decl;
+    else if( d_binding )
+    {
+        if( recursive )
+            return d_binding->findDecl();
+        else
+            return d_binding->d_decl;
+    }else
+        return 0;
 }
 
 bool Type::isText(bool* wide) const

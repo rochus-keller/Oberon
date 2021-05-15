@@ -6,11 +6,15 @@ MainProc=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
+[.]
+size=0
+
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Procs3.obx
-1\RelPath=Procs3.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic1.obx
+1\RelPath=Generic1.obx
 size=1
 
 [Packages]
 1\Name=@ByteArray()
-size=1
+2\Name=@ByteArray()
+size=2

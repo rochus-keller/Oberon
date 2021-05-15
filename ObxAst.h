@@ -177,7 +177,9 @@ namespace Obx
         enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET }; // BaseType
 
-        Named* d_ident; // a reference to the ident or null if type is anonymous
+        Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
+        Type* d_binding; // points back to pointer or array type in case of anonymous type
+        // TODO: either d_decl or d_binding are not zero
 
         uint d_visited : 1;
         uint d_baseType : 4;    // used by BaseType
@@ -187,13 +189,14 @@ namespace Obx
 
         Ref<Expression> d_flag; // optional system flag
 
-        Type():d_ident(0),d_visited(false),d_baseType(0),d_selfRef(false),
+        Type():d_decl(0),d_binding(0),d_visited(false),d_baseType(0),d_selfRef(false),
             d_unsafe(false),d_union(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
+        Named* findDecl(bool recursive = false) const;
         int getBaseType() const { return d_baseType; }
         bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
         bool isReal() const { return d_baseType == REAL || d_baseType == LONGREAL; }
@@ -245,7 +248,6 @@ namespace Obx
         Ref<QualiType> d_base; // base type - a quali to a Record or Pointer or null
         Record* d_baseRec;
         QList<Record*> d_subRecs;
-        Pointer* d_binding; // points back to pointer type in case of anonymous record
 
         typedef QHash<const char*,Named*> Names;
         Names d_names;
@@ -253,7 +255,7 @@ namespace Obx
         QList< Ref<Procedure> > d_methods;
         quint16 d_fieldCount, d_methCount;
 
-        Record():d_binding(0),d_baseRec(0),d_fieldCount(0),d_methCount(0) {}
+        Record():d_baseRec(0),d_fieldCount(0),d_methCount(0) {}
         int getTag() const { return T_Record; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured() const { return true; }

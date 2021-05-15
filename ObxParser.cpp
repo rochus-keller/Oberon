@@ -282,7 +282,7 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
     if( !scope->add(nt.data()) )
         semanticError(nt->d_loc,tr("name of type declaration must be unique"));
 
-    nt->d_type = type(scope, nt.data());
+    nt->d_type = type(scope, nt.data(), 0);
 
     if( !nt->d_type.isNull() )
     {
@@ -322,7 +322,7 @@ MetaParams Parser::typeParams()
     return res;
 }
 
-Ref<Type> Parser::type(Scope* scope, Named* id, Pointer* binding)
+Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
 {
     static const TokSet toks = TokSet() << Tok_Lpar << Tok_Lbrack << Tok_Hat << Tok_ARRAY << Tok_CARRAY
                                         << Tok_UNSAFE << Tok_CSTRUCT << Tok_CUNION
@@ -333,13 +333,13 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Pointer* binding)
     switch( d_la )
     {
     case Tok_ident:
-        return namedType(id).data();
+        return namedType(id, binding).data();
     case Tok_Lpar:
-        return enumeration(scope,id);
+        return enumeration(scope,id, binding);
     case Tok_ARRAY:
     case Tok_CARRAY:
     case Tok_Lbrack:
-        return arrayType(scope, id);
+        return arrayType(scope, id, binding);
     case Tok_RECORD:
     case Tok_CSTRUCT:
     case Tok_CUNION:
@@ -347,10 +347,10 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Pointer* binding)
     case Tok_POINTER:
     case Tok_UNSAFE:
     case Tok_Hat:
-        return pointerType(scope, id);
+        return pointerType(scope, id, binding);
     case Tok_PROCEDURE:
     case Tok_PROC:
-        return procedureType(scope, id);
+        return procedureType(scope, id, binding);
     default:
         syntaxError( tr("expecting type"));
         break;
@@ -397,10 +397,11 @@ void Parser::addEnum( Scope* scope, Enumeration* e, const Token& t )
     }
 }
 
-Ref<Type> Parser::enumeration(Scope* scope,Named* id)
+Ref<Type> Parser::enumeration(Scope* scope,Named* id, Type* binding)
 {
     Ref<Enumeration> e = new Enumeration();
-    e->d_ident = id;
+    e->d_decl = id;
+    e->d_binding = binding;
     MATCH( Tok_Lpar, tr("expecting '(' to start enumeration") );
     e->d_loc = d_cur.toRowCol();
     MATCH( Tok_ident, tr("at least one identifier required in enumeration") );
@@ -415,7 +416,7 @@ Ref<Type> Parser::enumeration(Scope* scope,Named* id)
     return e.data();
 }
 
-Ref<QualiType> Parser::namedType(Named* id)
+Ref<QualiType> Parser::namedType(Named* id, Type* binding)
 {
     Ref<Expression> e = qualident();
     if( e.isNull() )
@@ -423,7 +424,8 @@ Ref<QualiType> Parser::namedType(Named* id)
 
     Ref<QualiType> q = new QualiType();
     q->d_quali = e;
-    q->d_ident = id;
+    q->d_decl = id;
+    q->d_binding = binding;
     q->d_loc = e->d_loc;
     if( d_la == Tok_Lt )
     {
@@ -433,10 +435,11 @@ Ref<QualiType> Parser::namedType(Named* id)
     return q.data();
 }
 
-Ref<Type> Parser::arrayType(Scope* scope, Named* id)
+Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
 {
     Ref<Array> arr = new Array();
-    arr->d_ident = id;
+    arr->d_decl = id;
+    arr->d_binding = binding;
     QList< Ref<Expression> > dims;
     if( d_la == Tok_ARRAY || d_la == Tok_CARRAY )
     {
@@ -461,7 +464,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
         MATCH( Tok_Rbrack, tr("expecting ']'") );
     }
 
-    Ref<Type> t = type(scope,0);
+    Ref<Type> t = type(scope,0, arr.data());
     arr->d_type = t;
 
     if( !dims.isEmpty() )
@@ -483,10 +486,10 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id)
     return arr.data();
 }
 
-Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
+Ref<Type> Parser::recordType(Scope* scope, Named* id, Type* binding)
 {
     Ref<Record> res = new Record();
-    res->d_ident = id;
+    res->d_decl = id;
     res->d_binding = binding;
     switch( d_la )
     {
@@ -511,7 +514,7 @@ Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
     if( d_la == Tok_Lpar )
     {
         next();
-        res->d_base = baseType();
+        res->d_base = baseType(res.data());
         MATCH( Tok_Rpar, tr("expecting ')' after record base type") );
     }
     if( d_la != Tok_END )
@@ -520,10 +523,11 @@ Ref<Type> Parser::recordType(Scope* scope, Named* id, Pointer* binding)
     return res.data();
 }
 
-Ref<Type> Parser::pointerType(Scope* scope, Named* id)
+Ref<Type> Parser::pointerType(Scope* scope, Named* id, Type* binding)
 {
     Ref<Pointer> p = new Pointer();
-    p->d_ident = id;
+    p->d_decl = id;
+    p->d_binding = binding;
     if( d_la == Tok_Hat )
     {
         next();
@@ -544,10 +548,11 @@ Ref<Type> Parser::pointerType(Scope* scope, Named* id)
     return p.data();
 }
 
-Ref<Type> Parser::procedureType(Scope* scope, Named* id)
+Ref<Type> Parser::procedureType(Scope* scope, Named* id, Type* binding)
 {
     Ref<ProcType> p = new ProcType();
-    p->d_ident = id;
+    p->d_decl = id;
+    p->d_binding = binding;
     if( d_la == Tok_PROC )
     {
         MATCH( Tok_PROC, tr("expecting the PROCEDURE keyword") );
@@ -568,7 +573,7 @@ Ref<Type> Parser::typeActual()
     switch( d_la )
     {
     case Tok_ident:
-        return namedType(0).data();
+        return namedType(0,0).data(); // TODO
 
     case Tok_integer:
     case Tok_real:
@@ -658,9 +663,9 @@ Ref<Expression> Parser::length()
     return constExpression();
 }
 
-Ref<QualiType> Parser::baseType()
+Ref<QualiType> Parser::baseType(Record* rec)
 {
-    Ref<QualiType> res = namedType(0);
+    Ref<QualiType> res = namedType(0, rec);
     switch( res->d_quali->getTag() )
     {
     case Thing::T_IdentLeaf:
@@ -712,7 +717,7 @@ void Parser::fieldList(Scope* scope, Record* r)
         identdef(fields.back().data(),scope);
     }
     MATCH( Tok_Colon, tr("expecting ':' between identifier list and type in field list") );
-    Ref<Type> t = type(scope,0);
+    Ref<Type> t = type(scope, fields.first().data(), 0);
     for( int i = 0; i < fields.size(); i++ )
     {
         fields[i]->d_type = t;
@@ -743,7 +748,7 @@ void Parser::formalParameters(Scope* scope, ProcType* p)
     if( d_la == Tok_Colon )
     {
         next();
-        p->d_return = namedType(0).data();
+        p->d_return = namedType(0, p).data();
     }
 }
 
@@ -766,7 +771,7 @@ void Parser::variableDeclaration(Scope* scope)
         identdef(vars.back().data(),scope);
     }
     MATCH( Tok_Colon, tr("expecting ':' between identifier list and type in field list") );
-    Ref<Type> t = type(scope,0);
+    Ref<Type> t = type(scope,vars.first().data(), 0);
     for( int i = 0; i < vars.size(); i++ )
     {
         vars[i]->d_type = t;
@@ -1602,7 +1607,7 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
     }
 
     Ref<ProcType> t = new ProcType();
-    t->d_ident = p;
+    t->d_decl = p;
     p->d_type = t.data();
     if( d_la == Tok_Lpar )
     {
@@ -1686,7 +1691,7 @@ Ref<Parameter> Parser::receiver()
 
     Ref<QualiType> q = new QualiType();
     q->d_quali = id.data();
-    q->d_ident = v.data();
+    q->d_decl = v.data();
     if( d_la == Tok_Lt )
     {
         q->d_metaActuals = typeActuals();
@@ -1804,6 +1809,8 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
             semanticError(p->d_loc,tr("name is not unique in parameter list") );
         pt->d_formals.append(p);
     }
+    Q_ASSERT( !pt->d_formals.isEmpty() );
+    t->d_decl = pt->d_formals.first().data();
     return true;
 }
 
@@ -1844,7 +1851,7 @@ Ref<Type> Parser::formalType(Scope* scope)
     }
     return t;
 #else
-    return type(scope,0);
+    return type(scope,0,0);
 #endif
 }
 

@@ -2540,9 +2540,9 @@ template<class T>
 static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
 {
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-    Named* name = p->d_ident;
+    Named* name = p->d_decl;
     if( name == 0 && p->d_binding )
-        name = p->d_binding->d_ident;
+        name = p->d_binding->d_decl;
     Q_ASSERT( name != 0 );
     item->setText(0, QString("%1.%2").arg(name->getModule()->getName().constData()).arg(name->d_name.constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );
@@ -2828,7 +2828,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.0");
+    a.setApplicationVersion("0.7.1");
     a.setStyle("Fusion");
 
     Ide w;

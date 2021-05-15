@@ -1,0 +1,15 @@
+module Generic1
+
+type
+	List<T> = pointer to record 
+            value : T
+            next  : List<T>
+        end
+var
+	IntList : pointer to List<integer>
+
+begin
+	new(IntList)
+	IntList.value := 33
+	
+end Generic1

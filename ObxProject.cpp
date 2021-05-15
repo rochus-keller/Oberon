@@ -121,7 +121,7 @@ struct ObxHitTest : public AstVisitor
 
     void visit( NamedType* t )
     {
-        if( t->d_type->d_ident == t )
+        if( t->d_type->d_decl == t )
             t->d_type->accept(this);
     }
 
