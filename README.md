@@ -52,7 +52,7 @@ More to come.
 - Browsing history, forward and backward navigation
 
 
-![OberonViewer Screenshot](http://software.rochus-keller.info/oberonviewer_screenshot_1.png)
+![OberonViewer Screenshot](http://software.rochus-keller.ch/oberonviewer_screenshot_1.png)
 
 ### Oberon IDE features
 
@@ -67,33 +67,33 @@ Same as code browser, in addition
 - A stack trace is also shown if TRACE or TRACEIF( exp: BOOLEAN ) evaluating to TRUE is executed
 
 
-![Oberon IDE Screenshot](http://software.rochus-keller.info/screenshot_oberon_system_in_debugger.png)
+![Oberon IDE Screenshot](http://software.rochus-keller.ch/screenshot_oberon_system_in_debugger.png)
 
 
-Here is another [screenshot](http://software.rochus-keller.info/screenshot_oberon_ide_0.5.1.png).
+Here is another [screenshot](http://software.rochus-keller.ch/screenshot_oberon_ide_0.5.1.png).
 
 
 
 ### Binary versions
 
-Here is a binary version of the Oberon IDE for Windows: http://software.rochus-keller.info/OberonIDE_win32.zip.
+Here is a binary version of the Oberon IDE for Windows: http://software.rochus-keller.ch/OberonIDE_win32.zip.
 Just unpack the ZIP somewhere on your drive and double-click OberonIDE.exe; Qt libraries are included as well as the demo Oberon System (open the project using CTRL+O and then run it using CTRL+R, or right-click to open context menus and select the commands from there).
 
-And here is a version of the Oberon IDE for Linux x86: http://software.rochus-keller.info/OberonIDE_linux_i368.tar.gz.
+And here is a version of the Oberon IDE for Linux x86: http://software.rochus-keller.ch/OberonIDE_linux_i368.tar.gz.
 It requires a preinstalled Qt version >= 5.4.
 
-Here is a version of the Oberon IDE for macOS x86_64 (>= El Capitan): http://software.rochus-keller.info/OberonIDE_macOS_x64.dmg.
+Here is a version of the Oberon IDE for macOS x86_64 (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg.
 The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
 
 
-Here is a binary version of OberonViewer for Windows: http://software.rochus-keller.info/OberonViewer_win32.zip
+Here is a binary version of OberonViewer for Windows: http://software.rochus-keller.ch/OberonViewer_win32.zip
 Just download, unpack and run it; no installer is needed. The ZIP includes the needed Qt libraries.
 
-Here is a binary version of OberonViewer for Linux x86: http://software.rochus-keller.info/OberonViewer_linux_x86.tar.gz
+Here is a binary version of OberonViewer for Linux x86: http://software.rochus-keller.ch/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
 
-Here is a binary version of OBNLC (Lua source code and bytecode generator) for Linux x86: http://software.rochus-keller.info/OBNLC_linux_x86.tar.gz. 
+Here is a binary version of OBNLC (Lua source code and bytecode generator) for Linux x86: http://software.rochus-keller.ch/OBNLC_linux_x86.tar.gz. 
 libQt5Core.so is required to run the binary.
 
 

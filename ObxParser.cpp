@@ -100,6 +100,7 @@ bool Parser::module(bool definition )
         if( definition )
             semanticError( d_cur.toLoc(), tr("There is no statement sequence in a DEFINITION module") );
         m->d_body = statementSequence(m.data());
+        m->d_begin = d_cur.toRowCol();
     }
     MATCH( Tok_END, tr("expecting END keyword at the end of the module") );
     MATCH( Tok_ident, tr("expecting module name after END keyword") );
@@ -273,6 +274,7 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
         nt->d_metaParams = typeParams();
         for( int i = 0; i < nt->d_metaParams.size(); i++ )
         {
+            nt->d_metaParams[i]->d_slot = i;
             if( !nt->add( nt->d_metaParams[i].data() ) )
                 semanticError(nt->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
         }
@@ -324,6 +326,8 @@ MetaParams Parser::typeParams()
 
 Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
 {
+    Q_ASSERT( ( id != 0 ) != ( binding != 0 ) ); // xor, either id or binding
+
     static const TokSet toks = TokSet() << Tok_Lpar << Tok_Lbrack << Tok_Hat << Tok_ARRAY << Tok_CARRAY
                                         << Tok_UNSAFE << Tok_CSTRUCT << Tok_CUNION
                                   << Tok_POINTER << Tok_PROC << Tok_PROCEDURE << Tok_RECORD << Tok_ident;
@@ -1795,7 +1799,7 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
     MATCH( Tok_Colon, tr("expecting ':' to separate parameter names from their type") );
     if( !d_cur.isValid() )
         return false;
-    Ref<Type> t = formalType(scope);
+    Ref<Type> t = formalType(scope,pt);
 
     foreach( const Token& name, names )
     {
@@ -1814,7 +1818,7 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
     return true;
 }
 
-Ref<Type> Parser::formalType(Scope* scope)
+Ref<Type> Parser::formalType(Scope* scope, Type* binding)
 {
 #ifdef OBN07
     int arrayOfCount = 0;
@@ -1851,7 +1855,7 @@ Ref<Type> Parser::formalType(Scope* scope)
     }
     return t;
 #else
-    return type(scope,0,0);
+    return type(scope,0,binding);
 #endif
 }
 

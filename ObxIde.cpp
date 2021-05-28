@@ -2540,9 +2540,7 @@ template<class T>
 static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
 {
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-    Named* name = p->d_decl;
-    if( name == 0 && p->d_binding )
-        name = p->d_binding->d_decl;
+    Named* name = p->findDecl(true);
     Q_ASSERT( name != 0 );
     item->setText(0, QString("%1.%2").arg(name->getModule()->getName().constData()).arg(name->d_name.constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );

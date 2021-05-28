@@ -1070,7 +1070,7 @@ bool Project::recompile()
         {
             i.value()->d_mod = m;
             d_modules.insert(m->getName(),i.value().data());
-            //m->dump();
+            // m->dump();
         }else
         {
             qDebug() << "missing" << m->d_name;

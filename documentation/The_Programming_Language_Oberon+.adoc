@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-03-25
+:revdate: 2021-05-28
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -45,7 +45,7 @@ module Lists
             next  : List<T>
         end
 
-    proc<T> (l : List<T>) Add* (v : T) 
+    proc (l : List) Add* (v : T) 
     begin
         if l = nil then
             new(l)           // create record instance
@@ -503,16 +503,17 @@ ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ]
 				   [Receiver] identdef [ FormalParameters ]
 NamedType        = qualident [TypeActuals] 
 ....
-
-If the receiver of a type bound procedure declaration refers to a parametric type declaration, its actual type parameter must correspond to one of the formal type parameters of the procedure. 
+ 
+Procedures bound to a parametric record type don't have explicit type parameters, but use the ones of the record type.
 
 .Example:
 ....
-proc <T> ( self: List<T> ) print 		// legal
+proc ( self: List ) print 		// legal
+proc <T> ( self: List<T> ) print 		// illegal
 proc <T> ( self: List<integer> ) print  // illegal
 ....
 
-Instantiated parametric record types do not have subtype relationships induced by their actual type parameters. 
+The base type of a record can be a parametric record type. Instantiated parametric record types do not have subtype relationships induced by their actual type parameters. 
 
 See also <<obx-generics-example, this example>>.
 

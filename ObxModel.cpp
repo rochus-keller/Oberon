@@ -521,6 +521,7 @@ bool Model::parseFiles(const FileGroups& files)
         qDebug() << "analyzing" << m->d_file;
 
         Validator::check(m, bt, d_errs );
+        m->dump(); // TEST
         if( d_fillXref )
             CrossReferencer(this,m);
     }

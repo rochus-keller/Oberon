@@ -10,8 +10,10 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic1.obx
-1\RelPath=Generic1.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic4.obx
+1\RelPath=Generic4.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic2.obx
+2\RelPath=Generic2.obx
 size=1
 
 [Packages]

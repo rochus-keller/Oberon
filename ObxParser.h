@@ -98,7 +98,7 @@ namespace Obx
         void declarationSequence(bool definition, Scope* scope);
         Ref<Statement> returnStatement(Scope* scope);
         bool fPSection(Scope* scope, ProcType* p);
-        Ref<Type> formalType(Scope* scope);
+        Ref<Type> formalType(Scope* scope, Type* binding);
         void importList();
         void import();
         Ref<Expression> systemFlag();

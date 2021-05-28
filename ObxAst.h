@@ -172,6 +172,9 @@ namespace Obx
         virtual void visit( Exit* ) {}
     };
 
+    typedef QList< Ref<Type> > MetaActuals;
+    typedef QList< Ref<GenericName> > MetaParams;
+
     struct Type : public Thing
     {
         enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
@@ -179,18 +182,19 @@ namespace Obx
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
         Type* d_binding; // points back to pointer or array type in case of anonymous type
-        // TODO: either d_decl or d_binding are not zero
 
         uint d_visited : 1;
         uint d_baseType : 4;    // used by BaseType
         uint d_selfRef : 1; // used by QualiType
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
+        uint d_minst : 1;   // set if this type is an instance of a generic type
+        uint d_mdef : 1; // set if this type is part of a generic type declaration
 
         Ref<Expression> d_flag; // optional system flag
 
         Type():d_decl(0),d_binding(0),d_visited(false),d_baseType(0),d_selfRef(false),
-            d_unsafe(false),d_union(false) {}
+            d_unsafe(false),d_union(false),d_minst(false),d_mdef(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
@@ -206,6 +210,7 @@ namespace Obx
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0) const;
         Record* toRecord() const;
+        virtual Ref<Type> instantiate( const MetaParams&, const MetaActuals& ) = 0;
     };
 
     struct BaseType : public Type
@@ -219,6 +224,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         const char* getTypeName() const { return s_typeName[d_baseType]; }
         QString pretty() const { return getTypeName(); }
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& ) { return this; }
     };
 
     struct Pointer : public Type
@@ -227,6 +233,7 @@ namespace Obx
         int getTag() const { return T_Pointer; }
         void accept(AstVisitor* v) { v->visit(this); }
         QString pretty() const;
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& );
     };
 
     struct Array : public Type
@@ -241,13 +248,14 @@ namespace Obx
         Type* getTypeDim(int& dims , bool openOnly = false) const;
         QString pretty() const;
         QList<Array*> getDims();
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& );
     };
 
     struct Record : public Type
     {
         Ref<QualiType> d_base; // base type - a quali to a Record or Pointer or null
         Record* d_baseRec;
-        QList<Record*> d_subRecs;
+        QList<Record*> d_subRecs, d_insts;
 
         typedef QHash<const char*,Named*> Names;
         Names d_names;
@@ -262,6 +270,7 @@ namespace Obx
         Named* find(const QByteArray& name , bool recursive) const;
         QString pretty() const { return "RECORD"; }
         QList<Field*> getOrderedFields() const;
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& );
     };
 
     struct ProcType : public Type
@@ -280,9 +289,8 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
         QString pretty() const { return "PROC"; }
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& );
     };
-
-    typedef QList< Ref<Type> > MetaActuals;
 
     struct QualiType : public Type
     {
@@ -298,6 +306,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& );
     };
 
     struct Named : public Thing
@@ -333,7 +342,6 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_GenericName; }
     };
-    typedef QList< Ref<GenericName> > MetaParams;
 
     struct Field : public Named // Record field
     {
@@ -385,6 +393,7 @@ namespace Obx
         int getTag() const { return T_Enumeration; }
         void accept(AstVisitor* v) { v->visit(this); }
         QString pretty() const { return "enumeration"; }
+        Ref<Type> instantiate( const MetaParams&, const MetaActuals& );
     };
 
     struct Import : public Named
@@ -455,6 +464,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Procedure; }
         ProcType* getProcType() const;
+        Ref<Procedure> instantiate( const MetaParams&, const MetaActuals& );
     };
 
     struct Module : public Scope
@@ -462,10 +472,14 @@ namespace Obx
         QList<Import*> d_imports;
         QString d_file;
         QByteArrayList d_fullName; // Path segments (if present) + module name
+        Ob::RowCol d_begin;
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
         bool d_isExt;
         QList< Ref<Type> > d_helper2; // filled with pointers because of ADDROF
+#ifdef _HAS_GENERICS
+        QList< Ref<Type> > d_metaInsts;
+#endif
 
         Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
         int getTag() const { return T_Module; }
@@ -613,7 +627,7 @@ namespace Obx
     struct UnExpr : public Expression
     {
         enum Op { Invalid, NEG, NOT, DEREF, ADDROF, // implemented in UnExpr
-                  CAST, SEL, CALL, IDX // implemented in subclasses
+                  CAST, SEL, CALL, IDX, MINST // implemented in subclasses
                 };
         static const char* s_opName[];
         quint8 d_op;
@@ -666,7 +680,6 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         Module* getModule() const { return !d_lhs.isNull() ? d_lhs->getModule() : !d_rhs.isNull() ? d_rhs->getModule() : 0 ; }
     };
-
 }
 
 #ifdef OBX_AST_DECLARE_SET_METATYPE_IN_HEADER

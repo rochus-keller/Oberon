@@ -1,0 +1,24 @@
+module Generic4
+
+type
+	Element<V> = record 
+				value : V 
+		  end
+	
+	List<T> = pointer to record (Element<T>)
+            next  : List<T>
+        end
+        
+   proc (in this: Element) print()
+   begin
+	   println(this.value)
+   end print
+   
+var
+	IntList : List<integer>
+
+begin
+	new(IntList)
+	IntList.value := 55
+	IntList.print()
+end Generic4

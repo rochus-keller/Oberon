@@ -26,7 +26,7 @@ TEMPLATE = app
 
 INCLUDEPATH += .. ../LuaJIT/src
 
-DEFINES += OBX_BBOX LUAIDE_EMBEDDED
+DEFINES += OBX_BBOX LUAIDE_EMBEDDED _HAS_GENERICS
 
 SOURCES += ObxIde.cpp \
     ../GuiTools/CodeEditor.cpp \

@@ -94,6 +94,11 @@ struct ObxLjbcGenImp : public AstVisitor
                 else if( tag == Thing::T_Variable )
                     collectRecord(n->d_type.data(), false);
             }
+#ifdef _HAS_GENERICS
+            // does not work because d_metaInsts is not complete at this point
+            foreach( const Ref<Type>& t, me->d_metaInsts )
+                collectRecord(t.data(),false);
+#endif
         }
 
         void visit( Procedure* me)
@@ -236,7 +241,7 @@ struct ObxLjbcGenImp : public AstVisitor
         }
 
         foreach( Record* r, pc.allRecords )
-            allocateClasses(r,slotNr);
+            allocateClasses(r,slotNr, me);
         foreach( QualiType* q, pc.allAliasses )
         {
             if( !q->d_slotValid )
@@ -251,6 +256,7 @@ struct ObxLjbcGenImp : public AstVisitor
         foreach( Import* imp, me->d_imports )
             imp->accept(this);
 
+        me->dump(); // TEST
         curClass = ctx.back().buySlots(1);
         foreach( Record* r, pc.allRecords )
             allocateClassTables(r);
@@ -282,9 +288,10 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             Procedure modBody;
             modBody.d_type = new ProcType();
+            modBody.d_name = "begin";
             modBody.d_body = me->d_body;
             modBody.d_scope = me;
-            modBody.d_loc = me->d_loc;
+            modBody.d_loc = me->d_loc; // me->d_begin; doesn't work because there are vars initialized out of begin/end
             modBody.d_end = me->d_end;
             modBody.accept(this);
             int tmp = ctx.back().buySlots(1,true);
@@ -2074,11 +2081,13 @@ struct ObxLjbcGenImp : public AstVisitor
         slotStack.push_back(res);
     }
 
-    static void allocateClasses( Record* r, quint32& slotNr )
+    static void allocateClasses( Record* r, quint32& slotNr, Module* thisMod )
     {
         if( r->d_baseRec && !r->d_baseRec->d_slotValid
-                && r->d_base->d_quali->getTag() == Thing::T_IdentLeaf ) // treat only local records here
-            allocateClasses( r->d_baseRec, slotNr );
+                //&& r->d_base->d_quali->getTag() == Thing::T_IdentLeaf ) // treat only local records here
+                && r->d_base->d_quali->getIdent()
+                && r->d_base->d_quali->getIdent()->getModule() == thisMod ) // treat only local records here
+            allocateClasses( r->d_baseRec, slotNr, thisMod );
         if( !r->d_slotValid )
         {
             r->setSlot(slotNr++);
@@ -2108,7 +2117,8 @@ struct ObxLjbcGenImp : public AstVisitor
                     r->d_methods[i]->setSlot( r->d_methods[i]->d_super->d_slot );
                 }else
                 {
-                    r->d_methods[i]->setSlot( nr++ );
+                    if( !r->d_methods[i]->d_slotValid )
+                        r->d_methods[i]->setSlot( nr++ );
                 }
                 allocateLocals(r->d_methods[i].data());
             }
@@ -2138,18 +2148,23 @@ struct ObxLjbcGenImp : public AstVisitor
 
                 int m = -1;
                 QByteArray name = "@mod";
-                if( q->d_quali->getTag() == Thing::T_IdentLeaf )
+                Expression* qe = q->d_quali.data();
+#ifdef _HAS_GENERICS
+                if( qe->getUnOp() == UnExpr::MINST )
+                    qe = cast<IdentSel*>(qe)->d_sub.data();
+#endif
+                if( qe->getTag() == Thing::T_IdentLeaf )
                     m = modSlot; // target is in this module
                 else
                 {
                     // target is in another module
-                    Q_ASSERT( q->d_quali->getTag() == Thing::T_IdentSel );
-                    IdentSel* sel = cast<IdentSel*>(q->d_quali.data());
+                    Q_ASSERT( qe->getTag() == Thing::T_IdentSel );
+                    IdentSel* sel = cast<IdentSel*>(qe);
                     Q_ASSERT( sel->d_sub && sel->d_sub->getTag() == Thing::T_IdentLeaf );
                     IdentLeaf* leaf = cast<IdentLeaf*>( sel->d_sub.data() );
 
                     Q_ASSERT( leaf->getIdent()->getTag() == Thing::T_Import && leaf->getIdent()->d_slotValid );
-                    Q_ASSERT( q->d_quali->d_type.data() == sel->d_type.data() );
+                    Q_ASSERT( qe->d_type.data() == sel->d_type.data() );
 
                     m = leaf->getIdent()->d_slot;
                     name = leaf->d_name;
@@ -2158,12 +2173,12 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( ctx.back().scope == thisMod )
                 {
                     // qDebug() << "fetchClass local" << m << name << thisMod->d_name << loc.d_row;
-                    fetchClassImp( to, m, q->d_quali->d_type.data(), true, loc );
+                    fetchClassImp( to, m, qe->d_type.data(), true, loc );
                 }else
                 {
                     // qDebug() << "fetchClass upval" << m << name << thisMod->d_name << loc.d_row;
                     bc.UGET(to, ctx.back().resolveUpval(m,name), loc.packed() );
-                    fetchClassImp( to, to, q->d_quali->d_type.data(), true, loc );
+                    fetchClassImp( to, to, qe->d_type.data(), true, loc );
                 }
             }else
             {
@@ -2193,7 +2208,8 @@ struct ObxLjbcGenImp : public AstVisitor
     void allocateClassTables( Record* r )
     {
         if( r->d_baseRec && !r->d_baseRec->d_slotAllocated
-                && r->d_base->d_quali->getTag() == Thing::T_IdentLeaf ) // treat only local records here
+            && r->d_base->d_quali->getIdent()
+            && r->d_base->d_quali->getIdent()->getModule() == thisMod ) // treat only local records here
             allocateClassTables( r->d_baseRec );
         if( !r->d_slotAllocated )
         {
@@ -2252,7 +2268,7 @@ struct ObxLjbcGenImp : public AstVisitor
         int slot = 0;
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_Parameter )
+            if( n->getTag() == Thing::T_Parameter && !n->d_slotValid )
                 n->setSlot(slot++);
         }
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
@@ -3000,7 +3016,7 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
 
     foreach( Record* r, pc.allRecords )
     {
-        ObxLjbcGenImp::allocateClasses(r,slotNr);
+        ObxLjbcGenImp::allocateClasses(r,slotNr,m);
         if( out )
         {
             Named* name = r->d_decl;

@@ -6,10 +6,10 @@ type
             next  : List<T>
         end
 var
-	IntList : pointer to List<integer>
+	IntList : List<integer>
 
 begin
 	new(IntList)
 	IntList.value := 33
-	
+	println(IntList.value)
 end Generic1

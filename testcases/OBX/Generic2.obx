@@ -1,0 +1,16 @@
+module Generic2
+
+type
+	List<T> = pointer to record 
+            value : T
+            next  : List<T>
+        end
+    IntList = List<integer>
+var
+	l : IntList
+
+begin
+	new(l)
+	l.value := 44
+	println(l.value)
+end Generic2
