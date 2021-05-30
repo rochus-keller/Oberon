@@ -921,10 +921,13 @@ void Ide::onRun()
     bool hasErrors = false;
     foreach( const Project::FileRef& f, files )
     {
-        qDebug() << "loading" << f->d_mod->d_name;
-        if( !d_lua->addSourceLib( f->d_sourceCode, f->d_mod->getName() ) )
+        qDebug() << "file" << f->d_filePath;
+        QHash<Module*,QByteArray>::const_iterator j;
+        for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
         {
-            hasErrors = true;
+            qDebug() << "loading" << j.key()->getName();
+            if( !d_lua->addSourceLib( j.value(), j.key()->getName() ) )
+                hasErrors = true;
         }
         if( d_lua->isAborted() )
         {
@@ -1148,7 +1151,9 @@ void Ide::onExportBc()
         fileName += ".ljbc";
     QFile out(fileName);
     out.open(QIODevice::WriteOnly);
-    out.write(d_pro->getFiles().value(curPath)->d_sourceCode);
+    Project::File* f = d_pro->getFiles().value(curPath).data();
+    Q_ASSERT( f != 0 );
+    out.write(f->d_sourceCode.value(f->d_mod.data()));
 }
 
 void Ide::onExportAsm()
@@ -1237,7 +1242,7 @@ void Ide::onTabChanged()
         if( f.data() )
         {
             fillModule(f->d_mod.data());
-            d_curBc = f->d_sourceCode;
+            d_curBc = f->d_sourceCode.value(f->d_mod.data());
             if( !d_curBc.isEmpty() )
             {
                 QBuffer buf( &d_curBc );
@@ -2112,7 +2117,7 @@ void Ide::fillLocals()
                 Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
             }
         }
-        lua_pop( d_lua->getCtx(), 1 );
+        lua_pop( d_lua->getCtx(), 1 ); // module
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
     }
 #if 0
@@ -2826,7 +2831,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.1");
+    a.setApplicationVersion("0.7.2");
     a.setStyle("Fusion");
 
     Ide w;

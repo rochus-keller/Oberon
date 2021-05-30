@@ -1,0 +1,24 @@
+module GenericTest
+
+import 
+	IL := Generic4<integer>
+var
+	IntList : IL.List
+	
+import 
+	SL := Generic4<String>
+	
+type
+	String = array 20 of char
+	
+var
+	StrList : SL.List
+
+begin
+	new(IntList)
+	IntList.value := 55
+	IntList.print()
+	new(StrList)
+	StrList.value := "tata!"
+	StrList.print()
+end GenericTest

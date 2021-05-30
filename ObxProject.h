@@ -47,7 +47,7 @@ namespace Obx
             QString d_filePath;
             FileGroup* d_group;
             Ref<Module> d_mod;
-            QByteArray d_sourceCode; // lua source or byte code
+            QHash<Module*,QByteArray> d_sourceCode; // lua source or byte code, module -> code
             bool d_isLib;
             File():d_isLib(false),d_group(0){}
         };

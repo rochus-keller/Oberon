@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-03-25</span>
+      <span id="revdate">2021-05-30</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -46,7 +46,6 @@
             <li><a href="#_pointer_types">6.4. Pointer types</a></li>
             <li><a href="#_procedure_types">6.5. Procedure types</a></li>
             <li><a href="#_enumeration_types">6.6. Enumeration types</a></li>
-            <li><a href="#_generics">6.7. Generics</a></li>
           </ul>
         </li>
         <li><a href="#_variable_declarations">7. Variable declarations</a></li>
@@ -80,7 +79,8 @@
         </li>
         <li><a href="#_modules">11. Modules</a>
           <ul class="sectlevel2">
-            <li><a href="#_definitions">11.1. Definitions</a></li>
+            <li><a href="#_generics">11.1. Generics</a></li>
+            <li><a href="#_definitions">11.2. Definitions</a></li>
           </ul>
         </li>
         <li><a href="#_definition_of_terms">Appendix A: Definition of terms</a></li>
@@ -108,8 +108,8 @@
         </div>
         <div class="paragraph">
           <p>The most important features of Oberon+ are block structure, modularity,
-            separate compilation, static typing with strong type checking, parametric
-            polymorphism <sup class="footnote">[<a id="_footnoteref_1" class="footnote" href="#_footnote_1" title="View footnote.">1</a>]</sup>,
+            separate compilation, static typing with strong type checking, generic
+            programming <sup class="footnote">[<a id="_footnoteref_1" class="footnote" href="#_footnote_1" title="View footnote.">1</a>]</sup>,
             garbage collection, and type extension with type-bound procedures.</p>
         </div>
         <div class="paragraph">
@@ -143,23 +143,37 @@
           <div class="title">Listing 1. Oberon+ example featuring syntactic simplifications and type
             parameters</div>
           <div class="content">
-            <pre class="highlight"><code class="language-oberon" data-lang="oberon">module Lists
+            <pre class="highlight"><code class="language-oberon" data-lang="oberon">module Lists&lt;T&gt;
     type
-        List*&lt;T&gt;     = ^record
+        List*     = ^record
             value : T
-            next  : List&lt;T&gt;
+            next  : List
         end
 
-    proc&lt;T&gt; (l : List&lt;T&gt;) Add* (v : T)
+    proc (l : List) Add* (v : T)
     begin
-        if l = nil then
-            new(l)           // create record instance
-            l.value := v
-        else
-            l.next.Add(v)
-        end
+    	new( l.next )
+    	l.next.value := v
     end Add
-end Lists</code></pre>
+
+    proc (l : List) Print()
+    begin
+    	println(l.value)
+    end Print
+end Lists
+
+module ListTest
+	import
+		L := Lists&lt;integer&gt;
+	var
+		l := L.List
+	begin
+		new(l)
+		l.value := 123
+		l.Add(456)
+		l.Print()
+		l.next.Print()
+end ListTest</code></pre>
           </div>
         </div>
         <div class="paragraph">
@@ -1240,47 +1254,6 @@ end</pre>
               and <code>DEC</code> the previous ident. If T is an enumeration type
               then <code>INC(MAX(T))</code> and <code>DEC(MIN(T))</code> are undefined
               and terminate the program.</p>
-          </div>
-        </div>
-        <div class="sect2">
-          <h3 id="_generics">6.7. Generics</h3>
-          <div class="paragraph">
-            <p>Oberon+ supports parametric polymorphism. Type and procedure declarations
-              can be made generic by adding formal type parameters. Type parameters
-              are scoped over the declaration and enable it to operate on different
-              types. Generic type and procedure declarations can be instantiated
-              with different types which makes it easier to design reusable algorithms
-              and data structures.</p>
-          </div>
-          <div class="literalblock">
-            <div class="title">Syntax:</div>
-            <div class="content">
-              <pre>TypeParams       = '&lt;' ident { ',' ident } '&gt;'
-TypeActuals      = '&lt;' NamedType { ',' NamedType } '&gt;'
-TypeDeclaration  = identdef [TypeParams] '=' type
-ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ]
-				   [Receiver] identdef [ FormalParameters ]
-NamedType        = qualident [TypeActuals]</pre>
-            </div>
-          </div>
-          <div class="paragraph">
-            <p>If the receiver of a type bound procedure declaration refers to a parametric
-              type declaration, its actual type parameter must correspond to one
-              of the formal type parameters of the procedure.</p>
-          </div>
-          <div class="literalblock">
-            <div class="title">Example:</div>
-            <div class="content">
-              <pre>proc &lt;T&gt; ( self: List&lt;T&gt; ) print 		// legal
-proc &lt;T&gt; ( self: List&lt;integer&gt; ) print  // illegal</pre>
-            </div>
-          </div>
-          <div class="paragraph">
-            <p>Instantiated parametric record types do not have subtype relationships
-              induced by their actual type parameters.</p>
-          </div>
-          <div class="paragraph">
-            <p>See also <a href="#obx-generics-example">this example</a>.</p>
           </div>
         </div>
       </div>
@@ -3356,11 +3329,11 @@ end Insert</pre>
         <div class="literalblock">
           <div class="title">Syntax:</div>
           <div class="content">
-            <pre>module     = MODULE ident [';'] [ ImportList ]
-             DeclarationSequence
+            <pre>module     = MODULE ident [ TypeParams ] [';']
+             { ImportList | DeclarationSequence }
 	         [ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import     = [ ident ':=' ] ImportPath ident
+import     = [ ident ':=' ] ImportPath ident [ TypeActuals ]
 ImportPath = { ident '.' }</pre>
           </div>
         </div>
@@ -3455,7 +3428,32 @@ end Lists</code></pre>
           </div>
         </div>
         <div class="sect2">
-          <h3 id="_definitions">11.1. Definitions</h3>
+          <h3 id="_generics">11.1. Generics</h3>
+          <div class="paragraph">
+            <p>Oberon+ supports generic programming. Modules can be made generic by
+              adding formal type parameters. Generic modules can be instantiated
+              with different types which makes it easier to design reusable algorithms
+              and data structures. The instantiation of a generic module occurs when
+              importing it. A generic module can be instantiated more than one time
+              in the same module with different type parameters. See <a href="#_modules">Modules</a></p>
+          </div>
+          <div class="literalblock">
+            <div class="title">Syntax:</div>
+            <div class="content">
+              <pre>TypeParams       = '&lt;' ident { ',' ident } '&gt;'
+TypeActuals      = '&lt;' NamedType { ',' NamedType } '&gt;'
+module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
+	[ BEGIN StatementSequence ] END ident ['.']
+ImportList = IMPORT import { ',' import } [';']
+import = [ ident ':=' ] ImportPath ident [ TypeActuals ]</pre>
+            </div>
+          </div>
+          <div class="paragraph">
+            <p>See also <a href="#obx-generics-example">this example</a>.</p>
+          </div>
+        </div>
+        <div class="sect2">
+          <h3 id="_definitions">11.2. Definitions</h3>
           <div class="paragraph">
             <p>A DEFINITION is a special kind of MODULE which only includes public declarations.
               The export mark <code>*</code> is redundant, but <code>-</code> can
@@ -3921,10 +3919,10 @@ qualident = [ ident '.' ] ident
 identdef = ident [ '*' | '-' ]
 ConstDeclaration = identdef '=' ConstExpression
 ConstExpression = expression
-TypeDeclaration = identdef [TypeParams] '=' type
+TypeDeclaration = identdef '=' type
 type = NamedType | enumeration
 	| ArrayType | RecordType | PointerType | ProcedureType
-NamedType = qualident [TypeActuals]
+NamedType = qualident
 TypeParams = '&lt;' ident { ',' ident } '&gt;'
 TypeActuals = '&lt;' NamedType { ',' NamedType } '&gt;'
 enumeration = '('  ident { ',' ident } ')'
@@ -3989,9 +3987,9 @@ LoopStatement = LOOP StatementSequence END
 ExitStatement = EXIT
 ProcedureDeclaration = ProcedureHeading [ ';' ]
 	ProcedureBody END ident
-ProcedureHeading = ( PROCEDURE | PROC ) [TypeParams] [Receiver]
+ProcedureHeading = ( PROCEDURE | PROC ) [Receiver]
 	 identdef [ FormalParameters ]
-Receiver = '(' [VAR] ident ':' ident [ TypeActuals ] ')'
+Receiver = '(' [VAR] ident ':' ident ')'
 ProcedureBody = DeclarationSequence
 	[ BEGIN StatementSequence
 	| ReturnStatement [ ';' ] ]
@@ -4005,10 +4003,10 @@ FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')'
 	[ ':' NamedType ]
 FPSection = [ VAR | IN ] ident { ',' ident } ':' FormalType
 FormalType = type
-module = MODULE ident [';'] [ ImportList ] DeclarationSequence
+module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
 	[ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import = [ ident ':=' ] ImportPath ident
+import = [ ident ':=' ] ImportPath ident [ TypeActuals ]
 ImportPath = { ident '.' }
 definition = DEFINITION ident [';']  [ ImportList ]
 	DeclarationSequence2 END ident ['.']
@@ -4028,6 +4026,11 @@ DeclarationSequence2 =
           <ul>
             <li>
               <p>
+                <a id="Ada83"></a>[Ada83] ISO 8652:1987 Programming languages — Ada. International
+                Organization for Standardization.</p>
+            </li>
+            <li>
+              <p>
                 <a id="Mo91"></a>[Mo91] Mössenböck, H.; Wirth, N. (1991). The Programming Language
                 Oberon-2. Structured Programming, 12(4):179-195, 1991. <a href="http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf"
                   class="bare">http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf</a>                (accessed 2020-11-16).</p>
@@ -4037,13 +4040,6 @@ DeclarationSequence2 =
                 <a id="Om01"></a>[Om01] Oberon microsystems, Inc. (2001). Component Pascal Language
                 Report. <a href="https://web.archive.org/web/20191021025943/http://www.oberon.ch/pdf/CP-Lang.pdf"
                   class="bare">https://web.archive.org/web/20191021025943/http://www.oberon.ch/pdf/CP-Lang.pdf</a>                (accessed 2021-01-21).</p>
-            </li>
-            <li>
-              <p>
-                <a id="Ro97"></a>[Ro97] Roe, P.; Szyperski, C. (1997). Lightweight parametric
-                polymorphism for Oberon. In: Mössenböck H. (eds). Modular Programming
-                Languages. JMLC 1997. Lecture Notes in Computer Science, vol 1204.
-                Springer, Berlin, Heidelberg.</p>
             </li>
             <li>
               <p>
@@ -4075,7 +4071,7 @@ DeclarationSequence2 =
   <div id="footnotes">
     <hr>
     <div class="footnote" id="_footnote_1">
-      <a href="#_footnoteref_1">1</a>. adopted with modifications from <a href="#Ro97">[Ro97]</a>
+      <a href="#_footnoteref_1">1</a>. generic modules, inspired by <a href="#Ada83">[Ada83]</a>
     </div>
     <div class="footnote" id="_footnote_2">
       <a href="#_footnoteref_2">2</a>. subject to basic type differences and limited

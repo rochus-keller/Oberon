@@ -23,16 +23,6 @@
 using namespace Obx;
 using namespace Ob;
 
-static uint qHash(const MetaActuals& key, uint seed = 0)
-{
-    uint h = 0;
-    for( int i = 0; i < key.size(); i++ )
-    {
-        h ^= qHash( key[i], seed );
-    }
-    return h;
-}
-
 struct ValidatorImp : public AstVisitor
 {
     Errors* err;
@@ -47,7 +37,6 @@ struct ValidatorImp : public AstVisitor
 
     QList<Level> levels;
     NamedType* curTypeDecl;
-    QHash<NamedType*, QHash<MetaActuals,Type*> > metaInstCache; // TODO: move to instance manager, extend index
 
     ValidatorImp():err(0),mod(0),curTypeDecl(0) {}
 
@@ -55,6 +44,11 @@ struct ValidatorImp : public AstVisitor
 
     void visitScope( Scope* me )
     {
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Import )
+                n->accept(this);
+        }
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Const )
@@ -85,6 +79,22 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Module* me)
     {
+        if( !me->d_metaParams.isEmpty() )
+        {
+            if( !me->d_metaActuals.isEmpty() )
+            {
+                // this is an instantiated generic module
+                Q_ASSERT( me->d_metaActuals.size() == me->d_metaParams.size() );
+                for( int i = 0; i < me->d_metaActuals.size(); i++ )
+                    me->d_metaParams[i]->d_type = me->d_metaActuals[i];
+            }else
+            {
+                // this is a generic module
+                for( int i = 0; i < me->d_metaParams.size(); i++ )
+                    me->d_metaParams[i]->d_type = bt.d_anyType;
+            }
+        }
+
         levels.push_back(me);
         // imports are supposed to be already resolved at this place
         visitScope(me);
@@ -133,16 +143,6 @@ struct ValidatorImp : public AstVisitor
             r->d_methods << me;
             r->d_names[ me->d_name.constData() ] = me;
             me->d_receiverRec = r;
-
-            foreach( Record* inst, r->d_insts )
-            {
-                Named* n = r->findDecl();
-                Q_ASSERT( n && n->getTag() == Thing::T_NamedType );
-                // cast<NamedType*>(n)->d_metaParams
-                Ref<Procedure> p = me->instantiate(MetaParams(),MetaActuals()); // TODO
-                inst->d_methods << p; // for the methods not known at instantiation time
-                inst->d_names[ me->d_name.constData() ] = p.data();
-            }
         }
         if( r->d_baseRec )
         {
@@ -170,9 +170,6 @@ struct ValidatorImp : public AstVisitor
     {
         levels.push_back(me);
 
-        foreach( const Ref<GenericName>& n, me->d_metaParams )
-            n->accept(this);
-
         ProcType* pt = me->getProcType();
         pt->accept(this);
 
@@ -183,8 +180,6 @@ struct ValidatorImp : public AstVisitor
         {
             if( me->d_scope != mod )
                 error( me->d_loc, Validator::tr("type bound procedures can only be declared on module level"));
-            if( !me->d_metaParams.isEmpty() )
-                error( me->d_loc, Validator::tr("type bound procedures don't have explicit type parameters"));
             // receiver was already accepted in visitScope
             visitBoundProc(me);
         }
@@ -1236,7 +1231,6 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        me->d_mdef = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
 
         if( !me->d_flag.isNull() )
         {
@@ -1267,7 +1261,6 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        me->d_mdef = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
 
         if( !me->d_flag.isNull() )
             me->d_flag->accept(this);
@@ -1330,7 +1323,6 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        me->d_mdef = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
 
         foreach( const Ref<Const>& c, me->d_items )
             c->accept(this);
@@ -1341,50 +1333,10 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        me->d_mdef = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
 
         if( !me->d_quali.isNull() )
             me->d_quali->accept(this);
 
-        foreach( const Ref<Type>& t, me->d_metaActuals )
-            t->accept(this);
-
-#ifdef _HAS_GENERICS
-        // if we are in a generic named type declaration,
-        const bool inGenDecl = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
-        if( !inGenDecl && !me->d_metaActuals.isEmpty() )
-        {
-            Named* typeDecl = me->d_quali->getIdent();
-            if( typeDecl && typeDecl->getTag() == Thing::T_NamedType )
-            {
-                NamedType* nt = cast<NamedType*>(typeDecl);
-                if( nt->d_metaParams.size() != me->d_metaActuals.size() )
-                    error( me->d_loc, Validator::tr("numer of formal and actual type params differ") );
-                else
-                {
-                    Ref<Type> t = metaInstCache.value(nt).value(me->d_metaActuals);
-                    if( t.isNull() )
-                    {
-                        t = me->d_quali->d_type->instantiate(nt->d_metaParams, me->d_metaActuals );
-                        metaInstCache[nt].insert( me->d_metaActuals, t.data() );
-                        mod->d_metaInsts.append(t);
-                        t->accept(this);
-                    }
-                    // this indirection is necessary since the quali might be used elsewhere too, so we cannot just reset type
-                    Ref<IdentSel> u = new IdentSel();
-                    u->d_op = UnExpr::MINST;
-                    // TODO: instead of a permanent reference using IdentSel we could lookup the type dynamically so
-                    // we don't have to make a copy of e.g. a generic method body (only qualitypes change actually).
-                    u->d_sub = me->d_quali;
-                    u->d_loc = me->d_quali->d_loc;
-                    u->d_ident = me->d_quali->getIdent();
-                    u->d_type = t.data();
-                    me->d_quali = u.data();
-                }
-            }else
-                error( me->d_loc, Validator::tr("generic type instantiations must refer to named types") );
-        }
-#endif
         // TODO selfRef
     }
 
@@ -1393,7 +1345,6 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        me->d_mdef = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
 
         if( !me->d_flag.isNull() )
             me->d_flag->accept(this);
@@ -1502,7 +1453,6 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        me->d_mdef = curTypeDecl && !curTypeDecl->d_metaParams.isEmpty();
 
         if( !me->d_return.isNull() )
             me->d_return->accept(this); // OBX has no restrictions on return types
@@ -1514,14 +1464,10 @@ struct ValidatorImp : public AstVisitor
 
     void visit( NamedType* me )
     {
-        levels.push_back(me);
         curTypeDecl = me;
-        foreach( const Ref<GenericName>& n, me->d_metaParams )
-            n->accept(this);
         if( me->d_type )
             me->d_type->accept(this);
         curTypeDecl = 0;
-        levels.pop_back();
     }
 
     void visit( Const* me )
@@ -1823,7 +1769,7 @@ struct ValidatorImp : public AstVisitor
 
             error( me->d_rhs->d_loc, Validator::tr("right side %1 of assignment is not compatible with left side %2")
                    .arg(rhs).arg(lhs) );
-            assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
+            //assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
         }
     }
 
@@ -1991,9 +1937,14 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
-    void visit( GenericName* me)
+    void visit( Import* me)
     {
-        me->d_type = bt.d_anyType;
+        if( !me->d_metaActuals.isEmpty() )
+        {
+            foreach( const Ref<Type>& t, me->d_metaActuals )
+                t->accept(this);
+            Validator::check(me->d_mod.data(),bt, err );
+        }
     }
 
 
@@ -2001,8 +1952,7 @@ struct ValidatorImp : public AstVisitor
 
     void visit( BaseType* ) { }
     void visit( BuiltIn* ) { }
-    void visit( Import* ) {}
-
+    void visit( GenericName* ) {}
     ////////// Utility
 
     void error(const RowCol& r, const QString& msg) const

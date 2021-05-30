@@ -89,10 +89,20 @@ bool Parser::module(bool definition )
     m->d_name = d_cur.d_val;
     m->d_loc = d_cur.toRowCol();
     m->d_file = d_cur.d_sourcePath;
+
+    if( d_la == Tok_Lt )
+    {
+        m->d_metaParams = typeParams();
+        for( int i = 0; i < m->d_metaParams.size(); i++ )
+        {
+            m->d_metaParams[i]->d_slot = i;
+            if( !m->add( m->d_metaParams[i].data() ) )
+                semanticError(m->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
+        }
+    }
+
     if( d_la == Tok_Semi )
         next();
-    if( d_la == Tok_IMPORT )
-        importList();
     declarationSequence(false, m.data() );
     if( d_la == Tok_BEGIN || d_la == Tok_DO )
     {
@@ -269,16 +279,6 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
     Ref<NamedType> nt = new NamedType();
 
     identdef(nt.data(),scope);
-    if( d_la == Tok_Lt )
-    {
-        nt->d_metaParams = typeParams();
-        for( int i = 0; i < nt->d_metaParams.size(); i++ )
-        {
-            nt->d_metaParams[i]->d_slot = i;
-            if( !nt->add( nt->d_metaParams[i].data() ) )
-                semanticError(nt->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
-        }
-    }
     MATCH( Tok_Eq, tr("expecting '=' after ident in type declaration") );
 
     if( !scope->add(nt.data()) )
@@ -431,10 +431,6 @@ Ref<QualiType> Parser::namedType(Named* id, Type* binding)
     q->d_decl = id;
     q->d_binding = binding;
     q->d_loc = e->d_loc;
-    if( d_la == Tok_Lt )
-    {
-        q->d_metaActuals = typeActuals();
-    }
 
     return q.data();
 }
@@ -1575,16 +1571,6 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
        }
     }
 
-    if( d_la == Tok_Lt )
-    {
-        p->d_metaParams = typeParams();
-        Q_ASSERT( p->d_names.isEmpty() );
-        for( int i = 0; i < p->d_metaParams.size(); i++ )
-        {
-            if( !p->add( p->d_metaParams[i].data() ) )
-                semanticError( p->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
-        }
-    }
     if( d_la == Tok_Lpar )
     {
         p->d_receiver = receiver();
@@ -1696,10 +1682,6 @@ Ref<Parameter> Parser::receiver()
     Ref<QualiType> q = new QualiType();
     q->d_quali = id.data();
     q->d_decl = v.data();
-    if( d_la == Tok_Lt )
-    {
-        q->d_metaActuals = typeActuals();
-    }
     v->d_type = q.data();
 
     MATCH( Tok_Rpar, tr("expecting ')' to end a receiver") );
@@ -1709,14 +1691,22 @@ Ref<Parameter> Parser::receiver()
 
 void Parser::declarationSequence(bool definition, Scope* scope )
 {
-    static const TokSet toks = TokSet() << Tok_CONST << Tok_PROC << Tok_PROCEDURE << Tok_TYPE << Tok_VAR;
+    static const TokSet toks = TokSet() << Tok_CONST << Tok_PROC << Tok_PROCEDURE << Tok_TYPE << Tok_VAR << Tok_IMPORT;
     if( d_sync )
         sync(toks);
 
-    while( d_la == Tok_CONST || d_la == Tok_TYPE || d_la == Tok_VAR || d_la == Tok_PROCEDURE || d_la == Tok_PROC )
+    while( d_la == Tok_CONST || d_la == Tok_TYPE || d_la == Tok_VAR ||
+           d_la == Tok_PROCEDURE || d_la == Tok_PROC || d_la == Tok_IMPORT )
     {
         switch( d_la )
         {
+        case Tok_IMPORT:
+            Q_ASSERT( scope );
+            if( scope->getTag() != Thing::T_Module )
+                syntaxError( tr("IMPORT only supported on module level") );
+            else
+                importList();
+            break;
         case Tok_CONST:
             next();
             while( d_la == Tok_ident )
@@ -1878,6 +1868,7 @@ void Parser::import()
 
     Token name, suff;
     bool hasErr = false;
+    bool hasAlias = false;
 
     if( peek(2) == Tok_ColonEq )
     {
@@ -1888,6 +1879,7 @@ void Parser::import()
             imp->d_aliasPos = d_cur.toRowCol();
         }else
             hasErr = true;
+        hasAlias = true;
         next(); // :=
     }
     MATCH( Tok_ident, tr("expecting external module name or path") );
@@ -1908,7 +1900,11 @@ void Parser::import()
         }else
             hasErr = true;
     }
-    if( !imp->d_aliasPos.isValid() ) // no alias present
+    if( d_la == Tok_Lt )
+    {
+        imp->d_metaActuals = typeActuals();
+    }
+    if( !hasAlias ) // no alias present
         imp->d_name = suff.d_val;
     else
         imp->d_name = name.d_val;

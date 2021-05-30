@@ -94,11 +94,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 else if( tag == Thing::T_Variable )
                     collectRecord(n->d_type.data(), false);
             }
-#ifdef _HAS_GENERICS
-            // does not work because d_metaInsts is not complete at this point
-            foreach( const Ref<Type>& t, me->d_metaInsts )
-                collectRecord(t.data(),false);
-#endif
         }
 
         void visit( Procedure* me)
@@ -186,7 +181,7 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( Module* me)
     {
         ctx.push_back( Ctx(me) );
-        bc.openFunction(0,me->d_file.toUtf8(),me->d_loc.packed(), me->d_end.packed() );
+        bc.openFunction(0,me->getName(),me->d_loc.packed(), me->d_end.packed() );
 
         QHash<quint8,QByteArray> names;
         modSlot = ctx.back().buySlots(1);
@@ -256,7 +251,7 @@ struct ObxLjbcGenImp : public AstVisitor
         foreach( Import* imp, me->d_imports )
             imp->accept(this);
 
-        me->dump(); // TEST
+        //me->dump(); // TEST
         curClass = ctx.back().buySlots(1);
         foreach( Record* r, pc.allRecords )
             allocateClassTables(r);
@@ -456,7 +451,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void visit( Import* me)
     {
-        emitImport( me->d_path.join('.'), me->d_slot, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc );
+        emitImport( me->d_mod->getName(), me->d_slot, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc );
     }
 
     void visit( Variable* me)
@@ -1177,6 +1172,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void emitImport( const QByteArray& modName, quint8 toSlot, const RowCol& loc )
     {
+        Q_ASSERT( !modName.isEmpty() );
         int tmp = ctx.back().buySlots(2,true);
         bc.GGET( tmp, "require", loc.packed() );
         bc.KSET( tmp+1, modName, loc.packed() );
@@ -2149,10 +2145,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 int m = -1;
                 QByteArray name = "@mod";
                 Expression* qe = q->d_quali.data();
-#ifdef _HAS_GENERICS
-                if( qe->getUnOp() == UnExpr::MINST )
-                    qe = cast<IdentSel*>(qe)->d_sub.data();
-#endif
                 if( qe->getTag() == Thing::T_IdentLeaf )
                     m = modSlot; // target is in this module
                 else
@@ -2917,12 +2909,12 @@ bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, b
             LjbcGen::allocateDef(m, 0, err );
         }else
         {
-            QFile out( dir.absoluteFilePath( m->d_name + ".lua" ) );
+            QFile out( dir.absoluteFilePath( m->getName() + ".lua" ) );
             if( !out.open(QIODevice::WriteOnly) )
             {
                 errs++;
                 if( err )
-                    err->error(Errors::Generator,m->d_name, 0,0,QString("cannot open file '%1' for writing").
+                    err->error(Errors::Generator,m->getName(), 0,0,QString("cannot open file '%1' for writing").
                            arg(out.fileName()) );
             }else
             {

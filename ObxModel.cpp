@@ -169,8 +169,6 @@ struct Model::CrossReferencer : public AstVisitor
     {
         if( me->d_quali )
             me->d_quali->accept(this);
-        foreach( const Ref<Type>& t, me->d_metaActuals )
-            t->accept(this);
     }
     void visitVar( Named* me, bool receiver = false )
     {
@@ -431,6 +429,7 @@ void Model::clear()
     d_errs->clear();
 
     d_depOrder.clear();
+    d_modInsts.clear();
     unbindFromGlobal();
     d_modules.clear();
     d_others.clear();
@@ -518,10 +517,15 @@ bool Model::parseFiles(const FileGroups& files)
     {
         if( m == d_systemModule.data())
             continue;
-        qDebug() << "analyzing" << m->d_file;
+        qDebug() << "analyzing" << m->getName();
+
+        if( !m->d_metaParams.isEmpty() )
+            continue; // generic modules are not validated here;
+                      // instances of generic modules are validated in Validator::visit(Import*) for locality
 
         Validator::check(m, bt, d_errs );
-        m->dump(); // TEST
+
+        //m->dump(); // TEST
         if( d_fillXref )
             CrossReferencer(this,m);
     }
@@ -977,32 +981,58 @@ bool Model::resolveImports()
     for( i = d_modules.begin(); i != d_modules.end(); ++i )
     {
         Module* m = i.value().data();
-        foreach( Import* i, m->d_imports )
+        if( resolveImport(m) )
+            hasErrors = true;
+    }
+    return hasErrors;
+}
+
+bool Model::resolveImport(Module* m)
+{
+    bool hasErrors = false;
+    foreach( Import* i, m->d_imports )
+    {
+        i->d_mod = d_modules.value(i->d_path);
+        if( i->d_mod.isNull() ||
+                !i->d_metaActuals.isEmpty() ) // load separate copies for generic modules
+            // NOTE we need separated copies of generic module ASTs because if more than one instance of a
+            // generic module is required in a module types would only fit one of them otherwise
         {
-            i->d_mod = d_modules.value(i->d_path);
-            if( i->d_mod.isNull() )
+            if( i->d_path.size() == 1 && i->d_path.last() == d_systemModule->d_name )
+                i->d_mod = d_systemModule;
+            else
             {
-                if( i->d_path.size() == 1 && i->d_path.last() == d_systemModule->d_name )
-                    i->d_mod = d_systemModule;
-                else
-                {
+                if( i->d_metaActuals.isEmpty() )
                     i->d_mod = d_others.value( i->d_path );
+                if( i->d_mod.isNull() ||
+                        !i->d_metaActuals.isEmpty() )
+                {
+                    if( !i->d_metaActuals.isEmpty() )
+                    {
+                        Module* meta = i->d_mod.data();
+                        Q_ASSERT( meta != 0 );
+                        i->d_mod = parseFile( meta->d_file );
+                        i->d_mod->d_metaActuals = i->d_metaActuals;
+                        i->d_mod->d_fullName = meta->d_fullName;
+                        i->d_mod->d_instSuffix = QByteArray::number(d_modInsts.size());
+                        d_modInsts.append(i->d_mod.data());
+                    }else
+                        i->d_mod = parseFile( i->d_path.join('/') );
                     if( i->d_mod.isNull() )
                     {
-                        i->d_mod = parseFile( i->d_path.join('/') );
-                        if( i->d_mod.isNull() )
-                        {
-                            error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
-                                   arg( i->d_path.join('/').constData() ) );
-                            hasErrors = true;
-                        }else
-                        {
-                            if( i->d_mod->d_isExt )
-                                i->d_mod->d_scope = d_globalsLower.data();
-                            else
-                                i->d_mod->d_scope = d_globals.data();
+                        error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
+                               arg( i->d_path.join('/').constData() ) );
+                        hasErrors = true;
+                    }else
+                    {
+                        if( i->d_mod->d_isExt )
+                            i->d_mod->d_scope = d_globalsLower.data();
+                        else
+                            i->d_mod->d_scope = d_globals.data();
+                        if( i->d_metaActuals.isEmpty() )
                             d_others.insert(i->d_path, i->d_mod );
-                        }
+                        else
+                            resolveImport(i->d_mod.data()); // resolve imports of instances
                     }
                 }
             }
@@ -1036,14 +1066,14 @@ static bool DFS( Module* m, QSet<Module*>& mods, QList<Module*>& trace )
 
 bool Model::findProcessingOrder()
 {
-    // Mods nicht const da sonst COW eine neue Kopie macht die SynTree löscht
-
     QSet<Module*> mods, all;
     Modules::const_iterator i;
     for( i = d_modules.begin(); i != d_modules.end(); ++i )
         mods.insert(i.value().data());
     for( i = d_others.begin(); i != d_others.end(); ++i )
         mods.insert(i.value().data());
+    foreach( Module* m, d_modInsts )
+        mods.insert(m);
     mods.insert(d_systemModule.data());
     all = mods;
 

@@ -12,9 +12,9 @@ size=0
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic4.obx
 1\RelPath=Generic4.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic2.obx
-2\RelPath=Generic2.obx
-size=1
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/GenericTest.obx
+2\RelPath=GenericTest.obx
+size=2
 
 [Packages]
 1\Name=@ByteArray()

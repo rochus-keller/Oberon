@@ -63,6 +63,7 @@ namespace Obx
         void unbindFromGlobal();
         void fillGlobals();
         bool resolveImports();
+        bool resolveImport(Module*);
         bool findProcessingOrder();
         bool error( const QString& file, const QString& msg );
         bool error( const Ob::Loc& loc, const QString& msg );
@@ -88,7 +89,8 @@ namespace Obx
         Ref<BaseType> d_anyNum;
         Ref<Record> d_anyRec;
         Ref<Module> d_systemModule;
-        QList<Module*> d_depOrder; // most (0) to least (n-1) dependent
+        QList<Module*> d_depOrder, // most (0) to least (n-1) dependent
+            d_modInsts;
         typedef QHash<QByteArrayList,Ref<Module> > Modules;
         Modules d_modules, d_others;
         XRef d_xref;
