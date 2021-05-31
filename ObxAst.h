@@ -475,8 +475,7 @@ namespace Obx
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
         QByteArray getName() const;
-        void unvalidate();
-    };
+      };
 
     struct NamedType : public Named
     {

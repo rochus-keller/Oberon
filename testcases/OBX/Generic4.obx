@@ -14,4 +14,9 @@ type
 	   println(this.value)
    end print
    
+   proc (in this: Element) setValue*( in v: T )
+   begin
+	   this.value := v
+	end setValue
+   
 end Generic4

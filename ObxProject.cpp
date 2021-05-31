@@ -412,7 +412,7 @@ struct ObxModuleDump : public AstVisitor
         if( me->d_type )
             me->d_type->accept(this);
         else
-            "?";
+            out << "?";
     }
     void visit( Field* me)
     {
@@ -1092,8 +1092,9 @@ bool Project::generate()
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
     {
+
         FileHash::iterator f = d_files.find(m->d_file);
-        if( m->d_synthetic )
+        if( m->d_synthetic || ( !m->d_metaParams.isEmpty() && m->d_metaActuals.isEmpty() ) )
             ; // NOP
         else if( m->d_hasErrors )
         {
@@ -1114,7 +1115,7 @@ bool Project::generate()
 #endif
         }else if( f != d_files.end() )
         {
-            qDebug() << "generating" << m->getName();
+            qDebug() << "generating" << m->getName() << " " << m;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
             LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );

@@ -155,6 +155,7 @@ namespace Obx
         void onQt();
         void onExpMod();
         void onBcDebug();
+        void onShowBcFile();
     private:
         class DocTab;
         class Debugger;

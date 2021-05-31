@@ -1,0 +1,17 @@
+module GenericTest4
+
+import 
+	SL := Generic2<String>
+
+
+type
+	String = array 20 of char
+	
+var
+	l1 : SL.List
+
+begin
+	new(l1)
+	l1.value := "hello!"
+	l1.Print()
+end GenericTest4

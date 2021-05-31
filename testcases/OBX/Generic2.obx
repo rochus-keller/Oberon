@@ -1,0 +1,14 @@
+module Generic2<T>
+
+type
+	List* = pointer to record 
+            value* : T
+            next*  : List
+        end
+        
+    proc ( this: List ) Print*()
+    begin
+    	println(this.value)
+    end Print
+    
+end Generic2

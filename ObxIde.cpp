@@ -327,11 +327,12 @@ public:
     Debugger(Ide* ide):d_ide(ide){}
     void handleBreak( Lua::Engine2* lua, const QByteArray& source, quint32 line )
     {
+        QByteArray msg = lua->getValueString(1).simplified();
+
         d_ide->enableDbgMenu();
         d_ide->fillStack();
         d_ide->fillLocals();
 
-        QByteArray msg = lua->getValueString(1).simplified();
         msg = msg.mid(1,msg.size()-2); // remove ""
         if( !lua->isBreakHit() )
         {
@@ -603,6 +604,7 @@ void Ide::createDumpView()
     pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
+    pop->addCommand( "Show bytecode file...", this, SLOT(onShowBcFile()) );
     addTopCommands(pop);
 }
 
@@ -922,7 +924,7 @@ void Ide::onRun()
     foreach( const Project::FileRef& f, files )
     {
         qDebug() << "file" << f->d_filePath;
-        QHash<Module*,QByteArray>::const_iterator j;
+        Project::ModCode::const_iterator j;
         for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
         {
             qDebug() << "loading" << j.key()->getName();
@@ -1145,15 +1147,23 @@ void Ide::onExportBc()
     if (fileName.isEmpty())
         return;
 
-    QDir::setCurrent(QFileInfo(fileName).absolutePath());
+    QFileInfo info(fileName);
+    QDir::setCurrent(info.absolutePath());
 
-    if( !fileName.endsWith(".ljbc",Qt::CaseInsensitive ) )
-        fileName += ".ljbc";
-    QFile out(fileName);
-    out.open(QIODevice::WriteOnly);
     Project::File* f = d_pro->getFiles().value(curPath).data();
     Q_ASSERT( f != 0 );
-    out.write(f->d_sourceCode.value(f->d_mod.data()));
+
+    Project::ModCode::const_iterator i;
+    for( i = f->d_sourceCode.begin(); i != f->d_sourceCode.end(); ++i )
+    {
+        QString path = info.path() + "/" + info.completeBaseName();
+        if( !i.key()->d_instSuffix.isEmpty() )
+            path += "." + i.key()->d_instSuffix;
+        path += ".ljbc";
+        QFile out(path);
+        out.open(QIODevice::WriteOnly);
+        out.write(i.value());
+    }
 }
 
 void Ide::onExportAsm()
@@ -2263,7 +2273,8 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             Type* at = derefed(a->d_type.data());
             Q_ASSERT( at );
             const int arr = lua_gettop(d_lua->getCtx());
-            if( lua_type(d_lua->getCtx(), arr ) == 10 ) // cdata
+            const int luatype = lua_type(d_lua->getCtx(), arr );
+            if( luatype == 10 ) // cdata
             {
                 const void* ptr = lua_topointer(d_lua->getCtx(), -1);
                 if( at->isChar() )
@@ -2335,9 +2346,11 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                         break;
                     }
                 }
-            }else
+            }else if( luatype == 0 )
+                item->setText(1, QString("nil") );
+            else
             {
-                lua_getfield( d_lua->getCtx(), -1, "count" );
+                lua_getfield( d_lua->getCtx(), arr, "count" );
                 const int count = lua_tointeger( d_lua->getCtx(), -1 );
                 lua_pop( d_lua->getCtx(), 1 );
                 item->setText(1, QString("<array length %1>").arg(count) );
@@ -2825,13 +2838,32 @@ void Ide::onBcDebug()
     d_bcDebug = !d_bcDebug;
 }
 
+void Ide::onShowBcFile()
+{
+    ENABLED_IF(true);
+
+    const QString path = QFileDialog::getOpenFileName(this,tr("Open bytecode file"),QString());
+
+    if( path.isEmpty() )
+        return;
+
+    QDir::setCurrent(QFileInfo(path).absolutePath());
+
+
+    Lua::BcViewer2* view = new Lua::BcViewer2();
+    view->loadFrom(path);
+    view->setWindowTitle( tr("%1 - Bytecode View").arg( QFileInfo(path).fileName() ) );
+    view->show();
+
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.2");
+    a.setApplicationVersion("0.7.3");
     a.setStyle("Fusion");
 
     Ide w;

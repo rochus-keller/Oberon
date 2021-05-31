@@ -1,4 +1,4 @@
-module GenericTest
+module GenericTest4
 
 import 
 	IL := Generic4<integer>
@@ -16,9 +16,9 @@ var
 
 begin
 	new(IntList)
-	IntList.value := 55
+	IntList.setValue( long(long(55)) )
 	IntList.print()
 	new(StrList)
-	StrList.value := "tata!"
+	StrList.setValue( "tata!" )
 	StrList.print()
-end GenericTest
+end GenericTest4

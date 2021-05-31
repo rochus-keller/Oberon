@@ -1,0 +1,8 @@
+module Generic1<T>
+
+type
+	List* = pointer to record 
+            value* : T
+            next*  : List
+        end
+end Generic1

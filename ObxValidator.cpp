@@ -1943,7 +1943,11 @@ struct ValidatorImp : public AstVisitor
         {
             foreach( const Ref<Type>& t, me->d_metaActuals )
                 t->accept(this);
+            if( me->d_mod.isNull() )
+                return; // already reported
+            qDebug() << "analyzing" << me->d_mod->getName();
             Validator::check(me->d_mod.data(),bt, err );
+            //me->d_mod->dump(); // TEST
         }
     }
 

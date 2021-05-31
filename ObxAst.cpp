@@ -70,81 +70,6 @@ const char* BinExpr::s_opName[] =
     "MUL", "FDIV", "DIV", "MOD", "AND"
 };
 
-#if 0
-// not used, we need separate copies anyway
-struct ObxAstResetter : public AstVisitor
-{
-    void visit( Module* me)
-    {
-        foreach( const Ref<Named>& n, me->d_order )
-            n->accept(this);
-    }
-    void visit( Procedure* me)
-    {
-        foreach( const Ref<Named>& n, me->d_order )
-            n->accept(this);
-    }
-    void visit( Variable* me)
-    {
-        me->d_type->accept(this);
-    }
-    void visit( LocalVar* me)
-    {
-        me->d_type->accept(this);
-    }
-    void visit( Parameter* me)
-    {
-        me->d_type->accept(this);
-    }
-    void visit( Field* me)
-    {
-        me->d_type->accept(this);
-    }
-    void visit( Pointer* me)
-    {
-        me->d_to->accept(this);
-    }
-    void visit( Array* me)
-    {
-        me->d_type->accept(this);
-    }
-    void visit( Record* me)
-    {
-        // d_order and d_names are set by parser and not touched here; same for d_fields
-        foreach( const Ref<Procedure>& p, me->d_methods )
-            me->d_names.remove( p->d_name );
-        me->d_methods.clear();
-        foreach( const Ref<Field>& f, me->d_fields )
-            f->accept(this);
-    }
-    void visit( ProcType* me)
-    {
-        foreach( const Ref<Parameter>& p, me->d_formals )
-            p->accept(this);
-    }
-    void visit( NamedType* me)
-    {
-        me->d_type->accept(this);
-    }
-    void visit( Const* ) {}
-    void visit( Call* ) {}
-    void visit( Return* ) {}
-    void visit( Assign* ) {}
-    void visit( IfLoop* ) {}
-    void visit( ForLoop* ) {}
-    void visit( CaseStmt* ) {}
-    void visit( Literal* ) {}
-    void visit( SetExpr* ) {}
-    void visit( IdentLeaf* ) {}
-    void visit( UnExpr* ) {}
-    void visit( IdentSel* ) {}
-    void visit( ArgExpr* ) {}
-    void visit( BinExpr* ) {}
-    void visit( Enumeration* ) {}
-    void visit( Exit* ) {}
-};
-#endif
-
 #define _USE_VISITED_SET
 
 struct ObxAstPrinter : public AstVisitor
@@ -155,6 +80,8 @@ struct ObxAstPrinter : public AstVisitor
     {
         //if( t->d_minst )
             out << t << " ";
+            if( t->d_slotValid )
+                out << "slot " << t->d_slot << " ";
         return false;
     }
 #else
@@ -200,8 +127,6 @@ struct ObxAstPrinter : public AstVisitor
         if( namedType(t) )
             return;
         out << "RECORD ";
-        if( t->d_slotValid )
-            out << "slot " << t->d_slot;
         d_level++;
         if( !t->d_base.isNull() )
         {
@@ -282,11 +207,13 @@ struct ObxAstPrinter : public AstVisitor
     void renderVar( Named* r )
     {
         out << r->d_name << " ";
+        if( r->d_slotValid )
+            out << "slot " << r->d_slot << " ";
         if( r->d_type.isNull() )
             out << "?";
         else
             r->d_type->accept(this);
-        renderLive(r);
+        //renderLive(r);
         out << endl;
     }
 
@@ -315,6 +242,8 @@ struct ObxAstPrinter : public AstVisitor
         visited.insert(n->d_type.data());
 #endif
         out << ws() << "T " << n->d_name << " ";
+        if( n->d_slotValid )
+            out << "slot " << n->d_slot << " ";
         if( n->d_type.isNull() )
             out << "? ";
         else
@@ -335,6 +264,8 @@ struct ObxAstPrinter : public AstVisitor
     void visit( Import* n)
     {
         out << ws() << "I " << n->d_name << " ";
+        if( n->d_slotValid )
+            out << "slot " << n->d_slot << " ";
         out << n->d_mod->d_name;
         if( !n->d_metaActuals.isEmpty() )
         {
@@ -362,11 +293,13 @@ struct ObxAstPrinter : public AstVisitor
             out << ". " << m->d_name << " ";
         }else
             out << ws() << "PROCEDURE " << m->d_name << " ";
+        if( m->d_slotValid )
+            out << "slot " << m->d_slot << " ";
         if( m->d_type.isNull() )
             out << "? ";
         else
             m->d_type->accept(this);
-        renderLive(m);
+        //renderLive(m);
         out << endl;
         d_level++;
         for( int i = 0; i < m->d_order.size(); i++ )
@@ -385,7 +318,7 @@ struct ObxAstPrinter : public AstVisitor
     void visit( BuiltIn* ) {}
     void visit( Module* m )
     {
-        out << ws() << ( m->d_isDef ? "DEFINITION " : "MODULE " ) << m->d_name << endl;
+        out << ws() << ( m->d_isDef ? "DEFINITION " : "MODULE " ) << m->getName() << " " << m << endl;
         d_level++;
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);
@@ -1057,16 +990,6 @@ bool Literal::isWide(const QString& str)
     }
     return false;
 }
-
-#if 0
-// not used
-void Module::unvalidate()
-{
-    ObxAstResetter v;
-    accept(&v);
-}
-#endif
-
 
 QByteArray Module::getName() const
 {

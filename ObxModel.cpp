@@ -517,11 +517,12 @@ bool Model::parseFiles(const FileGroups& files)
     {
         if( m == d_systemModule.data())
             continue;
-        qDebug() << "analyzing" << m->getName();
 
         if( !m->d_metaParams.isEmpty() )
             continue; // generic modules are not validated here;
                       // instances of generic modules are validated in Validator::visit(Import*) for locality
+
+        qDebug() << "analyzing" << m->getName();
 
         Validator::check(m, bt, d_errs );
 
@@ -1010,18 +1011,25 @@ bool Model::resolveImport(Module* m)
                     if( !i->d_metaActuals.isEmpty() )
                     {
                         Module* meta = i->d_mod.data();
-                        Q_ASSERT( meta != 0 );
-                        i->d_mod = parseFile( meta->d_file );
-                        i->d_mod->d_metaActuals = i->d_metaActuals;
-                        i->d_mod->d_fullName = meta->d_fullName;
-                        i->d_mod->d_instSuffix = QByteArray::number(d_modInsts.size());
-                        d_modInsts.append(i->d_mod.data());
+                        if( meta == 0 )
+                        {
+                            error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
+                                   arg( i->d_path.join('.').constData() ) );
+                            hasErrors = true;
+                        }else
+                        {
+                            i->d_mod = parseFile( meta->d_file );
+                            i->d_mod->d_metaActuals = i->d_metaActuals;
+                            i->d_mod->d_fullName = meta->d_fullName;
+                            i->d_mod->d_instSuffix = QByteArray::number(d_modInsts.size());
+                            d_modInsts.append(i->d_mod.data());
+                        }
                     }else
-                        i->d_mod = parseFile( i->d_path.join('/') );
+                        i->d_mod = parseFile( i->d_path.join('.') );
                     if( i->d_mod.isNull() )
                     {
                         error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
-                               arg( i->d_path.join('/').constData() ) );
+                               arg( i->d_path.join('.').constData() ) );
                         hasErrors = true;
                     }else
                     {
@@ -1066,6 +1074,8 @@ static bool DFS( Module* m, QSet<Module*>& mods, QList<Module*>& trace )
 
 bool Model::findProcessingOrder()
 {
+    d_depOrder.clear();
+
     QSet<Module*> mods, all;
     Modules::const_iterator i;
     for( i = d_modules.begin(); i != d_modules.end(); ++i )
