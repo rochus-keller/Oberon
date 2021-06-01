@@ -104,6 +104,7 @@ namespace Obx
         void removePosMarkers();
         void enableDbgMenu();
         void pushLocation( const Location& );
+        void clear();
 
     protected slots:
         void onCompile();
@@ -155,6 +156,7 @@ namespace Obx
         void onQt();
         void onExpMod();
         void onBcDebug();
+        void onShowBcFile();
     private:
         class DocTab;
         class Debugger;

@@ -1,24 +1,22 @@
-module Generic4
+module Generic4<T>
 
 type
-	Element<V> = record 
-				value : V 
+	Element = record 
+				value* : T 
 		  end
 	
-	List<T> = pointer to record (Element<T>)
-            next  : List<T>
+	List* = pointer to record (Element)
+            next*  : List
         end
         
-   proc (in this: Element) print()
+   proc (in this: Element) print*()
    begin
 	   println(this.value)
    end print
    
-var
-	IntList : List<integer>
-
-begin
-	new(IntList)
-	IntList.value := 55
-	IntList.print()
+   proc (in this: Element) setValue*( in v: T )
+   begin
+	   this.value := v
+	end setValue
+   
 end Generic4

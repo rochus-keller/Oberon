@@ -1,0 +1,26 @@
+module GenericTest5
+
+import 
+	IL := Generic4<integer>,
+	SL := Generic4<String>
+
+var
+	IntList : IL.List
+		
+const 
+	StrLen = 20
+
+type
+	String = array StrLen of char
+		
+var
+	StrList : SL.List
+
+begin
+	new(IntList)
+	IntList.setValue( long(long(55)) )
+	IntList.print()
+	new(StrList)
+	StrList.setValue( "tata!" )
+	StrList.print()
+end GenericTest5

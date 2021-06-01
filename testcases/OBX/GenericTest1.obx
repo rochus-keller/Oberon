@@ -1,0 +1,12 @@
+module GenericTest1
+
+import IL := Generic1<integer>
+
+var
+	IntList : IL.List
+
+begin
+	new(IntList)
+	IntList.value := 33
+	println(IntList.value)
+end GenericTest1

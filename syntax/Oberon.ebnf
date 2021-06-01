@@ -17,7 +17,6 @@
 // - added explicit Elsif/ElseStatement 
 // - integrated DEFINITION syntax
 // - made LengthList optional in ArrayType (like Oberon-2)
-// - added generic types, like Roe & Szypersky, with modifications
 // - added type-bound procedures from Oberon-2
 // - added paths to import; most right element of the path is the module name
 // - added enumerations, adopted from Pascal scalar type
@@ -30,10 +29,12 @@
 // - added syntax elements to parse Blackbox Component Pascal 1.7
 // - made end ident of procedures optional
 // - added UNSAFE POINTER, CSTRUCT,  CUNION and CARRAY for external C library integration
+// - switched to generic modules (instead of generic types, similar to a subset of Ada) to avoid semantic complexities
+// - allow import lists to occur several times interleaved with declaration sequence
 
-//#define OBN2
+#define OBN2
 // combine OBN2 with either OBNX or BBOX
-//#define OBNX
+#define OBNX
 //#define BBOX
 
 /// Top
@@ -82,11 +83,7 @@ ConstExpression* ::= expression
 
 /// 6. Type declarations
 
-TypeDeclaration ::= identdef 
-#ifdef OBNX
-	[ TypeParams_ ] 
-#endif 
-	'=' type
+TypeDeclaration ::= identdef 	'=' type
 
 type ::= NamedType 
 #ifdef OBNX
@@ -95,16 +92,13 @@ type ::= NamedType
 	| ArrayType | RecordType | PointerType | ProcedureType
 
 NamedType ::= qualident 
-#ifdef OBNX
-		[ TypeActuals_ ] 
-#endif 
 
 #ifdef OBNX
 TypeParams_ ::= '<' ident { ',' ident } '>'
 
-TypeActuals_ ::= '<' TypeActual { ',' TypeActual } '>' 
+TypeActuals_ ::= '<' TypeActual_ { ',' TypeActual_ } '>' 
 
-TypeActual ::= NamedType | literal
+TypeActual_ ::= NamedType
 
 enumeration ::= '('  ident { ',' ident } ')' 
 #endif
@@ -376,9 +370,6 @@ ProcedureHeading ::= ( PROCEDURE | PROC )
 #ifdef BBOX
 	[ SysFlag ]
 #endif
-#ifdef OBNX
-	[ TypeParams_ ]
-#endif
 #ifdef OBN2
 	[Receiver]
 #endif
@@ -394,9 +385,6 @@ Receiver ::= '(' [ VAR
 	| IN
 #endif
 	] ident ':' ident
-#ifdef OBNX
-	[ TypeActuals_ ] 
-#endif 
 	')'
 #endif
 
@@ -500,12 +488,21 @@ FormalType ::=
 
 /// 11. Modules
 
-module ::= MODULE ident (
+module ::= MODULE ident 
+#ifdef OBNX
+	[ TypeParams_ ] 
+#endif 
+	(
 #ifdef BBOX
 	'[' SysString ']'  ';' [ ImportList ] DeclarationSequence2 END ident '.'
 	|
 #endif
-	[';'] [ ImportList ] DeclarationSequence
+	[';'] 
+#ifdef OBNX
+	{ ImportList | DeclarationSequence }
+#else
+	[ ImportList ] DeclarationSequence
+#endif
 	[ ( BEGIN 
 #ifdef OBNX
 	| DO 
@@ -521,6 +518,7 @@ ImportList ::= IMPORT import { ',' import } [';']
 import ::= [ \LL:2\ ident ':=' ] ident 
 #ifdef OBNX
 	{ '/' ident } // NOTE: paths are not case sensitive 
+	[ TypeActuals_ ] 
 #endif
 
 /// 11.1 The Module SYSTEM

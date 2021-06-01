@@ -94,11 +94,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 else if( tag == Thing::T_Variable )
                     collectRecord(n->d_type.data(), false);
             }
-#ifdef _HAS_GENERICS
-            // does not work because d_metaInsts is not complete at this point
-            foreach( const Ref<Type>& t, me->d_metaInsts )
-                collectRecord(t.data(),false);
-#endif
         }
 
         void visit( Procedure* me)
@@ -186,7 +181,7 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( Module* me)
     {
         ctx.push_back( Ctx(me) );
-        bc.openFunction(0,me->d_file.toUtf8(),me->d_loc.packed(), me->d_end.packed() );
+        bc.openFunction(0,me->getName(),me->d_loc.packed(), me->d_end.packed() );
 
         QHash<quint8,QByteArray> names;
         modSlot = ctx.back().buySlots(1);
@@ -256,7 +251,7 @@ struct ObxLjbcGenImp : public AstVisitor
         foreach( Import* imp, me->d_imports )
             imp->accept(this);
 
-        me->dump(); // TEST
+        // me->dump(); // TEST
         curClass = ctx.back().buySlots(1);
         foreach( Record* r, pc.allRecords )
             allocateClassTables(r);
@@ -456,7 +451,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void visit( Import* me)
     {
-        emitImport( me->d_path.join('.'), me->d_slot, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc );
+        emitImport( me->d_mod->getName(), me->d_slot, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc );
     }
 
     void visit( Variable* me)
@@ -1177,6 +1172,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void emitImport( const QByteArray& modName, quint8 toSlot, const RowCol& loc )
     {
+        Q_ASSERT( !modName.isEmpty() );
         int tmp = ctx.back().buySlots(2,true);
         bc.GGET( tmp, "require", loc.packed() );
         bc.KSET( tmp+1, modName, loc.packed() );
@@ -1298,6 +1294,8 @@ struct ObxLjbcGenImp : public AstVisitor
         // expects non-derefed t!
         Type* td = derefed(t);
         Q_ASSERT( td );
+        if( td->getTag() == Thing::T_Pointer )
+            td = cast<Pointer*>(td)->d_to.data();
         switch( td->getTag() )
         {
         case Thing::T_Record:
@@ -1651,7 +1649,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 quint8 tmp = ctx.back().buySlots(4,true);
                 fetchObxlibMember(tmp,29,ae->d_loc); // ASSERT
                 bc.MOV(tmp + 1, slotStack.back(), ae->d_loc.packed() );
-                bc.KSET(tmp + 2, QVariant::fromValue(thisMod->d_name), ae->d_loc.packed() );
+                bc.KSET(tmp + 2, QVariant::fromValue(thisMod->getName()), ae->d_loc.packed() );
                 bc.KSET(tmp + 3, ae->d_loc.d_row, ae->d_loc.packed() );
                 bc.CALL(tmp,0,3, ae->d_loc.packed());
                 ctx.back().sellSlots(tmp,4);
@@ -1662,14 +1660,15 @@ struct ObxLjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( !ae->d_args.isEmpty() );
 
-                Type* t = derefed(ae->d_args.first()->d_type.data() );
-                Q_ASSERT( t && t->getTag() == Thing::T_Pointer );
-                Pointer* ptr = cast<Pointer*>(t);
+                Type* t = ae->d_args.first()->d_type.data();
+                Type* td = derefed(t);
+                Q_ASSERT( td && td->getTag() == Thing::T_Pointer );
+                //Pointer* ptr = cast<Pointer*>(td);
                 int tmp = ctx.back().buySlots(1);
                 QList<Expression*> dims;
                 for( int i = 1; i < ae->d_args.size(); i++ )
                     dims << ae->d_args[i].data();
-                emitInitializer(tmp, ptr->d_to.data(), ae->d_loc, dims );
+                emitInitializer(tmp, t, ae->d_loc, dims );
                 emitAssig(ae->d_args.first().data(), tmp, ae->d_loc );
                 ctx.back().sellSlots(tmp);
             }
@@ -2084,9 +2083,7 @@ struct ObxLjbcGenImp : public AstVisitor
     static void allocateClasses( Record* r, quint32& slotNr, Module* thisMod )
     {
         if( r->d_baseRec && !r->d_baseRec->d_slotValid
-                //&& r->d_base->d_quali->getTag() == Thing::T_IdentLeaf ) // treat only local records here
-                && r->d_base->d_quali->getIdent()
-                && r->d_base->d_quali->getIdent()->getModule() == thisMod ) // treat only local records here
+                && r->d_base->d_quali->getTag() == Thing::T_IdentLeaf ) // treat only local records here
             allocateClasses( r->d_baseRec, slotNr, thisMod );
         if( !r->d_slotValid )
         {
@@ -2149,10 +2146,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 int m = -1;
                 QByteArray name = "@mod";
                 Expression* qe = q->d_quali.data();
-#ifdef _HAS_GENERICS
-                if( qe->getUnOp() == UnExpr::MINST )
-                    qe = cast<IdentSel*>(qe)->d_sub.data();
-#endif
                 if( qe->getTag() == Thing::T_IdentLeaf )
                     m = modSlot; // target is in this module
                 else
@@ -2208,8 +2201,7 @@ struct ObxLjbcGenImp : public AstVisitor
     void allocateClassTables( Record* r )
     {
         if( r->d_baseRec && !r->d_baseRec->d_slotAllocated
-            && r->d_base->d_quali->getIdent()
-            && r->d_base->d_quali->getIdent()->getModule() == thisMod ) // treat only local records here
+            && r->d_base->d_quali->getTag() == Thing::T_IdentLeaf ) // treat only local records here
             allocateClassTables( r->d_baseRec );
         if( !r->d_slotAllocated )
         {
@@ -2286,7 +2278,7 @@ struct ObxLjbcGenImp : public AstVisitor
     {
         if( t == 0 || !t->d_slotValid )
         {
-            qCritical() << "ERROR invalid slot in" << thisMod->d_name << loc.d_row << loc.d_col;
+            qCritical() << "ERROR invalid slot in" << thisMod->getName() << loc.d_row << loc.d_col;
             return false;
         }else
             return true;
@@ -2607,7 +2599,7 @@ struct ObxLjbcGenImp : public AstVisitor
             }
         }else
         {
-            qDebug() << "ERR" << desig->getUnOp() << desig->getTag() << thisMod->d_name << desig->d_loc.d_row << desig->d_loc.d_col;
+            qDebug() << "ERR" << desig->getUnOp() << desig->getTag() << thisMod->getName() << desig->d_loc.d_row << desig->d_loc.d_col;
             Q_ASSERT( false );
         }
     }
@@ -2917,12 +2909,12 @@ bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, b
             LjbcGen::allocateDef(m, 0, err );
         }else
         {
-            QFile out( dir.absoluteFilePath( m->d_name + ".lua" ) );
+            QFile out( dir.absoluteFilePath( m->getName() + ".lua" ) );
             if( !out.open(QIODevice::WriteOnly) )
             {
                 errs++;
                 if( err )
-                    err->error(Errors::Generator,m->d_name, 0,0,QString("cannot open file '%1' for writing").
+                    err->error(Errors::Generator,m->getName(), 0,0,QString("cannot open file '%1' for writing").
                            arg(out.fileName()) );
             }else
             {
@@ -3001,7 +2993,7 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
         {
             n->setSlot(slotNr++);
             if( out )
-                ts << "-- module[" << n->d_slot << "] = " << n->d_name << endl;
+                ts << "-- module[" << n->d_slot << "] = " << n->getName() << endl;
         }
     }
 
@@ -3011,7 +3003,7 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
         // bound procs are stored in the class objects instead
         p->setSlot( slotNr++ );
         if( out )
-            ts << "module[" << p->d_slot << "] = module." << p->d_name << endl;
+            ts << "module[" << p->d_slot << "] = module." << p->getName() << endl;
     }
 
     foreach( Record* r, pc.allRecords )
@@ -3023,7 +3015,7 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
             if( name == 0 && r->d_binding )
                 name = r->d_binding->d_decl;
             if( name )
-                ts << "-- module[" << r->d_slot << "] = record " << name->d_name << endl;
+                ts << "-- module[" << r->d_slot << "] = record " << name->getName() << endl;
             else
                 qWarning() << "no name for record slot" << r->d_slot;
         }

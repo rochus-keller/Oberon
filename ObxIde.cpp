@@ -327,11 +327,12 @@ public:
     Debugger(Ide* ide):d_ide(ide){}
     void handleBreak( Lua::Engine2* lua, const QByteArray& source, quint32 line )
     {
+        QByteArray msg = lua->getValueString(1).simplified();
+
         d_ide->enableDbgMenu();
         d_ide->fillStack();
         d_ide->fillLocals();
 
-        QByteArray msg = lua->getValueString(1).simplified();
         msg = msg.mid(1,msg.size()-2); // remove ""
         if( !lua->isBreakHit() )
         {
@@ -603,6 +604,7 @@ void Ide::createDumpView()
     pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
     pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
+    pop->addCommand( "Show bytecode file...", this, SLOT(onShowBcFile()) );
     addTopCommands(pop);
 }
 
@@ -921,10 +923,13 @@ void Ide::onRun()
     bool hasErrors = false;
     foreach( const Project::FileRef& f, files )
     {
-        qDebug() << "loading" << f->d_mod->d_name;
-        if( !d_lua->addSourceLib( f->d_sourceCode, f->d_mod->getName() ) )
+        qDebug() << "file" << f->d_filePath;
+        Project::ModCode::const_iterator j;
+        for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
         {
-            hasErrors = true;
+            qDebug() << "loading" << j.key()->getName();
+            if( !d_lua->addSourceLib( j.value(), j.key()->getName() ) )
+                hasErrors = true;
         }
         if( d_lua->isAborted() )
         {
@@ -1024,6 +1029,7 @@ void Ide::onOpenPro()
     QDir::setCurrent(QFileInfo(fileName).absolutePath());
 
     d_tab->onCloseAll();
+    clear();
     d_pro->loadFrom(fileName);
 
     compile();
@@ -1137,18 +1143,25 @@ void Ide::onExportBc()
     const QString curPath = d_tab->getCurrentDoc().toString();
     ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath)->d_sourceCode.isEmpty() );
 
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Binary"), curPath, tr("*.ljbc") );
+    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Binary") );
 
-    if (fileName.isEmpty())
+    if (dirPath.isEmpty())
         return;
 
-    QDir::setCurrent(QFileInfo(fileName).absolutePath());
+    QDir::setCurrent(dirPath);
 
-    if( !fileName.endsWith(".ljbc",Qt::CaseInsensitive ) )
-        fileName += ".ljbc";
-    QFile out(fileName);
-    out.open(QIODevice::WriteOnly);
-    out.write(d_pro->getFiles().value(curPath)->d_sourceCode);
+    Project::File* f = d_pro->getFiles().value(curPath).data();
+    Q_ASSERT( f != 0 );
+
+    Project::ModCode::const_iterator i;
+    for( i = f->d_sourceCode.begin(); i != f->d_sourceCode.end(); ++i )
+    {
+        QString path = dirPath + "/" + i.key()->getName();
+        path += ".ljbc";
+        QFile out(path);
+        out.open(QIODevice::WriteOnly);
+        out.write(i.value());
+    }
 }
 
 void Ide::onExportAsm()
@@ -1237,7 +1250,7 @@ void Ide::onTabChanged()
         if( f.data() )
         {
             fillModule(f->d_mod.data());
-            d_curBc = f->d_sourceCode;
+            d_curBc = f->d_sourceCode.value(f->d_mod.data());
             if( !d_curBc.isEmpty() )
             {
                 QBuffer buf( &d_curBc );
@@ -2112,7 +2125,7 @@ void Ide::fillLocals()
                 Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
             }
         }
-        lua_pop( d_lua->getCtx(), 1 );
+        lua_pop( d_lua->getCtx(), 1 ); // module
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
     }
 #if 0
@@ -2258,7 +2271,8 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             Type* at = derefed(a->d_type.data());
             Q_ASSERT( at );
             const int arr = lua_gettop(d_lua->getCtx());
-            if( lua_type(d_lua->getCtx(), arr ) == 10 ) // cdata
+            const int luatype = lua_type(d_lua->getCtx(), arr );
+            if( luatype == 10 ) // cdata
             {
                 const void* ptr = lua_topointer(d_lua->getCtx(), -1);
                 if( at->isChar() )
@@ -2330,9 +2344,11 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                         break;
                     }
                 }
-            }else
+            }else if( luatype == 0 )
+                item->setText(1, QString("nil") );
+            else
             {
-                lua_getfield( d_lua->getCtx(), -1, "count" );
+                lua_getfield( d_lua->getCtx(), arr, "count" );
                 const int count = lua_tointeger( d_lua->getCtx(), -1 );
                 lua_pop( d_lua->getCtx(), 1 );
                 item->setText(1, QString("<array length %1>").arg(count) );
@@ -2772,6 +2788,25 @@ void Ide::pushLocation(const Ide::Location& loc)
     d_backHisto.push_back( loc );
 }
 
+void Ide::clear()
+{
+    d_backHisto.clear();
+    d_forwardHisto.clear();
+    d_pro->clear();
+    d_mods->clear();
+    d_mod->clear();
+    d_hier->clear();
+    d_modIdx.clear();
+    d_stack->clear();
+    d_scopes.clear();
+    d_locals->clear();
+    d_xrefTitle->clear();
+    d_modTitle->clear();
+    d_hierTitle->clear();
+    d_xref->clear();
+    d_errs->clear();
+}
+
 void Ide::onAbout()
 {
     ENABLED_IF(true);
@@ -2820,13 +2855,32 @@ void Ide::onBcDebug()
     d_bcDebug = !d_bcDebug;
 }
 
+void Ide::onShowBcFile()
+{
+    ENABLED_IF(true);
+
+    const QString path = QFileDialog::getOpenFileName(this,tr("Open bytecode file"),QString());
+
+    if( path.isEmpty() )
+        return;
+
+    QDir::setCurrent(QFileInfo(path).absolutePath());
+
+
+    Lua::BcViewer2* view = new Lua::BcViewer2();
+    view->loadFrom(path);
+    view->setWindowTitle( tr("%1 - Bytecode View").arg( QFileInfo(path).fileName() ) );
+    view->show();
+
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.1");
+    a.setApplicationVersion("0.7.4");
     a.setStyle("Fusion");
 
     Ide w;

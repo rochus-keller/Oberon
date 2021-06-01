@@ -64,6 +64,8 @@ struct ObxHitTest : public AstVisitor
             a->d_flag->accept(this);
         if( a->d_type )
             a->d_type->accept(this); // look for qualis
+        if( a->d_lenExpr )
+            a->d_lenExpr->accept(this);
     }
 
     void visit( Record* r )
@@ -133,7 +135,8 @@ struct ObxHitTest : public AstVisitor
 
     void visit( Import* i )
     {
-        // NOP
+        foreach( const Ref<Type>& a, i->d_metaActuals )
+            a->accept(this);
     }
 
     void visit( Procedure* m)
@@ -412,7 +415,7 @@ struct ObxModuleDump : public AstVisitor
         if( me->d_type )
             me->d_type->accept(this);
         else
-            "?";
+            out << "?";
     }
     void visit( Field* me)
     {
@@ -786,6 +789,8 @@ Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInO
 void Project::clear()
 {
     d_mdl->clear();
+    d_modules.clear();
+    d_dirs.clear();
     d_filePath.clear();
     d_files.clear();
 }
@@ -914,6 +919,8 @@ Project::FileList Project::getFilesInExecOrder() const
     foreach( Module* m, order )
     {
         Q_ASSERT( m );
+        if( !m->d_metaActuals.isEmpty() )
+            continue; // ignore generic module instances because they are part of the generic module
         FileHash::const_iterator i = d_files.find( m->d_file );
         if( i == d_files.end() || i.value()->d_sourceCode.isEmpty() || i.value()->d_mod.isNull() )
             continue;
@@ -1083,14 +1090,16 @@ bool Project::recompile()
 
 bool Project::generate()
 {
+    FileHash::const_iterator i;
+    for( i = d_files.begin(); i != d_files.end(); ++i )
+        i.value()->d_sourceCode.clear();
     const quint32 errs = d_mdl->getErrs()->getErrCount();
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
     {
+
         FileHash::iterator f = d_files.find(m->d_file);
-        if( f != d_files.end() )
-            f.value()->d_sourceCode.clear();
-        if( m->d_synthetic )
+        if( m->d_synthetic || ( !m->d_metaParams.isEmpty() && m->d_metaActuals.isEmpty() ) )
             ; // NOP
         else if( m->d_hasErrors )
         {
@@ -1111,12 +1120,12 @@ bool Project::generate()
 #endif
         }else if( f != d_files.end() )
         {
-            qDebug() << "generating" << m->d_name;
+            qDebug() << "generating" << m->getName() << " " << m;
             QBuffer buf;
             buf.open(QIODevice::WriteOnly);
             LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
             buf.close();
-            f.value()->d_sourceCode = buf.buffer();
+            f.value()->d_sourceCode[m] = buf.buffer();
         }
     }
     return errs == d_mdl->getErrs()->getErrCount();

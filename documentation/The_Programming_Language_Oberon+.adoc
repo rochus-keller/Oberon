@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-05-28
+:revdate: 2021-05-30
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -24,7 +24,7 @@ Based on work by Niklaus Wirth and Hanspeter Mössenböck (<<Wi16>>, <<Mo91>>).
 == Introduction
 Oberon+ (i.e. _Oberon with extensions_, abbreviated *OBX*, pronounced _obex_) is a general-purpose, procedural and object-oriented programming language in the tradition of Oberon-07 <<Wi16>> and Oberon-2 <<Mo91>>. 
 
-The most important features of Oberon+ are block structure, modularity, separate compilation, static typing with strong type checking, parametric polymorphism footnote:[adopted with modifications from <<Ro97>>], garbage collection, and type extension with type-bound procedures.
+The most important features of Oberon+ are block structure, modularity, separate compilation, static typing with strong type checking, generic programming footnote:[generic modules, inspired by <<Ada83>>], garbage collection, and type extension with type-bound procedures.
 
 A major design goal of Oberon in 1987 was to make the language as simple as possible <<Wi87>>. Oberon+ follows the same goal, but taking into account the current state of the art. Backwards compatibility remains mostly ensured: a valid Oberon-2 or Oberon-07 program is generally also a valid Oberon+ program footnote:[subject to basic type differences and limited access to objects declared in the environment of nestes procedures].
  
@@ -38,23 +38,37 @@ This report is not intended as a programmer's tutorial. It is intentionally kept
 [[obx-generics-example]]
 [source,oberon]
 ----
-module Lists
+module Lists<T>
     type
-        List*<T>     = ^record
+        List*     = ^record
             value : T
-            next  : List<T>
+            next  : List
         end
 
     proc (l : List) Add* (v : T) 
     begin
-        if l = nil then
-            new(l)           // create record instance
-            l.value := v
-        else
-            l.next.Add(v)      
-        end
+    	new( l.next )
+    	l.next.value := v
     end Add
+    
+    proc (l : List) Print()
+    begin
+    	println(l.value)
+    end Print
 end Lists
+
+module ListTest
+	import 
+		L := Lists<integer>
+	var
+		l := L.List
+	begin
+		new(l)
+		l.value := 123
+		l.Add(456)
+		l.Print()
+		l.next.Print()
+end ListTest
 ----
 
 See <<oberon-2-example, here>> for more examples.
@@ -491,31 +505,6 @@ enumeration = '('  ident { ',' ident } ')'
 
 The ordinal number of an enumeration identifier can be obtained using the `ORD` predeclared function procedure. `VAL` is the reverse operation. `MIN` returns the first and `MAX` the last ident of the enumeration. `INC` returns the next and `DEC` the previous ident. If T is an enumeration type then `INC(MAX(T))` and `DEC(MIN(T))` are undefined and terminate the program.
 
-=== Generics
-Oberon+ supports parametric polymorphism. Type and procedure declarations can be made generic by adding formal type parameters. Type parameters are scoped over the declaration and enable it to operate on different types. Generic type and procedure declarations can be instantiated with different types which makes it easier to design reusable algorithms and data structures.
-
-.Syntax:
-....
-TypeParams       = '<' ident { ',' ident } '>'
-TypeActuals      = '<' NamedType { ',' NamedType } '>' 
-TypeDeclaration  = identdef [TypeParams] '=' type
-ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ] 
-				   [Receiver] identdef [ FormalParameters ]
-NamedType        = qualident [TypeActuals] 
-....
- 
-Procedures bound to a parametric record type don't have explicit type parameters, but use the ones of the record type.
-
-.Example:
-....
-proc ( self: List ) print 		// legal
-proc <T> ( self: List<T> ) print 		// illegal
-proc <T> ( self: List<integer> ) print  // illegal
-....
-
-The base type of a record can be a parametric record type. Instantiated parametric record types do not have subtype relationships induced by their actual type parameters. 
-
-See also <<obx-generics-example, this example>>.
 
 == Variable declarations
 Variable declarations introduce variables by defining an identifier and a data type for them.
@@ -1200,11 +1189,11 @@ A module is a collection of declarations of constants, types, variables, and pro
 
 .Syntax:
 ....
-module     = MODULE ident [';'] [ ImportList ] 
-             DeclarationSequence
+module     = MODULE ident [ TypeParams ] [';'] 
+             { ImportList | DeclarationSequence }
 	         [ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import     = [ ident ':=' ] ImportPath ident
+import     = [ ident ':=' ] ImportPath ident [ TypeActuals ] 
 ImportPath = { ident '.' } 
 ....
 
@@ -1280,6 +1269,21 @@ module Lists
     end Write
 end Lists
 ----
+
+=== Generics
+Oberon+ supports generic programming. Modules can be made generic by adding formal type parameters. Generic modules can be instantiated with different types which makes it easier to design reusable algorithms and data structures. The instantiation of a generic module occurs when importing it. A generic module can be instantiated more than one time in the same module with different type parameters. See <<Modules>>
+
+.Syntax:
+....
+TypeParams       = '<' ident { ',' ident } '>'
+TypeActuals      = '<' NamedType { ',' NamedType } '>' 
+module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
+	[ BEGIN StatementSequence ] END ident ['.']
+ImportList = IMPORT import { ',' import } [';']
+import = [ ident ':=' ] ImportPath ident [ TypeActuals ] 
+....
+
+See also <<obx-generics-example, this example>>.
 
 === Definitions
 A DEFINITION is a special kind of MODULE which only includes public declarations. The export mark `*` is redundant, but `-` can be used to mark read-only exports (see <<Declarations and scope rules>>).
@@ -1412,10 +1416,10 @@ qualident = [ ident '.' ] ident
 identdef = ident [ '*' | '-' ] 
 ConstDeclaration = identdef '=' ConstExpression
 ConstExpression = expression
-TypeDeclaration = identdef [TypeParams] '=' type
+TypeDeclaration = identdef '=' type
 type = NamedType | enumeration
 	| ArrayType | RecordType | PointerType | ProcedureType
-NamedType = qualident [TypeActuals] 
+NamedType = qualident
 TypeParams = '<' ident { ',' ident } '>'
 TypeActuals = '<' NamedType { ',' NamedType } '>' 
 enumeration = '('  ident { ',' ident } ')' 
@@ -1480,9 +1484,9 @@ LoopStatement = LOOP StatementSequence END
 ExitStatement = EXIT
 ProcedureDeclaration = ProcedureHeading [ ';' ] 
 	ProcedureBody END ident 
-ProcedureHeading = ( PROCEDURE | PROC ) [TypeParams] [Receiver]
+ProcedureHeading = ( PROCEDURE | PROC ) [Receiver]
 	 identdef [ FormalParameters ]
-Receiver = '(' [VAR] ident ':' ident [ TypeActuals ] ')'
+Receiver = '(' [VAR] ident ':' ident ')'
 ProcedureBody = DeclarationSequence 
 	[ BEGIN StatementSequence
 	| ReturnStatement [ ';' ] ]
@@ -1496,10 +1500,10 @@ FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')'
 	[ ':' NamedType ]
 FPSection = [ VAR | IN ] ident { ',' ident } ':' FormalType 
 FormalType = type
-module = MODULE ident [';'] [ ImportList ] DeclarationSequence
+module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
 	[ BEGIN StatementSequence ] END ident ['.']
 ImportList = IMPORT import { ',' import } [';']
-import = [ ident ':=' ] ImportPath ident 
+import = [ ident ':=' ] ImportPath ident [ TypeActuals ] 
 ImportPath = { ident '.' } 
 definition = DEFINITION ident [';']  [ ImportList ] 
 	DeclarationSequence2 END ident ['.']
@@ -1514,9 +1518,9 @@ DeclarationSequence2 =
 [appendix]
 // [bibliography]
 == References
+- [[[Ada83]]] ISO 8652:1987 Programming languages — Ada. International Organization for Standardization.
 - [[[Mo91]]] Mössenböck, H.; Wirth, N. (1991). The Programming Language Oberon-2. Structured Programming, 12(4):179-195, 1991. http://www.ssw.uni-linz.ac.at/Research/Papers/Oberon2.pdf (accessed 2020-11-16).
 - [[[Om01]]] Oberon microsystems, Inc. (2001). Component Pascal Language Report. https://web.archive.org/web/20191021025943/http://www.oberon.ch/pdf/CP-Lang.pdf (accessed 2021-01-21).
-- [[[Ro97]]] Roe, P.; Szyperski, C. (1997). Lightweight parametric polymorphism for Oberon. In: Mössenböck H. (eds). Modular Programming Languages. JMLC 1997. Lecture Notes in Computer Science, vol 1204. Springer, Berlin, Heidelberg. 
 - [[[Wi16]]] Wirth, N. (2016). The Programming Language Oberon. https://people.inf.ethz.ch/wirth/Oberon/Oberon07.Report.pdf (accessed 2020-11-16).
 - [[[Wi73]]] Wirth, N. (1973). The Programming Language Pascal (Revised Report). ETH Report. https://doi.org/10.3929/ethz-a-000814158 (accessed 2020-11-16).
 - [[[Wi87]]] Wirth, N. (1987). From Modula to Oberon and the programming language Oberon. ETH Report. https://doi.org/10.3929/ethz-a-005363226 (accessed 2020-11-16).

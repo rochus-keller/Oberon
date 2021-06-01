@@ -58,7 +58,7 @@ const char* BuiltIn::s_typeName[] =
 const char* UnExpr::s_opName[] =
 {
     "???",
-    "NEG", "NOT", "DEREF", "ADDROF", "CAST", "SEL", "CALL", "IDX", "MINST"
+    "NEG", "NOT", "DEREF", "ADDROF", "CAST", "SEL", "CALL", "IDX"
 };
 
 const char* BinExpr::s_opName[] =
@@ -80,6 +80,8 @@ struct ObxAstPrinter : public AstVisitor
     {
         //if( t->d_minst )
             out << t << " ";
+            if( t->d_slotValid )
+                out << "slot " << t->d_slot << " ";
         return false;
     }
 #else
@@ -125,8 +127,6 @@ struct ObxAstPrinter : public AstVisitor
         if( namedType(t) )
             return;
         out << "RECORD ";
-        if( t->d_slotValid )
-            out << "slot " << t->d_slot;
         d_level++;
         if( !t->d_base.isNull() )
         {
@@ -174,49 +174,6 @@ struct ObxAstPrinter : public AstVisitor
     }
     void visit( QualiType* t )
     {
-        if( !t->d_metaActuals.isEmpty() )
-        {
-            out << "( METAINST ";
-
-            if( !t->d_quali->d_type.isNull() && t->d_quali->d_type->d_decl &&
-                    t->d_quali->d_type->d_decl->getTag() == Thing::T_NamedType )
-                out << "of " << t->d_quali->d_type->d_decl->d_name;
-
-            d_level++;
-            for( int i = 0; i < t->d_metaActuals.size(); i++ )
-            {
-                out << endl << ws();
-                out << "TPAR ";
-                t->d_metaActuals[i]->accept(this);
-            }
-
-#ifdef _USE_VISITED_SET
-            Type* qt = t->d_quali->d_type.data();
-            Named* n = qt->findDecl(true);
-            Q_ASSERT( n != 0 );
-            if( !visited.contains(qt) )
-            {
-                visited.insert(qt);
-                out << endl << ws() << "T ";
-                out << n->d_name << " ";
-                qt->accept(this);
-            }else
-            {
-                out << endl << ws();
-                out << "TREF " << qt << " " << n->d_name << " ";
-            }
-#else
-            if( t->d_minst && !t->d_quali->d_type.isNull() && t->d_quali->d_type->d_decl != curNamed )
-            {
-                out << endl << ws();
-                t->d_quali->d_type->accept(this);
-            }
-#endif
-            out << ") ";
-            d_level--;
-
-            return;
-        }
         if( namedType(t) )
             return;
         t->d_quali->accept(this);
@@ -250,11 +207,13 @@ struct ObxAstPrinter : public AstVisitor
     void renderVar( Named* r )
     {
         out << r->d_name << " ";
+        if( r->d_slotValid )
+            out << "slot " << r->d_slot << " ";
         if( r->d_type.isNull() )
             out << "?";
         else
             r->d_type->accept(this);
-        renderLive(r);
+        //renderLive(r);
         out << endl;
     }
 
@@ -283,6 +242,8 @@ struct ObxAstPrinter : public AstVisitor
         visited.insert(n->d_type.data());
 #endif
         out << ws() << "T " << n->d_name << " ";
+        if( n->d_slotValid )
+            out << "slot " << n->d_slot << " ";
         if( n->d_type.isNull() )
             out << "? ";
         else
@@ -303,7 +264,24 @@ struct ObxAstPrinter : public AstVisitor
     void visit( Import* n)
     {
         out << ws() << "I " << n->d_name << " ";
+        if( n->d_slotValid )
+            out << "slot " << n->d_slot << " ";
         out << n->d_mod->d_name;
+        if( !n->d_metaActuals.isEmpty() )
+        {
+            out << "( METAINST ";
+
+            d_level++;
+            for( int i = 0; i < n->d_metaActuals.size(); i++ )
+            {
+                out << endl << ws();
+                out << "TPAR ";
+                n->d_metaActuals[i]->accept(this);
+            }
+            d_level--;
+
+            out << " ) ";
+        }
         out << endl;
     }
     void visit( Procedure* m )
@@ -315,11 +293,13 @@ struct ObxAstPrinter : public AstVisitor
             out << ". " << m->d_name << " ";
         }else
             out << ws() << "PROCEDURE " << m->d_name << " ";
+        if( m->d_slotValid )
+            out << "slot " << m->d_slot << " ";
         if( m->d_type.isNull() )
             out << "? ";
         else
             m->d_type->accept(this);
-        renderLive(m);
+        //renderLive(m);
         out << endl;
         d_level++;
         for( int i = 0; i < m->d_order.size(); i++ )
@@ -338,7 +318,7 @@ struct ObxAstPrinter : public AstVisitor
     void visit( BuiltIn* ) {}
     void visit( Module* m )
     {
-        out << ws() << ( m->d_isDef ? "DEFINITION " : "MODULE " ) << m->d_name << endl;
+        out << ws() << ( m->d_isDef ? "DEFINITION " : "MODULE " ) << m->getName() << " " << m << endl;
         d_level++;
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);
@@ -627,28 +607,6 @@ bool ProcType::isBuiltIn() const
     return d_decl && d_decl->getTag() == Thing::T_BuiltIn;
 }
 
-Ref<Type> ProcType::instantiate(const MetaParams& p, const MetaActuals& a)
-{
-    Ref<ProcType> res = new ProcType();
-    res->d_minst = true;
-    res->d_binding = this;
-    res->d_loc = d_loc;
-    if( !d_return.isNull() )
-        res->d_return = d_return->instantiate(p,a);
-    foreach( const Ref<Parameter>& par, d_formals )
-    {
-        Ref<Parameter> parNew = new Parameter();
-        parNew->d_name = par->d_name;
-        parNew->d_scope = par->d_scope;
-        parNew->d_var = par->d_var;
-        parNew->d_const = par->d_const;
-        parNew->d_receiver = par->d_receiver;
-        parNew->d_type = par->d_type->instantiate(p,a);
-        res->d_formals.append(parNew);
-    }
-    return res.data();
-}
-
 ProcType*ArgExpr::getProcType() const
 {
     Q_ASSERT( !d_sub.isNull() && !d_sub->d_type.isNull() && d_sub->d_type->derefed()->getTag() == Thing::T_ProcType );
@@ -735,6 +693,14 @@ QualiType::ModItem QualiType::getQuali() const
     return res;
 }
 
+bool QualiType::hasByteSize() const
+{
+    if( !d_quali->d_type.isNull() )
+        return d_quali->d_type->hasByteSize();
+    else
+        return false;
+}
+
 Type*QualiType::derefed()
 {
     Q_ASSERT( !d_quali.isNull() );
@@ -768,45 +734,6 @@ QString QualiType::pretty() const
     return "?";
 }
 
-Ref<Type> QualiType::instantiate(const MetaParams& p, const MetaActuals& a)
-{
-    Q_ASSERT( p.size() == a.size() );
-
-    if( d_metaActuals.isEmpty() )
-    {
-        Named* n = d_quali->getIdent();
-        for( int i = 0; i < p.size(); i++ )
-        {
-            if( p[i].data() == n )
-                return a[i]; // TODO: do we need an adapter here to avoid visiting already visited types?
-        }
-        return this; // TODO: does the instantiation end here?
-    }else
-    {
-        // handle case when Quali is instantiation itself
-
-        Ref<QualiType> qt = new QualiType();
-        qt->d_minst = true;
-        qt->d_binding = this;
-        qt->d_loc = d_loc;
-        qt->d_metaActuals = d_metaActuals;
-        qt->d_quali = d_quali;
-        for( int i = 0; i < d_metaActuals.size(); i++ )
-        {
-            if( d_metaActuals[i]->getTag() != Thing::T_QualiType )
-                continue;
-            QualiType* t = cast<QualiType*>(d_metaActuals[i].data());
-            for( int j = 0; j < p.size(); j++ )
-            {
-                if( t->d_quali->getIdent() == p[j].data() )
-                    qt->d_metaActuals[i] = a[j];
-            }
-        }
-        return qt.data();
-    }
-}
-
-
 IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, IdentRole r):d_ident(id),d_role(r)
 {
     d_loc = loc;
@@ -818,7 +745,7 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
 
 QSet<Thing*> Thing::insts;
 
-Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false)
+Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false)
 {
     insts.insert(this);
 }
@@ -857,37 +784,14 @@ QList<Field*> Record::getOrderedFields() const
     return res;
 }
 
-Ref<Type> Record::instantiate(const MetaParams& p, const MetaActuals& a)
+bool Array::hasByteSize() const
 {
-    Ref<Record> rec = new Record();
-    rec->d_minst = true;
-    rec->d_binding = this;
-    d_insts.append( rec.data() );
-    rec->d_loc = d_loc;
-
-    if( d_base )
-    {
-        Ref<Type> t = d_base->instantiate(p,a);
-        Q_ASSERT( t && t->getTag() == Thing::T_QualiType );
-        rec->d_base = cast<QualiType*>(t.data());
-    }
-
-    foreach( const Ref<Procedure>& proc, d_methods )
-    {
-        Ref<Procedure> pt = proc->instantiate(p,a);
-        rec->d_methods << pt; // for the methods not known at instantiation time
-        rec->d_names[ proc->d_name.constData() ] = pt.data();
-    }
-
-    foreach( const Ref<Field>& field, d_fields )
-    {
-        Ref<Field> f = new Field(*field);
-        f->d_type = field->d_type->instantiate(p,a);
-        rec->d_fields.append(f);
-        rec->d_names.insert(f->d_name,f.data());
-    }
-    // NOTE: method and field count are not set here but only in code generation phase
-    return rec.data();
+    if( d_lenExpr.isNull() )
+        return false;
+    else if( d_type )
+        return d_type->hasByteSize();
+    else
+        return false;
 }
 
 Type*Array::getTypeDim(int& dims, bool openOnly) const
@@ -931,52 +835,11 @@ QList<Array*> Array::getDims()
     return res;
 }
 
-Ref<Type> Array::instantiate(const MetaParams& p, const MetaActuals& a)
-{
-    Ref<Array> arr = new Array();
-    arr->d_type = d_type->instantiate(p,a);
-    arr->d_lenExpr = d_lenExpr;
-    arr->d_len = d_len;
-    // TODO len expression could be dependent on meta actuals, but can be evaluated at compile time
-    arr->d_minst = true;
-    arr->d_binding = this;
-    arr->d_loc = d_loc;
-    return arr.data();
-}
-
 ProcType*Procedure::getProcType() const
 {
     Q_ASSERT( !d_type.isNull() && d_type->getTag() == Thing::T_ProcType );
     return cast<ProcType*>( d_type.data() );
 }
-
-Ref<Procedure> Procedure::instantiate(const MetaParams& p, const MetaActuals& a)
-{
-    return this; // TODO
-
-    Ref<Procedure> res = new Procedure();
-    res->d_name = d_name;
-    res->d_loc = d_loc;
-    res->d_scope = d_scope;
-    res->d_type = d_type->instantiate(p,a);
-    res->d_visibility = d_visibility;
-    res->d_end = d_end;
-    res->d_body = d_body; // TODO
-    // TODO d_super und d_subs
-
-    Q_ASSERT( p.size() == a.size() );
-    for( int i = 0; i < p.size(); i++ )
-    {
-        Ref<GenericName> n = new GenericName();
-        n->d_name = p[i]->d_name;
-        n->d_type = a[i];
-        res->d_metaParams << n;
-        res->d_names[ n->d_name.constData() ] = n.data();
-    }
-
-    return res;
-}
-
 
 quint8 IdentSel::visibilityFor(Module* m) const
 {
@@ -1015,18 +878,6 @@ QString Pointer::pretty() const
         return "POINTER TO ?";
     return QString("POINTER TO %1").arg(d_to->pretty());
 }
-
-Ref<Type> Pointer::instantiate(const MetaParams& p, const MetaActuals& a)
-{
-    Ref<Pointer> ptr = new Pointer();
-    Ref<Type> t = d_to->instantiate(p,a);
-    ptr->d_minst = true;
-    ptr->d_binding = this;
-    ptr->d_loc = d_loc;
-    ptr->d_to = t.data();
-    return ptr.data();
-}
-
 
 QList<Expression*> Expression::getSubList() const
 {
@@ -1148,7 +999,6 @@ Record*Type::toRecord() const
         return 0;
 }
 
-
 bool Literal::isWide(const QString& str)
 {
     for( int i = 0; i < str.size(); i++ )
@@ -1159,8 +1009,34 @@ bool Literal::isWide(const QString& str)
     return false;
 }
 
-
-Ref<Type> Enumeration::instantiate(const MetaParams&, const MetaActuals&)
+QByteArray Module::getName() const
 {
-    return this;
+    if( d_fullName.isEmpty() )
+        return d_name;
+#if 0
+    if( d_instSuffix.isEmpty() )
+        return d_fullName.join('.');
+    else
+        return d_fullName.join('.') + "." + d_instSuffix;
+#else
+    QByteArray name = d_fullName.join('.');
+    if( !d_metaActuals.isEmpty() )
+    {
+        name += "("; // use () instead of <> so the name can be used in the file system too
+        for( int i = 0; i < d_metaActuals.size(); i++ )
+        {
+            if( i != 0 )
+                name += ",";
+            Type* td = d_metaActuals[i]->derefed();
+            Q_ASSERT( td );
+            Named* n = td->findDecl();
+            if( n )
+                name += n->getName();
+            else
+                name += "?";
+        }
+        name += ")";
+    }
+    return name;
+#endif
 }

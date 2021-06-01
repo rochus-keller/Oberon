@@ -1,16 +1,14 @@
-module Generic2
+module Generic2<T>
 
 type
-	List<T> = pointer to record 
-            value : T
-            next  : List<T>
+	List* = pointer to record 
+            value* : T
+            next*  : List
         end
-    IntList = List<integer>
-var
-	l : IntList
-
-begin
-	new(l)
-	l.value := 44
-	println(l.value)
+        
+    proc ( this: List ) Print*()
+    begin
+    	println(this.value)
+    end Print
+    
 end Generic2

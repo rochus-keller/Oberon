@@ -1,15 +1,8 @@
-module Generic1
+module Generic1<T>
 
 type
-	List<T> = pointer to record 
-            value : T
-            next  : List<T>
+	List* = pointer to record 
+            value* : T
+            next*  : List
         end
-var
-	IntList : List<integer>
-
-begin
-	new(IntList)
-	IntList.value := 33
-	println(IntList.value)
 end Generic1
