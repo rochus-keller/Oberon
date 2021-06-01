@@ -46,11 +46,6 @@ struct ValidatorImp : public AstVisitor
     {
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_Import )
-                n->accept(this);
-        }
-        foreach( const Ref<Named>& n, me->d_order )
-        {
             if( n->getTag() == Thing::T_Const )
                 n->accept(this);
         }
@@ -240,6 +235,12 @@ struct ValidatorImp : public AstVisitor
             error( me->d_loc, Validator::tr("cannot resolve identifier '%1'").arg(me->d_name.constData()) );
         }else
         {
+            if( me->d_ident->getTag() == Thing::T_Import )
+            {
+                Import* imp = cast<Import*>(me->d_ident.data());
+                if( !imp->d_metaActuals.isEmpty() && !imp->d_visited )
+                    imp->accept(this);
+            }
             checkNonLocalAccess(me->d_ident.data(),me);
             //if( me->d_ident->getTag() == Thing::T_Import )
             //    me->d_mod = static_cast<Import*>( me->d_ident.data() )->d_mod.data();
@@ -1483,22 +1484,29 @@ struct ValidatorImp : public AstVisitor
         me->d_strLen = res.d_strLen;
     }
 
-    void visit( Field* me )
+    inline void checkVarType( Named* me )
     {
         if( me->d_type )
+        {
             me->d_type->accept(this);
+            if( !me->d_type->hasByteSize() )
+                error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
+        }
+    }
+
+    void visit( Field* me )
+    {
+        checkVarType(me);
     }
 
     void visit( Variable* me )
     {
-        if( me->d_type )
-            me->d_type->accept(this);
+        checkVarType(me);
     }
 
     void visit( LocalVar* me )
     {
-        if( me->d_type )
-            me->d_type->accept(this);
+        checkVarType(me);
     }
 
     void visit( Parameter* me )
@@ -1941,12 +1949,47 @@ struct ValidatorImp : public AstVisitor
     {
         if( !me->d_metaActuals.isEmpty() )
         {
+            me->d_visited = true;
             foreach( const Ref<Type>& t, me->d_metaActuals )
+            {
                 t->accept(this);
+                Type* td = t->derefed();
+                Q_ASSERT( td != 0 );
+                if( false )// !td->hasByteSize() )
+                {
+                    // not necessary here because such errors are discovered when the instance is validated in context
+                    error( t->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
+                    return;
+                }
+                Named* n = td->findDecl();
+                if( n == 0 || n->getTag() != Thing::T_NamedType )
+                {
+                    error( t->d_loc, Validator::tr("only named types allowed as actual generic type parameters") );
+                    return;
+                }
+            }
             if( me->d_mod.isNull() )
                 return; // already reported
             qDebug() << "analyzing" << me->d_mod->getName();
-            Validator::check(me->d_mod.data(),bt, err );
+            Errors err2;
+            err2.setShowWarnings(true);
+            err2.setReportToConsole(false);
+            err2.setRecord(true);
+            Validator::check(me->d_mod.data(),bt, &err2 );
+            if( err2.getErrCount() || err2.getWrnCount() )
+            {
+                error( me->d_loc, Validator::tr("errors when instantiating generic module"));
+                Errors::EntryList::const_iterator i;
+                for( i = err2.getErrors().begin(); i != err2.getErrors().end(); ++i )
+                {
+                    const QString msg = (*i).d_msg + QString(", see %1:%2:%3").arg( mod->getName().constData() )
+                            .arg( me->d_loc.d_row ).arg(me->d_loc.d_col);
+                    if( (*i).d_isErr )
+                        err->error((Errors::Source)(*i).d_source, (*i).d_file, (*i).d_line, (*i).d_col, msg);
+                    else
+                        err->warning((Errors::Source)(*i).d_source, (*i).d_file, (*i).d_line, (*i).d_col, msg);
+                }
+            }
             //me->d_mod->dump(); // TEST
         }
     }
@@ -1957,6 +2000,7 @@ struct ValidatorImp : public AstVisitor
     void visit( BaseType* ) { }
     void visit( BuiltIn* ) { }
     void visit( GenericName* ) {}
+
     ////////// Utility
 
     void error(const RowCol& r, const QString& msg) const

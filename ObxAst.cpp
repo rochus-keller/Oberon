@@ -693,6 +693,14 @@ QualiType::ModItem QualiType::getQuali() const
     return res;
 }
 
+bool QualiType::hasByteSize() const
+{
+    if( !d_quali->d_type.isNull() )
+        return d_quali->d_type->hasByteSize();
+    else
+        return false;
+}
+
 Type*QualiType::derefed()
 {
     Q_ASSERT( !d_quali.isNull() );
@@ -737,7 +745,7 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
 
 QSet<Thing*> Thing::insts;
 
-Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false)
+Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false)
 {
     insts.insert(this);
 }
@@ -774,6 +782,16 @@ QList<Field*> Record::getOrderedFields() const
             res.append( d_fields[i].data() );
     }
     return res;
+}
+
+bool Array::hasByteSize() const
+{
+    if( d_lenExpr.isNull() )
+        return false;
+    else if( d_type )
+        return d_type->hasByteSize();
+    else
+        return false;
 }
 
 Type*Array::getTypeDim(int& dims, bool openOnly) const
@@ -995,8 +1013,30 @@ QByteArray Module::getName() const
 {
     if( d_fullName.isEmpty() )
         return d_name;
+#if 0
     if( d_instSuffix.isEmpty() )
         return d_fullName.join('.');
     else
         return d_fullName.join('.') + "." + d_instSuffix;
+#else
+    QByteArray name = d_fullName.join('.');
+    if( !d_metaActuals.isEmpty() )
+    {
+        name += "("; // use () instead of <> so the name can be used in the file system too
+        for( int i = 0; i < d_metaActuals.size(); i++ )
+        {
+            if( i != 0 )
+                name += ",";
+            Type* td = d_metaActuals[i]->derefed();
+            Q_ASSERT( td );
+            Named* n = td->findDecl();
+            if( n )
+                name += n->getName();
+            else
+                name += "?";
+        }
+        name += ")";
+    }
+    return name;
+#endif
 }

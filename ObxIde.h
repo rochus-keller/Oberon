@@ -104,6 +104,7 @@ namespace Obx
         void removePosMarkers();
         void enableDbgMenu();
         void pushLocation( const Location& );
+        void clear();
 
     protected slots:
         void onCompile();

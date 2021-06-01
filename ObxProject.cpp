@@ -64,6 +64,8 @@ struct ObxHitTest : public AstVisitor
             a->d_flag->accept(this);
         if( a->d_type )
             a->d_type->accept(this); // look for qualis
+        if( a->d_lenExpr )
+            a->d_lenExpr->accept(this);
     }
 
     void visit( Record* r )
@@ -133,7 +135,8 @@ struct ObxHitTest : public AstVisitor
 
     void visit( Import* i )
     {
-        // NOP
+        foreach( const Ref<Type>& a, i->d_metaActuals )
+            a->accept(this);
     }
 
     void visit( Procedure* m)
@@ -786,6 +789,8 @@ Project::Project(QObject *parent) : QObject(parent),d_dirty(false),d_useBuiltInO
 void Project::clear()
 {
     d_mdl->clear();
+    d_modules.clear();
+    d_dirs.clear();
     d_filePath.clear();
     d_files.clear();
 }

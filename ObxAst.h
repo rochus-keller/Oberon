@@ -66,13 +66,14 @@ namespace Obx
         uint d_slot : 20; // slots from 0..250, table index from 0..max
         uint d_slotValid : 1;
         uint d_slotAllocated : 1;
+        uint d_visited : 1;
 
     #ifdef _DEBUG
         static QSet<Thing*> insts;
         Thing();
         virtual ~Thing();
     #else
-        Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false) {}
+        Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false) {}
         virtual ~Thing() {}
     #endif
         virtual bool isScope() const { return false; }
@@ -172,7 +173,8 @@ namespace Obx
         virtual void visit( Exit* ) {}
     };
 
-    typedef QList< Ref<Type> > MetaActuals;
+    typedef QList< Ref<Type> > MetaActuals; // actually only NamedTypes, but not resolvable before validation
+                                            // for comparison and naming Type::derefed::findDecl is used
     typedef QList< Ref<GenericName> > MetaParams;
 
     struct Type : public Thing
@@ -183,7 +185,6 @@ namespace Obx
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
         Type* d_binding; // points back to pointer or array type in case of anonymous type
 
-        uint d_visited : 1;
         uint d_baseType : 4;    // used by BaseType
         uint d_selfRef : 1; // used by QualiType
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
@@ -191,13 +192,14 @@ namespace Obx
 
         Ref<Expression> d_flag; // optional system flag
 
-        Type():d_decl(0),d_binding(0),d_visited(false),d_baseType(0),d_selfRef(false),
+        Type():d_decl(0),d_binding(0),d_baseType(0),d_selfRef(false),
             d_unsafe(false),d_union(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual bool isSelfRef() const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
+        virtual bool hasByteSize() const { return true; }
         Named* findDecl(bool recursive = false) const;
         int getBaseType() const { return d_baseType; }
         bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
@@ -242,6 +244,7 @@ namespace Obx
         int getTag() const { return T_Array; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured() const { return true; }
+        bool hasByteSize() const;
         Type* getTypeDim(int& dims , bool openOnly = false) const;
         QString pretty() const;
         QList<Array*> getDims();
@@ -296,6 +299,7 @@ namespace Obx
         ModItem getQuali() const;
         bool isSelfRef() const { return d_selfRef; }
         int getTag() const { return T_QualiType; }
+        bool hasByteSize() const;
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;
@@ -462,7 +466,7 @@ namespace Obx
         QList<Import*> d_imports;
         QString d_file;
         QByteArrayList d_fullName;  // Path segments (if present) + module name
-        QByteArray d_instSuffix;    // for generic instances a suffix identifying the instance
+        // QByteArray d_instSuffix;    // for generic instances a suffix identifying the instance
         MetaParams d_metaParams;
         MetaActuals d_metaActuals; // set if this is an instance of a generic module
         Ob::RowCol d_begin;
@@ -479,7 +483,7 @@ namespace Obx
 
     struct NamedType : public Named
     {
-        NamedType( const QByteArray& n, Type* t ) { d_name = n; d_type = t; }
+        NamedType( const QByteArray& n, Type* t ) { d_name = n; d_type = t; t->d_decl = this; } // only used for base types
         NamedType() {}
         int getTag() const { return T_NamedType; }
         void accept(AstVisitor* v) { v->visit(this); }

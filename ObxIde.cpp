@@ -1029,6 +1029,7 @@ void Ide::onOpenPro()
     QDir::setCurrent(QFileInfo(fileName).absolutePath());
 
     d_tab->onCloseAll();
+    clear();
     d_pro->loadFrom(fileName);
 
     compile();
@@ -1142,13 +1143,12 @@ void Ide::onExportBc()
     const QString curPath = d_tab->getCurrentDoc().toString();
     ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath)->d_sourceCode.isEmpty() );
 
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Binary"), curPath, tr("*.ljbc") );
+    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Binary") );
 
-    if (fileName.isEmpty())
+    if (dirPath.isEmpty())
         return;
 
-    QFileInfo info(fileName);
-    QDir::setCurrent(info.absolutePath());
+    QDir::setCurrent(dirPath);
 
     Project::File* f = d_pro->getFiles().value(curPath).data();
     Q_ASSERT( f != 0 );
@@ -1156,9 +1156,7 @@ void Ide::onExportBc()
     Project::ModCode::const_iterator i;
     for( i = f->d_sourceCode.begin(); i != f->d_sourceCode.end(); ++i )
     {
-        QString path = info.path() + "/" + info.completeBaseName();
-        if( !i.key()->d_instSuffix.isEmpty() )
-            path += "." + i.key()->d_instSuffix;
+        QString path = dirPath + "/" + i.key()->getName();
         path += ".ljbc";
         QFile out(path);
         out.open(QIODevice::WriteOnly);
@@ -2790,6 +2788,25 @@ void Ide::pushLocation(const Ide::Location& loc)
     d_backHisto.push_back( loc );
 }
 
+void Ide::clear()
+{
+    d_backHisto.clear();
+    d_forwardHisto.clear();
+    d_pro->clear();
+    d_mods->clear();
+    d_mod->clear();
+    d_hier->clear();
+    d_modIdx.clear();
+    d_stack->clear();
+    d_scopes.clear();
+    d_locals->clear();
+    d_xrefTitle->clear();
+    d_modTitle->clear();
+    d_hierTitle->clear();
+    d_xref->clear();
+    d_errs->clear();
+}
+
 void Ide::onAbout()
 {
     ENABLED_IF(true);
@@ -2863,7 +2880,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.3");
+    a.setApplicationVersion("0.7.4");
     a.setStyle("Fusion");
 
     Ide w;

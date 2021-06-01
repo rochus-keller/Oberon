@@ -68,6 +68,7 @@ struct Model::CrossReferencer : public AstVisitor
             if( !s.isNull() )
                 s->accept(this);
         }
+
         stack.pop_back();
     }
 
@@ -86,6 +87,8 @@ struct Model::CrossReferencer : public AstVisitor
             d_mdl->d_xref[me->d_mod.data()].append( e2 );
         }
 
+        foreach( const Ref<Type>& a, me->d_metaActuals )
+            a->accept(this);
     }
 
     void visit( Procedure* me )
@@ -528,7 +531,14 @@ bool Model::parseFiles(const FileGroups& files)
 
         //m->dump(); // TEST
         if( d_fillXref )
+        {
             CrossReferencer(this,m);
+            for( int i = 0; i < m->d_imports.size(); i++ )
+            {
+                if( !m->d_imports[i]->d_metaActuals.isEmpty() )
+                    CrossReferencer(this,m->d_imports[i]->d_mod.data());
+            }
+        }
     }
 
     return true;
@@ -1021,7 +1031,7 @@ bool Model::resolveImport(Module* m)
                             i->d_mod = parseFile( meta->d_file );
                             i->d_mod->d_metaActuals = i->d_metaActuals;
                             i->d_mod->d_fullName = meta->d_fullName;
-                            i->d_mod->d_instSuffix = QByteArray::number(d_modInsts.size());
+                            // i->d_mod->d_instSuffix = QByteArray::number(d_modInsts.size());
                             d_modInsts.append(i->d_mod.data());
                         }
                     }else
