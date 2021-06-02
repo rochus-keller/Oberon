@@ -2383,6 +2383,12 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             item->setText(1,"<record>");
             Record* r = cast<Record*>(type);
             QList<Field*> fs = r->getOrderedFields();
+            const int type = lua_type( d_lua->getCtx(), rec );
+            if( type != LUA_TTABLE )
+            {
+                qWarning() << "wrong type, expecting table, got" << lua_typename( d_lua->getCtx(), rec );
+                break;
+            }
             foreach( Field* f, fs )
             {
                 QTreeWidgetItem* sub = new QTreeWidgetItem(item);
@@ -2880,7 +2886,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.4");
+    a.setApplicationVersion("0.7.5");
     a.setStyle("Fusion");
 
     Ide w;

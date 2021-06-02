@@ -1288,14 +1288,18 @@ struct ObxLjbcGenImp : public AstVisitor
         }
     }
 
-    void emitInitializer( quint8 to, Type* t, const RowCol& loc,
+    bool emitInitializer( quint8 to, Type* t, bool resolvePtr, const RowCol& loc,
                           const QList<Expression*>& lengths = QList<Expression*>() )
     {
+        // note that this proc is also called if t is a pointer i.e. there is nothing to initialize
+
         // expects non-derefed t!
         Type* td = derefed(t);
         Q_ASSERT( td );
-        if( td->getTag() == Thing::T_Pointer )
-            td = cast<Pointer*>(td)->d_to.data();
+
+        if( resolvePtr && td->getTag() == Thing::T_Pointer )
+            td = derefed(cast<Pointer*>(td)->d_to.data());
+
         switch( td->getTag() )
         {
         case Thing::T_Record:
@@ -1314,13 +1318,13 @@ struct ObxLjbcGenImp : public AstVisitor
                     const int tag = t2d->getTag();
                     if( tag == Thing::T_Record || tag == Thing::T_Array )
                     {
-                        emitInitializer(tmp, t2, loc );
+                        emitInitializer(tmp, t2, false, loc );
                         emitSetTableByIndex(tmp,to,fields[i]->d_slot,loc);
                     }
                 }
                 ctx.back().sellSlots(tmp);
             }
-            break;
+            return true;
         case Thing::T_Array:
             {
                 Array* a = cast<Array*>(td);
@@ -1365,9 +1369,9 @@ struct ObxLjbcGenImp : public AstVisitor
                     const quint32 pc = bc.getCurPc();
 
                     if( lengths.size() > 1 )
-                        emitInitializer(tmp, a->d_type.data(), loc, lengths.mid(1) );
+                        emitInitializer(tmp, a->d_type.data(), false, loc, lengths.mid(1) );
                     else
-                        emitInitializer(tmp, a->d_type.data(), loc );
+                        emitInitializer(tmp, a->d_type.data(), false, loc );
                     bc.TSET(tmp,to,base+3, loc.packed() );
 
                     bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
@@ -1379,8 +1383,9 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( lenSlot >= 0 )
                     ctx.back().sellSlots(lenSlot);
             }
-            break;
+            return true;
         }
+        return false;
     }
 
     void emitInitializer( Named* me )
@@ -1390,9 +1395,11 @@ struct ObxLjbcGenImp : public AstVisitor
         case Thing::T_Variable:
             {
                 int tmp = ctx.back().buySlots(1);
-                emitInitializer( tmp, me->d_type.data(), me->d_loc );
-                Q_ASSERT( ctx.back().scope == thisMod );
-                emitSetTableByIndex( tmp, modSlot, me->d_slot, me->d_loc );
+                if( emitInitializer( tmp, me->d_type.data(), false, me->d_loc ) )
+                {
+                    Q_ASSERT( ctx.back().scope == thisMod );
+                    emitSetTableByIndex( tmp, modSlot, me->d_slot, me->d_loc );
+                }
                 ctx.back().sellSlots(tmp);
             }
             break;
@@ -1400,14 +1407,13 @@ struct ObxLjbcGenImp : public AstVisitor
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
             if( ctx.back().scope->d_upvalSource )
             {
-                Q_ASSERT( false );
                 int tmp = ctx.back().buySlots(1);
-                emitInitializer( tmp, me->d_type.data(), me->d_loc );
-                emitSetTableByIndex(tmp,0,me->d_slot, me->d_loc);
+                if( emitInitializer( tmp, me->d_type.data(), false, me->d_loc ) )
+                    emitSetTableByIndex(tmp,0,me->d_slot, me->d_loc);
                 ctx.back().sellSlots(tmp);
             }else
 #endif
-                emitInitializer( me->d_slot, me->d_type.data(), me->d_loc );
+                emitInitializer( me->d_slot, me->d_type.data(), false, me->d_loc );
             break;
         case Thing::T_Parameter:
             Q_ASSERT( false );
@@ -1663,12 +1669,16 @@ struct ObxLjbcGenImp : public AstVisitor
                 Type* t = ae->d_args.first()->d_type.data();
                 Type* td = derefed(t);
                 Q_ASSERT( td && td->getTag() == Thing::T_Pointer );
-                //Pointer* ptr = cast<Pointer*>(td);
+                Pointer* ptr = cast<Pointer*>(td);
+
                 int tmp = ctx.back().buySlots(1);
                 QList<Expression*> dims;
                 for( int i = 1; i < ae->d_args.size(); i++ )
                     dims << ae->d_args[i].data();
-                emitInitializer(tmp, t, ae->d_loc, dims );
+
+                // we must pass t here (not ptr->d_to) because the pointer could be a named type defined in another module;
+                // if we deref the pointer we lose the module information
+                emitInitializer(tmp, t, true, ae->d_loc, dims );
                 emitAssig(ae->d_args.first().data(), tmp, ae->d_loc );
                 ctx.back().sellSlots(tmp);
             }

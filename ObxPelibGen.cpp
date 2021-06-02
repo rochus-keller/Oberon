@@ -433,7 +433,7 @@ struct ObxPelibGenImp : public AstVisitor
             out.LDTOKEN( typeQuali(baseType) );
             out.CALL("System.Type::GetTypeFromHandle(System.RuntimeTypeHandle)");
 
-            // NOTE: apparently DotNet doesn't support duplicating stack entries which are not top; if the variable number
+            // TODO: apparently DotNet doesn't support duplicating stack entries which are not top; if the variable number
             // of lenths were pushed on the stack to call this method I would have to fetch them to temporary locals
             // before to achieve the correct order of arguments for CreateInstance; this is unpractical.
 
