@@ -1146,7 +1146,7 @@ Ref<Statement> Parser::ifStatement(Scope* scope)
     {
         elseStatement(scope, c->d_else);
     }
-    MATCH( Tok_END, tr("expecting a closing END in an IF statement") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     return c.data();
 }
 
@@ -1172,7 +1172,7 @@ Ref<Statement> Parser::caseStatement(Scope* scope)
         elseStatement(scope,seq);
         s->d_else = seq;
     }
-    MATCH( Tok_END, tr("expecting a closing END in a CASE statement") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     return s.data();
 }
 
@@ -1195,7 +1195,7 @@ Ref<Statement> Parser::whileStatement(Scope* scope)
             s->d_then.append(seq);
         }
     }
-    MATCH( Tok_END, tr("expecting a closing END in an WHILE statement") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     return s.data();
 }
 
@@ -1237,7 +1237,7 @@ Ref<Statement> Parser::forStatement(Scope* scope)
     }
     MATCH( Tok_DO, tr("expecting the DO keyword") );
     f->d_do = statementSequence(scope);
-    MATCH( Tok_END, tr("expecting a closing END in an FOR statement") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     return f.data();
 }
 
@@ -1265,7 +1265,7 @@ Ref<Statement> Parser::withStatement(Scope* scope)
         elseStatement(scope,c->d_else);
     }
 
-    MATCH( Tok_END, tr("expecting a closing END in a WITH statement") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     return c.data();
 }
 
@@ -1276,7 +1276,7 @@ Ref<Statement> Parser::loopStatement(Scope* scope)
     c->d_op = IfLoop::LOOP;
     c->d_loc = d_cur.toRowCol();
     c->d_then.append( statementSequence(scope) );
-    MATCH( Tok_END, tr("expecting a closing END in a LOOP statement") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     return c.data();
 }
 
@@ -1514,9 +1514,8 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
         {
             next();
         }
-        switch( kind )
+        if( kind == ProcNormal )
         {
-        case ProcNormal:
             if( procedureBody( res.data() ) )
             {
                 MATCH( Tok_ident, tr("expecting procedure name after END keyword") );
@@ -1529,10 +1528,9 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
             if( hasEndIdent && d_cur.isValid() && d_cur.d_val != res->d_name )
                 semanticError( d_next.toLoc(), tr("the ident '%1' after the END keyword must be equal "
                                   "to the procedure name").arg(d_next.d_val.constData()));
-            break;
-        case ProcCImp:
+        }else if( kind == ProcCImp )
+        {
             res->d_end = d_cur.toRowCol();
-            break;
         }
     }
     return res;
@@ -1646,7 +1644,7 @@ bool Parser::procedureBody(Procedure* p)
             next();
     }
 #endif
-    MATCH( Tok_END, tr("expecting a closing END in procedure") );
+    MATCH( Tok_END, tr("expecting a statement or closing END") );
     p->d_end = d_cur.toRowCol();
     return hasBody;
 }
@@ -1761,6 +1759,11 @@ Ref<Statement> Parser::returnStatement(Scope* scope)
     }
     if( needsExpression )
         r->d_what = expression();
+    else
+    {
+        if( !firstOfStatement(d_la) && d_la != Tok_END )
+            r->d_what = expression();
+    }
 
     return r.data();
 }

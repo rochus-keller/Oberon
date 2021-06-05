@@ -37,8 +37,9 @@ struct ValidatorImp : public AstVisitor
 
     QList<Level> levels;
     NamedType* curTypeDecl;
+    Statement* prevStat;
 
-    ValidatorImp():err(0),mod(0),curTypeDecl(0) {}
+    ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0) {}
 
     //////// Scopes
 
@@ -93,11 +94,7 @@ struct ValidatorImp : public AstVisitor
         levels.push_back(me);
         // imports are supposed to be already resolved at this place
         visitScope(me);
-        foreach( const Ref<Statement>& s, me->d_body )
-        {
-            if( !s.isNull() )
-                s->accept(this);
-        }
+        visitStats( me->d_body );
         levels.pop_back();
     }
 
@@ -138,6 +135,10 @@ struct ValidatorImp : public AstVisitor
             r->d_methods << me;
             r->d_names[ me->d_name.constData() ] = me;
             me->d_receiverRec = r;
+            Named* decl = r->findDecl();
+            Q_ASSERT( decl );
+            if( me->d_scope != decl->d_scope )
+                error( me->d_loc, Validator::tr("type bound procedures must be declared in the same scope as the record they bind to"));
         }
         if( r->d_baseRec )
         {
@@ -173,8 +174,6 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_receiver.isNull() )
         {
-            if( me->d_scope != mod )
-                error( me->d_loc, Validator::tr("type bound procedures can only be declared on module level"));
             // receiver was already accepted in visitScope
             visitBoundProc(me);
         }
@@ -190,11 +189,7 @@ struct ValidatorImp : public AstVisitor
         levels.push_back(me);
         visitScope(me); // also handles formal parameters
 
-        foreach( const Ref<Statement>& s, me->d_body )
-        {
-            if( !s.isNull() )
-                s->accept(this);
-        }
+        visitStats( me->d_body );
 
         levels.pop_back();
     }
@@ -485,6 +480,14 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting one or two arguments"));
             break;
+        case BuiltIn::DEFAULT:
+            if( args->d_args.size() == 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                // TODO: check for quali to type
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
         case BuiltIn::SHORT:
             if( args->d_args.size() == 1 )
             {
@@ -546,7 +549,7 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting at least one argument"));
             break;
-        case BuiltIn::SIZE:
+        case BuiltIn::BYTESIZE:
             if( args->d_args.size() != 1 )
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break; // accepts any type
@@ -811,6 +814,20 @@ struct ValidatorImp : public AstVisitor
             }else if( args.size() == 2 )
                 return inclusiveType1(derefed(args.first()->d_type.data()),derefed(args.last()->d_type.data()));
             break;
+        case BuiltIn::DEFAULT:
+            if( args.size() == 1 )
+            {
+                Type* td = derefed(args.first()->d_type.data());
+                switch( td->getTag() )
+                {
+                case Thing::T_Pointer:
+                case Thing::T_ProcType:
+                    return bt.d_nilType;
+                default:
+                    return args.first()->d_type.data();
+                }
+            }
+            break;
         case BuiltIn::ORD:
             if( !args.isEmpty() )
             {
@@ -1068,7 +1085,8 @@ struct ValidatorImp : public AstVisitor
                     ( ( lhsT == bt.d_nilType || lhsT->getTag() == Thing::T_Pointer ) &&
                       ( rhsT->getTag() == Thing::T_Pointer || rhsT == bt.d_nilType ) ) ||
                     ( ( lhsT == bt.d_nilType || lhsT->getTag() == Thing::T_ProcType ) &&
-                      ( rhsT->getTag() == Thing::T_ProcType || rhsT == bt.d_nilType ) ) )
+                      ( rhsT->getTag() == Thing::T_ProcType || rhsT == bt.d_nilType ) ) ||
+                    ( lhsT == bt.d_anyType && rhsT == bt.d_anyType ) ) // because of generics
                 me->d_type = bt.d_boolType;
             else
             {
@@ -1577,23 +1595,14 @@ struct ValidatorImp : public AstVisitor
                 } // else error already reported
             }
 
-            const StatSeq& ss = me->d_then[ifThenNr];
-            foreach( const Ref<Statement>& s, ss )
-            {
-                if( !s.isNull() )
-                    s->accept(this);
-            }
+            visitStats( me->d_then[ifThenNr] );
 
             if( caseId != 0 && !orig.isNull() )
                 caseId->d_type = orig;
 
         }
 
-        foreach( const Ref<Statement>& s, me->d_else )
-        {
-            if( !s.isNull() )
-                s->accept(this);
-        }
+        visitStats( me->d_else );
 
         if( me->d_op == IfLoop::LOOP )
             levels.back().loops.pop_back();
@@ -1793,7 +1802,12 @@ struct ValidatorImp : public AstVisitor
                 Type* t = derefed(proc->d_type.data());
                 if( t == 0 || t->getTag() != Thing::T_ProcType )
                 {
-                    error( me->d_loc, Validator::tr("cannot call this expression") );
+                    if( prevStat && prevStat->getTag() == Thing::T_Return && !levels.isEmpty()
+                            && levels.back().scope->getTag() == Thing::T_Procedure &&
+                            cast<Procedure*>( levels.back().scope )->getProcType()->d_return.isNull() )
+                        error( me->d_loc, Validator::tr("qualifier following return statement; is the function return type missing?") );
+                    else
+                        error( me->d_loc, Validator::tr("cannot call this expression") );
                     return;
                 }
                 ProcType* pt = cast<ProcType*>(t);
@@ -1865,11 +1879,7 @@ struct ValidatorImp : public AstVisitor
                 me->d_byVal = res.d_value;
             }
         }
-        foreach( const Ref<Statement>& s, me->d_do )
-        {
-            if( !s.isNull() )
-                s->accept(this);
-        }
+        visitStats( me->d_do );
     }
 
     void visit( CaseStmt* me )
@@ -1928,21 +1938,13 @@ struct ValidatorImp : public AstVisitor
                     caseId->d_type = c.d_labels.first()->getIdent()->d_type;
             }
 
-            foreach( const Ref<Statement>& s, c.d_block )
-            {
-                if( !s.isNull() )
-                    s->accept(this);
-            }
+            visitStats( c.d_block );
         }
 
         if( me->d_typeCase )
             caseId->d_type = orig;
 
-        foreach( const Ref<Statement>& s, me->d_else )
-        {
-            if( !s.isNull() )
-                s->accept(this);
-        }
+        visitStats( me->d_else );
     }
 
     void visit( Import* me)
@@ -1961,6 +1963,8 @@ struct ValidatorImp : public AstVisitor
                     error( t->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
                     return;
                 }
+                if( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY )
+                    continue; // type is yet another generic type; ok, ANY has no d_decl
                 Named* n = td->findDecl();
                 if( n == 0 || n->getTag() != Thing::T_NamedType )
                 {
@@ -2002,6 +2006,20 @@ struct ValidatorImp : public AstVisitor
     void visit( GenericName* ) {}
 
     ////////// Utility
+
+    void visitStats( const StatSeq& ss )
+    {
+        Statement* ps = prevStat;
+        foreach( const Ref<Statement>& s, ss )
+        {
+            if( !s.isNull() )
+            {
+                s->accept(this);
+                prevStat = s.data();
+            }
+        }
+        prevStat = ps;
+    }
 
     void error(const RowCol& r, const QString& msg) const
     {

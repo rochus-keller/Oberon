@@ -1,0 +1,63 @@
+module Tester
+
+import 
+	IV := som.Vector<integer>
+	
+	proc TestVector()
+		var
+			l : IV.Vector
+		type
+			Printer = record (IV.ForEachInterface) end
+			Comparator = record (IV.Comparator) end
+			
+		proc (var this:Printer) apply(in elem: integer)
+		begin
+			println(elem)
+		end apply
+		
+		proc (var this:Comparator) compare( in i,j: integer ) : integer
+		begin
+			if i < j then
+				return -1
+			elsif i = j then
+				return 0
+			else
+				return 1
+			end
+		end compare
+		
+		var
+			p : Printer
+			c : Comparator
+	
+	begin
+		l := IV.createWithElement(long(long(33)))
+		println("initial size:")
+		println(l.getSize())
+		
+		l.append(long(long(44)))
+		l.append(long(long(55)))
+		l.append(long(long(66)))
+		l.append(long(long(99)))
+		l.append(long(long(88)))
+	   l.append(long(long(77)))
+	   println("print each element:")
+	   l.forEach(p)
+	   
+	   println(l.removeFirst())
+	   l.atPut(2,long(long(22)))
+	   
+	   println("print each element after remove first:")
+	   l.forEach(p)
+	   
+	   l.sort(c)
+	   println("print each element after sort:")
+	   l.forEach(p)
+	   
+	end TestVector
+	
+begin
+
+   TestVector()
+   
+end Tester

@@ -63,7 +63,8 @@ namespace Obx
 
         typedef QList<FileGroup> ImportPaths; // ImportPath -> File
         typedef QHash<QString,FileRef> FileHash; // FilePath -> File
-        typedef QHash<QByteArray,File*> ModuleHash; // Module.fullName -> File
+        typedef QPair<File*,Module*> FileMod;
+        typedef QHash<QByteArray,FileMod> ModuleHash; // Module.fullName -> File
         typedef QList<FileRef> FileList;
         typedef QPair<QByteArray,QByteArray> ModProc; // module.procedure or just module
 
@@ -91,12 +92,12 @@ namespace Obx
         bool removeImportPath( const QByteArrayList& importPath );
         const QString& getFilePath() const { return d_filePath; }
         const FileHash& getFiles() const { return d_files; }
-        const ModuleHash& getModules() const { return d_modules; }
         const ImportPaths& getImportPaths() const { return d_dirs; }
         FileGroup getRootModules() const;
         bool isDirty() const { return d_dirty; }
         FileList getFilesInExecOrder() const;
         Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col ) const;
+        FileMod findFile( const QString& file ) const;
         ExpList getUsage( Named* ) const;
         QString getWorkingDir(bool resolved = false) const;
         void setWorkingDir( const QString& );

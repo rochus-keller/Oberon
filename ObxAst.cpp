@@ -45,14 +45,14 @@ const char* BuiltIn::s_typeName[] =
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
     "LED", "TRAP", "TRAPIF",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
-    "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
+    "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "BYTESIZE", "ENTIER",
     "BITS",
     // Oberon-2 SYSTEM
     "MOVE", "NEW", "ROT", "LSH", "GETREG", "PUTREG",
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR", "PRINTLN"
+    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT"
 };
 
 const char* UnExpr::s_opName[] =
@@ -342,7 +342,8 @@ struct ObxAstPrinter : public AstVisitor
     void visit( Return* s)
     {
         out << ws() << "RETURN ";
-        s->d_what->accept(this);
+        if( s->d_what )
+            s->d_what->accept(this);
         out << endl;
     }
     void visit( Assign* s )
@@ -355,8 +356,8 @@ struct ObxAstPrinter : public AstVisitor
     }
     void visit( IfLoop* s)
     {
-        Q_ASSERT( s->d_if.size() == s->d_then.size() );
-        for( int i = 0; i < s->d_if.size(); i++ )
+        // LOOP has no if, only then; Q_ASSERT( s->d_if.size() == s->d_then.size() );
+        for( int i = 0; i < s->d_then.size(); i++ )
         {
             out << ws();
             if( i == 0 )
@@ -383,7 +384,8 @@ struct ObxAstPrinter : public AstVisitor
                 }
             }else
                 out << "ELSIF ";
-            s->d_if[i]->accept(this);
+            if( i < s->d_if.size() )
+                s->d_if[i]->accept(this);
             out << "THEN " << endl;
             d_level++;
             const StatSeq& body = s->d_then[i];
@@ -683,6 +685,36 @@ QualiType::ModItem QualiType::getQuali() const
             IdentSel* i = cast<IdentSel*>( d_quali.data() );
             Q_ASSERT( !i->d_sub.isNull() && i->d_sub->getTag() == Thing::T_IdentLeaf );
             res.first = i->d_sub->getIdent();
+        }
+        break;
+    default:
+        Q_ASSERT( false );
+        break;
+    }
+
+    return res;
+}
+
+QByteArrayList QualiType::getQualiString() const
+{
+    Q_ASSERT( !d_quali.isNull() );
+    QByteArrayList res;
+
+    switch( d_quali->getTag() )
+    {
+    case Thing::T_IdentLeaf:
+        {
+            IdentLeaf* i = cast<IdentLeaf*>( d_quali.data() );
+            res.append(i->d_name);
+        }
+        break;
+    case Thing::T_IdentSel:
+        {
+            IdentSel* i = cast<IdentSel*>( d_quali.data() );
+            Q_ASSERT( !i->d_sub.isNull() && i->d_sub->getTag() == Thing::T_IdentLeaf );
+            IdentLeaf* j = cast<IdentLeaf*>( i->d_sub.data() );
+            res.append(j->d_name);
+            res.append(i->d_name);
         }
         break;
     default:
@@ -1033,10 +1065,35 @@ QByteArray Module::getName() const
             if( n )
                 name += n->getName();
             else
-                name += "?";
+            {
+                Q_ASSERT( d_metaActuals[i]->getTag() == Thing::T_QualiType );
+                QualiType* q = cast<QualiType*>( d_metaActuals[i].data() );
+                name += q->getQualiString().join('.');
+            }
         }
         name += ")";
     }
     return name;
 #endif
+}
+
+bool Module::isFullyInstantiated() const
+{
+    if( d_metaParams.isEmpty() )
+    {
+        Q_ASSERT( d_metaActuals.isEmpty() );
+        return true;
+    }
+    if( d_metaActuals.isEmpty() )
+        return false;
+
+    for( int i = 0; i < d_metaActuals.size(); i++ )
+    {
+        Type* td = d_metaActuals[i].data();
+        if( td )
+            td = td->derefed();
+        if( td == 0 || ( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY ) )
+            return false;
+    }
+    return true;
 }

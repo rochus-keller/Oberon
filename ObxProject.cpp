@@ -919,8 +919,8 @@ Project::FileList Project::getFilesInExecOrder() const
     foreach( Module* m, order )
     {
         Q_ASSERT( m );
-        if( !m->d_metaActuals.isEmpty() )
-            continue; // ignore generic module instances because they are part of the generic module
+        if( !m->isFullyInstantiated() )
+            continue;
         FileHash::const_iterator i = d_files.find( m->d_file );
         if( i == d_files.end() || i.value()->d_sourceCode.isEmpty() || i.value()->d_mod.isNull() )
             continue;
@@ -931,20 +931,16 @@ Project::FileList Project::getFilesInExecOrder() const
 
 Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
 {
-    FileRef f = d_files.value(file);
-    if( f.data() == 0 || f->d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
-    {
-        f = d_modules.value(file.toLatin1());
-        if( f.data() == 0 || f->d_mod.isNull() )
-            return 0;
-    }
+    FileMod f = findFile(file);
+    if( f.first == 0 )
+        return 0;
 
     try
     {
         ObxHitTest hit;
         hit.col = col;
         hit.line = line;
-        f->d_mod->accept(&hit);
+        f.second->accept(&hit);
     }catch( Expression* e )
     {
         return e;
@@ -953,6 +949,20 @@ Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, qu
 
     }
     return 0;
+}
+
+Project::FileMod Project::findFile(const QString& file) const
+{
+    FileRef f = d_files.value(file);
+    if( f.data() == 0 || f->d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
+    {
+        FileMod fm = d_modules.value(file.toLatin1());
+        if( fm.first == 0 || fm.second == 0 )
+            return FileMod();
+        else
+            return fm;
+    }
+    return qMakePair( f.data(), f->d_mod.data() );
 }
 
 ExpList Project::getUsage(Named* n) const
@@ -1075,9 +1085,10 @@ bool Project::recompile()
         FileHash::iterator i = d_files.find(m->d_file);
         if( i != d_files.end() )
         {
-            i.value()->d_mod = m;
-            d_modules.insert(m->getName(),i.value().data());
-            // m->dump();
+            if( m->d_metaActuals.isEmpty() )
+                i.value()->d_mod = m; // d_mod always points to the generic (non-instantiated) module
+            d_modules.insert(m->getName(),qMakePair(i.value().data(), m)); // d_modules contains also the instantiations
+            //m->dump();
         }else
         {
             qDebug() << "missing" << m->d_name;
@@ -1099,7 +1110,7 @@ bool Project::generate()
     {
 
         FileHash::iterator f = d_files.find(m->d_file);
-        if( m->d_synthetic || ( !m->d_metaParams.isEmpty() && m->d_metaActuals.isEmpty() ) )
+        if( m->d_synthetic || !m->isFullyInstantiated() )
             ; // NOP
         else if( m->d_hasErrors )
         {

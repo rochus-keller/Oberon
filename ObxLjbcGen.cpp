@@ -107,9 +107,9 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( tag == Thing::T_Procedure )
                 {
                     Procedure* p = cast<Procedure*>(n.data());
-                    Q_ASSERT( p->d_receiver.isNull() );
-                    allProcs.append(p);
-                    n->accept(this); // all procs go to toplevel
+                    if( p->d_receiver.isNull() )
+                        allProcs.append(p);
+                    n->accept(this);
                 }else if( tag == Thing::T_NamedType )
                     collectRecord(n->d_type.data(), true);
                 else if( tag == Thing::T_LocalVar )
@@ -250,8 +250,10 @@ struct ObxLjbcGenImp : public AstVisitor
 
         foreach( Import* imp, me->d_imports )
             imp->accept(this);
-
-        // me->dump(); // TEST
+#if 0
+        qDebug() << "**** dump of" << me->getName();
+        me->dump(); // TEST
+#endif
         curClass = ctx.back().buySlots(1);
         foreach( Record* r, pc.allRecords )
             allocateClassTables(r);
@@ -1584,6 +1586,8 @@ struct ObxLjbcGenImp : public AstVisitor
         const int res = ctx.back().buySlots(1);
         switch( bi->d_func )
         {
+        // TODO: BuiltIn::DEFAULT
+
         case BuiltIn::PRINTLN:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
@@ -1791,7 +1795,7 @@ struct ObxLjbcGenImp : public AstVisitor
         case BuiltIn::ROR:
             emitCallBuiltIn2(res, 37, ae ); // bit.ror
             break;
-        case BuiltIn::SIZE:
+        case BuiltIn::BYTESIZE:
             {
                 Q_ASSERT( !ae->d_args.isEmpty() && !ae->d_args.first()->d_type.isNull() );
                 Expression* e = ae->d_args.first().data();
@@ -2650,7 +2654,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 }
             }
             bc.RET(tmp,1+varcount,loc.packed());
-            ctx.back().sellSlots( 1 + varcount );
+            ctx.back().sellSlots( tmp, 1 + varcount );
         }else
         {
             if( what )

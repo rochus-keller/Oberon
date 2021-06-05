@@ -1,0 +1,280 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+ 
+module Vector<E>
+
+type
+	Vector* = pointer to record
+			storage : pointer to array of E
+			firstIdx, lastIdx : integer
+		end
+			
+	proc createWithSize*(siz : integer) : Vector
+		var v : Vector
+	begin
+		new(v)
+		new(v.storage, siz)
+		v.firstIdx := 0
+		v.lastIdx := 0
+		return v
+	end createWithSize
+	
+	proc create*() : Vector
+	begin
+		return createWithSize(50)
+	end create
+	
+	proc createWithElement*(in elem : E) : Vector
+		var v : Vector
+	begin
+		v := createWithSize(1)
+		v.append(elem)
+		return v
+	end createWithElement
+	
+	proc (this: Vector) at*(idx : integer) : E
+	begin
+		if idx >= len(this.storage) then
+			return default(E) 
+		end
+		return this.storage[idx]
+	end at
+	
+	proc (this: Vector) resize(newLength : integer)
+		var
+			storage : pointer to array of E
+			oldLength, i : integer
+	begin
+			new(storage,newLength)
+			for i := 0 to len(this.storage) - 1 do
+				storage[i] := this.storage[i]
+			end
+			this.storage := storage
+	end resize
+	
+	proc (this: Vector) atPut*(idx : integer; in elem : E)
+		var 
+			length, i : integer
+	begin
+		length := len(this.storage)
+		if idx >= length then
+			while length <= idx do
+				length := length * 2 
+			end
+			this.resize(length)
+		end
+		this.storage[idx] := elem
+		if this.lastIdx < idx + 1 then
+			this.lastIdx := idx + 1
+		end
+	end atPut
+	
+	proc (this: Vector) append*(in elem : E)
+		var 
+			lenght, i : integer
+	begin
+		lenght := len(this.storage)
+		if this.lastIdx >= lenght then
+			lenght := lenght * 2
+			this.resize(lenght)
+		end
+		this.storage[this.lastIdx] := elem
+		this.lastIdx := this.lastIdx + 1
+	end append
+	
+	proc (this: Vector) isEmpty*() : boolean
+	begin
+		return ( this.lastIdx = this.firstIdx )
+	end isEmpty
+	
+	proc (this: Vector) first*() : E
+	begin
+		if this.isEmpty() then
+			return default(E)
+		end
+		return this.storage[this.firstIdx]
+	end first
+	
+	proc (this: Vector) removeFirst*() : E
+	begin
+		if this.isEmpty() then
+			return default(E)
+		end
+		this.firstIdx := this.firstIdx + 1
+		return this.storage[ this.firstIdx - 1 ]
+	end removeFirst
+	
+	proc (this: Vector) removeAll*()
+	begin
+		this.firstIdx := 0
+		this.lastIdx := 0
+	end removeAll
+	
+	proc (this: Vector) getSize*() : integer
+	begin
+		return this.lastIdx - this.firstIdx
+	end getSize
+	
+	proc (this: Vector) capacity*() : integer
+	begin
+		return len(this.storage)
+	end capacity
+	
+	proc (this: Vector) forEach*(var fn: ForEachInterface)
+		var i : integer
+	begin
+		for i := this.firstIdx to this.lastIdx - 1 do
+			fn.apply( this.storage[i] )
+		end
+	end forEach
+	
+	proc (this: Vector) hasSome*(var fn: TestInterface) : boolean
+		var i : integer
+	begin
+		for i := this.firstIdx to this.lastIdx - 1 do
+			if fn.test( this.storage[i] ) then
+				return true
+			end
+		end	
+		return false
+	end hasSome
+	
+	proc (this: Vector) getOne*(var fn: TestInterface; var out: E) : boolean
+		var i : integer
+	begin
+		for i := this.firstIdx to this.lastIdx - 1 do
+			if fn.test( this.storage[i] ) then
+				out := this.storage[i]
+				return true
+			end
+		end	
+		return false 
+	end getOne
+	
+	proc (this: Vector) remove*(in obj: E) : boolean
+		var
+			newArray : pointer to array of E
+			i, off : integer
+	begin
+		new(newArray,this.capacity())
+		off := 0
+		for i := this.firstIdx to this.lastIdx - 1 do
+			if this.storage[i] = obj then
+				off := off -1
+			else
+				newArray[i+off] := this.storage[i]
+			end
+		end		
+		this.storage := newArray
+		this.lastIdx := this.lastIdx + off
+		return (off # 0)
+	end remove
+	
+	proc (this: Vector) sort*(var c: Comparator)
+	begin
+		if this.getSize() > 0 then
+			this.sortImp(this.firstIdx,this.lastIdx,c)
+		end
+	end sort
+	
+	proc (this: Vector) sortImp(i, j: integer; var c : Comparator)
+		var 
+			n, ij, k, l : integer
+			di, dj, tt, dij: E
+	begin
+		n := j + 1 - i
+		if n <= 1 then
+			return 
+		end
+
+		di := this.storage[i]
+		dj := this.storage[j]
+		
+		if c.compare(di, dj) > 0 then
+	      swap(this.storage, i, j)
+	      tt := di
+	      di := dj
+	      dj := tt
+	   end
+	   
+	   if n > 2 then
+	      ij := (i + j) div 2
+	      dij := this.storage[ij]
+
+	      if (c.compare(di, dij) <= 0) then
+	        if (c.compare(dij, dj) > 0) then
+	          swap(this.storage, j, ij)
+	          dij := dj
+	        end
+	      else
+	        swap(this.storage, i, ij)
+	        dij := di;
+	      end
+
+	      if n > 3 then
+	        k := i
+	        l := j - 1
+	
+	        loop
+	          while (k <= l) & ( c.compare(dij, this.storage[l]) <= 0) do
+	            l := l - 1
+	          end
+	
+	          k := k + 1
+	          while (k <= l) & ( c.compare( this.storage[k], dij ) <= 0 ) do
+	            k := k + 1
+	          end
+	
+	          if k > l then
+	            exit
+	          end
+	          swap(this.storage, k, l)
+	        end
+	
+	        this.sortImp(i, l, c)
+	        this.sortImp(k, j, c)
+	      end
+	   end	
+	end sortImp
+	
+	proc swap(storage2: pointer to array of E; i, j: integer)
+		var temp : E
+	begin
+		temp := storage2[i]
+		storage2[i] := storage2[j]
+		storage2[j] := temp
+	end swap
+	
+	type ForEachInterface* = record end
+
+	proc (var this: ForEachInterface) apply*(in elem: E) end 
+	
+	type TestInterface* = record end
+	
+	proc (var this: TestInterface) test*(in elem: E) end
+	
+	type Comparator* = record end
+	
+	proc (var this: Comparator) compare*( in i,j: E ) : integer end
+	
+end Vector

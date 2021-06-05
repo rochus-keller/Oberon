@@ -654,7 +654,7 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::SHORT:
         case BuiltIn::HALT:
         case BuiltIn::COPY:
-        case BuiltIn::SIZE:
+        case BuiltIn::BYTESIZE:
         case BuiltIn::ENTIER:
         case BuiltIn::BITS:
         case BuiltIn::SYS_MOVE:

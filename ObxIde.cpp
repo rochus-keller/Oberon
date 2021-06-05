@@ -130,6 +130,7 @@ public:
         d_hl->addBuiltIn("PRINTLN");
         d_hl->addBuiltIn("TRAP");
         d_hl->addBuiltIn("TRAPIF");
+        d_hl->addBuiltIn("DEFAULT");
     }
 
     void clearBackHisto()
@@ -1141,7 +1142,8 @@ void Ide::onCursor()
 void Ide::onExportBc()
 {
     const QString curPath = d_tab->getCurrentDoc().toString();
-    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath)->d_sourceCode.isEmpty() );
+    Project::FileMod fm = d_pro->findFile(curPath);
+    ENABLED_IF(d_tab->getCurrentTab() != 0 && fm.first && !fm.first->d_sourceCode.isEmpty() );
 
     const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Binary") );
 
@@ -1150,11 +1152,9 @@ void Ide::onExportBc()
 
     QDir::setCurrent(dirPath);
 
-    Project::File* f = d_pro->getFiles().value(curPath).data();
-    Q_ASSERT( f != 0 );
 
     Project::ModCode::const_iterator i;
-    for( i = f->d_sourceCode.begin(); i != f->d_sourceCode.end(); ++i )
+    for( i = fm.first->d_sourceCode.begin(); i != fm.first->d_sourceCode.end(); ++i )
     {
         QString path = dirPath + "/" + i.key()->getName();
         path += ".ljbc";
@@ -1167,7 +1167,8 @@ void Ide::onExportBc()
 void Ide::onExportAsm()
 {
     const QString curPath = d_tab->getCurrentDoc().toString();
-    ENABLED_IF(d_tab->getCurrentTab() != 0 && !d_pro->getFiles().value(curPath)->d_sourceCode.isEmpty() );
+    Project::FileMod fm = d_pro->findFile(curPath);
+    ENABLED_IF(d_tab->getCurrentTab() != 0 && fm.first && fm.first->d_sourceCode.isEmpty() );
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Assembler"),
                                                           d_tab->getCurrentDoc().toString(),
@@ -1246,11 +1247,13 @@ void Ide::onTabChanged()
 
     if( !path.isEmpty() )
     {
-        Project::FileRef f = d_pro->getFiles().value(path);
-        if( f.data() )
+        Project::FileMod f = d_pro->findFile(path);
+        if( f.first )
         {
-            fillModule(f->d_mod.data());
-            d_curBc = f->d_sourceCode.value(f->d_mod.data());
+            fillModule(f.first->d_mod.data());
+            d_curBc = f.first->d_sourceCode.value(f.second);
+            if( d_curBc.isEmpty() && !f.first->d_sourceCode.isEmpty() )
+                d_curBc = f.first->d_sourceCode.begin().value();
             if( !d_curBc.isEmpty() )
             {
                 QBuffer buf( &d_curBc );
@@ -1281,10 +1284,10 @@ void Ide::onEditorChanged()
         if( e->isModified() )
             d_filesDirty = true;
         const QString path = d_tab->getDoc(i).toString();
-        Module* m = d_pro->getFiles().value(path)->d_mod.data();
+        Project::FileMod f = d_pro->findFile(path);
         QString name;
-        if( m )
-            name = m->getName();
+        if( f.first->d_mod )
+            name = f.first->d_mod->getName();
         else
             name = QFileInfo( path ).fileName();
         d_tab->setTabText(i, name + ( e->isModified() ? "*" : "" ) );
@@ -1302,7 +1305,19 @@ void Ide::onErrorsDblClicked()
 
 static bool errorEntryLessThan(const Errors::Entry &s1, const Errors::Entry &s2)
 {
-    return qMakePair(s1.d_file,s1.d_line) < qMakePair(s2.d_file,s2.d_line);
+    if( s1.d_file < s2.d_file )
+        return true;
+    if( s1.d_file > s2.d_file )
+        return false;
+    if( s1.d_line < s2.d_line )
+        return true;
+    if( s1.d_line > s2.d_line )
+        return false;
+    if( s1.d_col < s2.d_col )
+        return true;
+    if( s1.d_col > s2.d_col )
+        return false;
+    return s1.d_nr < s2.d_nr;
 }
 
 void Ide::onErrors()
@@ -1324,7 +1339,11 @@ void Ide::onErrors()
             item->setIcon(0, QPixmap(":/images/exclamation-red.png") );
         else
             item->setIcon(0, QPixmap(":/images/exclamation-circle.png") );
-        item->setText(0, QFileInfo(errs[i].d_file).baseName() );
+        Project::FileMod f = d_pro->findFile(errs[i].d_file);
+        if( f.first )
+            item->setText(0, f.second->getName() );
+        else
+            item->setText(0, errs[i].d_file );
         item->setText(1, QString("%1:%2").arg(errs[i].d_line).arg(errs[i].d_col));
         item->setData(0, Qt::UserRole, errs[i].d_file );
         item->setData(1, Qt::UserRole, errs[i].d_line );
@@ -1549,7 +1568,7 @@ bool Ide::compile(bool generate )
     fillMods();
     fillModule(0);
     fillHier(0);
-    fillXref(0);
+    fillXref();
     onTabChanged();
     return errCount == d_pro->getErrs()->getErrCount();
 }
@@ -1641,13 +1660,11 @@ void Ide::addTopCommands(Gui::AutoMenu* pop)
 
 Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMarker, bool center )
 {
-    Project::FileRef pf = d_pro->getFiles().value(path);
-    if( pf.data() == 0 )
-        pf = d_pro->getModules().value(path.toLatin1());
-    if( pf.data() == 0 )
+    Project::FileMod f = d_pro->findFile(path);
+    if( f.first == 0 )
         return 0;
 
-    const int i = d_tab->findDoc(pf->d_filePath);
+    const int i = d_tab->findDoc(f.first->d_filePath);
     Editor* edit = 0;
     if( i != -1 )
     {
@@ -1662,18 +1679,18 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         connect(edit,SIGNAL(cursorPositionChanged()),this,SLOT(onCursor()));
         connect(edit,SIGNAL(sigUpdateLocation(int,int)),this,SLOT(onUpdateLocation(int,int)));
 
-        if( pf->d_mod.isNull() )
+        if( f.second == 0 )
             edit->setExt(true);
         else
-            edit->setExt(pf->d_mod->d_isExt);
-        edit->loadFromFile(pf->d_filePath);
+            edit->setExt(f.second->d_isExt);
+        edit->loadFromFile(f.first->d_filePath);
 
-        const Lua::Engine2::Breaks& br = d_lua->getBreaks( pf->d_filePath.toUtf8() );
+        const Lua::Engine2::Breaks& br = d_lua->getBreaks( f.first->d_filePath.toUtf8() );
         Lua::Engine2::Breaks::const_iterator j;
         for( j = br.begin(); j != br.end(); ++j )
             edit->addBreakPoint((*j) - 1);
 
-        d_tab->addDoc(edit,pf->d_filePath);
+        d_tab->addDoc(edit,f.first->d_filePath);
         onEditorChanged();
     }
     if( row > 0 && col > 0 )
@@ -1936,7 +1953,8 @@ void Ide::fillXref()
             d_xref->scrollToItem(black, QAbstractItemView::PositionAtCenter);
             d_xref->setCurrentItem(black);
         }
-    }
+    }else
+        edit->markNonTerms(Editor::ExList());
 }
 
 void Ide::fillXref(Named* sym)
@@ -1997,19 +2015,24 @@ void Ide::fillStack()
             const int col = RowCol::unpackCol2(l.d_line);
             const int row2 = RowCol::unpackRow2(l.d_lineDefined);
             const int col2 = RowCol::unpackCol2(l.d_lineDefined);
+            Project::FileMod fm = d_pro->findFile( l.d_source );
             Expression* e = d_pro->findSymbolBySourcePos(l.d_source,row2,col2);
             if( e && e->getIdent() )
             {
                 const int tag = e->getIdent()->getTag();
                 if( tag == Thing::T_Procedure || Thing::T_Module )
                 {
-                    item->setText(1,e->getIdent()->d_name );
+                    item->setText(1,e->getIdent()->getName() );
                     d_scopes[level] = cast<Scope*>(e->getIdent());
                 }
             }
+            //qDebug() << "level" << level << ( d_scopes[level] ? d_scopes[level]->getModule()->getName() : QByteArray("???") );
             item->setText(2,QString("%1:%2").arg(row).arg(col));
             item->setData(2, Qt::UserRole, l.d_line );
-            item->setText(3, QFileInfo(l.d_source).baseName() );
+            if( fm.first )
+                item->setText(3, fm.second->getName() );
+            else
+                item->setText(3, QString("<unknown> %1").arg(l.d_source.constData()) );
             item->setData(3, Qt::UserRole, l.d_source );
             item->setToolTip(3, l.d_source );
             if( !opened )
@@ -2024,7 +2047,7 @@ void Ide::fillStack()
     d_stack->parentWidget()->show();
 }
 
-#if 0
+#if 0 // TEST, usually 0
 static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
 {
     if( val.canConvert<Lua::Engine2::VarAddress>() )
@@ -2104,34 +2127,40 @@ void Ide::fillLocals()
                 Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
             }
         }
+#if 1
         Module* m = d_scopes[ d_lua->getActiveLevel() ]->getModule();
         QTreeWidgetItem* parent = new QTreeWidgetItem(d_locals);
         parent->setText(0,m->getName());
         parent->setText(1,"<module>");
         const int before = lua_gettop(d_lua->getCtx());
         lua_getglobal( d_lua->getCtx(), m->getName() );
-        Q_ASSERT( !lua_isnil( d_lua->getCtx(), -1 ) );
-        const int mod = lua_gettop( d_lua->getCtx() );
-        foreach( const Ref<Named>& n, m->d_order )
+        if( !lua_isnil( d_lua->getCtx(), -1 ) )
         {
-            if( n->getTag() == Thing::T_Variable )
+            const int mod = lua_gettop( d_lua->getCtx() );
+            foreach( const Ref<Named>& n, m->d_order )
             {
-                QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-                item->setText(0,n->d_name);
-                const int before = lua_gettop(d_lua->getCtx());
-                lua_rawgeti( d_lua->getCtx(), mod, n->d_slot );
-                printLocalVal(item,n->d_type.data(), 0);
-                lua_pop( d_lua->getCtx(), 1 );
-                Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+                if( n->getTag() == Thing::T_Variable )
+                {
+                    QTreeWidgetItem* item = new QTreeWidgetItem(parent);
+                    item->setText(0,n->d_name);
+                    const int before = lua_gettop(d_lua->getCtx());
+                    lua_rawgeti( d_lua->getCtx(), mod, n->d_slot );
+                    printLocalVal(item,n->d_type.data(), 0);
+                    lua_pop( d_lua->getCtx(), 1 );
+                    Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+                }
             }
-        }
+        }else
+            parent->setText(1,"<???>");
         lua_pop( d_lua->getCtx(), 1 ); // module
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+#endif
     }
-#if 0
+#if 0 // TEST, usually 0
     Lua::Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50,true);
     foreach( const Lua::Engine2::LocalVar& v, vs )
     {
+        QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
         QString name = v.d_name;
         if( v.d_isUv )
             name = "(" + name + ")";
@@ -2215,7 +2244,7 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
 
     type = derefed(type);
     Q_ASSERT( type );
-    const int tag = type->getTag();
+    int tag = type->getTag();
     if( tag == Thing::T_Pointer || tag == Thing::T_ProcType )
     {
         if( lua_isnil( d_lua->getCtx(), -1 ) )
@@ -2224,46 +2253,55 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             return;
         }
         if( tag == Thing::T_Pointer )
-            type = derefed(cast<Pointer*>(type)->d_to.data());
-    }
-    switch( type->getBaseType() )
-    {
-    case Type::BOOLEAN:
-        if( lua_toboolean(d_lua->getCtx(), -1) )
-            item->setText(1,"true");
-        else
-            item->setText(1,"false");
-        return;
-    case Type::CHAR:
-    case Type::WCHAR:
         {
-            const ushort uc = lua_tointeger(d_lua->getCtx(),-1);
-            const QString ch = QChar( uc );
-            item->setText(1,QString("'%1' %2x").arg(ch.simplified()).arg(uc,0,16));
+            type = derefed(cast<Pointer*>(type)->d_to.data());
+            tag = type->getTag();
         }
-        return;
-    case Type::BYTE:
-        item->setText(1,QString("%1h").arg(lua_tointeger(d_lua->getCtx(),-1),0,16));
-        return;
-    case Type::SHORTINT:
-    case Type::INTEGER:
-    case Type::LONGINT:
-        item->setText(1,QString::number(lua_tointeger(d_lua->getCtx(),-1)));
-        return;
-    case Type::REAL:
-    case Type::LONGREAL:
-        item->setText(1,QString::number(lua_tonumber(d_lua->getCtx(),-1)));
-        return;
-    case Type::SET:
-        item->setText(1,QString("{%1}").arg((quint32)lua_tointeger(d_lua->getCtx(),-1),32,2,QChar('0')));
-        return;
-    case Type::NIL:
-    case Type::STRING:
-    case Type::WSTRING:
-        Q_ASSERT( false );
-        break;
     }
-    switch( type->getTag() )
+    if( tag == Thing::T_BaseType )
+    {
+        switch( type->getBaseType() )
+        {
+        case Type::BOOLEAN:
+            if( lua_toboolean(d_lua->getCtx(), -1) )
+                item->setText(1,"true");
+            else
+                item->setText(1,"false");
+            return;
+        case Type::CHAR:
+        case Type::WCHAR:
+            {
+                const ushort uc = lua_tointeger(d_lua->getCtx(),-1);
+                const QString ch = QChar( uc );
+                item->setText(1,QString("'%1' %2x").arg(ch.simplified()).arg(uc,0,16));
+            }
+            return;
+        case Type::BYTE:
+            item->setText(1,QString("%1h").arg(lua_tointeger(d_lua->getCtx(),-1),0,16));
+            return;
+        case Type::SHORTINT:
+        case Type::INTEGER:
+        case Type::LONGINT:
+            item->setText(1,QString::number(lua_tointeger(d_lua->getCtx(),-1)));
+            return;
+        case Type::REAL:
+        case Type::LONGREAL:
+            item->setText(1,QString::number(lua_tonumber(d_lua->getCtx(),-1)));
+            return;
+        case Type::SET:
+            item->setText(1,QString("{%1}").arg((quint32)lua_tointeger(d_lua->getCtx(),-1),32,2,QChar('0')));
+            return;
+        case Type::ANY:
+            item->setText(1,QString("<any> %1").arg(lua_tostring(d_lua->getCtx(),-1)));
+            return;
+        case Type::NIL:
+        case Type::STRING:
+        case Type::WSTRING:
+            Q_ASSERT( false );
+            break;
+        }
+    } // else
+    switch( tag )
     {
     case Thing::T_Array:
         {
@@ -2400,7 +2438,9 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
         }
         break;
     default:
+        qWarning() << "unexpected type" << type->getTagName();
         Q_ASSERT(false);
+        break;
     }
 }
 
@@ -2886,7 +2926,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.5");
+    a.setApplicationVersion("0.7.6");
     a.setStyle("Fusion");
 
     Ide w;

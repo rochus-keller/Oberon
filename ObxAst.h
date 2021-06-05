@@ -297,6 +297,7 @@ namespace Obx
 
         QualiType(){}
         ModItem getQuali() const;
+        QByteArrayList getQualiString() const;
         bool isSelfRef() const { return d_selfRef; }
         int getTag() const { return T_QualiType; }
         bool hasByteSize() const;
@@ -412,7 +413,7 @@ namespace Obx
                // SYSTEM
                SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY,
                // Oberon-2
-               MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, SIZE, ENTIER,
+               MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, BYTESIZE, ENTIER, // BYTESIZE is SIZE in BB
                // Blackbox
                BITS,
                // Oberon-2 SYSTEM
@@ -420,7 +421,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR, PRINTLN
+               VAL, STRLEN, WCHR, PRINTLN, DEFAULT
              };
         static const char* s_typeName[];
         quint8 d_func;
@@ -466,19 +467,20 @@ namespace Obx
         QList<Import*> d_imports;
         QString d_file;
         QByteArrayList d_fullName;  // Path segments (if present) + module name
-        // QByteArray d_instSuffix;    // for generic instances a suffix identifying the instance
         MetaParams d_metaParams;
         MetaActuals d_metaActuals; // set if this is an instance of a generic module
+        Module* d_instOf;
         Ob::RowCol d_begin;
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
         bool d_isExt;
         QList< Ref<Type> > d_helper2; // filled with pointers because of ADDROF
 
-        Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
+        Module():d_isDef(false),d_isValidated(false),d_isExt(false),d_instOf(0) {}
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
         QByteArray getName() const;
+        bool isFullyInstantiated() const;
       };
 
     struct NamedType : public Named

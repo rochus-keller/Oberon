@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-05-30
+:revdate: 2021-06-05
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -1040,7 +1040,7 @@ end log2
 ....
 
 === Type-bound procedures
-Procedures declared on module level may be associated with a record type declared in the same module. The procedures are said to be bound to the record type. The binding is expressed by the type of the receiver in the heading of a procedure declaration. The receiver may be either a variable (VAR) parameter of record type T or a value parameter of type POINTER TO T (where T is a record type). The procedure is bound to the type T and is considered local to it.
+Procedures may be associated with a record type declared in the same scope. The procedures are said to be bound to the record type. The binding is expressed by the type of the receiver in the heading of a procedure declaration. The receiver may be either a variable (VAR) parameter of record type T or a value parameter of type POINTER TO T (where T is a record type). The procedure is bound to the type T and is considered local to it.
 
 .Syntax:
 ....
@@ -1084,7 +1084,7 @@ end Insert
 ....
 
 [NOTE]
-The name of a type-bound procedure must be unique within the type to which it is bound, not within the module in which it is declared.
+The name of a type-bound procedure must be unique within the type to which it is bound, not within the scope in which it is declared.
 
 === Predeclared procedures
 The following table lists the predeclared procedures. Some are generic procedures, i.e. they apply to several types of operands. `v` stands for a variable, `x` and `n` for expressions, and T for a type.
@@ -1100,6 +1100,10 @@ The following table lists the predeclared procedures. Some are generic procedure
 |CAP(x)      |CHAR                 |CHAR           |x is letter: corresponding capital letter
 |            |WCHAR                |WCHAR          |
 |CHR(x)      |integer type         |CHAR           |Latin-1 character with ordinal number x
+|DEFAULT(T)  |T = basic type       |T              |zero for numeric and character types, false for boolean, empty set
+|            |T = enumeration type |T              |same as MIN(T)
+|            |T = pointer/proc type|T              |nil
+|            |T = record/array type|T              |all fields/elements set to their DEFAULT type
 |ENTIER(x)   |real type            |LONGINT        |largest integer not greater than x
 |FLOOR(x)    |                     |INTEGER        |
 |FLT(x)      |INTEGER              |REAL           |identity
@@ -1133,7 +1137,7 @@ The following table lists the predeclared procedures. Some are generic procedure
 |            |x: LONGREAL          |REAL           |identity (truncation possible)
 |            |x: WCHAR			   |CHAR		   |projection (0x if there is no projection)
 |			 |x: array of wchar or Unicode string | Latin-1 string | projection ("?" for characters where there is no projection)
-|SIZE(T)     |any type             |INTEGER        |number of bytes required by T
+|BYTESIZE(T) |any type             |INTEGER        |number of bytes required by T
 |STRLEN(s)   |s: array of char     |INTEGER        |dynamic length of the string up to and not including the first 0X
 |            |s: string            |               |same as LEN(s)
 |VAL(T,x)	 |T:enumeration type x:ordinal number|enumeration type|the value with the ordinal number x.
@@ -1147,6 +1151,10 @@ The functions ENTIER(x) or FLOOR(x) round down to the largest integer not greate
 ....
 FLOOR(1.5) = 1; FLOOR(-1.5) = -2
 ....
+
+[NOTE]
+The function BYTESIZE(T) is called SIZE(T) in Oberon-2.
+
 
 ==== Predeclared proper procedures
 

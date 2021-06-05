@@ -1,0 +1,29 @@
+module Set<E>
+
+import 
+	V := som.Vector<E>, C := som.Constants
+	
+type
+	Set = pointer to record 
+			items : V.Vector
+		end
+	
+	proc createWithSize*(siz : integer) : Set
+		var s : Set
+	begin
+		new(s)
+		s.items := V.createWithSize(siz)
+		return s
+	end createWithSize
+	
+	proc create*() : Set
+	begin
+		return createWithSize(C.INITIAL_SIZE)
+	end create
+
+	proc (this: Set) getSize*() : integer
+	begin
+		return this.items.getSize()
+	end getSize
+	
+end Set

@@ -47,7 +47,8 @@ struct Model::CrossReferencer : public AstVisitor
     {
         d_mod = mod;
         d_mdl = mdl;
-        d_mod->accept(this);
+        if(mod)
+            d_mod->accept(this);
     }
 
     void visit( Module* me )
@@ -521,9 +522,9 @@ bool Model::parseFiles(const FileGroups& files)
         if( m == d_systemModule.data())
             continue;
 
-        if( !m->d_metaParams.isEmpty() )
-            continue; // generic modules are not validated here;
-                      // instances of generic modules are validated in Validator::visit(Import*) for locality
+        if( !m->d_metaActuals.isEmpty() )
+            continue; // generic module instances are not validated here,
+                      // but are validated in Validator::visit(Import*) for locality
 
         qDebug() << "analyzing" << m->getName();
 
@@ -936,7 +937,9 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::HALT, new ProcType( Type::List() << d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::COPY, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::ASH, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::SIZE, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
+    bi = new BuiltIn(BuiltIn::BYTESIZE, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) );
+    d_globals->add( bi.data() );
+    d_globals->d_names[Lexer::getSymbol("SIZE").constData()] = bi.data(); // backward compatibility for BB and OBN2
     d_globals->add( new BuiltIn(BuiltIn::ENTIER, new ProcType( Type::List() << d_longrealType.data(), d_longType.data() ) ) );
 
     // Oberon+
@@ -944,6 +947,7 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::STRLEN, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::WCHR, new ProcType( Type::List() << d_intType.data(), d_wcharType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::PRINTLN, new ProcType( Type::List() << d_anyType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::DEFAULT, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
 
     // Blackbox
 #ifdef OBX_BBOX
@@ -1015,23 +1019,22 @@ bool Model::resolveImport(Module* m)
             {
                 if( i->d_metaActuals.isEmpty() )
                     i->d_mod = d_others.value( i->d_path );
-                if( i->d_mod.isNull() ||
-                        !i->d_metaActuals.isEmpty() )
+                if( i->d_mod.isNull() || !i->d_metaActuals.isEmpty() )
                 {
                     if( !i->d_metaActuals.isEmpty() )
                     {
-                        Module* meta = i->d_mod.data();
-                        if( meta == 0 )
+                        Module* generic = i->d_mod.data();
+                        if( generic == 0 )
                         {
                             error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
                                    arg( i->d_path.join('.').constData() ) );
                             hasErrors = true;
                         }else
                         {
-                            i->d_mod = parseFile( meta->d_file );
+                            i->d_mod = parseFile( generic->d_file );
                             i->d_mod->d_metaActuals = i->d_metaActuals;
-                            i->d_mod->d_fullName = meta->d_fullName;
-                            // i->d_mod->d_instSuffix = QByteArray::number(d_modInsts.size());
+                            i->d_mod->d_instOf = generic;
+                            i->d_mod->d_fullName = generic->d_fullName;
                             d_modInsts.append(i->d_mod.data());
                         }
                     }else
