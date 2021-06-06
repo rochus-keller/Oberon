@@ -178,7 +178,7 @@ struct ObxLjbcGenImp : public AstVisitor
         Accessor():kind(Invalid),disposeSlot(0),disposeIndex(0),slot(0),index(0){}
     };
 
-    void visit( Module* me)
+    void visit( Module* me )
     {
         ctx.push_back( Ctx(me) );
         bc.openFunction(0,me->getName(),me->d_loc.packed(), me->d_end.packed() );

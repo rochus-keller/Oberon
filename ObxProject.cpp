@@ -919,8 +919,6 @@ Project::FileList Project::getFilesInExecOrder() const
     foreach( Module* m, order )
     {
         Q_ASSERT( m );
-        if( !m->isFullyInstantiated() )
-            continue;
         FileHash::const_iterator i = d_files.find( m->d_file );
         if( i == d_files.end() || i.value()->d_sourceCode.isEmpty() || i.value()->d_mod.isNull() )
             continue;
@@ -1064,6 +1062,24 @@ int Project::findImportPath(const QByteArrayList& importPath) const
     return pos;
 }
 
+bool Project::generate(Module* m)
+{
+    Q_ASSERT( m );
+    if( !m->isFullyInstantiated() )
+        return false;
+    FileHash::iterator f = d_files.find(m->d_file);
+    if( f == d_files.end() )
+        return false;
+
+    qDebug() << "generating" << m->getName() << " " << m;
+    QBuffer buf;
+    buf.open(QIODevice::WriteOnly);
+    LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
+    buf.close();
+    f.value()->d_sourceCode[m] = buf.buffer();
+    return true;
+}
+
 bool Project::recompile()
 {
     d_modules.clear();
@@ -1080,14 +1096,22 @@ bool Project::recompile()
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
     {
+        //qDebug() << "******* recompile" << m->getName();
         if( m->d_file.isEmpty() || ( m->d_isDef && !d_files.contains(m->d_file) ) )
             continue; // e.g. SYSTEM
         FileHash::iterator i = d_files.find(m->d_file);
         if( i != d_files.end() )
         {
-            if( m->d_metaActuals.isEmpty() )
-                i.value()->d_mod = m; // d_mod always points to the generic (non-instantiated) module
-            d_modules.insert(m->getName(),qMakePair(i.value().data(), m)); // d_modules contains also the instantiations
+            Q_ASSERT( m->d_metaActuals.isEmpty() );
+            i.value()->d_mod = m; // d_mod always points to the generic (non-instantiated) module
+            d_modules.insert(m->getName(),qMakePair(i.value().data(), m));
+            // d_modules contains also the instantiations
+            if( !m->d_metaParams.isEmpty() )
+            {
+                QList<Module*> insts = d_mdl->instances(m);
+                foreach( Module* inst, insts )
+                d_modules.insert(inst->getName(),qMakePair(i.value().data(), inst));
+            }
             //m->dump();
         }else
         {
@@ -1108,9 +1132,7 @@ bool Project::generate()
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
     {
-
-        FileHash::iterator f = d_files.find(m->d_file);
-        if( m->d_synthetic || !m->isFullyInstantiated() )
+        if( m->d_synthetic )
             ; // NOP
         else if( m->d_hasErrors )
         {
@@ -1129,14 +1151,16 @@ bool Project::generate()
 #else
             LjbcGen::allocateDef(m, 0, d_mdl->getErrs());
 #endif
-        }else if( f != d_files.end() )
+        }else
         {
-            qDebug() << "generating" << m->getName() << " " << m;
-            QBuffer buf;
-            buf.open(QIODevice::WriteOnly);
-            LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
-            buf.close();
-            f.value()->d_sourceCode[m] = buf.buffer();
+            if( m->d_metaParams.isEmpty() )
+                generate(m);
+            else
+            {
+                QList<Module*> insts = d_mdl->instances(m);
+                foreach( Module* inst, insts )
+                    generate(inst);
+            }
         }
     }
     return errs == d_mdl->getErrs()->getErrCount();

@@ -29,7 +29,7 @@ namespace Ob
 }
 namespace Obx
 {
-    class Model : public QObject
+    class Model : public QObject, Instantiator
     {
     public:
         struct FileGroup
@@ -59,6 +59,10 @@ namespace Obx
         Ob::Errors* getErrs() const { return d_errs; }
         Ob::FileCache* getFc() const { return d_fc; }
         void addPreload(const QByteArray& name, const QByteArray& source);
+
+        // Instantiator imp
+        Module* instantiate( Module* generic, const MetaActuals& actuals );
+        QList<Module*> instances( Module* generic );
     protected:
         void unbindFromGlobal();
         void fillGlobals();
@@ -89,8 +93,11 @@ namespace Obx
         Ref<BaseType> d_anyNum;
         Ref<Record> d_anyRec;
         Ref<Module> d_systemModule;
-        QList<Module*> d_depOrder, // most (0) to least (n-1) dependent
-            d_modInsts;
+        QList<Module*> d_depOrder; // most (0) to least (n-1) dependent
+        typedef QList<Ref<Module> > ModList;
+        typedef QHash<Module*,ModList> ModInsts;
+        ModInsts d_insts; // generic module -> instances
+
         typedef QHash<QByteArrayList,Ref<Module> > Modules;
         Modules d_modules, d_others;
         XRef d_xref;

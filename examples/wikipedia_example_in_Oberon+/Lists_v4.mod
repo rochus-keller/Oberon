@@ -1,20 +1,20 @@
 (* Example from https://en.wikipedia.org/wiki/Oberon-2,
-    v3 + generic type and left out unused ListNode type *)
+    v3 + generics and left out unused ListNode type *)
     
-module Lists
+module Lists<T>
 
     // declare global constants, types and variables:
     
     type
-        List*<T>    = ^record
+        List*    = ^record
             value : T
             next  : List<T>
         end
 
     // declare procedures:
     
-    proc<T> (l : List<T>) Add* (v : T)
-    do
+    proc (l : List) Add* (v : T)
+    begin
         if l = nil then
             new(l)              // create record instance
             l.value := v
@@ -23,10 +23,10 @@ module Lists
         end
     end Add
 
-    proc<T> (l : List<T>) Get* () : T
+    proc (l : List) Get* () : T
     var
-        v : T  // v is automatically initialized to the default value of T
-    do
+        v : T 
+    begin
         if l # nil then
             v := l.value      //  this line will crash if l is nil 
             l := l.next

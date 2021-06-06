@@ -469,14 +469,13 @@ namespace Obx
         QByteArrayList d_fullName;  // Path segments (if present) + module name
         MetaParams d_metaParams;
         MetaActuals d_metaActuals; // set if this is an instance of a generic module
-        Module* d_instOf;
         Ob::RowCol d_begin;
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
         bool d_isExt;
         QList< Ref<Type> > d_helper2; // filled with pointers because of ADDROF
 
-        Module():d_isDef(false),d_isValidated(false),d_isExt(false),d_instOf(0) {}
+        Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
         QByteArray getName() const;
@@ -673,6 +672,13 @@ namespace Obx
         int getTag() const { return T_BinExpr; }
         void accept(AstVisitor* v) { v->visit(this); }
         Module* getModule() const { return !d_lhs.isNull() ? d_lhs->getModule() : !d_rhs.isNull() ? d_rhs->getModule() : 0 ; }
+    };
+
+    class Instantiator // interface
+    {
+    public:
+        virtual Module* instantiate( Module* generic, const MetaActuals& actuals ) = 0;
+        virtual QList<Module*> instances( Module* generic ) = 0;
     };
 }
 

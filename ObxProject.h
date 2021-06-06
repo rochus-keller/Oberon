@@ -113,6 +113,7 @@ namespace Obx
         QStringList findFiles(const QDir& , bool recursive = false);
         void touch();
         int findImportPath(const QByteArrayList& ) const;
+        bool generate( Module* );
     private:
         Model* d_mdl;
 

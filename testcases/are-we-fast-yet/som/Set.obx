@@ -1,7 +1,34 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+ 
 module Set<E>
 
 import 
-	V := som.Vector<E>, C := som.Constants
+	V := som.Vector<E>, 
+	I := som.Interfaces<E>
+
+const
+	INITIAL_SIZE* = 10
 	
 type
 	Set = pointer to record 
@@ -18,12 +45,57 @@ type
 	
 	proc create*() : Set
 	begin
-		return createWithSize(C.INITIAL_SIZE)
+		return createWithSize(INITIAL_SIZE)
 	end create
 
 	proc (this: Set) getSize*() : integer
 	begin
 		return this.items.getSize()
 	end getSize
+	
+	proc (this: Set) forEach*(var fn: I.ForEachInterface)
+	begin
+		this.items.forEach(fn)
+	end forEach
+
+	proc (this: Set) hasSome*(var fn: I.TestInterface) : boolean
+	begin
+		return this.items.hasSome(fn)
+	end hasSome
+	
+	proc (this: Set) getOne*(var fn: I.TestInterface; var out: E) : boolean
+	begin
+		return this.items.getOne(fn, out)
+	end getOne
+	
+	proc (this: Set) removeAll*()
+	begin
+		this.items.removeAll()
+	end removeAll
+	
+	proc (this: Set) add*(in obj: E)
+	begin
+		if ~this.contains(obj) then
+			this.items.append(obj)
+		end
+	end add
+	
+	proc (this: Set) contains*(in obj: E ) : boolean
+	
+		type TestInterface = record (I.TestInterface) obj : E end
+			
+		proc (var this:TestInterface) test(in elem: E) :boolean
+		begin
+			return elem = this.obj
+		end test
+		
+		var t : TestInterface
+		
+	begin
+		t.obj := obj
+		return this.hasSome(t)
+	end contains
+	
+	// collect doesn't seem to be used anywhere
 	
 end Set

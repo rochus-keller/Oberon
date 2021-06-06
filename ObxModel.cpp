@@ -433,8 +433,8 @@ void Model::clear()
     d_errs->clear();
 
     d_depOrder.clear();
-    d_modInsts.clear();
     unbindFromGlobal();
+    d_insts.clear();
     d_modules.clear();
     d_others.clear();
     d_xref.clear();
@@ -522,13 +522,13 @@ bool Model::parseFiles(const FileGroups& files)
         if( m == d_systemModule.data())
             continue;
 
-        if( !m->d_metaActuals.isEmpty() )
-            continue; // generic module instances are not validated here,
+        Q_ASSERT( m->d_metaActuals.isEmpty() );
+                      // generic module instances are not validated here,
                       // but are validated in Validator::visit(Import*) for locality
 
         qDebug() << "analyzing" << m->getName();
 
-        Validator::check(m, bt, d_errs );
+        Validator::check(m, bt, d_errs, this );
 
         //m->dump(); // TEST
         if( d_fillXref )
@@ -541,6 +541,16 @@ bool Model::parseFiles(const FileGroups& files)
             }
         }
     }
+
+#if 1 // TEST
+    qDebug() << "**** generic module instances:";
+    ModInsts::const_iterator i;
+    for( i = d_insts.begin(); i != d_insts.end(); ++i )
+    {
+        foreach( const Ref<Module>& inst, i.value() )
+            qDebug() << inst->getName();
+    }
+#endif
 
     return true;
 }
@@ -781,6 +791,53 @@ void Model::addPreload(const QByteArray& name, const QByteArray& source)
     d_fc->addFile( name, source, true );
 }
 
+Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
+{
+    Q_ASSERT( generic && generic->d_metaActuals.isEmpty() && !generic->d_metaParams.isEmpty() &&
+              generic->d_metaParams.size() == actuals.size() );
+
+    MetaActuals search = actuals;
+    for( int i = 0; i < search.size(); i++ )
+    {
+        Q_ASSERT( search[i] );
+        search[i] = search[i]->derefed();
+    }
+    ModList& insts = d_insts[generic];
+    Ref<Module> inst;
+    for( int i = 0; i < insts.size(); i++ )
+    {
+        if( insts[i]->d_metaActuals == search )
+        {
+            inst = insts[i];
+            break;
+        }
+    }
+    if( inst.isNull() )
+    {
+        inst = parseFile( generic->d_file );
+        if( inst.isNull() || inst->d_hasErrors )
+            return 0; // already reported
+        inst->d_metaActuals = search;
+        inst->d_fullName = generic->d_fullName;
+        inst->d_scope = generic->d_scope;
+        resolveImport(inst.data());
+        insts.append(inst);
+    }
+    return inst.data();
+}
+
+QList<Module*> Model::instances(Module* generic)
+{
+    ModInsts::const_iterator i = d_insts.find(generic);
+    QList<Module*> res;
+    if( i != d_insts.end() )
+    {
+        foreach( const Ref<Module>& m, i.value() )
+            res.append(m.data());
+    }
+    return res;
+}
+
 void Model::unbindFromGlobal()
 {
     if( d_globals.isNull() )
@@ -1008,37 +1065,16 @@ bool Model::resolveImport(Module* m)
     foreach( Import* i, m->d_imports )
     {
         i->d_mod = d_modules.value(i->d_path);
-        if( i->d_mod.isNull() ||
-                !i->d_metaActuals.isEmpty() ) // load separate copies for generic modules
-            // NOTE we need separated copies of generic module ASTs because if more than one instance of a
-            // generic module is required in a module types would only fit one of them otherwise
+        if( i->d_mod.isNull() )
         {
             if( i->d_path.size() == 1 && i->d_path.last() == d_systemModule->d_name )
                 i->d_mod = d_systemModule;
             else
             {
-                if( i->d_metaActuals.isEmpty() )
-                    i->d_mod = d_others.value( i->d_path );
-                if( i->d_mod.isNull() || !i->d_metaActuals.isEmpty() )
+                i->d_mod = d_others.value( i->d_path );
+                if( i->d_mod.isNull() )
                 {
-                    if( !i->d_metaActuals.isEmpty() )
-                    {
-                        Module* generic = i->d_mod.data();
-                        if( generic == 0 )
-                        {
-                            error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
-                                   arg( i->d_path.join('.').constData() ) );
-                            hasErrors = true;
-                        }else
-                        {
-                            i->d_mod = parseFile( generic->d_file );
-                            i->d_mod->d_metaActuals = i->d_metaActuals;
-                            i->d_mod->d_instOf = generic;
-                            i->d_mod->d_fullName = generic->d_fullName;
-                            d_modInsts.append(i->d_mod.data());
-                        }
-                    }else
-                        i->d_mod = parseFile( i->d_path.join('.') );
+                    i->d_mod = parseFile( i->d_path.join('.') );
                     if( i->d_mod.isNull() )
                     {
                         error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
@@ -1050,10 +1086,7 @@ bool Model::resolveImport(Module* m)
                             i->d_mod->d_scope = d_globalsLower.data();
                         else
                             i->d_mod->d_scope = d_globals.data();
-                        if( i->d_metaActuals.isEmpty() )
-                            d_others.insert(i->d_path, i->d_mod );
-                        else
-                            resolveImport(i->d_mod.data()); // resolve imports of instances
+                        d_others.insert(i->d_path, i->d_mod );
                     }
                 }
             }
@@ -1088,6 +1121,7 @@ static bool DFS( Module* m, QSet<Module*>& mods, QList<Module*>& trace )
 bool Model::findProcessingOrder()
 {
     d_depOrder.clear();
+    d_insts.clear();
 
     QSet<Module*> mods, all;
     Modules::const_iterator i;
@@ -1095,8 +1129,6 @@ bool Model::findProcessingOrder()
         mods.insert(i.value().data());
     for( i = d_others.begin(); i != d_others.end(); ++i )
         mods.insert(i.value().data());
-    foreach( Module* m, d_modInsts )
-        mods.insert(m);
     mods.insert(d_systemModule.data());
     all = mods;
 
@@ -1183,6 +1215,7 @@ bool Model::findProcessingOrder()
 #endif
 
 #if 0
+    qDebug() << "**** dependency order:";
     foreach( Module* m, d_depOrder )
         qDebug() << m->d_name;
 #endif

@@ -12,15 +12,15 @@ size=0
 [.som]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Pair.obx
 1\RelPath=som/Pair.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Constants.obx
-2\RelPath=som/Constants.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Vector.obx
-3\RelPath=som/Vector.obx
-4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Set.obx
-4\RelPath=som/Set.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Vector.obx
+2\RelPath=som/Vector.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Set.obx
+3\RelPath=som/Set.obx
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Interfaces.obx
+4\RelPath=som/Interfaces.obx
 5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Interfaces.obx
 5\RelPath=som/Interfaces.obx
-size=5
+size=4
 
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Tester.obx
@@ -29,6 +29,6 @@ size=1
 
 [Packages]
 1\Name=@ByteArray()
-2\Name=@ByteArray(som)
-3\Name=@ByteArray()
+2\Name=@ByteArray()
+3\Name=@ByteArray(som)
 size=3

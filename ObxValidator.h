@@ -50,7 +50,7 @@ namespace Obx
         };
 
         // assumes imports are already resolved
-        static bool check( Module*, const BaseTypes&, Ob::Errors*);
+        static bool check( Module*, const BaseTypes&, Ob::Errors*, Instantiator*);
     private:
         Validator();
     };

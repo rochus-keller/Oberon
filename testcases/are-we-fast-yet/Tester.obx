@@ -1,14 +1,15 @@
 module Tester
 
 import 
-	IV := som.Vector<integer>
+	IV := som.Vector<integer>,
+	I := som.Interfaces<integer>
 	
 	proc TestVector()
 		var
 			l : IV.Vector
 		type
-			Printer = record (IV.ForEachInterface) end
-			Comparator = record (IV.Comparator) end
+			Printer = record (I.ForEachInterface) end
+			Comparator = record (I.Comparator) end
 			
 		proc (var this:Printer) apply(in elem: integer)
 		begin
@@ -29,7 +30,6 @@ import
 		var
 			p : Printer
 			c : Comparator
-	
 	begin
 		l := IV.createWithElement(long(long(33)))
 		println("initial size:")
@@ -41,6 +41,7 @@ import
 		l.append(long(long(99)))
 		l.append(long(long(88)))
 	   l.append(long(long(77)))
+
 	   println("print each element:")
 	   l.forEach(p)
 	   
@@ -57,7 +58,6 @@ import
 	end TestVector
 	
 begin
-
    TestVector()
    
 end Tester

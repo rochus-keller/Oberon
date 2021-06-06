@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-05-30</span>
+      <span id="revdate">2021-06-05</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -2366,13 +2366,13 @@ end log2</pre>
         <div class="sect2">
           <h3 id="_type_bound_procedures">10.2. Type-bound procedures</h3>
           <div class="paragraph">
-            <p>Procedures declared on module level may be associated with a record type
-              declared in the same module. The procedures are said to be bound to
-              the record type. The binding is expressed by the type of the receiver
-              in the heading of a procedure declaration. The receiver may be either
-              a variable (VAR) parameter of record type T or a value parameter of
-              type POINTER TO T (where T is a record type). The procedure is bound
-              to the type T and is considered local to it.</p>
+            <p>Procedures may be associated with a record type declared in the same
+              scope. The procedures are said to be bound to the record type. The
+              binding is expressed by the type of the receiver in the heading of
+              a procedure declaration. The receiver may be either a variable (VAR)
+              parameter of record type T or a value parameter of type POINTER TO
+              T (where T is a record type). The procedure is bound to the type T
+              and is considered local to it.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -2443,7 +2443,7 @@ end Insert</pre>
                 </td>
                 <td class="content">
                   The name of a type-bound procedure must be unique within the type to which it is
-                  bound, not within the module in which it is declared.
+                  bound, not within the scope in which it is declared.
                 </td>
               </tr>
             </table>
@@ -2552,6 +2552,57 @@ end Insert</pre>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">Latin-1 character with ordinal number x</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">DEFAULT(T)</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T = basic type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">zero for numeric and character types, false for boolean, empty
+                      set</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T = enumeration type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">same as MIN(T)</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T = pointer/proc type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">nil</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="tableblock halign-left valign-top"></td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T = record/array type</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">T</p>
+                  </td>
+                  <td class="tableblock halign-left valign-top">
+                    <p class="tableblock">all fields/elements set to their DEFAULT type</p>
                   </td>
                 </tr>
                 <tr>
@@ -2980,7 +3031,7 @@ end Insert</pre>
                 </tr>
                 <tr>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">SIZE(T)</p>
+                    <p class="tableblock">BYTESIZE(T)</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
                     <p class="tableblock">any type</p>
@@ -3066,6 +3117,18 @@ end Insert</pre>
               <div class="content">
                 <pre>FLOOR(1.5) = 1; FLOOR(-1.5) = -2</pre>
               </div>
+            </div>
+            <div class="admonitionblock note">
+              <table>
+                <tr>
+                  <td class="icon">
+                    <div class="title">Note</div>
+                  </td>
+                  <td class="content">
+                    The function BYTESIZE(T) is called SIZE(T) in Oberon-2.
+                  </td>
+                </tr>
+              </table>
             </div>
           </div>
           <div class="sect3">

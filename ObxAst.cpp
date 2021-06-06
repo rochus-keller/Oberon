@@ -1064,12 +1064,12 @@ QByteArray Module::getName() const
             Named* n = td->findDecl();
             if( n )
                 name += n->getName();
-            else
+            else if( d_metaActuals[i]->getTag() == Thing::T_QualiType )
             {
-                Q_ASSERT( d_metaActuals[i]->getTag() == Thing::T_QualiType );
                 QualiType* q = cast<QualiType*>( d_metaActuals[i].data() );
                 name += q->getQualiString().join('.');
-            }
+            }else
+                name += "?";
         }
         name += ")";
     }

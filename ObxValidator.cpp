@@ -27,6 +27,7 @@ struct ValidatorImp : public AstVisitor
 {
     Errors* err;
     Module* mod;
+    Instantiator* insts;
     Validator::BaseTypes bt;
     struct Level
     {
@@ -71,10 +72,18 @@ struct ValidatorImp : public AstVisitor
             if( n->getTag() == Thing::T_Procedure )
                 visitBody( cast<Procedure*>(n.data()) );
         }
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Import )
+                n->accept(this); // make sure import is validated even if not used in module (TODO: can we avoid this?)
+        }
     }
 
     void visit( Module* me)
     {
+        if( me->d_visited )
+            return;
+        me->d_visited = true;
         if( !me->d_metaParams.isEmpty() )
         {
             if( !me->d_metaActuals.isEmpty() )
@@ -1949,9 +1958,17 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Import* me)
     {
+        if( me->d_visited )
+            return;
+        me->d_visited = true;
+        //qDebug() << "check imports of" << mod->getName();
         if( !me->d_metaActuals.isEmpty() )
         {
-            me->d_visited = true;
+            if( insts == 0 )
+            {
+                error( me->d_loc, Validator::tr("this import requires generic module support"));
+                return;
+            }
             foreach( const Ref<Type>& t, me->d_metaActuals )
             {
                 t->accept(this);
@@ -1972,29 +1989,34 @@ struct ValidatorImp : public AstVisitor
                     return;
                 }
             }
+            if( me->d_mod )
+                me->d_mod = insts->instantiate( me->d_mod.data(), me->d_metaActuals );
             if( me->d_mod.isNull() )
                 return; // already reported
-            qDebug() << "analyzing" << me->d_mod->getName();
-            Errors err2;
-            err2.setShowWarnings(true);
-            err2.setReportToConsole(false);
-            err2.setRecord(true);
-            Validator::check(me->d_mod.data(),bt, &err2 );
-            if( err2.getErrCount() || err2.getWrnCount() )
+            if( !me->d_mod->d_isValidated )
             {
-                error( me->d_loc, Validator::tr("errors when instantiating generic module"));
-                Errors::EntryList::const_iterator i;
-                for( i = err2.getErrors().begin(); i != err2.getErrors().end(); ++i )
+                qDebug() << "analyzing" << me->d_mod->getName();
+                Errors err2;
+                err2.setShowWarnings(true);
+                err2.setReportToConsole(false);
+                err2.setRecord(true);
+                Validator::check(me->d_mod.data(),bt, &err2, insts );
+                if( err2.getErrCount() || err2.getWrnCount() )
                 {
-                    const QString msg = (*i).d_msg + QString(", see %1:%2:%3").arg( mod->getName().constData() )
-                            .arg( me->d_loc.d_row ).arg(me->d_loc.d_col);
-                    if( (*i).d_isErr )
-                        err->error((Errors::Source)(*i).d_source, (*i).d_file, (*i).d_line, (*i).d_col, msg);
-                    else
-                        err->warning((Errors::Source)(*i).d_source, (*i).d_file, (*i).d_line, (*i).d_col, msg);
+                    error( me->d_loc, Validator::tr("errors when instantiating generic module"));
+                    Errors::EntryList::const_iterator i;
+                    for( i = err2.getErrors().begin(); i != err2.getErrors().end(); ++i )
+                    {
+                        const QString msg = (*i).d_msg + QString(", see %1:%2:%3").arg( mod->getName().constData() )
+                                .arg( me->d_loc.d_row ).arg(me->d_loc.d_col);
+                        if( (*i).d_isErr )
+                            err->error((Errors::Source)(*i).d_source, (*i).d_file, (*i).d_line, (*i).d_col, msg);
+                        else
+                            err->warning((Errors::Source)(*i).d_source, (*i).d_file, (*i).d_line, (*i).d_col, msg);
+                    }
                 }
+                //me->d_mod->dump(); // TEST
             }
-            //me->d_mod->dump(); // TEST
         }
     }
 
@@ -2509,7 +2531,7 @@ struct ValidatorImp : public AstVisitor
     }
 };
 
-bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err)
+bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err, Instantiator* insts)
 {
     Q_ASSERT( m != 0 && err != 0 );
 
@@ -2523,6 +2545,7 @@ bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err)
     imp.bt = bt;
     imp.bt.assert();
     imp.mod = m;
+    imp.insts = insts;
     m->accept(&imp);
 
     m->d_hasErrors = ( err->getErrCount() - errCount ) != 0;

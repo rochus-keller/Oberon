@@ -6,10 +6,15 @@ MainProc=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
+[.]
+size=0
+
 [.som]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Vector.obx
 1\RelPath=som/Vector.obx
-size=1
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Interfaces.obx
+2\RelPath=som/Interfaces.obx
+size=2
 
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Tester.obx
@@ -17,6 +22,7 @@ size=1
 size=1
 
 [Packages]
-1\Name=@ByteArray(som)
-2\Name=@ByteArray()
-size=2
+1\Name=@ByteArray()
+2\Name=@ByteArray(som)
+3\Name=@ByteArray()
+size=3
