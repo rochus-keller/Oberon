@@ -26,6 +26,7 @@
 #include "ObxProject.h"
 #include "ObxModel.h"
 #include "ObxLibFfi.h"
+#include "ObsDisplay.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
@@ -131,6 +132,11 @@ public:
         d_hl->addBuiltIn("TRAP");
         d_hl->addBuiltIn("TRAPIF");
         d_hl->addBuiltIn("DEFAULT");
+        d_hl->addBuiltIn("BITAND");
+        d_hl->addBuiltIn("BITOR");
+        d_hl->addBuiltIn("BITXOR");
+        d_hl->addBuiltIn("BITNOT");
+        d_hl->addBuiltIn("ANYREC");
     }
 
     void clearBackHisto()
@@ -395,12 +401,15 @@ static void log( const QString& msg )
         s_this->logMessage(msg);
 }
 
-static void loadLuaLib( Lua::Engine2* lua, const QByteArray& name )
+static void loadLuaLib( Lua::Engine2* lua, const QByteArray& path, QByteArray name = QByteArray() )
 {
-    QFile lib( QString(":/scripts/%1.lua").arg(name.constData()) );
-    lib.open(QIODevice::ReadOnly);
+    QFile lib( QString(":/scripts/%1.lua").arg(path.constData()) );
+    if( !lib.open(QIODevice::ReadOnly) )
+        qCritical() << "cannot find" << path;
+    if( name.isEmpty() )
+        name = path;
     if( !lua->addSourceLib( lib.readAll(), name ) )
-        qCritical() << "compiling" << name << ":" << lua->getLastError();
+        qCritical() << "compiling" << path << ":" << lua->getLastError();
 }
 
 static bool preloadLib( Project* pro, const QByteArray& name )
@@ -427,6 +436,7 @@ Ide::Ide(QWidget *parent)
     d_lua = new Lua::Engine2(this);
     Lua::Engine2::setInst(d_lua);
     LibFfi::install(d_lua->getCtx());
+    Obs::Display::install(d_lua->getCtx());
     d_lua->addStdLibs();
     d_lua->addLibrary(Lua::Engine2::PACKAGE);
     d_lua->addLibrary(Lua::Engine2::IO);
@@ -890,17 +900,7 @@ void Ide::onRun()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() && !d_lua->isExecuting() );
 
-    if( !compile(true) )
-        return;
-
     QDir::setCurrent(d_pro->getWorkingDir(true));
-
-    Project::FileList files = d_pro->getFilesInExecOrder();
-    if( files.isEmpty() )
-    {
-        qWarning() << "nothing to run";
-        return;
-    }
 
     if( d_pro->useBuiltInOakwood() )
     {
@@ -915,7 +915,24 @@ void Ide::onRun()
     }
 
     if( d_pro->useBuiltInObSysInner() )
-        ; // TODO SysInnerLib::install(d_lua->getCtx());
+    {
+        loadLuaLib(d_lua,"Obs/Input", "Input");
+        loadLuaLib(d_lua,"Obs/Kernel", "Kernel");
+        loadLuaLib(d_lua,"Obs/Display", "Display");
+        loadLuaLib(d_lua,"Obs/Modules", "Modules");
+        loadLuaLib(d_lua,"Obs/FileDir", "FileDir");
+        loadLuaLib(d_lua,"Obs/Files", "Files");
+    }
+
+    if( !compile(true) )
+        return;
+
+    Project::FileList files = d_pro->getFilesInExecOrder();
+    if( files.isEmpty() )
+    {
+        qWarning() << "nothing to run";
+        return;
+    }
 
     Lua::BcDebugger* dbg = 0;
     if( d_bcDebug )
@@ -1343,7 +1360,7 @@ void Ide::onErrors()
         if( f.first )
             item->setText(0, f.second->getName() );
         else
-            item->setText(0, errs[i].d_file );
+            item->setText(0, QFileInfo(errs[i].d_file).completeBaseName() );
         item->setText(1, QString("%1:%2").arg(errs[i].d_line).arg(errs[i].d_col));
         item->setData(0, Qt::UserRole, errs[i].d_file );
         item->setData(1, Qt::UserRole, errs[i].d_line );
@@ -1593,7 +1610,10 @@ static void fillModTree( T* parent, const QList<Module*>& mods )
         QTreeWidgetItem* item = new QTreeWidgetItem(parent);
         item->setText(0, m->d_name);
         item->setToolTip(0,m->d_file);
-        item->setIcon(0, QPixmap(":/images/module.png") );
+        if( m->d_isDef )
+            item->setIcon(0, QPixmap(":/images/definition.png") );
+        else
+            item->setIcon(0, QPixmap(":/images/module.png") );
         item->setData(0,Qt::UserRole,QVariant::fromValue(ModRef( m ) ) );
     }
 }
@@ -2604,7 +2624,11 @@ static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
     Named* name = p->findDecl(true);
     Q_ASSERT( name != 0 );
-    item->setText(0, QString("%1.%2").arg(name->getModule()->getName().constData()).arg(name->d_name.constData()));
+    Module* m = name->getModule();
+    if( m )
+        item->setText(0, QString("%1.%2").arg(m->getName().constData()).arg(name->d_name.constData()));
+    else
+        item->setText(0, name->d_name);
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );
     item->setIcon(0, QPixmap( name->d_visibility >= Named::ReadWrite ? ":/images/class.png" : ":/images/class_priv.png" ) );
     item->setToolTip(0,item->text(0));
@@ -2926,7 +2950,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.6");
+    a.setApplicationVersion("0.7.7");
     a.setStyle("Fusion");
 
     Ide w;

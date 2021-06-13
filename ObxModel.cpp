@@ -422,7 +422,6 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_wstringType = new BaseType(BaseType::WSTRING);
     d_nilType = new BaseType(BaseType::NIL);
     d_anyType = new BaseType(BaseType::ANY);
-    d_anyNum = new BaseType(BaseType::ANY);
     d_anyRec = new Record();
 
     fillGlobals();
@@ -493,12 +492,12 @@ bool Model::parseFiles(const FileGroups& files)
 
     QDir::setCurrent(old);
 
-    if( before != d_errs->getErrCount() )
-        return false; // stop on parsing errors
-
     resolveImports();
     if( !findProcessingOrder() )
         return false;
+
+    if( before != d_errs->getErrCount() )
+        return false; // stop on parsing errors, but only after we found the dependency order
 
     Validator::BaseTypes bt;
     bt.d_boolType = d_boolType.data();
@@ -542,7 +541,7 @@ bool Model::parseFiles(const FileGroups& files)
         }
     }
 
-#if 1 // TEST
+#if 0 // TEST
     qDebug() << "**** generic module instances:";
     ModInsts::const_iterator i;
     for( i = d_insts.begin(); i != d_insts.end(); ++i )
@@ -905,16 +904,16 @@ void Model::fillGlobals()
 
     // Oberon-2
     sys->add( new BuiltIn(BuiltIn::SYS_MOVE, new ProcType( Type::List() << d_longType.data() << d_longType.data()
-                                                           << d_anyNum.data() ) ) );
-    sys->add( new BuiltIn(BuiltIn::SYS_NEW, new ProcType( Type::List() << d_anyType.data() << d_anyNum.data() ) ) );
-    sys->add( new BuiltIn(BuiltIn::SYS_ROT, new ProcType( Type::List() << d_anyType.data() << d_anyNum.data(),
+                                                           << d_anyType.data() ) ) );
+    sys->add( new BuiltIn(BuiltIn::SYS_NEW, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
+    sys->add( new BuiltIn(BuiltIn::SYS_ROT, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(),
                                                           d_anyType.data() ) ) );
-    sys->add( new BuiltIn(BuiltIn::SYS_LSH, new ProcType( Type::List() << d_anyType.data() << d_anyNum.data(),
+    sys->add( new BuiltIn(BuiltIn::SYS_LSH, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(),
                                                           d_anyType.data() ) ) );
 
 
     // Built-in procedures
-    bi = new BuiltIn(BuiltIn::ABS, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) );
+    bi = new BuiltIn(BuiltIn::ABS, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) );
     d_globals->add( bi.data());
 
     bi = new BuiltIn(BuiltIn::ODD, new ProcType( Type::List() << d_intType.data(), d_boolType.data() ) );
@@ -989,8 +988,8 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::MAX, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::MIN, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::CAP, new ProcType( Type::List() << d_charType.data(), d_charType.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::LONG, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) ) );
-    d_globals->add( new BuiltIn(BuiltIn::SHORT, new ProcType( Type::List() << d_anyNum.data(), d_anyNum.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::LONG, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::SHORT, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::HALT, new ProcType( Type::List() << d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::COPY, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::ASH, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
@@ -1005,18 +1004,21 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::WCHR, new ProcType( Type::List() << d_intType.data(), d_wcharType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::PRINTLN, new ProcType( Type::List() << d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::DEFAULT, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::BITAND, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::BITNOT, new ProcType( Type::List() << d_intType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::BITOR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::BITXOR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
+    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
+    d_globals->add( anyrec.data() );
+    d_globals->add( new BuiltIn(BuiltIn::BITS, new ProcType( Type::List() << d_intType.data(), d_setType.data() ) ) );
 
     // Blackbox
 #ifdef OBX_BBOX
     d_globals->add( new Const( Lexer::getSymbol("INF"),
                                new Literal( Literal::Real, RowCol(), INFINITY, d_realType.data() ) ) );
-    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
-    d_globals->add( anyrec.data() );
     Ref<Pointer> anyptr = new Pointer();
     anyptr->d_to = anyrec->d_type.data();
     d_globals->add( new NamedType(Lexer::getSymbol("ANYPTR"), anyptr.data() ) );
-
-    d_globals->add( new BuiltIn(BuiltIn::BITS, new ProcType( Type::List() << d_intType.data(), d_setType.data() ) ) );
 
     sys->add( new BuiltIn(BuiltIn::SYS_TYP, new ProcType( Type::List() << d_anyRec.data(), d_intType.data() ) ) );
     sys->add( new BuiltIn(BuiltIn::SYS_GETREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),

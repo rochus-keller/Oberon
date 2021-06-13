@@ -77,7 +77,7 @@ type
 	
 	proc (this: Vector) atPut*(idx : integer; in elem : E)
 		var 
-			length, i : integer
+			length : integer
 	begin
 		length := len(this.storage)
 		if idx >= length then
@@ -94,7 +94,7 @@ type
 	
 	proc (this: Vector) append*(in elem : E)
 		var 
-			lenght, i : integer
+			lenght : integer
 	begin
 		lenght := len(this.storage)
 		if this.lastIdx >= lenght then

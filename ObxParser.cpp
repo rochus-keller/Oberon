@@ -435,6 +435,40 @@ Ref<QualiType> Parser::namedType(Named* id, Type* binding)
     return q.data();
 }
 
+Ref<Type> Parser::returnType(Type* binding)
+{
+    switch( d_la )
+    {
+    case Tok_POINTER:
+        {
+            Ref<Pointer> p = new Pointer();
+            MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
+            p->d_loc = d_cur.toRowCol();
+            MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
+            p->d_to = namedType(0,0).data();
+            if( p->d_to )
+                p->d_to->d_binding = p.data();
+            p->d_binding = binding;
+            return p.data();
+        }
+        break;
+    case Tok_Hat:
+        {
+            next();
+            Ref<Pointer> p = new Pointer();
+            p->d_loc = d_cur.toRowCol();
+            p->d_to = namedType(0,0).data();
+            if( p->d_to )
+                p->d_to->d_binding = p.data();
+            p->d_binding = binding;
+            return p.data();
+        }
+        break;
+    default:
+        return namedType(0,binding).data();
+    }
+}
+
 Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
 {
     Ref<Array> arr = new Array();
@@ -748,7 +782,7 @@ void Parser::formalParameters(Scope* scope, ProcType* p)
     if( d_la == Tok_Colon )
     {
         next();
-        p->d_return = namedType(0, p).data();
+        p->d_return = returnType(p).data();
     }
 }
 
@@ -1308,6 +1342,23 @@ static inline bool firstOfStatement( quint8 t )
     }
 }
 
+static inline bool followOfStatement( quint8 t )
+{
+    switch(t)
+    {
+    case Tok_Semi:
+    case Tok_Bar:
+    case Tok_ELSE:
+    case Tok_ELSIF:
+    case Tok_END:
+    case Tok_RETURN:
+    case Tok_UNTIL:
+        return true;
+    default:
+        return false;
+    }
+}
+
 StatSeq Parser::statementSequence(Scope* scope)
 {
     static const TokSet toks = TokSet() << Tok_Semi << Tok_CASE << Tok_FOR << Tok_WITH << Tok_RETURN
@@ -1761,7 +1812,9 @@ Ref<Statement> Parser::returnStatement(Scope* scope)
         r->d_what = expression();
     else
     {
-        if( !firstOfStatement(d_la) && d_la != Tok_END )
+        if( !firstOfStatement(d_la) && !followOfStatement(d_la) )
+            // if what follows is not what is expected in an expression less return then try expression;
+            // in this case the user has likely forgot to specify a return value of the procedure
             r->d_what = expression();
     }
 

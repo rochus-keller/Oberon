@@ -276,7 +276,7 @@ namespace Obx
         typedef QList< Ref<Parameter> > Formals;
         typedef QList<bool> Vars;
 
-        Ref<Type> d_return; // QualiType actually
+        Ref<Type> d_return; // QualiType or pointer to QualiType actually
         Formals d_formals;
 
         ProcType(const Type::List& f, Type* r = 0);
@@ -421,7 +421,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR, PRINTLN, DEFAULT
+               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR
              };
         static const char* s_typeName[];
         quint8 d_func;

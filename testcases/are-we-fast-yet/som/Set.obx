@@ -80,11 +80,11 @@ type
 		end
 	end add
 	
-	proc (this: Set) contains*(in obj: E ) : boolean
+	proc (this: Set) contains*(in obj: E) : boolean
 	
 		type TestInterface = record (I.TestInterface) obj : E end
 			
-		proc (var this:TestInterface) test(in elem: E) :boolean
+		proc (var this:TestInterface) test(in elem: E) : boolean
 		begin
 			return elem = this.obj
 		end test

@@ -1103,14 +1103,15 @@ bool Project::recompile()
         if( i != d_files.end() )
         {
             Q_ASSERT( m->d_metaActuals.isEmpty() );
-            i.value()->d_mod = m; // d_mod always points to the generic (non-instantiated) module
-            d_modules.insert(m->getName(),qMakePair(i.value().data(), m));
+            File* f = i.value().data();
+            f->d_mod = m; // d_mod always points to the generic (non-instantiated) module
+            d_modules.insert(m->getName(),qMakePair(f, m));
             // d_modules contains also the instantiations
             if( !m->d_metaParams.isEmpty() )
             {
                 QList<Module*> insts = d_mdl->instances(m);
                 foreach( Module* inst, insts )
-                d_modules.insert(inst->getName(),qMakePair(i.value().data(), inst));
+                d_modules.insert(inst->getName(),qMakePair(f, inst));
             }
             //m->dump();
         }else

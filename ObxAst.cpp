@@ -52,7 +52,7 @@ const char* BuiltIn::s_typeName[] =
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT"
+    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR"
 };
 
 const char* UnExpr::s_opName[] =

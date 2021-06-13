@@ -285,6 +285,15 @@ struct ValidatorImp : public AstVisitor
                       .arg(me->d_name.constData()).arg( imp->d_path.join('/').constData() ) );
                 return;
             }
+            if( modVar->getTag() == Thing::T_Procedure )
+            {
+                Procedure* p = cast<Procedure*>(modVar);
+                if( !p->d_receiver.isNull() )
+                {
+                    error( me->d_loc,Validator::tr("cannot reference bound procedure '%1' from another module")
+                          .arg(me->d_name.constData()) );
+                }
+            }
             me->d_ident = modVar;
             me->d_type = modVar->d_type.data();
         }else
@@ -370,6 +379,10 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::ASH:
         case BuiltIn::ROR:
         case BuiltIn::ENTIER:
+        case BuiltIn::BITAND:
+        case BuiltIn::BITNOT:
+        case BuiltIn::BITOR:
+        case BuiltIn::BITXOR:
             return false; // these can be handled by ordinary arg checker
 
 
@@ -431,6 +444,9 @@ struct ValidatorImp : public AstVisitor
                 c.d_type = bt.d_setType;
                 d.d_type = derefed(args->d_args[0]->d_type.data());
                 e.d_type = bt.d_boolType;
+                if( d.d_type->getTag() == Thing::T_Pointer ||
+                        d.d_type->getBaseType() == Type::REAL || d.d_type->getBaseType() == Type::LONGREAL )
+                    break; // undocumented oberon feature
                 if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data())
                         && !paramCompatible( &e, args->d_args[0].data())
                         && !paramCompatible( &c, args->d_args[0].data()) && d.d_type && d.d_type->getTag() != Thing::T_Enumeration )
@@ -1310,6 +1326,7 @@ struct ValidatorImp : public AstVisitor
         }
         if( me->d_type )
             me->d_type->accept(this);
+        checkNoAnyRecType(me->d_type.data());
 
 #ifdef OBX_BBOX
         if( me->d_unsafe )
@@ -1387,25 +1404,19 @@ struct ValidatorImp : public AstVisitor
         {
             me->d_base->accept(this);
 
-            //QualiType::ModItem mi = me->d_base->getQuali(); // doesn't work in face of generics, not necessary anyway
-            //if( mi.second && mi.second->d_type )
-            //{
-                //Type* base = derefed( mi.second->d_type.data() );
-                Type* base = derefed( me->d_base->d_quali->d_type.data() );
-                if( base && base->getTag() == Thing::T_Pointer )
-                    base = derefed(cast<Pointer*>(base)->d_to.data());
-                if( base && base->getTag() == Thing::T_Record)
-                {
-                    me->d_baseRec = cast<Record*>(base);
-                    me->d_baseRec->d_subRecs.append(me);
-                }else
-                    error( me->d_base->d_loc, Validator::tr("base type must be a record") );
-            //}else
-            //    error( me->d_base->d_loc, Validator::tr("cannot resolve base record") );
+            Type* base = derefed( me->d_base->d_quali->d_type.data() );
+            if( base && base->getTag() == Thing::T_Pointer )
+                base = derefed(cast<Pointer*>(base)->d_to.data());
+            if( base && base->getTag() == Thing::T_Record)
+            {
+                me->d_baseRec = cast<Record*>(base);
+                me->d_baseRec->d_subRecs.append(me);
+            }else
+                error( me->d_base->d_loc, Validator::tr("base type must be a record") );
 #if 0
             if( me->d_baseRec && me->d_baseRec->d_unsafe != me->d_unsafe )
                 error( me->d_base->d_loc, Validator::tr("cstruct cannot inherit from record and vice versa") );
-                // neither this is true; in BBOX regular records inherit from COM cstructs
+                // in BBOX regular records inherit from COM cstructs
 #endif
             if( me->d_baseRec && me->d_unsafe && !me->d_baseRec->d_unsafe  )
                 error( me->d_base->d_loc, Validator::tr("cstruct cannot inherit from record") ); // at least this is true
@@ -1484,6 +1495,7 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_return.isNull() )
             me->d_return->accept(this); // OBX has no restrictions on return types
+        checkNoAnyRecType(me->d_return.data());
         foreach( const Ref<Parameter>& p, me->d_formals )
             p->accept(this);
     }
@@ -1495,6 +1507,7 @@ struct ValidatorImp : public AstVisitor
         curTypeDecl = me;
         if( me->d_type )
             me->d_type->accept(this);
+        checkNoAnyRecType(me->d_type.data());
         curTypeDecl = 0;
     }
 
@@ -1509,16 +1522,6 @@ struct ValidatorImp : public AstVisitor
         me->d_vtype = res.d_vtype;
         me->d_wide = res.d_wide;
         me->d_strLen = res.d_strLen;
-    }
-
-    inline void checkVarType( Named* me )
-    {
-        if( me->d_type )
-        {
-            me->d_type->accept(this);
-            if( !me->d_type->hasByteSize() )
-                error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
-        }
     }
 
     void visit( Field* me )
@@ -1540,7 +1543,8 @@ struct ValidatorImp : public AstVisitor
     {
         if( me->d_type )
             me->d_type->accept(this);
-
+        if( !me->d_var )
+            checkNoAnyRecType(me->d_type.data());
 #if 0
         // not true; open array value parameter are supported as well, in all old Oberon/-2, Oberon-07 and BBOX
         Type* t = derefed(me->d_type.data());
@@ -2028,6 +2032,24 @@ struct ValidatorImp : public AstVisitor
     void visit( GenericName* ) {}
 
     ////////// Utility
+
+    inline void checkVarType( Named* me )
+    {
+        if( me->d_type )
+        {
+            me->d_type->accept(this);
+            if( !me->d_type->hasByteSize() )
+                error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
+            checkNoAnyRecType(me->d_type.data());
+        }
+    }
+
+    inline void checkNoAnyRecType( Type* t )
+    {
+        Type* td = derefed(t);
+        if( td == bt.d_anyRec )
+            error(t->d_loc, Validator::tr("this type cannot be used here") );
+    }
 
     void visitStats( const StatSeq& ss )
     {

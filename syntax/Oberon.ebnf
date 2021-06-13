@@ -94,11 +94,11 @@ type ::= NamedType
 NamedType ::= qualident 
 
 #ifdef OBNX
-TypeParams_ ::= '<' ident { ',' ident } '>'
+TypeParams ::= '<' ident { ',' ident } '>'
 
-TypeActuals_ ::= '<' TypeActual_ { ',' TypeActual_ } '>' 
+TypeActuals ::= '<' TypeActual { ',' TypeActual } '>' 
 
-TypeActual_ ::= NamedType
+TypeActual ::= NamedType
 
 enumeration ::= '('  ident { ',' ident } ')' 
 #endif
@@ -457,7 +457,15 @@ FormalParameters ::= '(' [ FPSection {
 #ifdef BBOX
 	[ ':' type ]
 #else
+#ifdef OBNX
+	[ ':' ReturnType ]
+#else
 	[ ':' NamedType ]
+#endif
+#endif
+
+#ifdef OBNX
+ReturnType ::= NamedType | ( POINTER TO | '^') NamedType
 #endif
 
 FPSection ::= [ VAR 
@@ -490,7 +498,7 @@ FormalType ::=
 
 module ::= MODULE ident 
 #ifdef OBNX
-	[ TypeParams_ ] 
+	[ TypeParams ] 
 #endif 
 	(
 #ifdef BBOX
@@ -518,7 +526,7 @@ ImportList ::= IMPORT import { ',' import } [';']
 import ::= [ \LL:2\ ident ':=' ] ident 
 #ifdef OBNX
 	{ '/' ident } // NOTE: paths are not case sensitive 
-	[ TypeActuals_ ] 
+	[ TypeActuals ] 
 #endif
 
 /// 11.1 The Module SYSTEM

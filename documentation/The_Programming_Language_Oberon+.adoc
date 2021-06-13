@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-06-05
+:revdate: 2021-06-11
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -268,13 +268,19 @@ The following identifiers are predeclared; their meaning is defined in the indic
 |ASH      
 |ASR      
 |ASSERT   
+|BITAND
+|BITNOT
+|BITOR
+|BITS
+|BITXOR
 |BOOLEAN  
 |BYTE     
 |CAP      
 |CHAR     
 |CHR      
 |COPY     
-|DEC      
+|DEC  
+|DEFAULT    
 |ENTIER   
 |EXCL     
 |FLOOR    
@@ -450,6 +456,8 @@ T1 = record (T0) y: real end
 T1 is a (direct) _extension_ of T0 and T0 is the (direct) base type of T1 (see <<Definition of terms>>). An extended type T1 consists of the fields of its base type and of the fields which are declared in T1. In general all identifiers declared in the extended record must be different from the identifiers declared in its base type record(s). A pointer field of the base record can be re-declared in the extended record with a pointer type which is an extension of the corresponding base record field type footnote:[this corresponds to the implementation of the Blackbox framework 1.7, see https://blackboxframework.org <<Om01>>].
 
 Alternatively, a pointer to record type can be specified as the base type. The record base type of the pointer is used as the base type of the declared record in this case.
+
+Each record is implicitly an extension of the predeclared type ANYREC. ANYREC does not contain any fields and can only be used in pointer and variable parameter declarations.
 
 .Examples:
 ....
@@ -991,12 +999,13 @@ Value parameters are local variables to which the value of the corresponding act
 The scope of a formal parameter extends from its declaration to the end of the procedure block in which it is declared. A function procedure without parameters must have an empty parameter list. It must be called by a function designator whose actual parameter list is empty too. 
 
 [NOTE]
-In contrast to previous Oberon versions the result type of a procedure may also be a record or an array.
+In contrast to previous Oberon versions the result type of a procedure may also be a structured type.
 
 .Syntax:
 ....
 FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')' 
-                   [ ':' NamedType ]
+                   [ ':' ReturnType ]
+ReturnType       = NamedType | ( POINTER TO | '^') NamedType
 FPSection        = [ VAR | IN ] ident { ',' ident } 
                    ':' FormalType 
 FormalType       = type
@@ -1099,6 +1108,11 @@ The following table lists the predeclared procedures. Some are generic procedure
 |ASR(x, n)   |x, n: INTEGER        |INTEGER        |signed shift right, x DIV 2^n^
 |CAP(x)      |CHAR                 |CHAR           |x is letter: corresponding capital letter
 |            |WCHAR                |WCHAR          |
+|BITAND(x,y) |x, y: INTEGER        |INTEGER        |bitwise AND
+|BITNOT(x)   |x: INTEGER           |INTEGER        |bitwise NOT
+|BITOR(x,y)  |x, y: INTEGER        |INTEGER        |bitwise OR
+|BITS(x)	 |x: INTEGER		   |SET			   |set corresponding to the integer; the first element corresponds to the least significant digit of the integer and the last element to the most significant digit. 
+|BITXOR(x,y) |x, y: INTEGER        |INTEGER        |bitwise XOR
 |CHR(x)      |integer type         |CHAR           |Latin-1 character with ordinal number x
 |DEFAULT(T)  |T = basic type       |T              |zero for numeric and character types, false for boolean, empty set
 |            |T = enumeration type |T              |same as MIN(T)
@@ -1143,6 +1157,9 @@ The following table lists the predeclared procedures. Some are generic procedure
 |VAL(T,x)	 |T:enumeration type x:ordinal number|enumeration type|the value with the ordinal number x.
 |WCHR(x)      |integer type        |WCHAR          |Unicode BMP character with ordinal number x
 |===  
+
+// TODO support both longint and integer for all bit operation functions
+// TODO support longint for other functions such as FLT
 
 [NOTE]
 The functions ENTIER(x) or FLOOR(x) round down to the largest integer not greater than x. The functions are identical, but the former is defined in Oberon-2 and the latter in Oberon-07.
@@ -1505,7 +1522,8 @@ DeclarationSequence =
 	| ProcedureDeclaration [';'] }
 ReturnStatement = RETURN [ expression ] 
 FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')' 
-	[ ':' NamedType ]
+	[ ':' ReturnType ]
+ReturnType = NamedType | ( POINTER TO | '^') NamedType
 FPSection = [ VAR | IN ] ident { ',' ident } ':' FormalType 
 FormalType = type
 module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }

@@ -290,6 +290,7 @@ module[37] = bit.ror
 module[38] = math.floor
 module[39] = module.bool_to_number
 module[40] = getmetatable
+module[41] = bit.bxor
 
 return module
 

@@ -18,9 +18,9 @@ size=0
 3\RelPath=som/Set.obx
 4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Interfaces.obx
 4\RelPath=som/Interfaces.obx
-5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Interfaces.obx
-5\RelPath=som/Interfaces.obx
-size=4
+5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Random.obx
+5\RelPath=som/Random.obx
+size=5
 
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Tester.obx
