@@ -1,5 +1,5 @@
-module Imported1
-	import i2 := Imported2
+module Imported1a
+	import i2 := Imported1b
 
 	type T* = record (i2.T1) end
 		T1* = T
@@ -10,5 +10,5 @@ module Imported1
 	end Do
 	
 begin
-	println("Imported1")
-end Imported1
+	println("Imported1a")
+end Imported1a

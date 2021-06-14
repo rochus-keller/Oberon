@@ -1,0 +1,18 @@
+module Import2
+
+import I := Imported2a
+
+var 
+	r : I.T
+	p : I.P
+
+begin
+
+	r.f := 33
+	println(r.f)
+	
+	new(p)
+	p.f := 44
+	println(p.f)
+
+end Import2

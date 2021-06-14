@@ -766,6 +766,14 @@ QString QualiType::pretty() const
     return "?";
 }
 
+bool QualiType::isDotted() const
+{
+    if( d_quali && d_quali->getTag() == Thing::T_IdentSel )
+        return true;
+    else
+        return false;
+}
+
 IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, IdentRole r):d_ident(id),d_role(r)
 {
     d_loc = loc;
@@ -1096,4 +1104,14 @@ bool Module::isFullyInstantiated() const
             return false;
     }
     return true;
+}
+
+Import*Module::findImport(Module* m) const
+{
+    foreach( Import* i, d_imports )
+    {
+        if( i->d_mod == m )
+            return i;
+    }
+    return 0;
 }

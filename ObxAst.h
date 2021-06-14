@@ -304,6 +304,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;
+        bool isDotted() const;
     };
 
     struct Named : public Thing
@@ -480,6 +481,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         QByteArray getName() const;
         bool isFullyInstantiated() const;
+        Import* findImport(Module*) const;
       };
 
     struct NamedType : public Named

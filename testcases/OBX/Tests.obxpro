@@ -10,11 +10,13 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Generic4.obx
-1\RelPath=Generic4.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/GenericTest5.obx
-2\RelPath=GenericTest5.obx
-size=2
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Import2.obx
+1\RelPath=Import21.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported2a.obx
+2\RelPath=Imported2a.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported2b.obx
+3\RelPath=Imported2b.obx
+size=3
 
 [Packages]
 1\Name=@ByteArray()
