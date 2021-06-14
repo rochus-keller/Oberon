@@ -39,10 +39,10 @@ WorkingDir=
 6\RelPath=Hello.obx
 7\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Import1.obx
 7\RelPath=Import1.obx
-8\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported1.obx
-8\RelPath=Imported1.obx
-9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported2.obx
-9\RelPath=Imported2.obx
+8\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported1a.obx
+8\RelPath=Imported1a.obx
+9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported1b.obx
+9\RelPath=Imported1b.obx
 size=18
 
 [Packages]

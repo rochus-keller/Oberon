@@ -1,0 +1,9 @@
+module Imported2b
+
+type 
+	R* = record
+			f* : integer
+		end
+	T* = R
+	
+end Imported2b

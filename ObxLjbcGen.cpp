@@ -50,10 +50,11 @@ struct ObxLjbcGenImp : public AstVisitor
         QList<Procedure*> allProcs;
         QList<Record*> allRecords;
         QList<QualiType*> allAliasses;
+        Module* thisMod;
 
         void collect(Type* t, bool isTypedef )
         {
-            const int tag = t->getTag();
+            int tag = t->getTag();
             if( tag == Thing::T_Array )
             {
                 collect(cast<Array*>(t)->d_type.data(), false);
@@ -61,17 +62,32 @@ struct ObxLjbcGenImp : public AstVisitor
             }
             if( isTypedef && tag == Thing::T_QualiType )
             {
-                // t is B.C in "type A = B.C" or B in "type A = B"
-                // QualiTypes both pointing to a record or pointer to record get their own slot in the module table.
-                // NOTE that the QualiType get's the slot, not the NamedType
-                if( t->toRecord() )
-                    allAliasses.append( cast<QualiType*>(t) );
-                    // t can point to a record, pointer or another named type (which is separately visited)
+                QualiType* q = cast<QualiType*>(t);
+                if( t->toRecord() && q->isDotted() )
+                {
+                    // t is B.C in "type A = B.C"
+                    //qDebug() << "*** ALIAS dotted quali" << thisMod->getName() << t->d_loc.d_row << t->d_loc.d_col;
+                    allAliasses.append( q );
+                }
                 return;
             }
             if( tag == Thing::T_Pointer )
+            {
                 t = cast<Pointer*>(t)->d_to.data(); // no deref, intentionally
-            if( t && t->getTag() == Thing::T_Record )
+                tag = t->getTag();
+                if( isTypedef && tag == Thing::T_QualiType )
+                {
+                    QualiType* q = cast<QualiType*>(t);
+                    if( t->toRecord() && q->isDotted() )
+                    {
+                        // t is B.C in "type A = pointer to B.C"
+                        //qDebug() << "*** ALIAS ptr to dotted quali" << thisMod->getName() << t->d_loc.d_row << t->d_loc.d_col;
+                        allAliasses.append( q );
+                    }
+                    return;
+                }
+            }
+            if( tag == Thing::T_Record )
             {
                 Record* r = cast<Record*>(t);
                 allRecords.append( r );
@@ -105,15 +121,13 @@ struct ObxLjbcGenImp : public AstVisitor
 
         void visit( Module* me )
         {
+            thisMod = me;
             foreach( const Ref<Named>& n, me->d_order )
                 collect(n.data());
         }
 
         void visit( Procedure* me)
         {
-            //ProcType* pt = me->getProcType();
-            //foreach( const Ref<Parameter>& p, pt->d_formals )
-            //    collect(p->d_type.data(), false);
             foreach( const Ref<Named>& n, me->d_order )
                 collect(n.data());
         }
@@ -195,7 +209,8 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             if(imp->d_mod->d_synthetic )
                 continue; // ignore SYSTEM
-            imp->setSlot( ctx.back().buySlots(1) ); // procs are stored as indices in the module table as well as in the slots
+            imp->setSlot( ctx.back().buySlots(1) );
+            // imports store a reference to the imported module table in a local slot
             names[imp->d_slot] = imp->d_name;
         }
 
@@ -1035,6 +1050,8 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         case Thing::T_NamedType:
             {
+                // happens e.g. in typecase
+#if 0
                 Type* t = derefed(id->d_type.data());
                 if( t && t->getTag() == Thing::T_Pointer )
                     t = derefed(cast<Pointer*>(t)->d_to.data());
@@ -1042,6 +1059,10 @@ struct ObxLjbcGenImp : public AstVisitor
                     return;
                 fetchModule( res, me->d_loc );
                 emitGetTableByIndex(res, res, t->d_slot, me->d_loc );
+#else
+                fetchModule( res, me->d_loc );
+                fetchClassImp2( res, res, id->d_type.data(), me->d_loc );
+#endif
             }
             break;
         case Thing::T_Procedure:
@@ -1136,7 +1157,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT( derefImport );
                 Q_ASSERT( id->d_type->toRecord() );
 #if 1
-                fetchClassImp( res, slotStack.back(), id->d_type.data(), true, me->d_loc );
+                fetchClassImp2( res, slotStack.back(), id->d_type.data(), me->d_loc );
 #else
                 Thing* slotDonor = 0;
                 const int tag = id->d_type->getTag();
@@ -1723,7 +1744,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 Type* t = ae->d_args.first()->d_type.data();
                 Type* td = derefed(t);
                 Q_ASSERT( td && td->getTag() == Thing::T_Pointer );
-                Pointer* ptr = cast<Pointer*>(td);
+                //Pointer* ptr = cast<Pointer*>(td);
 
                 int tmp = ctx.back().buySlots(1);
                 QList<Expression*> dims;
@@ -2211,27 +2232,104 @@ struct ObxLjbcGenImp : public AstVisitor
     void fetchClass( quint8 to, Type* t, const RowCol& loc )
     {
         // t is a record base (qualitype), a local alias (qualitype) or a variable/param/field type (quali, ptr or record)
+        // a record base starts with a quali which is no alias and could point to local or imported module (named type, ptr or record)
+        //     this quali when it leads to a pointer could lead to another quali refering to yet another module
+        //     so also pointers pointing to qualis should have a slot
         if( ctx.back().scope == thisMod )
-            fetchClassImp( to, modSlot, t, false, loc );
+            fetchClassImp2( to, modSlot, t, loc );
         else
         {
             fetchModule(to,loc);
-            fetchClassImp( to, to, t, false, loc );
+            fetchClassImp2( to, to, t, loc );
        }
     }
 
+    void fetchClassImp2( quint8 to, quint8 mod, Type* t, const RowCol& loc )
+    {
+        // t is a
+        //     record or a pointer
+        //     named type in this module
+        //     named type in an imported module
+
+        // Cases to be handled when finding class tables:
+        // ptr rec (direct)
+        // A ptr rec (same mod)
+        // A ptr B rec (same mod)
+        // A ptr B.C rec (ptr and rec different mod)
+        // A.B ptr rec
+        // A.B ptr C rec (C in module A)
+        // A.B ptr C.D rec (C might not be in orig import list, and no alias involved!)
+        // rec
+        // A rec
+        // A.B rec
+
+        // mind qualis can be arbitrary len chains leading to any module along the dependency tree:
+        // e.g. A B.C D E.F rec
+        // only a dotted qualitype can lead out of the module
+
+        // each record has a slot in the module table where it is declared
+        // a dotted qualitype finally leading to a record has a slot in the module table where
+        //     it is declared and stores a reference to the record class table if
+        //     - it belongs to a NamedType
+        //     - it belongs to a pointer which belongs to a named type
+
+        switch( t->getTag() )
+        {
+        case Thing::T_QualiType:
+            {
+                QualiType* q = cast<QualiType*>(t);
+                if( q->d_slotAllocated )
+                    emitGetTableByIndex( to, mod, q->d_slot, loc );
+                else if( q->isDotted() )
+                {
+                    // switch to other module
+                    Expression* qe = q->d_quali.data();
+                    Q_ASSERT( qe->getTag() == Thing::T_IdentSel );
+                    IdentSel* sel = cast<IdentSel*>(qe);
+                    Q_ASSERT( sel->d_sub && sel->d_sub->getTag() == Thing::T_IdentLeaf );
+                    IdentLeaf* leaf = cast<IdentLeaf*>( sel->d_sub.data() );
+                    Q_ASSERT( !leaf->d_ident.isNull() &&
+                              leaf->d_ident->getTag() == Thing::T_Import && leaf->d_ident->d_slotValid );
+                    Q_ASSERT( qe->d_type.data() == sel->d_type.data() );
+
+                    // T_Import is the local slot where the reference to the imported module table is stored
+                    if( ctx.back().scope == thisMod )
+                        fetchClassImp2( to, leaf->d_ident->d_slot, q->d_quali->d_type.data(), loc );
+                    else
+                    {
+                        // provide this function can be called from procedure level too
+                        bc.UGET(to, ctx.back().resolveUpval(leaf->d_ident->d_slot,leaf->d_name), loc.packed() );
+                        fetchClassImp2( to, to, q->d_quali->d_type.data(), loc );
+                    }
+                }else
+                    // name in same module
+                    fetchClassImp2( to, mod, q->d_quali->d_type.data(), loc );
+            }
+            break;
+        case Thing::T_Pointer:
+            {
+                Pointer* p = cast<Pointer*>(t);
+                fetchClassImp2( to, mod, p->d_to.data(), loc );
+            }
+            break;
+        case Thing::T_Record:
+            {
+                if( !t->d_slotAllocated )
+                {
+                    qWarning() << "slot not allocated for record" << thisMod->getName() << t->d_loc.d_row << t->d_loc.d_col;
+                    return; // error already reported
+                }
+                emitGetTableByIndex( to, mod, t->d_slot, loc );
+            }
+            break;
+        default:
+            Q_ASSERT( false );
+        }
+    }
+
+#if 0
     void fetchClassImp( quint8 to, quint8 mod, Type* t, bool isAlias, const RowCol& loc )
     {
-        // finding classes:
-
-        // each record has a slot in the module table it is declared
-        // each type alias finally pointing to a record has a slot in the module table it is declared
-        //      the slot stores a reference to the original record's "class table"
-
-        // t is a record or a pointer
-        // t is a named type in this module
-        // t is a named type in an imported module
-
         // TODO isAlias should not be presupposed, but determined by d_decl which is NamedType
 
         switch( t->getTag() )
@@ -2297,6 +2395,7 @@ struct ObxLjbcGenImp : public AstVisitor
             Q_ASSERT( false );
         }
     }
+#endif
 
     void allocateClassTables( Record* r )
     {

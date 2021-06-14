@@ -2067,7 +2067,7 @@ void Ide::fillStack()
     d_stack->parentWidget()->show();
 }
 
-#if 0 // TEST, usually 0
+#if 1 // TEST, usually 0
 static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
 {
     if( val.canConvert<Lua::Engine2::VarAddress>() )
@@ -2176,7 +2176,7 @@ void Ide::fillLocals()
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
 #endif
     }
-#if 0 // TEST, usually 0
+#if 1 // TEST, usually 0
     Lua::Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50,true);
     foreach( const Lua::Engine2::LocalVar& v, vs )
     {

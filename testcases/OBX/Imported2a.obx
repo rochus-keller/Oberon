@@ -1,0 +1,14 @@
+module Imported2a
+
+import I := Imported2b
+
+type 
+	T* = I.R
+	P* = pointer to I.T
+var
+	p: P
+	
+begin
+	new(p)
+
+end Imported2a

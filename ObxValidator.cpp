@@ -322,20 +322,20 @@ struct ValidatorImp : public AstVisitor
             if( prevT->getTag() == Thing::T_Record )
             {
                 Record* r = cast<Record*>(prevT);
-                Named* f = r->find(me->d_name, true);
-                if( f == 0 )
+                Named* field = r->find(me->d_name, true);
+                if( field == 0 )
                 {
-                    f = r->find(me->d_name, true); // TEST
+                    field = r->find(me->d_name, true); // TEST
                     error( me->d_loc, Validator::tr("record has no field or bound procedure named '%1'").arg(me->d_name.constData()) );
                     return;
                 }
-                Module* sourceMod = f->getModule();
+                Module* sourceMod = field->getModule();
                 Q_ASSERT( sourceMod );
-                if( sourceMod != mod && !sourceMod->d_isDef && !f->isPublic() )
+                if( sourceMod != mod && !sourceMod->d_isDef && !field->isPublic() )
                     error( me->d_loc, Validator::tr("element is not public") );
 
-                me->d_ident = f;
-                me->d_type = f->d_type.data();
+                me->d_ident = field;
+                me->d_type = field->d_type.data();
             }else
                 error(me->d_loc, Validator::tr("the designated object is not a record") );
         }

@@ -1,4 +1,4 @@
-module Imported2
+module Imported1b
 	type T = record end
 		T1* = T
 	proc It*
@@ -6,5 +6,5 @@ module Imported2
 		println("it")
 	end It
 begin
-	println("Imported2")
-end Imported2
+	println("Imported1b")
+end Imported1b

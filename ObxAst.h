@@ -304,6 +304,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;
+        bool isDotted() const;
     };
 
     struct Named : public Thing
