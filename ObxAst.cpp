@@ -1105,3 +1105,13 @@ bool Module::isFullyInstantiated() const
     }
     return true;
 }
+
+Import*Module::findImport(Module* m) const
+{
+    foreach( Import* i, d_imports )
+    {
+        if( i->d_mod == m )
+            return i;
+    }
+    return 0;
+}

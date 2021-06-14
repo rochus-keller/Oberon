@@ -210,7 +210,7 @@ struct ObxLjbcGenImp : public AstVisitor
             if(imp->d_mod->d_synthetic )
                 continue; // ignore SYSTEM
             imp->setSlot( ctx.back().buySlots(1) );
-            // imports store a reference to the imported module table in a local slot
+            // imports store a reference to the imported module table in a local slot and the module table
             names[imp->d_slot] = imp->d_name;
         }
 
@@ -1061,7 +1061,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 emitGetTableByIndex(res, res, t->d_slot, me->d_loc );
 #else
                 fetchModule( res, me->d_loc );
-                fetchClassImp2( res, res, id->d_type.data(), me->d_loc );
+                fetchClassImp2( res, res, id->d_type.data(), false, me->d_loc );
 #endif
             }
             break;
@@ -1157,7 +1157,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT( derefImport );
                 Q_ASSERT( id->d_type->toRecord() );
 #if 1
-                fetchClassImp2( res, slotStack.back(), id->d_type.data(), me->d_loc );
+                fetchClassImp2( res, slotStack.back(), id->d_type.data(), false, me->d_loc );
 #else
                 Thing* slotDonor = 0;
                 const int tag = id->d_type->getTag();
@@ -1248,6 +1248,8 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.KSET( tmp+1, modName, loc.packed() );
         bc.CALL( tmp, 1, 1, loc.packed() );
         bc.MOV(toSlot,tmp,loc.packed() );
+        Q_ASSERT( thisMod == ctx.back().scope );
+        bc.TSETi(tmp,modSlot,toSlot,loc.packed()); // store a copy also in the module table
         ctx.back().sellSlots(tmp,2);
     }
 
@@ -2236,15 +2238,15 @@ struct ObxLjbcGenImp : public AstVisitor
         //     this quali when it leads to a pointer could lead to another quali refering to yet another module
         //     so also pointers pointing to qualis should have a slot
         if( ctx.back().scope == thisMod )
-            fetchClassImp2( to, modSlot, t, loc );
+            fetchClassImp2( to, modSlot, t, false, loc );
         else
         {
             fetchModule(to,loc);
-            fetchClassImp2( to, to, t, loc );
+            fetchClassImp2( to, to, t, false, loc );
        }
     }
 
-    void fetchClassImp2( quint8 to, quint8 mod, Type* t, const RowCol& loc )
+    void fetchClassImp2( quint8 to, quint8 mod, Type* t, bool, const RowCol& loc )
     {
         // t is a
         //     record or a pointer
@@ -2291,25 +2293,50 @@ struct ObxLjbcGenImp : public AstVisitor
                     Q_ASSERT( !leaf->d_ident.isNull() &&
                               leaf->d_ident->getTag() == Thing::T_Import && leaf->d_ident->d_slotValid );
                     Q_ASSERT( qe->d_type.data() == sel->d_type.data() );
+                    Module* leafMod = leaf->d_ident->getModule();
+                    Q_ASSERT( leafMod != 0 );
 
-                    // T_Import is the local slot where the reference to the imported module table is stored
-                    if( ctx.back().scope == thisMod )
-                        fetchClassImp2( to, leaf->d_ident->d_slot, q->d_quali->d_type.data(), loc );
-                    else
+                    if( leafMod == thisMod )
                     {
-                        // provide this function can be called from procedure level too
-                        bc.UGET(to, ctx.back().resolveUpval(leaf->d_ident->d_slot,leaf->d_name), loc.packed() );
-                        fetchClassImp2( to, to, q->d_quali->d_type.data(), loc );
+                        // leaf->d_ident->d_slot is the local slot where the reference to the imported module table is stored
+                        if( ctx.back().scope == thisMod )
+                            fetchClassImp2( to, leaf->d_ident->d_slot, q->d_quali->d_type.data(), false, loc );
+                        else
+                        {
+                            // provide this function can be called from procedure level too
+                            bc.UGET(to, ctx.back().resolveUpval(leaf->d_ident->d_slot,leaf->d_name), loc.packed() );
+                            fetchClassImp2( to, to, q->d_quali->d_type.data(), false, loc );
+                        }
+                    }else
+                    {
+                        // there is no continuous path, but leaf should at least be in a imported module, as e.g.
+                        // in T7Module NEW(y.f), where type(f) is B.U in the context of module A, which again
+                        // is an import of T7Module; import B is also a known name in A (pointing to module table of B)
+
+                        Import* imp = thisMod->findImport(leafMod);
+                        if( imp != 0 )
+                        {
+                            fetchModule(to,loc);
+                            // requires that imports are both stored in local slots and in the module table
+                            bc.TGETi(to, to, imp->d_slot, loc.packed() );
+                            // to is now module A, same effect as GGET im->getName()
+                        }else
+                        {
+                            qWarning() << "unexpected case that" << leafMod->getName() << "is not found in imports of" << thisMod->getName();
+                            bc.GGET(to, leafMod->getName(), loc.packed() ); // universal, but expensive
+                        }
+                        bc.TGETi(to, to, leaf->d_ident->d_slot, loc.packed() ); // to is now module B
+                        fetchClassImp2( to, to, q->d_quali->d_type.data(), false, loc );
                     }
                 }else
                     // name in same module
-                    fetchClassImp2( to, mod, q->d_quali->d_type.data(), loc );
+                    fetchClassImp2( to, mod, q->d_quali->d_type.data(), false, loc );
             }
             break;
         case Thing::T_Pointer:
             {
                 Pointer* p = cast<Pointer*>(t);
-                fetchClassImp2( to, mod, p->d_to.data(), loc );
+                fetchClassImp2( to, mod, p->d_to.data(), false, loc );
             }
             break;
         case Thing::T_Record:
@@ -2328,7 +2355,7 @@ struct ObxLjbcGenImp : public AstVisitor
     }
 
 #if 0
-    void fetchClassImp( quint8 to, quint8 mod, Type* t, bool isAlias, const RowCol& loc )
+    void fetchClassImp1( quint8 to, quint8 mod, Type* t, bool isAlias, const RowCol& loc )
     {
         // TODO isAlias should not be presupposed, but determined by d_decl which is NamedType
 
@@ -2363,12 +2390,12 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( ctx.back().scope == thisMod )
                 {
                     // qDebug() << "fetchClass local" << m << name << thisMod->d_name << loc.d_row;
-                    fetchClassImp( to, m, qe->d_type.data(), true, loc );
+                    fetchClassImp1( to, m, qe->d_type.data(), true, loc );
                 }else
                 {
                     // qDebug() << "fetchClass upval" << m << name << thisMod->d_name << loc.d_row;
                     bc.UGET(to, ctx.back().resolveUpval(m,name), loc.packed() );
-                    fetchClassImp( to, to, qe->d_type.data(), true, loc );
+                    fetchClassImp1( to, to, qe->d_type.data(), true, loc );
                 }
             }else
             {
@@ -2380,7 +2407,7 @@ struct ObxLjbcGenImp : public AstVisitor
         case Thing::T_Pointer:
             {
                 Pointer* p = cast<Pointer*>(t);
-                fetchClassImp( to, mod, p->d_to.data(), false, loc );
+                fetchClassImp1( to, mod, p->d_to.data(), false, loc );
             }
             break;
         case Thing::T_Record:
