@@ -25,7 +25,6 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QtDebug>
-#include <bitset>
 #include <stdint.h>
 using namespace Obs;
 
@@ -45,6 +44,8 @@ static int Display_RegisterHandler(lua_State* L)
     // 1: function
     // 2: what
 
+    if( !lua_isfunction(L,1) )
+        qCritical() << "ERROR expecting function";
     Display* d = Display::inst();
     switch( lua_tointeger(L,2) )
     {
@@ -143,7 +144,7 @@ bool Display::mapOb(QMouseEvent* p)
         return false;
     const int x = p->pos().x();
     const int y = mapToOb(p->pos().y());
-    std::bitset<32> bits, keys(d_keys);
+    std::bitset<32> bits;
     bits.set( 2, p->buttons() & Qt::LeftButton );
     bits.set( 1, p->buttons() & Qt::MidButton );
     if( p->modifiers() == Qt::ControlModifier && ( p->buttons() & Qt::LeftButton ) )
@@ -153,10 +154,10 @@ bool Display::mapOb(QMouseEvent* p)
     }
     bits.set( 0, p->buttons() & Qt::RightButton );
 
-    const bool modified = d_xOb != x || d_yOb != y || keys != bits;
+    const bool modified = d_xOb != x || d_yOb != y || d_keys != bits;
     d_xOb = x;
     d_yOb = y;
-    d_keys = bits.to_ulong();
+    d_keys = bits;
     return modified;
 }
 
@@ -166,7 +167,7 @@ void Display::dispatchMouse(const ObSet& keys, int x, int y)
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
         lua_getref(L, mouseHandler);
-        lua_pushinteger(L,keys);
+        lua_pushinteger(L,keys.to_ulong());
         lua_pushinteger(L,x);
         lua_pushinteger(L,y);
         Lua::Engine2::getInst()->runFunction(3,0);
@@ -300,7 +301,7 @@ extern "C"
 
 DllExport uint32_t ObsDisplay_getKeys()
 {
-    return Display::inst()->d_keys;
+    return Display::inst()->d_keys.to_ulong();
 }
 
 DllExport int ObsDisplay_getX()
@@ -354,7 +355,7 @@ DllExport void ObsDisplay_ReplConst(int color, int x, int y, int w, int h, int m
     d->update();
 }
 
-DllExport void ObxDisplay_CopyPattern(int color, ByteArray patadr, int count, int x, int y, int mode )
+DllExport void ObsDisplay_CopyPattern(int color, ByteArray patadr, int count, int x, int y, int mode )
 {
     Display* d = Display::inst();
 
@@ -372,7 +373,7 @@ DllExport void ObxDisplay_CopyPattern(int color, ByteArray patadr, int count, in
     d->update();
 }
 
-DllExport void ObxDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy, int mode)
+DllExport void ObsDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy, int mode)
 {
     Display* d = Display::inst();
     sy = Display::mapToQt(sy);
@@ -393,7 +394,7 @@ DllExport void ObxDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy
     d->update();
 }
 
-DllExport void ObxDisplay_Dot(int color, int x, int y, int mode)
+DllExport void ObsDisplay_Dot(int color, int x, int y, int mode)
 {
     Display* d = Display::inst();
 

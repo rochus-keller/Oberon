@@ -97,4 +97,6 @@ module[6] = module.ThisCommand
 module[7] = module.Free 
 module[8] = ModDesc
 
+Modules = module -- make it globally visible
+
 return module

@@ -27,9 +27,9 @@ ffi.cdef[[
 	typedef uint8_t ByteArray[];
 	void ObxFfi_initByteArrayFromHex( ByteArray ba, int count, const char* hex );
 	void ObsDisplay_ReplConst(int color, int x, int y, int w, int h, int mode );
-	void ObxDisplay_CopyPattern(int color, ByteArray patadr, int count, int x, int y, int mode );
-	void ObxDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy, int mode);
-	void ObxDisplay_Dot(int color, int x, int y, int mode);
+        void ObsDisplay_CopyPattern(int color, ByteArray patadr, int count, int x, int y, int mode );
+        void ObsDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy, int mode);
+        void ObsDisplay_Dot(int color, int x, int y, int mode);
 ]]
 
 local Width = 1024
@@ -57,15 +57,15 @@ function module.ReplConst(color, x, y, w, h, mode)
 end
 
 function module.CopyPattern(color, patadr, x, y, mode )
-	C.ObxDisplay_CopyPattern(color, patadr, ffi.sizeof(patadr), x, y, mode )
+        C.ObsDisplay_CopyPattern(color, patadr, ffi.sizeof(patadr), x, y, mode )
 end
 
 function module.CopyBlock(sx, sy, w, h, dx, dy, mode)
-	C.ObxDisplay_CopyBlock(sx, sy, w, h, dx, dy, mode)
+        C.ObsDisplay_CopyBlock(sx, sy, w, h, dx, dy, mode)
 end
 
 function module.Dot(col, x, y, mode)
-	C.ObxDisplay_Dot(col, x, y, mode)
+        C.ObsDisplay_Dot(col, x, y, mode)
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Display.Def changes!
@@ -82,5 +82,7 @@ module[9] = module.CopyBlock
 module[10] = module.Dot
 module[11] = {} -- record FrameMsg
 module[12] = {} -- record FrameDesc
+
+Display = module -- make it globally visible
 
 return module

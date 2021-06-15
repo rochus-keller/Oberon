@@ -22,6 +22,7 @@
 
 #include <QWidget>
 #include <QDateTime>
+#include <bitset>
 
 typedef struct lua_State lua_State;
 
@@ -31,7 +32,7 @@ namespace Obs
     {
         Q_OBJECT
     public:
-        typedef quint32 ObSet;
+        typedef std::bitset<32> ObSet;
         enum { Width = 1024, Height = 768 };
         // enum { Width = 1000, Height = 600 };
 

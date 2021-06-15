@@ -50,4 +50,6 @@ module[5] = module.Time
 module[6] = module.Clock
 module[7] = module.SetClock
 
+Kernel = module -- make it globally visible
+
 return module

@@ -1374,6 +1374,29 @@ struct ObxLjbcGenImp : public AstVisitor
 
         switch( td->getTag() )
         {
+        case Thing::T_BaseType:
+            // at least the oberon system assumes initialized module variables
+            switch( td->getBaseType() )
+            {
+            case Type::BOOLEAN:
+                bc.KSET(to,false,loc.packed());
+                return true;
+            case Type::INTEGER:
+            case Type::SHORTINT:
+            case Type::LONGINT:
+            case Type::REAL:
+            case Type::LONGREAL:
+            case Type::BYTE:
+            case Type::SET:
+            case Type::CHAR:
+            case Type::WCHAR:
+                bc.KSET(to,0,loc.packed());
+                return true;
+            }
+            break;
+        case Thing::T_Enumeration:
+            bc.KSET(to,0,loc.packed());
+            return true;
         case Thing::T_Record:
             {
                 Record* r = cast<Record*>(td);
@@ -1387,11 +1410,11 @@ struct ObxLjbcGenImp : public AstVisitor
                     Type* t2 = fields[i]->d_type.data();
                     Type* t2d = derefed(t2);
                     Q_ASSERT( t2d );
-                    const int tag = t2d->getTag();
-                    if( tag == Thing::T_Record || tag == Thing::T_Array )
+                    //const int tag = t2d->getTag();
+                    if( true ) // tag == Thing::T_Record || tag == Thing::T_Array ) // oberon system expects all vars to be initialized
                     {
-                        emitInitializer(tmp, t2, false, loc );
-                        emitSetTableByIndex(tmp,to,fields[i]->d_slot,loc);
+                        if( emitInitializer(tmp, t2, false, loc ) )
+                            emitSetTableByIndex(tmp,to,fields[i]->d_slot,loc);
                     }
                 }
                 ctx.back().sellSlots(tmp);
@@ -2341,12 +2364,38 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         case Thing::T_Record:
             {
+#if 0
+                // not necessary since the hand crafted Lua implementations of definition files are compatible
                 if( !t->d_slotAllocated )
                 {
-                    qWarning() << "slot not allocated for record" << thisMod->getName() << t->d_loc.d_row << t->d_loc.d_col;
-                    return; // error already reported
-                }
-                emitGetTableByIndex( to, mod, t->d_slot, loc );
+                    Q_ASSERT( t->d_slotValid );
+
+                    Named* n = t->findDecl();
+                    Module* m = 0;
+                    if( n )
+                        m = n->getModule();
+                    if( m )
+                    {
+                        if( !m->d_isDef )
+                        {
+                            QString name;
+                            if( m )
+                                name = m->getName();
+                            else
+                                name = thisMod->getName();
+                            qWarning() << "slot not valid for record" << name << t->d_loc.d_row << t->d_loc.d_col;
+                        }else
+                        {
+                            bc.GGET(to, m->getName(), loc.packed() );
+                            emitGetTableByIndex(to, to, t->d_slot, loc );
+                        }
+                    }
+                    bc.KNIL( to, 1, loc.packed() );
+                }else
+#else
+                Q_ASSERT( t->d_slotValid );
+#endif
+                    emitGetTableByIndex( to, mod, t->d_slot, loc );
             }
             break;
         default:

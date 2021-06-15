@@ -2127,6 +2127,7 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
 void Ide::fillLocals()
 {
     d_locals->clear();
+    return; // TEST
     lua_Debug ar;
     if( d_scopes[ d_lua->getActiveLevel() ] && lua_getstack( d_lua->getCtx(), d_lua->getActiveLevel(), &ar ) )
     {
@@ -2176,7 +2177,7 @@ void Ide::fillLocals()
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
 #endif
     }
-#if 1 // TEST, usually 0
+#if 0 // TEST, usually 0
     Lua::Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50,true);
     foreach( const Lua::Engine2::LocalVar& v, vs )
     {
@@ -2261,6 +2262,10 @@ static inline void createArrayElems( QTreeWidgetItem* parent, const void* ptr,
 void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
 {
     static const int numOfFetchedElems = 50;
+    static const int numOfLevels = 5;
+
+    if( depth > numOfLevels )
+        return;
 
     type = derefed(type);
     Q_ASSERT( type );
@@ -2335,9 +2340,6 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                 const void* ptr = lua_topointer(d_lua->getCtx(), -1);
                 if( at->isChar() )
                 {
-                    // doesn't work:
-                    // const int count = lua_objlen( d_lua->getCtx(), -1 );
-                    // lua_rawgeti(d_lua->getCtx(), -1, i );
                     QString str;
                     if( at->getBaseType() == Type::CHAR )
                     {
@@ -2402,9 +2404,12 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                         break;
                     }
                 }
-            }else if( luatype == 0 )
+            }else if( luatype == LUA_TNIL )
                 item->setText(1, QString("nil") );
-            else
+            else if( luatype != LUA_TTABLE )
+            {
+                item->setText(1, QString("<invalid array> %1").arg(lua_tostring(d_lua->getCtx(), arr) ) );
+            }else
             {
                 lua_getfield( d_lua->getCtx(), arr, "count" );
                 const int count = lua_tointeger( d_lua->getCtx(), -1 );
@@ -2444,7 +2449,8 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             const int type = lua_type( d_lua->getCtx(), rec );
             if( type != LUA_TTABLE )
             {
-                qWarning() << "wrong type, expecting table, got" << lua_typename( d_lua->getCtx(), rec );
+                item->setText(1,"<invalid record>");
+                qWarning() << "wrong type, expecting table, got type" << type;
                 break;
             }
             foreach( Field* f, fs )
@@ -2950,7 +2956,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.8");
+    a.setApplicationVersion("0.7.9");
     a.setStyle("Fusion");
 
     Ide w;

@@ -21,7 +21,7 @@
 #include <QDateTime>
 #include <QBuffer>
 #include <stdint.h>
-
+#include <QtDebug>
 
 #ifdef _WIN32
 #define DllExport __declspec(dllexport)
@@ -89,10 +89,17 @@ DllExport uint32_t ObsFiles_fileTime( int i )
 DllExport int ObsFiles_openFile( CharArray filename, FileBuffer* fb )
 {
     QDir dir( getPath() );
-    QFile f( dir.absoluteFilePath( QString::fromLatin1((char*)filename)) );
+    const QString path = QString::fromLatin1((char*)filename);
+    if( !QFileInfo(path).isFile() )
+        return false;
+    QFile f( dir.absoluteFilePath( path ) );
     if( f.exists() )
     {
-        f.open(QIODevice::ReadOnly);
+        if( !f.open(QIODevice::ReadOnly) )
+        {
+            qWarning() << "*** could not open for reading" << f.fileName();
+            return false;
+        }
         setBuffer(fb,new QBuffer() );
         fb->d_buf->setData(f.readAll());
         fb->d_buf->open( QIODevice::ReadWrite );
@@ -119,7 +126,8 @@ DllExport int ObsFiles_saveFile( CharArray filename, FileBuffer* fb )
     QFile f( dir.absoluteFilePath( QString::fromLatin1((char*)filename)) );
     if( fb->d_buf )
     {
-        f.open(QIODevice::WriteOnly);
+        if( !f.open(QIODevice::WriteOnly) )
+            qWarning() << "*** could not open for writing" << f.fileName();
         fb->d_buf->close();
         setBuffer(fb,new QBuffer() );
         f.write(fb->d_buf->data());
@@ -159,11 +167,17 @@ DllExport uint32_t ObsFiles_length( FileBuffer* fb )
         return 0;
 }
 
-DllExport int ObsFiles_setPos( FileBuffer* fb, uint32_t pos )
+DllExport int ObsFiles_setPos( FileBuffer* fb, int pos )
 {
     if( fb->d_buf )
     {
-        fb->d_buf->seek(pos);
+        if( pos < 0 )
+            pos = 0;
+        if( !fb->d_buf->seek(pos) )
+        {
+            qWarning() << "*** could not seek to" << pos << fb->d_buf->pos() << fb->d_buf->size();
+            return false;
+        }
         return true;
     }else
         return false;
@@ -189,8 +203,9 @@ DllExport int ObsFiles_atEnd( FileBuffer* fb )
 DllExport int ObsFiles_writeByte( FileBuffer* fb, uint32_t byte )
 {
     if( fb->d_buf )
+    {
         return fb->d_buf->putChar( (char) (byte & 0xff) );
-    else
+    }else
         return false;
 }
 

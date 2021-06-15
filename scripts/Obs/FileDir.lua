@@ -46,8 +46,8 @@ function module.Enumerate(prefix,proc) -- prefix: ARRAY OF CHAR; proc: EntryHand
                 fh[1] = C.ObsFiles_fileTime(i) -- date
                 local name = C.ObsFiles_fileName(i)
 		name = obxlj.charToStringArray(32,name)
-		local res = proc(name,fh,true)
-		if not res then
+		local not_used, continue = proc(name,fh,true)
+		if not continue then
 			break
 		end
 	end
@@ -56,5 +56,7 @@ end
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if FileDir.Def changes!
 module[0] = module.Enumerate
 module[1] = FileHeader
+
+FileDir = module -- make it globally visible
 
 return module

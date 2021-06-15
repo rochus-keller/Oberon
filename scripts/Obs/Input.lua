@@ -41,21 +41,22 @@ function module.RegisterIdleHandler(func)
 	Display_RegisterHandler(func,3)
 end
 
-function module.Available()
+function module.Available() -- (): INTEGER
 	return 0 -- obsolete
 end
 
-function module.Read()
-	local str = obxlj.charToStringArray(1)
-	str[0] = 0
-	return str -- obsolete
+function module.Read() --(VAR ch: CHAR)
+	return nil, 0 -- obsolete
 end
 
-function module.Mouse()
+function module.Mouse() -- (VAR keys: SET; VAR x, y: INTEGER)
 	local keys = C.ObsDisplay_getKeys()
 	local x = C.ObsDisplay_getX()
-	local y = ObsDisplay_getY()
-	return keys, x, y
+    local y = C.ObsDisplay_getY()
+    -- print("*** Input.Mouse " .. tostring(keys) .. " " .. tostring(x) .. " " .. tostring(y) )
+  	-- TRAP()
+	return nil, keys, x, y
+	-- return nil, 0, 0, 0 -- TODO
 end
 
 function module.SetMouseLimits(w,h)
@@ -70,5 +71,7 @@ module[3] = module.Available
 module[4] = module.Read
 module[5] = module.Mouse
 module[6] = module.SetMouseLimits
+
+Input = module -- make it globally visible
 
 return module
