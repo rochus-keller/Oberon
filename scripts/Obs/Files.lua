@@ -26,6 +26,7 @@ local C = ffi.C
 local bytesize = ffi.sizeof
 local bror = bit.ror
 local basr = bit.arshift
+local isFfiString = obxlj.isFfiString
 
 ffi.cdef[[
 	typedef struct {
@@ -41,9 +42,9 @@ ffi.cdef[[
 	int ObsFiles_renameFile( CharArray oldName, CharArray newName );
 	uint32_t ObsFiles_length( FileBuffer* fb );
         int ObsFiles_setPos( FileBuffer* fb, int pos );
-	uint32_t ObsFiles_getPos( FileBuffer* fb );
+        int ObsFiles_getPos( FileBuffer* fb );
 	int ObsFiles_atEnd( FileBuffer* fb );
-	int ObsFiles_writeByte( FileBuffer* fb, uint32_t byte );
+        int ObsFiles_writeByte( FileBuffer* fb, uint32_t byte );
 	uint32_t ObsFiles_readByte( FileBuffer* fb );
 	int ObxFfi_DIV( int a, int b );
 	int ObxFfi_MOD( int a, int b );
@@ -119,11 +120,7 @@ function module.Set(r,f,pos) -- (VAR r: Rider; f: File; pos: INTEGER)
 end
 
 function module.Pos(r) -- (VAR r: Rider): INTEGER
-	if r[3] and r[3][1] then
-		return C.ObsFiles_getPos(r[3][1]), r
-	else
-		return 0, r
-	end
+	return r[2], r
 end
 
 function module.Base(r) -- (VAR r: Rider): File
@@ -222,7 +219,11 @@ end
 
 function module.Write(r,ch) -- (VAR r: Rider; ch: CHAR)
 	r[1] = 0
-	WriteByte(r,ch)
+	if isFfiString(ch) then
+		WriteByte(r,ch[0]) 
+	else
+		WriteByte(r,ch)
+	end
 	return nil, r
 end
 

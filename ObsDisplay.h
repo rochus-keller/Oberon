@@ -39,7 +39,6 @@ namespace Obs
         QImage d_img;
         int d_xOb, d_yOb;
         ObSet d_keys;
-        int d_lock;
 
         QDateTime start;
         int clock;

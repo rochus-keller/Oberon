@@ -228,6 +228,9 @@ function module.println( val )
 		C.ObxFfi_printString(tostring(val))
 	end
 end
+function module.isFfiString( val )
+	return ffi.istype(CharArray,val) or ffi.istype(WcharArray,val)
+end
 function module.strcpy( lhs, rhs )
 	local i = 0
 	while rhs[i] ~= 0 do

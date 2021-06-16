@@ -189,15 +189,15 @@ DllExport void ObxFfi_initWstring( WcharArray wa, int count, const char* utf8 )
 
 DllExport void ObxFfi_initByteArray( ByteArray ba, int count, const char* data )
 {
-    memcpy(ba,data,count-1); // data might or might not have terminating zero
-    ba[count-1] = 0;
+    memcpy(ba,data,count);
 }
 
 DllExport void ObxFfi_initByteArrayFromHex( ByteArray ba, int count, const char* hex )
 {
     QByteArray data = QByteArray::fromHex(hex);
-    memcpy(ba,data.constData(),qMin(count-1,data.size()-1)); // data might or might not have terminating zero
-    ba[count-1] = 0;
+    if( data.size() > count )
+        qWarning() << "hex string too big for byte array" << data.size() << count;
+    memcpy(ba,data.constData(),qMin(count,data.size())); // data might or might not have terminating zero
 }
 
 DllExport int ObxFfi_strRelOp( char* lhs, char* rhs, int op )

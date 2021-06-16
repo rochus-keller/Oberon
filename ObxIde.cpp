@@ -2127,7 +2127,7 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
 void Ide::fillLocals()
 {
     d_locals->clear();
-    return; // TEST
+
     lua_Debug ar;
     if( d_scopes[ d_lua->getActiveLevel() ] && lua_getstack( d_lua->getCtx(), d_lua->getActiveLevel(), &ar ) )
     {
@@ -2956,7 +2956,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.9");
+    a.setApplicationVersion("0.7.10");
     a.setStyle("Fusion");
 
     Ide w;

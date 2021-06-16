@@ -24,10 +24,15 @@ local ffi = require 'ffi'
 local C = ffi.C
 
 ffi.cdef[[
-	uint32_t ObsDisplay_getKeys();
-	int ObsDisplay_getX();
-	int ObsDisplay_getY();
+	typedef struct{
+    	uint32_t keys;
+    	int x, y;
+	} InputState;
+
+	void ObsDisplay_getState( InputState* s );
 ]]
+
+local state = ffi.new("InputState");
 
 function module.RegisterMouseHandler(func)
 	Display_RegisterHandler(func,1)
@@ -50,13 +55,8 @@ function module.Read() --(VAR ch: CHAR)
 end
 
 function module.Mouse() -- (VAR keys: SET; VAR x, y: INTEGER)
-	local keys = C.ObsDisplay_getKeys()
-	local x = C.ObsDisplay_getX()
-    local y = C.ObsDisplay_getY()
-    -- print("*** Input.Mouse " .. tostring(keys) .. " " .. tostring(x) .. " " .. tostring(y) )
-  	-- TRAP()
-	return nil, keys, x, y
-	-- return nil, 0, 0, 0 -- TODO
+  	C.ObsDisplay_getState(state)
+	return nil, state.keys, state.x, state.y
 end
 
 function module.SetMouseLimits(w,h)

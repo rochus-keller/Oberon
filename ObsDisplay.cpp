@@ -96,27 +96,27 @@ void Display::timerEvent(QTimerEvent*)
     if( idleHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
-        lua_getref(L, idleHandler);
+        lua_getref(L, idleHandler); // ()
         Lua::Engine2::getInst()->runFunction(0,0);
     }
+    // d_img.save("/home/me/temp.png");
 }
 
 void Display::mouseMoveEvent(QMouseEvent* e)
 {
-    mapOb(e);
-    if( d_lock == 0 )
+    if( mapOb(e) )
         dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void Display::mousePressEvent(QMouseEvent* e)
 {
-    if( mapOb(e) && d_lock == 0 )
+    if( mapOb(e) )
         dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
 void Display::mouseReleaseEvent(QMouseEvent* e)
 {
-    if( mapOb(e) && d_lock == 0 )
+    if( mapOb(e) )
         dispatchMouse(d_keys, d_xOb, d_yOb );
 }
 
@@ -125,10 +125,8 @@ void Display::keyPressEvent(QKeyEvent* e)
     if( charHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
-        lua_getref(L, charHandler);
-        // TODO
-        //_String* str = LjLib::strCreate(L, 2);
-        //str->string[0] = e->text().toLatin1()[0];
+        lua_getref(L, charHandler); // ( ch: CHAR )
+        lua_pushinteger(L, e->text().toLatin1()[0] );
         Lua::Engine2::getInst()->runFunction(1,0);
     }
 }
@@ -166,7 +164,7 @@ void Display::dispatchMouse(const ObSet& keys, int x, int y)
     if( mouseHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
-        lua_getref(L, mouseHandler);
+        lua_getref(L, mouseHandler); // ( keys: SET; x, y: INTEGER )
         lua_pushinteger(L,keys.to_ulong());
         lua_pushinteger(L,x);
         lua_pushinteger(L,y);
@@ -174,7 +172,7 @@ void Display::dispatchMouse(const ObSet& keys, int x, int y)
     }
 }
 
-Display::Display():d_img(Width,Height,QImage::Format_Mono),d_lock(0)
+Display::Display():d_img(Width,Height,QImage::Format_Mono)
 {
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -299,38 +297,41 @@ static QImage patternToImage( uint8_t* pat, int count )
 extern "C"
 {
 
-DllExport uint32_t ObsDisplay_getKeys()
-{
-    return Display::inst()->d_keys.to_ulong();
-}
+typedef struct{
+    uint32_t keys;
+    int x, y;
+} InputState;
 
-DllExport int ObsDisplay_getX()
+DllExport void ObsDisplay_getState( InputState* s )
 {
-    return Display::inst()->d_xOb;
-}
-
-DllExport int ObsDisplay_getY()
-{
-    return Display::inst()->d_yOb;
+    Q_ASSERT( s );
+    QCoreApplication::processEvents(); // requred here because getState is called in an Oberon loop depending on state change
+    Display* d = Display::inst();
+    s->keys = d->d_keys.to_ulong();
+    s->x = d->d_xOb;
+    s->y = d->d_yOb;
 }
 
 DllExport uint32_t ObsDisplay_getTime()
 {
-    return Display::inst()->start.msecsTo(QDateTime::currentDateTime());
+    const uint32_t now = Display::inst()->start.msecsTo(QDateTime::currentDateTime());
+    return now;
 }
 
-DllExport uint32_t ObsDisplay_getClock()
+DllExport int ObsDisplay_getClock()
 {
-    return Display::inst()->clock;
+    const int now = Display::inst()->clock;
+    return now;
 }
 
-DllExport void ObsDisplay_setClock(uint32_t dt)
+DllExport void ObsDisplay_setClock(int dt)
 {
     Display::inst()->clock = dt;
 }
 
 DllExport void ObsDisplay_ReplConst(int color, int x, int y, int w, int h, int mode )
 {
+    //qDebug() << "ReplConst" << color << x << y << w << h << mode;
     Display* d = Display::inst();
 
     y = Display::mapToQt(y);
@@ -357,6 +358,7 @@ DllExport void ObsDisplay_ReplConst(int color, int x, int y, int w, int h, int m
 
 DllExport void ObsDisplay_CopyPattern(int color, ByteArray patadr, int count, int x, int y, int mode )
 {
+    //qDebug() << "CopyPattern" << color << patadr << count << x << y << mode;
     Display* d = Display::inst();
 
     QImage img = patternToImage(patadr,count);
@@ -375,6 +377,7 @@ DllExport void ObsDisplay_CopyPattern(int color, ByteArray patadr, int count, in
 
 DllExport void ObsDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy, int mode)
 {
+    //qDebug() << "CopyBlock" << sx << sy << w << h << dx << dy << mode;
     Display* d = Display::inst();
     sy = Display::mapToQt(sy);
     dy = Display::mapToQt(dy);
@@ -396,6 +399,7 @@ DllExport void ObsDisplay_CopyBlock(int sx, int sy, int w, int h, int dx, int dy
 
 DllExport void ObsDisplay_Dot(int color, int x, int y, int mode)
 {
+    //qDebug() << "Dot" << color << x << y << mode;
     Display* d = Display::inst();
 
     y = Display::mapToQt(y);

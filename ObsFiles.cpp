@@ -171,7 +171,7 @@ DllExport int ObsFiles_setPos( FileBuffer* fb, int pos )
 {
     if( fb->d_buf )
     {
-        if( pos < 0 )
+        if( pos < 0 ) // it happens a few times that -1 instead of 0 is passed; according to Oberon book should always be >= 0
             pos = 0;
         if( !fb->d_buf->seek(pos) )
         {
@@ -183,7 +183,7 @@ DllExport int ObsFiles_setPos( FileBuffer* fb, int pos )
         return false;
 }
 
-DllExport uint32_t ObsFiles_getPos( FileBuffer* fb )
+DllExport int ObsFiles_getPos( FileBuffer* fb )
 {
     if( fb->d_buf )
         return fb->d_buf->pos();

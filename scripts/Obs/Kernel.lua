@@ -24,8 +24,8 @@ local C = ffi.C
 
 ffi.cdef[[
 	uint32_t ObsDisplay_getTime();
-	uint32_t ObsDisplay_getClock();
-	void ObsDisplay_setClock(uint32_t dt);
+        int ObsDisplay_getClock();
+        void ObsDisplay_setClock(int dt);
 ]]
 
 function module.Time()

@@ -45,7 +45,7 @@ local function findModule(name)
 	return nil
 end
 
-function module.Load(name) -- name: ARRAY OF CHAR; VAR newmod: Module
+function module.Load(name) -- (name: ARRAY OF CHAR; VAR newmod: Module)
 	module[3] = name -- importing
 	local m = findModule(name)
 	if m == nil then
@@ -61,10 +61,10 @@ function module.Load(name) -- name: ARRAY OF CHAR; VAR newmod: Module
 	end
 	module[2] = 0 -- res
 	module[4] = name -- imported
-	return m
+	return nil, m
 end
 
-function module.ThisCommand(mod, name) -- mod: Module; name: ARRAY OF CHAR -> Command
+function module.ThisCommand(mod, name) -- (mod: Module; name: ARRAY OF CHAR): Command
 	module[2] = 5 -- res
 	if mod == nil then
 		return nil

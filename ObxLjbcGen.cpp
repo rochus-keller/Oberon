@@ -1614,7 +1614,7 @@ struct ObxLjbcGenImp : public AstVisitor
             {
                 int tmp = ctx.back().buySlots(3,true);
                 fetchObxlibMember(tmp,8,loc); // createByteArray
-                bc.KSET(tmp+1,val.toByteArray().size()+1,loc.packed());
+                bc.KSET(tmp+1,val.toByteArray().size(),loc.packed());
                 bc.KSET(tmp+2,val,loc.packed());
                 bc.CALL(tmp,1,2,loc.packed());
                 bc.MOV(res,tmp,loc.packed());
