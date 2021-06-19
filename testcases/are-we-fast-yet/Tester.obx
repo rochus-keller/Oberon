@@ -1,9 +1,33 @@
+(* 
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+ 
 module Tester
 
 import 
-	IV := som.Vector<integer>,
+	IV := som.Vector<integer>
 	I := som.Interfaces<integer>
-	
+	H := Harness
+	R := som.Random
+		
 	proc TestVector()
 		var
 			l : IV.Vector
@@ -16,7 +40,7 @@ import
 			println(elem)
 		end apply
 		
-		proc (var this:Comparator) compare( in i,j: integer ) : integer
+		proc (var this:Comparator) compare( in i j: integer ) : integer
 		begin
 			if i < j then
 				return -1
@@ -57,7 +81,46 @@ import
 	   
 	end TestVector
 	
+	proc Test2()
+		var
+			args : pointer to H.Args
+	begin
+	   new(args, 1, 32)
+	   args[0] := "Permute"
+	   H.main(args)
+	end Test2
+	
+	proc Test3()
+	begin
+		R.reset() // e.g. Bounce assumes always the same random number sequence to succeed
+		assert(R.next() = 22896)
+		assert(R.next() = 34761)
+		assert(R.next() = 34014)
+		assert(R.next() = 39231)
+		assert(R.next() = 52540)
+		assert(R.next() = 41445)
+		assert(R.next() = 1546)
+		assert(R.next() = 5947)
+		assert(R.next() = 65224)
+		println("Test3 done")
+	end Test3
+	
+	proc Test4()
+	begin
+	   H.run("Bounce", 1500, 1)
+	   H.run("List", 1500, 1)
+	   H.run("Mandelbrot", 500, 1)
+	   H.run("Permute", 1000, 1)
+	   H.run("Queens", 1000, 1)
+	   H.run("Sieve", 3000, 1)
+	   H.run("Storage", 1000, 1)
+	   H.run("Towers", 600, 1)
+	end Test4
+	
 begin
-   TestVector()
-   
+   // TestVector()
+   // Test2()
+   // Test3()
+   Test4()
+   //H.run("Towers", 600, 1)
 end Tester

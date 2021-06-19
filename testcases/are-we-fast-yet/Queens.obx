@@ -1,0 +1,107 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+ 
+module Queens
+
+	import B := Benchmark
+	
+	type 
+		Queens = pointer to record (B.Benchmark)
+						freeRows : array 8 of boolean
+						freeMaxs, freeMins : array 16 of boolean
+						queenRows : array 8 of integer
+						end
+
+	proc create*(): Queens
+		var q : Queens
+	begin
+		new(q)
+		return q
+	end create
+
+	proc (this: Queens) benchmark(): B.Result
+		var result: boolean
+			i: integer
+			res: B.BoolResult
+	begin
+		result := true
+	   for i := 0 to 10-1 do
+	      result := result & this.queens()
+	   end
+	   new(res)
+	   res.res := result
+	   return res	
+	end benchmark
+	
+	proc (this: Queens) queens(): boolean
+		var i: integer
+	begin
+		for i := 0 to len(this.freeRows)-1 do
+			this.freeRows[i] := true
+			this.queenRows[i] := -1
+		end
+		for i := 0 to len(this.freeMaxs)-1 do
+			this.freeMaxs[i] := true
+			this.freeMins[i] := true
+		end
+		return this.placeQueen(0)
+	end queens	
+	
+	proc (this: Queens) placeQueen(c: integer): boolean
+		var r: integer
+	begin
+    for r := 0 to 8-1 do
+      if this.getRowColumn(r, c) then
+        this.queenRows[r] := c
+        this.setRowColumn(r, c, false)
+
+        if c = 7 then
+          return true
+        end
+
+        if this.placeQueen(c + 1) then
+          return true
+        end
+        this.setRowColumn(r, c, true)
+      end
+    end
+    return false
+  end placeQueen
+
+  proc (this: Queens) getRowColumn(r, c: integer): boolean
+    return this.freeRows[r] & this.freeMaxs[c + r] & this.freeMins[c - r + 7]
+  end getRowColumn
+
+  proc (this: Queens) setRowColumn(r, c: integer; v: boolean) 
+  begin
+    this.freeRows[r        ] := v
+    this.freeMaxs[c + r    ] := v
+    this.freeMins[c - r + 7] := v
+  end setRowColumn
+
+	proc (this: Queens) verifyResult( result: B.Result ): boolean 
+	begin
+		return result(B.BoolResult).res
+	end verifyResult
+
+end Queens

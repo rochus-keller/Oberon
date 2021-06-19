@@ -41,6 +41,7 @@ ffi.cdef[[
 	typedef uint8_t CharArray[?];
 	typedef uint16_t WcharArray[?];
 	typedef uint8_t ByteArray[?];
+	typedef bool BoolArray[?];
 	
 	void ObxFfi_initString( CharArray data, int count, const char* utf8 ); 
 	void ObxFfi_initWstring( WcharArray wa, int count, const char* utf8 );
@@ -52,6 +53,7 @@ ffi.cdef[[
 	
 ]]
 
+local BoolArray = ffi.typeof("BoolArray")
 local CharArray = ffi.typeof("CharArray")
 local ByteArray = ffi.typeof("ByteArray")
 local WcharArray = ffi.typeof("WcharArray")
@@ -83,6 +85,9 @@ function module.createByteArray(len, data)
 		C.ObxFfi_initByteArray(a,len,data)
 	end
 	return a
+end
+function module.createBoolArray(len)
+	return ffi.new( BoolArray, len ) 
 end
 function module.createShortArray(len)
 	return ffi.new( ShortArray, len ) 
@@ -294,6 +299,8 @@ module[38] = math.floor
 module[39] = module.bool_to_number
 module[40] = getmetatable
 module[41] = bit.bxor
+module[42] = ADDRESSOF
+module[43] = module.createBoolArray
 
 return module
 

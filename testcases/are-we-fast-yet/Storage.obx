@@ -21,22 +21,55 @@
  * THE SOFTWARE.
  *)
  
- module Random
+module Storage
 
-	var
-		seed : integer
+	import R := som.Random, B := Benchmark
 
-	proc next*() : integer
+	type 
+		Storage = pointer to record (B.Benchmark)
+						count : integer
+					end
+		Object = pointer to array of Object 
+		
+	proc create*(): Storage
+		var s : Storage
 	begin
-	    seed := bitand(((seed * 1309) + 13849), 65535)
-	    return seed;
-	end next
+		new(s)
+		return s
+	end create
 	
-	proc reset*()
+	proc (this: Storage) benchmark(): B.Result
+		var res : B.IntResult
+			obj: Object
 	begin
-		seed := 74755
-	end reset
+		R.reset
+		this.count := 0
+		obj := this.buildTreeDepth(7)
+		new(res)
+		res.res := this.count
+		return res
+	end benchmark	
 	
-begin
-	reset()
-end Random
+	proc (this: Storage) buildTreeDepth(depth: integer): Object
+		var obj: Object
+			i: integer
+		const fixlen = 4
+	begin
+    inc(this.count)
+    if depth = 1 then
+	    new(obj, R.next() MOD 10 + 1)
+    else
+	    new(obj,fixlen)
+	    for i := 0 to fixlen-1 do
+		    obj[i] := this.buildTreeDepth(depth-1)
+	    end
+    end
+	 return obj
+  end buildTreeDepth
+
+	proc (this: Storage) verifyResult( result: B.Result ): boolean 
+	begin
+		return ( result(B.IntResult).res = 5461 )
+	end verifyResult
+
+end Storage

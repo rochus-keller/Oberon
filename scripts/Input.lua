@@ -1,7 +1,8 @@
 local module = {}
+local clock = os.clock
 
 function module.Time()
-    return os.clock() * 1000
+    return clock() * 1000.0 * 1000.0
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Input.Def changes!

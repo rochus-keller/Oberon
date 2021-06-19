@@ -819,7 +819,8 @@ Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
         inst->d_metaActuals = search;
         inst->d_fullName = generic->d_fullName;
         inst->d_scope = generic->d_scope;
-        resolveImport(inst.data());
+        if( resolveImport(inst.data()) )
+            inst->d_hasErrors = true;
         insts.append(inst);
     }
     return inst.data();

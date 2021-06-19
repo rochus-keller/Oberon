@@ -1,4 +1,5 @@
 local tochar = require("string").char
+local ffi = require("ffi")
 local module = {}
 
 -- just a quick first implementation
@@ -15,7 +16,11 @@ function module.Char(ch)
 end
 
 function module.String(s)
-    io.stdout:write(tostring(s))
+	if type(s) == "cdata" then
+		io.stdout:write(ffi.string(s))
+	else
+	    io.stdout:write(tostring(s))
+	end
 end
 
 function module.Int(i,n)

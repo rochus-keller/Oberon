@@ -37,7 +37,7 @@ struct ValidatorImp : public AstVisitor
     };
 
     QList<Level> levels;
-    NamedType* curTypeDecl;
+    Type* curTypeDecl;
     Statement* prevStat;
 
     ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0) {}
@@ -180,6 +180,8 @@ struct ValidatorImp : public AstVisitor
 
         if( me->d_visibility == Named::ReadOnly )
             warning( me->d_loc, Validator::tr("export mark '-' not supported for procedures; using '*' instead") );
+        else if( me->d_visibility == Named::ReadWrite )
+            me->d_visibility = Named::ReadOnly; // make public procs readonly; they cannot be assigned to!
 
         if( !me->d_receiver.isNull() )
         {
@@ -192,9 +194,6 @@ struct ValidatorImp : public AstVisitor
 
     void visitBody( Procedure* me )
     {
-        //if( !me->d_metaParams.isEmpty() )
-        //    return; // TODO
-
         levels.push_back(me);
         visitScope(me); // also handles formal parameters
 
@@ -310,8 +309,8 @@ struct ValidatorImp : public AstVisitor
                 Ref<UnExpr> deref = new UnExpr();
                 deref->d_op = UnExpr::DEREF;
                 deref->d_sub = me->d_sub;
-                me->d_sub = deref.data();
                 deref->d_loc = me->d_loc;
+                me->d_sub = deref.data();
                 Pointer* p = cast<Pointer*>(prevT);
                 prevT = derefed(p->d_to.data());
                 deref->d_type = prevT;
@@ -650,11 +649,12 @@ struct ValidatorImp : public AstVisitor
         if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && tatag == Thing::T_Pointer )
         {
             // BBOX does implicit deref of actual pointer when passing to a formal record or array parameter
-            Ref<Expression> arg = new UnExpr(UnExpr::DEREF, actual.data() );
+            Ref<UnExpr> arg = new UnExpr(UnExpr::DEREF, actual.data() );
+            arg->d_loc = actual->d_loc;
             Pointer* p = cast<Pointer*>(ta);
             ta = derefed(p->d_to.data());
             arg->d_type = p->d_to.data();
-            actual = arg;
+            actual = arg.data();
         }
 
         // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters, implicit address of operation
@@ -722,6 +722,8 @@ struct ValidatorImp : public AstVisitor
 #endif
             if( !ok )
                 error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR parameter") );
+            else
+                checkValidLhs(actual.data()); // TODO: does this replace all the above VAR rules?
         }
 
         const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
@@ -912,7 +914,7 @@ struct ValidatorImp : public AstVisitor
                         Q_ASSERT( false );
                     }
                 }
-
+                // TODO: avoid calling a not-in bound proc from an in this
                 if( isBuiltIn )
                 {
                     // for some built-in procs the return type is dependent on proc arguments
@@ -1327,6 +1329,7 @@ struct ValidatorImp : public AstVisitor
         if( me->d_type )
             me->d_type->accept(this);
         checkNoAnyRecType(me->d_type.data());
+        checkSelfRef(me);
 
 #ifdef OBX_BBOX
         if( me->d_unsafe )
@@ -1381,8 +1384,6 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_quali.isNull() )
             me->d_quali->accept(this);
-
-        // TODO selfRef
     }
 
     void visit( Record* me )
@@ -1413,6 +1414,20 @@ struct ValidatorImp : public AstVisitor
                 me->d_baseRec->d_subRecs.append(me);
             }else
                 error( me->d_base->d_loc, Validator::tr("base type must be a record") );
+
+            Record* baseRec = me->d_baseRec;
+            while(baseRec)
+            {
+                if( baseRec->d_baseRec == me )
+                {
+                    error( me->d_base->d_loc, Validator::tr("record cannot be its own base type") );
+                    baseRec->d_baseRec->d_subRecs.removeAll(baseRec);
+                    baseRec->d_baseRec = 0; // to avoid infinite loop in code using the AST
+                    break;
+                }
+                baseRec = baseRec->d_baseRec;
+            }
+
 #if 0
             if( me->d_baseRec && me->d_baseRec->d_unsafe != me->d_unsafe )
                 error( me->d_base->d_loc, Validator::tr("cstruct cannot inherit from record and vice versa") );
@@ -1425,6 +1440,7 @@ struct ValidatorImp : public AstVisitor
         {
             f->accept(this);
 
+            checkSelfRef(f->d_type.data());
 #ifdef OBX_BBOX
             if( me->d_unsafe )
             {
@@ -1504,7 +1520,7 @@ struct ValidatorImp : public AstVisitor
 
     void visit( NamedType* me )
     {
-        curTypeDecl = me;
+        curTypeDecl = me->d_type.data();
         if( me->d_type )
             me->d_type->accept(this);
         checkNoAnyRecType(me->d_type.data());
@@ -1691,41 +1707,10 @@ struct ValidatorImp : public AstVisitor
             return; // error already reported
         me->d_lhs->accept(this);
         markIdent( true, me->d_lhs.data() );
-        me->d_rhs->accept(this);
+        me->d_rhs->accept(this);            // TODO: do we check readability of rhs idents?
         markIdent( false, me->d_rhs.data() );
-        const quint8 v = me->d_lhs->visibilityFor(mod);
-        if( v == Named::ReadOnly )
-        {
-            error( me->d_lhs->d_loc, Validator::tr("cannot assign to read-only designator"));
+        if( !checkValidLhs(me->d_lhs.data()) )
             return;
-        }
-        Named* lhs = me->d_lhs->getIdent();
-        if( lhs )
-        {
-            // TODO: do we check readability of rhs idents?
-            switch( lhs->getTag() )
-            {
-            case Thing::T_Field:
-            case Thing::T_LocalVar:
-            case Thing::T_Variable:
-                break;
-            case Thing::T_Parameter:
-                {
-                    Parameter* p = cast<Parameter*>(lhs);
-                    // OBX allows assignment to structured value params and imported variables (unless read-only)
-                    if( p->d_var && p->d_const )
-                    {
-                        error( me->d_lhs->d_loc, Validator::tr("cannot assign to IN parameter") );
-                        return;
-                    }
-                }
-                break;
-            default:
-                // BuiltIn, Const, GenericName, Import, Module, NamedType, Procedure
-                error( me->d_lhs->d_loc, Validator::tr("cannot assign to '%1'").arg(lhs->d_name.constData()));
-                return;
-            }
-        }
         Type* lhsT = derefed(me->d_lhs->d_type.data());
         Type* rhsT = derefed(me->d_rhs->d_type.data());
 
@@ -1735,7 +1720,9 @@ struct ValidatorImp : public AstVisitor
         if( ( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array ) && rhsTag == Thing::T_Pointer )
         {
             // BBOX does implicit deref of rhs pointer in assignment to lhs record or array
-            me->d_rhs = new UnExpr(UnExpr::DEREF, me->d_rhs.data() );
+            Ref<UnExpr> ue = new UnExpr(UnExpr::DEREF, me->d_rhs.data() );
+            ue->d_loc = me->d_rhs->d_loc;
+            me->d_rhs = ue.data();
             Pointer* p = cast<Pointer*>(rhsT);
             rhsT = derefed(p->d_to.data());
             me->d_rhs->d_type = p->d_to.data();
@@ -2551,6 +2538,87 @@ struct ValidatorImp : public AstVisitor
         }
         return true;
     }
+
+    bool checkValidLhs( Expression* lhs )
+    {
+        if( lhs == 0 )
+            return false;
+        Named* id = lhs->getIdent();
+        if( id )
+        {
+            switch( id->getTag() )
+            {
+            case Thing::T_BuiltIn:
+            case Thing::T_Import:
+            case Thing::T_GenericName:
+            case Thing::T_Procedure:
+            case Thing::T_NamedType:
+                error( lhs->d_loc, Validator::tr("cannot assign to '%1'").arg(id->d_name.constData()));
+                return false;
+            }
+        }
+        const quint8 v = lhs->visibilityFor(mod); // also handles IN param, const, buitin etc.
+        switch( v )
+        {
+        case Named::ReadOnly:
+            error( lhs->d_loc, Validator::tr("cannot assign to read-only designator"));
+            return false;
+        case Named::Private:
+            error( lhs->d_loc, Validator::tr("cannot assign to private designator"));
+            return false;
+        }
+        return true;
+    }
+
+    void checkSelfRef( Type* t )
+    {
+        Type* td = derefed(t);
+        if( td == 0 )
+            return; // error already reported
+        if( td != t )
+            return; // don't check type aliasses, only original types
+
+        Type* ctdd = derefed(curTypeDecl);
+
+        if( ctdd && ctdd->getTag() == Thing::T_Pointer )
+            return; // legal in any case
+            // and a pointer cannot point to a pointer anyway
+
+        switch( td->getTag() )
+        {
+        case Thing::T_Record:
+            {
+                Record* r = cast<Record*>(td);
+                foreach( const Ref<Field>& f, r->d_fields )
+                {
+                    Type* ftd = derefed(f->d_type.data());
+                    if( ftd == ctdd )
+                        error(f->d_type->d_loc, Validator::tr("cannot use structured type to define itself"));
+                    else if( ftd == f->d_type.data() ) // dont follow qualitypes
+                        checkSelfRef(ftd);
+                }
+            }
+            break;
+        case Thing::T_Array:
+            {
+                Array* a = cast<Array*>(td);
+                Type* atd = derefed(a->d_type.data());
+                if( atd == ctdd )
+                    error(a->d_type->d_loc, Validator::tr("cannot use structured type to define itself"));
+                else if( atd == a->d_type.data() ) // dont follow qualitypes
+                    checkSelfRef(atd);
+            }
+            break;
+        case Thing::T_Pointer:
+            {
+                Pointer* p = cast<Pointer*>(td);
+                Type* d = derefed(p->d_to.data());
+                if( d == p->d_to.data() )
+                    checkSelfRef(d);
+            }
+            break;
+        }
+    }
 };
 
 bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err, Instantiator* insts)
@@ -2569,6 +2637,8 @@ bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err, Instantia
     imp.mod = m;
     imp.insts = insts;
     m->accept(&imp);
+
+    m->d_isValidated = true;
 
     m->d_hasErrors = ( err->getErrCount() - errCount ) != 0;
 

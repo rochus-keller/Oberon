@@ -1,7 +1,7 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
 (* replaced all LONGINT by INTEGER, TimeUnit is CONST *)
 DEFINITION Input;
-	CONST TimeUnit = 1000;
+	CONST TimeUnit = 1000000;
 	PROCEDURE Available (): INTEGER;
 	PROCEDURE Read (VAR ch: CHAR);
 	PROCEDURE Mouse (VAR keys: SET; VAR x, y: INTEGER);

@@ -1,0 +1,156 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+ 
+module Run
+	import B := Benchmark, Out, Input
+		Permute, Bounce, List, Mandelbrot, Queens, Sieve, Storage, Towers
+	
+	type Run* = pointer to record
+								name : array 32 of char
+								benchmarkSuite : B.Benchmark
+								numIterations, innerIterations, total : integer
+							end
+							
+	proc create*( in name : array of char ) : Run
+		var r : Run
+	begin
+		new(r)
+		r.name := name
+		r.numIterations := 1
+		r.innerIterations := 1
+		r.total := 0
+		r.benchmarkSuite := getSuiteFromName(name)
+		return r
+	end create
+	
+	proc getSuiteFromName( in name : array of char ) : B.Benchmark
+	begin
+		if name = "Permute" then
+			return Permute.create()
+		elsif name = "Bounce" then
+			return Bounce.create()
+		elsif name = "List" then
+			return List.create()
+		elsif name = "Mandelbrot" then
+			return Mandelbrot.create()
+		elsif name = "Queens" then
+			return Queens.create()
+		elsif name = "Sieve" then
+			return Sieve.create()
+		elsif name = "Storage" then
+			return Storage.create()
+		elsif name = "Towers" then
+			return Towers.create()
+		end
+		// TODO
+		return nil
+	end getSuiteFromName
+	
+	proc (this: Run) runBenchmark*()
+	begin
+		Out.String("Starting ")
+		Out.String(this.name)
+		Out.String(" benchmark ...")
+		Out.Ln
+		
+		if this.benchmarkSuite = nil then
+			Out.String("ERROR unknown benchmark ")
+			Out.String(this.name) Out.Ln 
+			return
+		end
+		if ~this.doRuns(this.benchmarkSuite) then
+			Out.String("ERROR") Out.Ln 
+			return
+		end
+		this.reportBenchmark()
+		Out.Ln
+	end runBenchmark
+	
+	proc (this: Run) doRuns(bench : B.Benchmark) : boolean
+		var i : integer
+	begin
+		for i := 0 to this.numIterations - 1 do
+			if ~this.measure(bench) then
+				return false
+			end
+		end
+		return true
+	end doRuns
+		
+	proc (this: Run) measure(bench : B.Benchmark) : boolean
+		var startTime, endTime, runTime : integer
+	begin
+		startTime := Input.Time()
+		if ~bench.innerBenchmarkLoop(this.innerIterations) then
+			return false
+		end
+		endTime := Input.Time()
+		runTime := endTime - startTime
+		// TODO 
+		// this.printResult(runTime)
+		this.total := this.total + runTime
+		return true
+	end measure	
+		
+	proc (this: Run) reportBenchmark()
+	begin
+		Out.String(this.name)
+		Out.String(": iterations=")
+		Out.Int(this.numIterations,0)
+		Out.String(" average: ")
+		Out.Int(this.total DIV this.numIterations,0)
+		Out.String("us total: ")
+		Out.Int(this.total,0)
+		Out.String("us")
+		Out.Ln
+	end reportBenchmark
+	
+	proc (this: Run) printResult(runTime: integer)
+	begin
+		Out.String(this.name)
+		Out.String(": iterations=1 runtime: ")
+		Out.Int(runTime,0)
+		Out.String("us")
+		Out.Ln
+	end printResult
+		
+	proc (this: Run) printTotal*()
+	begin
+		return // TODO
+		Out.String("Total Runtime: ")
+		Out.Int(this.total,0)
+		Out.String("us")
+		Out.Ln
+	end printTotal
+	
+	proc (this: Run) setNumIterations*(numIterations: integer)
+	begin
+		this.numIterations := numIterations
+	end setNumIterations
+	
+	proc (this: Run) setInnerIterations*(innerIterations: integer)
+	begin
+		this.innerIterations := innerIterations
+	end setInnerIterations
+	
+end Run

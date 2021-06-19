@@ -73,6 +73,13 @@ extern "C" {
         return 0;
     }
 
+    static int _ADDRESSOF(lua_State* L)
+    {
+        const void* ptr = lua_topointer(L, 1);
+        lua_pushinteger(L,(lua_Integer)ptr);
+        return 1;
+    }
+
 }
 
 void LibFfi::install(lua_State* L)
@@ -83,6 +90,8 @@ void LibFfi::install(lua_State* L)
     lua_setglobal( L, "ASSERT" );
     lua_pushcfunction( L, _TRACE );
     lua_setglobal( L, "TRACE" );
+    lua_pushcfunction( L, _ADDRESSOF );
+    lua_setglobal( L, "ADDRESSOF" );
 }
 
 static void copystr( char* to, int len, const char* from )

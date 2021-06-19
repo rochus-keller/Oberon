@@ -1,5 +1,5 @@
 [General]
-BuiltInOakwood=false
+BuiltInOakwood=true
 BuiltInObSysInner=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
@@ -25,7 +25,29 @@ size=5
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Tester.obx
 1\RelPath=Tester.obx
-size=1
+10\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Sieve.obx
+10\RelPath=Sieve.obx
+11\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Storage.obx
+11\RelPath=Storage.obx
+12\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Towers.obx
+12\RelPath=Towers.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Benchmark.obx
+2\RelPath=Benchmark.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Harness.obx
+3\RelPath=Harness.obx
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Run.obx
+4\RelPath=Run.obx
+5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Permute.obx
+5\RelPath=Permute.obx
+6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Bounce.obx
+6\RelPath=Bounce.obx
+7\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/List.obx
+7\RelPath=List.obx
+8\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Mandelbrot.obx
+8\RelPath=Mandelbrot.obx
+9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Queens.obx
+9\RelPath=Queens.obx
+size=12
 
 [Packages]
 1\Name=@ByteArray()

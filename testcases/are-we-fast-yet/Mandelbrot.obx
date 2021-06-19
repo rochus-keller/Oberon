@@ -1,0 +1,157 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (migrated to Oberon+)
+ *
+// Copyright (C) 2004-2013 Brent Fulgham
+//
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+//   * Redistributions of source code must retain the above copyright notice,
+//     this list of conditions and the following disclaimer.
+//
+//   * Redistributions in binary form must reproduce the above copyright notice,
+//     this list of conditions and the following disclaimer in the documentation
+//     and/or other materials provided with the distribution.
+//
+//   * Neither the name of "The Computer Language Benchmarks Game" nor the name
+//     of "The Computer Language Shootout Benchmarks" nor the names of its
+//     contributors may be used to endorse or promote products derived from this
+//     software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+// The Computer Language Benchmarks Game
+// http://benchmarksgame.alioth.debian.org
+//
+//  contributed by Karl von Laudermann
+//  modified by Jeremy Echols
+//  modified by Detlef Reichl
+//  modified by Joseph LaFata
+//  modified by Peter Zotov
+*)
+ 
+module Mandelbrot
+	import B := Benchmark, Out
+	
+	type
+		Mandelbrot = pointer to record (B.Benchmark)
+						end
+
+	proc create*(): Mandelbrot
+		var b : Mandelbrot
+	begin
+		new(b)
+		return b
+	end create
+
+	proc (this: Mandelbrot) benchmark(): B.Result
+	begin
+	   assert(false) // Should never be reached
+		return nil
+	end benchmark
+	
+	proc (this: Mandelbrot) verifyResult( result: B.Result ): boolean 
+	begin
+		assert(false) // Should never be reached
+		return false
+	end verifyResult
+
+	proc (this: Mandelbrot) innerBenchmarkLoop*(innerIterations: integer): boolean
+	begin
+		return verifyResult2(mandelbrot(innerIterations), innerIterations) 
+	end innerBenchmarkLoop
+
+  proc verifyResult2(result, innerIterations: integer ): boolean
+  begin
+    if innerIterations = 500 then
+      return ( result = 191 )
+    end
+    if innerIterations = 750 then
+      return ( result = 50 )
+    end
+    if innerIterations = 1 then
+      return ( result = 128 )
+    end
+
+    // Checkstyle: stop
+    Out.String("No verification result for ")
+    Out.Int(innerIterations,0)
+    Out.String(" found") Out.Ln
+    Out.String("Result is: ")
+    Out.Int(result,0) Out.Ln
+    // Checkstyle: resume
+    return false
+  end verifyResult2
+  
+  proc mandelbrot(size: integer): integer
+     var sum byteAcc bitNum y z x escape: integer
+	     ci zr zrzr zi zizi cr : longreal
+	     notDone : boolean
+	begin
+		sum := 0
+		byteAcc := 0
+		bitNum := 0
+		y := 0
+      while y < size do
+       ci := (2.0 * flt( y DIV size )) - 1.0
+       x := 0
+       while x < size do
+         zr   := 0.0
+         zrzr := 0.0
+         zi   := 0.0
+         zizi := 0.0
+         cr := (2.0 * flt( x DIV size )) - 1.5
+
+         z := 0
+         notDone := true
+         escape := 0
+         while notDone & ( z < 50 ) do
+           zr := zrzr - zizi + cr;
+           zi := 2.0 * zr * zi + ci;
+
+           // preserve recalculation
+           zrzr := zr * zr;
+           zizi := zi * zi;
+
+           if ( zrzr + zizi ) > 4.0 then
+             notDone := false
+             escape  := 1
+           end
+           inc(z)
+         end
+
+         byteAcc := lsl(byteAcc, 1) + escape
+         inc(bitNum)
+
+         // Code is very similar for these cases, but using separate blocks
+         // ensures we skip the shifting when it's unnecessary, which is most cases.
+         if bitNum = 8 then
+           sum := bitxor(sum,byteAcc)
+           byteAcc := 0
+           bitNum  := 0
+         elsif x = (size - 1) then
+           byteAcc := lsl(byteAcc,(8 - bitNum))
+           sum := bitxor(sum,byteAcc)
+           byteAcc := 0
+           bitNum  := 0
+         end
+         inc(x)
+       end
+       inc(y)
+     end
+     return sum
+   end mandelbrot
+   
+end Mandelbrot

@@ -21,22 +21,31 @@
  * THE SOFTWARE.
  *)
  
- module Random
-
-	var
-		seed : integer
-
-	proc next*() : integer
-	begin
-	    seed := bitand(((seed * 1309) + 13849), 65535)
-	    return seed;
-	end next
+ module Benchmark
+	import Out
 	
-	proc reset*()
-	begin
-		seed := 74755
-	end reset
+	type 
+		Benchmark* = pointer to record end
+		Result* = pointer to record end
+		IntResult* = pointer to record (Result) res* : integer end
+		BoolResult* = pointer to record (Result) res* : boolean end
+		
+	proc (this: Benchmark) benchmark(): Result end
 	
-begin
-	reset()
-end Random
+	proc (this: Benchmark) verifyResult( result: Result ): boolean 
+		return false end
+	
+	proc (this: Benchmark) innerBenchmarkLoop*(innerIterations: integer): boolean
+		var i: integer
+	begin
+		for i := 0 to innerIterations - 1 do
+			if ~this.verifyResult(this.benchmark()) then
+				Out.String("verification failed ")
+				return false
+			end
+		end
+		return true
+	end innerBenchmarkLoop
+	
+
+end Benchmark

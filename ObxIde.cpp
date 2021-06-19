@@ -1940,6 +1940,12 @@ void Ide::fillXref()
         case Thing::T_Module:
             type = "Module";
             break;
+        case Thing::T_GenericName:
+            type = "Type Parameter";
+            break;
+        case Thing::T_Enumeration:
+            type = "Enumeration";
+            break;
         }
 
         d_xrefTitle->setText(QString("%1 '%2'").arg(type).arg(name));
@@ -2956,7 +2962,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.10");
+    a.setApplicationVersion("0.7.11");
     a.setStyle("Fusion");
 
     Ide w;

@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-06-11</span>
+      <span id="revdate">2021-06-19</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -1144,7 +1144,7 @@ array of char
              FieldList { [';'] FieldList} END
 BaseType   = NamedType
 FieldList  = [ IdentList ':' type ]
-IdentList  = identdef {',' identdef }</pre>
+IdentList  = identdef { [','] identdef }</pre>
             </div>
           </div>
           <div class="paragraph">
@@ -1266,7 +1266,7 @@ end</pre>
           <div class="literalblock">
             <div class="title">Syntax:</div>
             <div class="content">
-              <pre>enumeration = '('  ident { ',' ident } ')'</pre>
+              <pre>enumeration = '('  ident { [','] ident } ')'</pre>
             </div>
           </div>
           <div class="literalblock">
@@ -2335,7 +2335,7 @@ DeclarationSequence  = { CONST { ConstDeclaration [';'] }
               <pre>FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')'
                    [ ':' ReturnType ]
 ReturnType       = NamedType | ( POINTER TO | '^') NamedType
-FPSection        = [ VAR | IN ] ident { ',' ident }
+FPSection        = [ VAR | IN ] ident { [','] ident }
                    ':' FormalType
 FormalType       = type</pre>
             </div>
@@ -3497,7 +3497,7 @@ end Insert</pre>
             <pre>module     = MODULE ident [ TypeParams ] [';']
              { ImportList | DeclarationSequence }
 	         [ BEGIN StatementSequence ] END ident ['.']
-ImportList = IMPORT import { ',' import } [';']
+ImportList = IMPORT import { [','] import } [';']
 import     = [ ident ':=' ] ImportPath ident [ TypeActuals ]
 ImportPath = { ident '.' }</pre>
           </div>
@@ -3605,11 +3605,11 @@ end Lists</code></pre>
           <div class="literalblock">
             <div class="title">Syntax:</div>
             <div class="content">
-              <pre>TypeParams       = '&lt;' ident { ',' ident } '&gt;'
+              <pre>TypeParams       = '&lt;' ident { [','] ident } '&gt;'
 TypeActuals      = '&lt;' NamedType { ',' NamedType } '&gt;'
 module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
 	[ BEGIN StatementSequence ] END ident ['.']
-ImportList = IMPORT import { ',' import } [';']
+ImportList = IMPORT import { [','] import } [';']
 import = [ ident ':=' ] ImportPath ident [ TypeActuals ]</pre>
             </div>
           </div>
@@ -4088,9 +4088,9 @@ TypeDeclaration = identdef '=' type
 type = NamedType | enumeration
 	| ArrayType | RecordType | PointerType | ProcedureType
 NamedType = qualident
-TypeParams = '&lt;' ident { ',' ident } '&gt;'
+TypeParams = '&lt;' ident { [','] ident } '&gt;'
 TypeActuals = '&lt;' NamedType { ',' NamedType } '&gt;'
-enumeration = '('  ident { ',' ident } ')'
+enumeration = '('  ident { [','] ident } ')'
 ArrayType = ARRAY [ LengthList ] OF type
 	 | '[' [ LengthList ] ']' type
 LengthList = length {',' length}
@@ -4099,7 +4099,7 @@ RecordType = RECORD ['(' BaseType ')'] [FieldListSequence]  END
 BaseType = NamedType
 FieldListSequence = FieldList [ ';' ] { FieldList [ ';' ] }
 FieldList = IdentList ':' type
-IdentList = identdef {',' identdef}
+IdentList = identdef { [','] identdef}
 PointerType = ( POINTER TO | '^' ) type
 ProcedureType = ( PROCEDURE | PROC ) [FormalParameters]
 VariableDeclaration = IdentList ':' type
@@ -4167,11 +4167,11 @@ ReturnStatement = RETURN [ expression ]
 FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')'
 	[ ':' ReturnType ]
 ReturnType = NamedType | ( POINTER TO | '^') NamedType
-FPSection = [ VAR | IN ] ident { ',' ident } ':' FormalType
+FPSection = [ VAR | IN ] ident { [','] ident } ':' FormalType
 FormalType = type
 module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
 	[ BEGIN StatementSequence ] END ident ['.']
-ImportList = IMPORT import { ',' import } [';']
+ImportList = IMPORT import { [','] import } [';']
 import = [ ident ':=' ] ImportPath ident [ TypeActuals ]
 ImportPath = { ident '.' }
 definition = DEFINITION ident [';']  [ ImportList ]

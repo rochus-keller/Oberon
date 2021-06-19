@@ -311,9 +311,10 @@ MetaParams Parser::typeParams()
     t->d_name = d_cur.d_val;
     t->d_loc = d_cur.toRowCol();
     res << t;
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         MATCH( Tok_ident, tr("identifier expected in type parameter list") );
         Ref<GenericName> t = new GenericName();
         t->d_name = d_cur.d_val;
@@ -410,9 +411,10 @@ Ref<Type> Parser::enumeration(Scope* scope,Named* id, Type* binding)
     e->d_loc = d_cur.toRowCol();
     MATCH( Tok_ident, tr("at least one identifier required in enumeration") );
     addEnum( scope, e.data(), d_cur );
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // optional comma
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         MATCH( Tok_ident, tr("identifier expected after ',' in enumeration") );
         addEnum( scope, e.data(), d_cur );
     }
@@ -742,9 +744,10 @@ void Parser::fieldList(Scope* scope, Record* r)
     f->d_scope = scope;
     fields << f;
     identdef(f,scope);
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // optional comma
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         f = new Field();
         f->d_scope = scope;
         fields << f;
@@ -795,9 +798,10 @@ void Parser::variableDeclaration(Scope* scope)
     else
         vars << new LocalVar();
     identdef(vars.back().data(),scope);
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // optional comma
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         if( moduleLevel )
             vars << new Variable();
         else
@@ -1835,9 +1839,10 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
     MATCH( Tok_ident, tr("expecting formal parameter name") );
     if( d_cur.isValid() )
         names << d_cur;
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         MATCH( Tok_ident, tr("expecting formal parameter name") );
         if( d_cur.isValid() )
             names << d_cur;
@@ -1909,9 +1914,10 @@ void Parser::importList()
 {
     MATCH( Tok_IMPORT, tr("expecting the IMPORT keyword") );
     import();
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         import();
     }
     if( d_la == Tok_Semi )

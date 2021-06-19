@@ -781,6 +781,36 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
     d_mod = mod;
 }
 
+quint8 IdentLeaf::visibilityFor(Module*) const
+{
+    if( d_ident.isNull() )
+        return Named::NotApplicable;
+    switch( d_ident->getTag() )
+    {
+    case Thing::T_Import:
+    case Thing::T_Const:
+    case Thing::T_GenericName:
+    case Thing::T_NamedType:
+    case Thing::T_Procedure:
+    case Thing::T_BuiltIn:
+        return Named::ReadOnly;
+    case Thing::T_LocalVar:
+    case Thing::T_Variable:
+        return Named::LocalAccess;
+    case Thing::T_Parameter:
+        {
+            Parameter* p = cast<Parameter*>(d_ident.data());
+            if( p->d_const )
+                return Named::ReadOnly;
+            else
+                return Named::LocalAccess;
+        }
+        break;
+    default:
+        Q_ASSERT(false);
+    }
+}
+
 #ifdef _DEBUG
 
 QSet<Thing*> Thing::insts;
@@ -883,18 +913,41 @@ ProcType*Procedure::getProcType() const
 
 quint8 IdentSel::visibilityFor(Module* m) const
 {
-    if( !d_ident.isNull() )
+    if( d_sub.isNull() || d_ident.isNull() )
+        return Named::NotApplicable;
+    if( d_sub->getTag() == Thing::T_IdentLeaf )
     {
-        Module* im = d_ident->getModule();
-        if( im == m )
-            return Named::NotApplicable;
-        if( d_ident->d_visibility == Named::ReadOnly )
-            return Named::ReadOnly;
-
+        IdentLeaf* leaf = cast<IdentLeaf*>(d_sub.data());
+        if( !leaf->d_ident.isNull() && leaf->d_ident->getTag() == Thing::T_Import )
+            return d_ident->d_visibility;
     }
-    return UnExpr::visibilityFor(m);
+    quint8 v = d_sub->visibilityFor(m);
+    switch( v )
+    {
+    case Named::LocalAccess:
+    case Named::NotApplicable:
+    case Named::Private:
+        break; // stronger than this
+    case Named::ReadOnly:
+        switch( d_ident->d_visibility )
+        {
+        case Named::ReadOnly:
+            break; // keep it
+        case Named::ReadWrite:
+        case Named::Private:
+        case Named::NotApplicable:
+            v = d_ident->d_visibility; // readonly and private are stronger
+            break;
+        default:
+            Q_ASSERT( false );
+        }
+        break;
+    case Named::ReadWrite:
+        v = d_ident->d_visibility;
+        break;
+    }
+    return v;
 }
-
 
 Const::Const(const QByteArray& name, Literal* lit)
 {
@@ -1114,4 +1167,12 @@ Import*Module::findImport(Module* m) const
             return i;
     }
     return 0;
+}
+
+quint8 UnExpr::visibilityFor(Module* m) const
+{
+    if( !d_sub.isNull() )
+        return d_sub->visibilityFor(m);
+    else
+        return Named::NotApplicable;
 }

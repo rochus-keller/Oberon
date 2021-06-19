@@ -1013,7 +1013,8 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( IdentLeaf* me)
     {
         Named* id = me->getIdent();
-        Q_ASSERT( id );
+        if( id == 0 )
+            return; // already reported
         const int tag = id->getTag();
 
         if( tag == Thing::T_BuiltIn )
@@ -1308,6 +1309,8 @@ struct ObxLjbcGenImp : public AstVisitor
             switch( baseType->getBaseType() )
             {
             case Type::BOOLEAN:
+                fetchObxlibMember(tmp,43,loc); // module.createBoolArray
+                break;
             case Type::CHAR:
             case Type::BYTE:
                 fetchObxlibMember(tmp,8,loc); // module.createByteArray
@@ -1857,7 +1860,15 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( slotStack.isEmpty() )
                     return; // error already reported
                 Type* t = derefed(ae->d_args.first()->d_type.data() );
-                if( t && t->getBaseType() == Type::BOOLEAN )
+                if( bi->d_func == BuiltIn::ORD && t && t->getTag() == Thing::T_Pointer )
+                {   // undocumented oberon feature
+                    int tmp = ctx.back().buySlots(2,true);
+                    fetchObxlibMember(tmp,42,ae->d_loc); // module.ADDRESSOF
+                    bc.MOV(tmp+1,slotStack.back(),ae->d_loc.packed() );
+                    bc.CALL(tmp,1,1,ae->d_loc.packed());
+                    bc.MOV(res,tmp,ae->d_loc.packed());
+                    ctx.back().sellSlots(tmp,2);
+                }else if( t && t->getBaseType() == Type::BOOLEAN )
                 {
                     int tmp = ctx.back().buySlots(2,true);
                     fetchObxlibMember(tmp,39,ae->d_loc); // module.bool_to_number
@@ -3228,7 +3239,7 @@ bool LjbcGen::translate(Module* m, QIODevice* out, bool strip, Ob::Errors* errs)
 {
     Q_ASSERT( m != 0 && out != 0 );
 
-    if( m->d_hasErrors )
+    if( m->d_hasErrors || !m->d_isValidated ) //  not validated can happen if imports cannot be resolved
         return false;
 
     if( m->d_isDef )

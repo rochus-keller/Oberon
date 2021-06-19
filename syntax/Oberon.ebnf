@@ -30,7 +30,8 @@
 // - made end ident of procedures optional
 // - added UNSAFE POINTER, CSTRUCT,  CUNION and CARRAY for external C library integration
 // - switched to generic modules (instead of generic types, similar to a subset of Ada) to avoid semantic complexities
-// - allow import lists to occur several times interleaved with declaration sequence
+// - allow import lists to occur several times interleaved with declaration sequence; optional commas between imports
+// - optional commas in FPSection, IdentList, enumeration and TypeParams
 
 #define OBN2
 // combine OBN2 with either OBNX or BBOX
@@ -94,13 +95,13 @@ type ::= NamedType
 NamedType ::= qualident 
 
 #ifdef OBNX
-TypeParams ::= '<' ident { ',' ident } '>'
+TypeParams ::= '<' ident { [','] ident } '>'
 
 TypeActuals ::= '<' TypeActual { ',' TypeActual } '>' 
 
 TypeActual ::= NamedType
 
-enumeration ::= '('  ident { ',' ident } ')' 
+enumeration ::= '('  ident { [','] ident } ')' 
 #endif
 
 /// 6.1. Basic types
@@ -162,7 +163,7 @@ FieldListSequence ::= FieldList
 
 FieldList ::= IdentList ':' type
 
-IdentList ::= identdef {',' identdef}
+IdentList ::= identdef { [','] identdef}
 
 /// 6.4. Pointer types
 
@@ -479,7 +480,7 @@ FPSection ::= [ VAR
 #ifdef BBOX
 	[ SysFlag ]
 #endif
-	ident { ',' ident } ':' FormalType 
+	ident { [','] ident } ':' FormalType 
 
 FormalType ::= 
 #ifdef OBN2
@@ -521,7 +522,7 @@ module ::= MODULE ident
 #endif
 	END ident ['.'] )
 
-ImportList ::= IMPORT import { ',' import } [';']
+ImportList ::= IMPORT import { [ ',' ] import } [';']
 
 import ::= [ \LL:2\ ident ':=' ] ident 
 #ifdef OBNX

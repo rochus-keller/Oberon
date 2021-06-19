@@ -309,7 +309,7 @@ namespace Obx
 
     struct Named : public Thing
     {
-        enum Visibility { NotApplicable, Private, ReadWrite, ReadOnly };
+        enum Visibility { NotApplicable, Private, ReadWrite, ReadOnly, LocalAccess };
         QByteArray d_name;
         Ref<Type> d_type;
         Scope* d_scope; // owning scope up to module (whose scope is nil)
@@ -569,7 +569,7 @@ namespace Obx
     struct Expression : public Thing
     {
         NoRef<Type> d_type; // this must be NoRef, otherwise there are refcount cycles!
-        virtual Named* getIdent() const { return 0; }
+        virtual Named* getIdent(bool first=false) const { return 0; }
         virtual Module* getModule() const { return 0; }
         virtual quint8 visibilityFor(Module*) const { return Named::NotApplicable; }
         virtual Expression* getSub() const { return 0; }
@@ -611,11 +611,11 @@ namespace Obx
         IdentLeaf():d_mod(0),d_role(NoRole) {}
         IdentLeaf( Named* id, const Ob::RowCol&, Module* mod, Type* t, IdentRole r );
         Module* d_mod; // we need this to find out when xref from which module the ident is coming
-        Named* getIdent() const { return d_ident.data(); }
+        Named* getIdent(bool first=false) const { return d_ident.data(); }
         Module* getModule() const { return d_mod; }
         int getTag() const { return T_IdentLeaf; }
         void accept(AstVisitor* v) { v->visit(this); }
-        quint8 visibilityFor(Module*) const { return Named::ReadWrite; } // leaf is local or import name
+        quint8 visibilityFor(Module*) const;
         IdentRole getIdentRole() const { return d_role; }
     };
 
@@ -630,10 +630,11 @@ namespace Obx
         UnExpr(quint8 op = Invalid, Expression* e = 0 ):d_op(op),d_sub(e){}
         int getTag() const { return T_UnExpr; }
         void accept(AstVisitor* v) { v->visit(this); }
-        quint8 visibilityFor(Module* m) const { return !d_sub.isNull() ? d_sub->visibilityFor(m): quint8(Named::NotApplicable); }
+        quint8 visibilityFor(Module* m) const;
         Module* getModule() const { return d_sub.isNull() ? 0 : d_sub->getModule(); }
         Expression* getSub() const { return d_sub.data(); }
         quint8 getUnOp() const { return d_op; }
+        Named* getIdent(bool first=false) const { return first && d_sub ? d_sub->getIdent(first) : 0; }
     };
 
     struct IdentSel : public UnExpr // SEL
@@ -642,7 +643,7 @@ namespace Obx
         QByteArray d_name; // name to be resolved with result written to d_ident
         IdentRole d_role;
         IdentSel():UnExpr(SEL),d_role(NoRole) {}
-        Named* getIdent() const { return d_ident.data(); }
+        Named* getIdent(bool first=false) const { return first && d_sub ? d_sub->getIdent(first) : d_ident.data(); }
         int getTag() const { return T_IdentSel; }
         void accept(AstVisitor* v) { v->visit(this); }
         quint8 visibilityFor(Module* m) const;

@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-06-11
+:revdate: 2021-06-19
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -443,7 +443,7 @@ RecordType = RECORD ['(' BaseType ')']
              FieldList { [';'] FieldList} END
 BaseType   = NamedType
 FieldList  = [ IdentList ':' type ]
-IdentList  = identdef {',' identdef }
+IdentList  = identdef { [','] identdef }
 ....
 
 Record types are extensible, i.e. a record type or a pointer to a record can be declared as an extension of another record type. In the example
@@ -501,7 +501,7 @@ the enumeration. The ordinal number of the first value is O.
 
 .Syntax:
 ....
-enumeration = '('  ident { ',' ident } ')' 
+enumeration = '('  ident { [','] ident } ')' 
 ....
 
 .Examples:
@@ -1006,7 +1006,7 @@ In contrast to previous Oberon versions the result type of a procedure may also 
 FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')' 
                    [ ':' ReturnType ]
 ReturnType       = NamedType | ( POINTER TO | '^') NamedType
-FPSection        = [ VAR | IN ] ident { ',' ident } 
+FPSection        = [ VAR | IN ] ident { [','] ident } 
                    ':' FormalType 
 FormalType       = type
 ....
@@ -1217,7 +1217,7 @@ A module is a collection of declarations of constants, types, variables, and pro
 module     = MODULE ident [ TypeParams ] [';'] 
              { ImportList | DeclarationSequence }
 	         [ BEGIN StatementSequence ] END ident ['.']
-ImportList = IMPORT import { ',' import } [';']
+ImportList = IMPORT import { [','] import } [';']
 import     = [ ident ':=' ] ImportPath ident [ TypeActuals ] 
 ImportPath = { ident '.' } 
 ....
@@ -1300,11 +1300,11 @@ Oberon+ supports generic programming. Modules can be made generic by adding form
 
 .Syntax:
 ....
-TypeParams       = '<' ident { ',' ident } '>'
+TypeParams       = '<' ident { [','] ident } '>'
 TypeActuals      = '<' NamedType { ',' NamedType } '>' 
 module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
 	[ BEGIN StatementSequence ] END ident ['.']
-ImportList = IMPORT import { ',' import } [';']
+ImportList = IMPORT import { [','] import } [';']
 import = [ ident ':=' ] ImportPath ident [ TypeActuals ] 
 ....
 
@@ -1445,9 +1445,9 @@ TypeDeclaration = identdef '=' type
 type = NamedType | enumeration
 	| ArrayType | RecordType | PointerType | ProcedureType
 NamedType = qualident
-TypeParams = '<' ident { ',' ident } '>'
+TypeParams = '<' ident { [','] ident } '>'
 TypeActuals = '<' NamedType { ',' NamedType } '>' 
-enumeration = '('  ident { ',' ident } ')' 
+enumeration = '('  ident { [','] ident } ')' 
 ArrayType = ARRAY [ LengthList ] OF type 
 	 | '[' [ LengthList ] ']' type
 LengthList = length {',' length}
@@ -1456,7 +1456,7 @@ RecordType = RECORD ['(' BaseType ')'] [FieldListSequence]  END
 BaseType = NamedType
 FieldListSequence = FieldList [ ';' ] { FieldList [ ';' ] }
 FieldList = IdentList ':' type
-IdentList = identdef {',' identdef}
+IdentList = identdef { [','] identdef}
 PointerType = ( POINTER TO | '^' ) type
 ProcedureType = ( PROCEDURE | PROC ) [FormalParameters]
 VariableDeclaration = IdentList ':' type
@@ -1524,11 +1524,11 @@ ReturnStatement = RETURN [ expression ]
 FormalParameters = '(' [ FPSection { [';'] FPSection } ] ')' 
 	[ ':' ReturnType ]
 ReturnType = NamedType | ( POINTER TO | '^') NamedType
-FPSection = [ VAR | IN ] ident { ',' ident } ':' FormalType 
+FPSection = [ VAR | IN ] ident { [','] ident } ':' FormalType 
 FormalType = type
 module = MODULE ident [ TypeParams ] [';'] { ImportList | DeclarationSequence }
 	[ BEGIN StatementSequence ] END ident ['.']
-ImportList = IMPORT import { ',' import } [';']
+ImportList = IMPORT import { [','] import } [';']
 import = [ ident ':=' ] ImportPath ident [ TypeActuals ] 
 ImportPath = { ident '.' } 
 definition = DEFINITION ident [';']  [ ImportList ] 

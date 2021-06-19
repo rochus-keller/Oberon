@@ -21,22 +21,56 @@
  * THE SOFTWARE.
  *)
  
- module Random
+module Sieve
 
-	var
-		seed : integer
+	import B := Benchmark
+	
+	type 
+		Sieve = pointer to record (B.Benchmark)
+					end
 
-	proc next*() : integer
+	proc create*(): Sieve
+		var s : Sieve
 	begin
-	    seed := bitand(((seed * 1309) + 13849), 65535)
-	    return seed;
-	end next
+		new(s)
+		return s
+	end create
 	
-	proc reset*()
+	proc (this: Sieve) benchmark(): B.Result
+		const size = 5000
+		var flags: array size of boolean
+			i, result: integer
+			res : B.IntResult
 	begin
-		seed := 74755
-	end reset
+		for i := 0 to size-1 do
+			flags[i] := true
+		end
+		result := this.sieve(flags,size)
+		new(res)
+		res.res := result
+		return res
+	end benchmark
 	
-begin
-	reset()
-end Random
+	proc (this: Sieve) sieve(var flags: array of boolean; size: integer): integer
+    var primeCount, i, k: integer
+	begin
+		primeCount := 0
+	   for i := 2 to size do
+	      if flags[i - 1] then
+	        inc(primeCount)
+	        k := i + i
+	        while k <= size do
+	          flags[k - 1] := false
+	          k := k + i
+	        end
+	      end
+      end
+      return primeCount;
+  end sieve
+
+	proc (this: Sieve) verifyResult( result: B.Result ): boolean 
+	begin
+		return ( result(B.IntResult).res = 669 )
+	end verifyResult
+
+end Sieve
