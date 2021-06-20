@@ -122,5 +122,5 @@ begin
    // Test2()
    // Test3()
    Test4()
-   //H.run("Towers", 600, 1)
+   //H.run("Permute", 1000, 1)
 end Tester

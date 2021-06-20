@@ -1,0 +1,32 @@
+module Enum1
+
+	import I := Imported1b
+	
+	type 
+		T = ( A, B, C D E )
+	var
+		t : T
+
+begin
+	//println(I.C)
+	t := B
+	println(t)
+	println(I.blue)
+	println("upwards:")
+	for t := A to E do
+		println(t)
+	end
+	println("downwards:")
+	for t := D to B do
+		println(t)
+	end
+	println("inc dec:")
+	t := B
+	inc(t)
+	println( t )
+	t := D
+	dec(t)
+	println( t )
+	println( max(T) )
+	println( min(T) )
+end Enum1

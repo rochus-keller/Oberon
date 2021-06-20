@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-06-19
+:revdate: 2021-06-20
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -662,7 +662,7 @@ A set constructor defines the value of a set by listing its elements between cur
 | IS |   type test
 |======================================
 
-Relations yield a BOOLEAN result. The relations `=`, `\#`, `<`, `\<=`, `>`, and `>=` apply to the numeric types, as well as CHAR, strings, and CHAR arrays containing `0x` as a terminator. The relations `=` and `#` also apply to BOOLEAN and SET, as well as to pointer and procedure types (including the value NIL). `x IN s` stands for _x is an element of s_. `x` must be of an integer type, and `s` of type SET. `v IS T` stands for _the dynamic type of `v` is T (or an extension of T )_ and is called a type test. It is applicable if
+Relations yield a BOOLEAN result. The relations `=`, `\#`, `<`, `\<=`, `>`, and `>=` apply to the numeric types, as well as enumerations, CHAR, strings, and CHAR arrays containing `0x` as a terminator. The relations `=` and `#` also apply to BOOLEAN and SET, as well as to pointer and procedure types (including the value NIL). `x IN s` stands for _x is an element of s_. `x` must be of an integer type, and `s` of type SET. `v IS T` stands for _the dynamic type of `v` is T (or an extension of T )_ and is called a type test. It is applicable if
 
 . `v` is a variable parameter of record type or `v` is a pointer, and if
 . T is an extension of the static type of `v`.
@@ -865,7 +865,7 @@ RepeatStatement = REPEAT StatementSequence UNTIL expression
 ....
 
 === For statements
-A for statement specifies the repeated execution of a statement sequence while a progression of values is assigned to an integer variable called the control variable of the for statement.
+A for statement specifies the repeated execution of a statement sequence while a progression of values is assigned to a control variable of the for statement. Control variables can be of integer or enumeration types. An explicit BY expression is only supported for integer control variables. 
 
 .Syntax:
 ....
@@ -885,13 +885,13 @@ is equivalent to
 ....
 temp := last; v := first
 if step > 0 then
-    while v <= temp do statements; v := v + step end
+    while v <= temp do statements; INC(v,step) end
 else
-    while v >= temp do statements; v := v + step end
+    while v >= temp do statements; DEC(v,-step) end
 end
 ....
 
-temp has the same type as `v`. step must be a nonzero constant expression. If step is not specified, it is assumed to be 1.
+temp has the same type as `v`. For integer control variables, step must be a nonzero constant expression; if step is not specified, it is assumed to be 1. For enumeration control variables, there is no explicit step, but the INC or DEC version of the while loop is used depending on ORD(first) <= ORD(last).
 
 .Examples:
 ....

@@ -9,6 +9,9 @@ WorkingDir=
 [.]
 size=0
 
+[.richards]
+size=0
+
 [.som]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Pair.obx
 1\RelPath=som/Pair.obx
@@ -31,6 +34,8 @@ size=5
 11\RelPath=Storage.obx
 12\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Towers.obx
 12\RelPath=Towers.obx
+13\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Richards.obx
+13\RelPath=Richards.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Benchmark.obx
 2\RelPath=Benchmark.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Harness.obx
@@ -47,10 +52,11 @@ size=5
 8\RelPath=Mandelbrot.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Queens.obx
 9\RelPath=Queens.obx
-size=12
+size=13
 
 [Packages]
 1\Name=@ByteArray()
 2\Name=@ByteArray()
 3\Name=@ByteArray(som)
+4\Name=@ByteArray(richards)
 size=3

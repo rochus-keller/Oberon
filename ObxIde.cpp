@@ -2020,6 +2020,7 @@ void Ide::fillXref(Named* sym)
 void Ide::fillStack()
 {
     d_stack->clear();
+
     Lua::Engine2::StackLevels ls = d_lua->getStackTrace();
     d_scopes = QVector<Scope*>(ls.size());
 
@@ -2962,7 +2963,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.11");
+    a.setApplicationVersion("0.7.12");
     a.setStyle("Fusion");
 
     Ide w;

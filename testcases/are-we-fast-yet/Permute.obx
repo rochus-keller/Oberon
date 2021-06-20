@@ -58,9 +58,11 @@ module Permute
 	       this.permute(n1)
 	       i := n1
 	       while i >= 0 do
-	          this.swap(n1, i)
+	          this.swap(n1, i) // 150-550 us
+	          //swap(this.v[n1],this.v[i]) // 200-1900us, much slower
 	          this.permute(n1)
 	          this.swap(n1, i)
+	          //swap(this.v[n1],this.v[i])
 		       dec(i)
 		    end
       end
@@ -72,6 +74,14 @@ module Permute
 		tmp := this.v[i]
 		this.v[i] := this.v[j]
 		this.v[j] := tmp
+	end swap
+	
+	proc swap( var i,j: integer)
+		var tmp : integer
+	begin
+		tmp := i
+		i := j
+		j := tmp
 	end swap
 		
 	proc (this: Permute) verifyResult( result: B.Result ): boolean 

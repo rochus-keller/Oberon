@@ -804,7 +804,8 @@ struct ObxLjbcGenImp : public AstVisitor
             }
             break;
         case BinExpr::ADD:
-            if( lhsT->isNumeric() && rhsT->isNumeric() )
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
                 bc.ADD(res, slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
             else if( lhsT->isSet() && rhsT->isSet() )
                 setOp( res, 12, me->d_loc ); // bit.bor
@@ -824,7 +825,8 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT(false);
             break;
         case BinExpr::SUB:
-            if( lhsT->isNumeric() && rhsT->isNumeric() )
+            if( lhsT->isNumeric() && rhsT->isNumeric() ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
                 bc.SUB(res, slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
             else if( lhsT->isSet() && rhsT->isSet() )
                 setOp( res, 18, me->d_loc ); // module.setSub
@@ -924,6 +926,7 @@ struct ObxLjbcGenImp : public AstVisitor
                     ( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN ) ||
                     ( lhsT->getBaseType() == Type::SET && rhsT->getBaseType() == Type::SET) ||
                     ( lhsT->isChar() && rhsT->isChar() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
                     ( ( lhsT->getBaseType() == Type::NIL || ltag == Thing::T_Pointer || ltag == Thing::T_ProcType ) &&
                     ( rhsT->getBaseType() == Type::NIL || rtag == Thing::T_Pointer || rtag == Thing::T_ProcType ) ) )
             {
@@ -941,6 +944,7 @@ struct ObxLjbcGenImp : public AstVisitor
                     ( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN ) ||
                     ( lhsT->getBaseType() == Type::SET && rhsT->getBaseType() == Type::SET) ||
                     ( lhsT->isChar() && rhsT->isChar() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
                     ( ( lhsT->getBaseType() == Type::NIL || ltag == Thing::T_Pointer || ltag == Thing::T_ProcType ) &&
                     ( rhsT->getBaseType() == Type::NIL || rtag == Thing::T_Pointer || rtag == Thing::T_ProcType ) ) )
             {
@@ -954,7 +958,9 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT(false);
             break;
         case BinExpr::LT:
-            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) || ( lhsT->isChar() && rhsT->isChar() ) )
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
             {
                 bc.ISLT(slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
                 jumpTrueFalse( res, me->d_loc );
@@ -966,7 +972,9 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT(false);
             break;
         case BinExpr::LEQ:
-            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) || ( lhsT->isChar() && rhsT->isChar() ) )
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
             {
                 bc.ISLE(slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
                 jumpTrueFalse( res, me->d_loc );
@@ -978,7 +986,9 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT(false);
             break;
         case BinExpr::GT:
-            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) || ( lhsT->isChar() && rhsT->isChar() ) )
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
             {
                 bc.ISGT(slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
                 jumpTrueFalse( res, me->d_loc );
@@ -990,7 +1000,9 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT(false);
             break;
         case BinExpr::GEQ:
-            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) || ( lhsT->isChar() && rhsT->isChar() ) )
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
             {
                 bc.ISGE(slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
                 jumpTrueFalse( res, me->d_loc );
@@ -1591,6 +1603,7 @@ struct ObxLjbcGenImp : public AstVisitor
         case Literal::Real:
         case Literal::Boolean:
         case Literal::Nil:
+        case Literal::Enum:
             bc.KSET(res, val, loc.packed() );
             break;
         case Literal::String:

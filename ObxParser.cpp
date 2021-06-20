@@ -394,11 +394,14 @@ void Parser::addEnum( Scope* scope, Enumeration* e, const Token& t )
     }else
     {
         Ref<Const> c = new Const();
-        c->d_val = e->d_items.count();
         c->d_name = t.d_val;
         c->d_loc = t.toRowCol();
-        c->d_type = e;
+        c->d_constExpr = new Literal(Literal::Enum,c->d_loc,e->d_items.count(),e);
+        // type and val are evaluated in Validator
+        if( e->d_decl )
+            c->d_visibility = e->d_decl->d_visibility;
         e->d_items.append(c);
+        scope->add(c.data());
     }
 }
 
@@ -1268,11 +1271,14 @@ Ref<Statement> Parser::forStatement(Scope* scope)
     {
         next();
         f->d_by = constExpression();
-    }else
+    }
+#if 0
+    else // done in validator
     {
         Ref<Literal> one = new Literal( Literal::Integer, d_next.toRowCol(), 1);
         f->d_by = one.data();
     }
+#endif
     MATCH( Tok_DO, tr("expecting the DO keyword") );
     f->d_do = statementSequence(scope);
     MATCH( Tok_END, tr("expecting a statement or closing END") );

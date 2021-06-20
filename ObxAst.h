@@ -583,7 +583,8 @@ namespace Obx
         enum { SET_BIT_LEN = 32 };
         typedef std::bitset<SET_BIT_LEN> SET;
 
-        enum ValueType { Invalid, Integer, Real, Boolean, String /* QBA utf8 */, Bytes /* QBA */, Char /* quint16 */, Nil, Set };
+        enum ValueType { Invalid, Integer, Real, Boolean, String /* QBA utf8 */, Bytes /* QBA */,
+                         Char /* quint16 */, Nil, Set, Enum };
         QVariant d_val;
         uint d_vtype : 8;
         uint d_strLen : 23;

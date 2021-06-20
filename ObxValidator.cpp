@@ -392,14 +392,16 @@ struct ValidatorImp : public AstVisitor
                 Parameter lhs;
                 lhs.d_var = true;
                 lhs.d_type = derefed(args->d_args.first()->d_type.data());
-                if( !isInteger( lhs.d_type.data() ) )
-                    error( args->d_args.first()->d_loc, Validator::tr("expecting integer argument"));
+                if( !isInteger( lhs.d_type.data() ) && lhs.d_type->getTag() != Thing::T_Enumeration )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting integer or enumeration argument"));
                 checkCallArg( &lhs, args->d_args[0] );
                 if( args->d_args.size() == 2 )
                 {
                     Parameter rhs;
                     rhs.d_type = derefed(args->d_args[1]->d_type.data());
-                    if( !isInteger( rhs.d_type.data() ) )
+                    if( lhs.d_type && lhs.d_type->getTag() == Thing::T_Enumeration )
+                        error( args->d_args[1]->d_loc, Validator::tr("cannot use second argument for enumeration types"));
+                    else if( !isInteger( rhs.d_type.data() ) )
                         error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
                     checkCallArg( &rhs, args->d_args[1] );
                 }
@@ -1224,6 +1226,8 @@ struct ValidatorImp : public AstVisitor
         const double d = me->d_val.toDouble();
         switch( me->d_vtype )
         {
+        case Literal::Enum:
+            break; // keep the Enumeration type
         case Literal::Integer:
             if( i >= 0 && i <= bt.d_byteType->maxVal().toInt() )
                 me->d_type = bt.d_byteType;
@@ -1854,22 +1858,31 @@ struct ValidatorImp : public AstVisitor
     void visit( ForLoop* me )
     {
         me->d_id->accept(this);
+        Type* enumType = 0;
         if( !me->d_from.isNull() )
         {
             me->d_from->accept(this);
-            if( me->d_from->d_type.isNull() || !isInteger(derefed(me->d_from->d_type.data())) )
-                error( me->d_from->d_loc, Validator::tr("expecting an integer as start value of the for loop"));
+            Type* td = derefed(me->d_from->d_type.data());
+            if( td && td->getTag() == Thing::T_Enumeration )
+                enumType = td;
+            if( td == 0 || !( isInteger(td) || enumType ) )
+                error( me->d_from->d_loc, Validator::tr("expecting an integer or enumeration as start value of the for loop"));
         }
         if( !me->d_to.isNull() )
         {
             me->d_to->accept(this);
-            if( !me->d_to->d_type.isNull() && !isInteger(derefed(me->d_to->d_type.data())) )
-                error( me->d_to->d_loc, Validator::tr("expecting an integer as end value of the for loop"));
+            Type* td = derefed(me->d_to->d_type.data());
+            if( td && td->getTag() == Thing::T_Enumeration && ( td != enumType || enumType == 0 ) )
+                error( me->d_to->d_loc, Validator::tr("must be of the same enumeration type as the start value"));
+            else if( td == 0 || !( isInteger(td) || enumType ) )
+                error( me->d_to->d_loc, Validator::tr("expecting an integer or enumeration as end value of the for loop"));
         }
         if( !me->d_by.isNull() )
         {
             me->d_by->accept(this);
-            if( !me->d_by->d_type.isNull() && !isInteger(derefed(me->d_by->d_type.data())) )
+            if( enumType )
+                error( me->d_by->d_loc, Validator::tr("BY not allowed when using enumerated start and end values"));
+            else if( !me->d_by->d_type.isNull() && !isInteger(derefed(me->d_by->d_type.data())) )
                 error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
             else
             {
@@ -1878,6 +1891,17 @@ struct ValidatorImp : public AstVisitor
                     error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
                 me->d_byVal = res.d_value;
             }
+        }else if( enumType )
+        {
+            Evaluator::Result from = Evaluator::eval(me->d_from.data(), mod, err);
+            Evaluator::Result to = Evaluator::eval(me->d_to.data(), mod, err);
+            const int val = from.d_value <= to.d_value ? 1 : -1;
+            me->d_by = new Literal( Literal::Integer, me->d_loc, val, enumType);
+            me->d_byVal = val;
+        }else
+        {
+            me->d_by = new Literal( Literal::Integer, me->d_loc, 1, bt.d_intType);
+            me->d_byVal = 1;
         }
         visitStats( me->d_do );
     }
