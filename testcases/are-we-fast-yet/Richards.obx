@@ -10,7 +10,7 @@
  
 module Richards
 
-	import B := Benchmark
+	import B := Benchmark, Out
 		
 	type 
 		Richards = pointer to record (B.Benchmark) end
@@ -24,10 +24,11 @@ module Richards
 	
 	proc (this: Richards) benchmark(): B.Result
 		var res: B.BoolResult
+			s : Scheduler
 	begin
-		// TODO (new Scheduler()).start()
+		new(s)
 	   new(res)
-	   res.res := false
+	   res.res := s.start()
 	   return res	
 	end benchmark
 		
@@ -38,27 +39,27 @@ module Richards
 
 	//////// RBObject //////////////////////
 	type
-		Kind* = ( IDLER, WORKER, HANDLER_A, HANDLER_B, DEVICE_A, DEVICE_B )
+		Destination* = ( IDLER, WORKER, HANDLER_A, HANDLER_B, DEVICE_A, DEVICE_B, NUM_TYPES )
 	
 		RBObject = pointer to record
 				end
-	
+					
 	proc (this: RBObject) append(packet, queueHead: Packet ): Packet
 		var mouse, link: Packet
 	begin
-    packet.link := NO_WORK
-    if NO_WORK = queueHead then
-      return packet
-    end
-    mouse := queueHead
-    link := mouse.link
-    
-    while NO_WORK # link do
-      mouse := link
+		packet.link := NO_WORK
+      if NO_WORK = queueHead then
+	      return packet
+      end
+      mouse := queueHead
       link := mouse.link
-    end
-    mouse.link := packet
-    return queueHead
+    
+      while NO_WORK # link do
+	      mouse := link
+	      link := mouse.link
+      end
+	   mouse.link := packet
+      return queueHead
 	end append
 	
 	//////// Packet //////////////////////
@@ -69,15 +70,15 @@ module Richards
 		
 		Packet = pointer to record (RBObject)
 					link : Packet
-					identity: integer
+					identity: Destination
 					kind : PacketKind
 					datum : integer
-					data : pointer to array of integer
+					data : array DATA_SIZE of integer
 				end
 				
-	var NO_WORK : Packet
+	const NO_WORK = nil // used for Packet
 		
-	proc createPacket( link: Packet; identity: integer; kind: PacketKind ): Packet
+	proc createPacket( link: Packet; identity: Destination; kind: PacketKind ): Packet
 		var p : Packet
 	begin
 		new(p)
@@ -87,9 +88,524 @@ module Richards
 		return p
 	end createPacket
 	
-	// TODO work in progress
-begin	
-	NO_WORK := nil
-	// TODO TaskControlBlock NO_TASK = null
+	//////// TaskState ////////////////////////
+	type
+		TaskState = pointer to record (RBObject)
+							packetPending, taskWaiting, taskHolding: boolean
+							end
+							
+	proc (this: TaskState) pending() // original name: packetPending
+	begin
+		this.packetPending := true
+		this.taskWaiting := false
+		this.taskHolding := false
+	end pending
+
+	proc (this: TaskState) running() 
+	begin
+		this.packetPending := false
+		this.taskWaiting := false
+		this.taskHolding := false
+	end running
+	
+	proc (this: TaskState) waiting() 
+	begin
+		this.packetPending := false
+		this.taskWaiting := true
+		this.taskHolding := false
+	end waiting
+	
+	proc (this: TaskState) waitingWithPacket() 
+	begin
+		this.packetPending := true
+		this.taskWaiting := true
+		this.taskHolding := false
+	end waitingWithPacket
 			
+	proc (this: TaskState) isRunning(): boolean
+		return ~this.packetPending & ~this.taskWaiting & ~this.taskHolding
+	end
+	
+	proc (this: TaskState) isTaskHoldingOrWaiting(): boolean
+		return this.taskHolding or (~this.packetPending & this.taskWaiting)
+	end
+	
+	proc (this: TaskState) isWaiting(): boolean
+		return ~this.packetPending & this.taskWaiting & ~this.taskHolding
+	end
+	
+	proc (this: TaskState) isWaitingWithPacket(): boolean
+		return this.packetPending & this.taskWaiting & ~this.taskHolding
+	end
+	
+	proc createPacketPending(): TaskState
+		var t : TaskState
+	begin
+		new(t)
+		t.pending()
+		return t
+	end createPacketPending
+
+	proc createRunning(): TaskState
+		var t : TaskState
+	begin
+		new(t)
+		t.running()
+		return t
+	end createRunning
+
+	proc createWaiting(): TaskState
+		var t : TaskState
+	begin
+		new(t)
+		t.waiting()
+		return t
+	end createWaiting
+
+	proc createWaitingWithPacket(): TaskState
+		var t : TaskState
+	begin
+		new(t)
+		t.waitingWithPacket()
+		return t
+	end createWaitingWithPacket
+			
+	///////// ProcessFunction /////////
+	type 
+		ProcessFunction = pointer to record end
+
+	proc (this: ProcessFunction) apply(work: Packet; word: RBObject): TaskControlBlock
+		return nil end
+		
+	///////// TaskControlBlock /////////
+	type 
+		TaskControlBlock = pointer to record (TaskState)
+											link : TaskControlBlock
+											identity: Destination
+											priority: integer
+											input: Packet
+											function : ProcessFunction
+											handle : RBObject
+										end
+										
+		const NO_TASK = nil
+																
+	proc createTaskControlBlock(aLink: TaskControlBlock; anIdentity: Destination; aPriority: integer;
+				anInitialWorkQueue: Packet; anInitialState: TaskState; aBlock: ProcessFunction;
+				aPrivateData: RBObject): TaskControlBlock
+		var t: TaskControlBlock
+	begin
+		new(t)
+		t.link := aLink
+		t.identity := anIdentity
+		t.priority := aPriority
+		t.input := anInitialWorkQueue
+		t.packetPending := anInitialState.packetPending
+		t.taskWaiting := anInitialState.taskWaiting
+		t.taskHolding := anInitialState.taskHolding
+		t.function := aBlock
+		t.handle := aPrivateData
+		return t
+	end createTaskControlBlock
+
+	proc (this: TaskControlBlock) addInputAndCheckPriority(packet: Packet; 
+				oldTask: TaskControlBlock ):TaskControlBlock
+	begin
+		if NO_WORK = this.input then
+			  this.input := packet
+			  this.packetPending := true
+			 if this.priority > oldTask.priority then
+				     return this
+			  end
+		else
+			  this.input := this.append(packet, this.input)
+		end
+		return oldTask
+	end addInputAndCheckPriority
+
+	proc (this: TaskControlBlock) runTask(): TaskControlBlock
+		 var message: Packet
+	begin
+		if this.isWaitingWithPacket() then
+			  message := this.input
+			  this.input := message.link
+			  if NO_WORK = this.input then
+					 this.running()
+			  else
+				    this.pending()
+			  end
+		else
+			  message := NO_WORK
+		end
+		return this.function.apply(message, this.handle)
+	end runTask
+		   
+	////// DeviceTaskDataRecord /////////////
+	type
+		DeviceTaskDataRecord = pointer to record (RBObject)
+												pending: Packet
+											end
+											
+	proc createDeviceTaskDataRecord():DeviceTaskDataRecord
+		var r: DeviceTaskDataRecord
+	begin
+		new(r) r.pending := NO_WORK
+		return r
+	end createDeviceTaskDataRecord
+			
+	////// HandlerTaskDataRecord /////////////
+	type
+		HandlerTaskDataRecord = pointer to record (RBObject)
+												workIn, deviceIn: Packet
+											end
+											
+	proc createHandlerTaskDataRecord():HandlerTaskDataRecord
+		var r: HandlerTaskDataRecord
+	begin
+		new(r); r.workIn := NO_WORK; r.deviceIn := NO_WORK
+		return r
+	end createHandlerTaskDataRecord
+			
+	proc (this: HandlerTaskDataRecord) deviceInAdd(packet: Packet)
+	begin
+		this.deviceIn := this.append(packet,this.deviceIn)
+	end deviceInAdd
+			
+	proc (this: HandlerTaskDataRecord) workInAdd(packet: Packet)
+	begin
+		this.workIn := this.append(packet,this.workIn)
+	end workInAdd
+			
+	////// DeviceTaskDataRecord /////////////
+	type
+		IdleTaskDataRecord = pointer to record (RBObject)
+											control, count: integer
+										end
+																		
+	proc createIdleTaskDataRecord():IdleTaskDataRecord
+		var r: IdleTaskDataRecord
+	begin
+		new(r); r.count := 10000; r.control := 1
+		return r
+	end createIdleTaskDataRecord
+			
+	////// WorkerTaskDataRecord /////////////
+	type
+		WorkerTaskDataRecord = pointer to record (RBObject)
+											count: integer
+											destination: Destination
+										end
+										
+	proc createWorkerTaskDataRecord():WorkerTaskDataRecord
+		var r: WorkerTaskDataRecord
+	begin
+		new(r); r.destination := HANDLER_A; r.count := 0
+		return r
+	end createWorkerTaskDataRecord
+
+	//////// Scheduler //////////////////////////
+	type
+		Scheduler = pointer to record (RBObject)
+							taskList, currentTask: TaskControlBlock
+							currentTaskIdentity: Destination
+							queuePacketCount, holdCount, layout: integer
+							taskTable: array ord(NUM_TYPES) of TaskControlBlock
+						end
+	var TRACING: boolean
+					
+	proc createScheduler(): Scheduler
+		var s: Scheduler
+			i: integer
+	begin
+		new(s)
+		s.layout := 0
+		s.queuePacketCount := 0
+		s.holdCount := 0
+		s.taskList := NO_TASK
+		for i := 0 to ord(NUM_TYPES)-1 do
+			s.taskTable[i] := NO_TASK // actually not necessary
+		end
+		return s
+	end createScheduler
+	
+   proc (this: Scheduler) createTask(identity: Destination; priority: integer;
+	      work: Packet; state: TaskState; aBlock: ProcessFunction; data: RBObject ) 
+		var t: TaskControlBlock
+	begin
+		t := createTaskControlBlock(this.taskList, identity,
+        priority, work, state, aBlock, data)
+	   this.taskList := t
+      this.taskTable[ord(identity)] := t 
+	end createTask
+  	
+	proc (this: Scheduler) createDevice(identity: Destination; priority: integer;
+	       workPacket: Packet; state: TaskState ) 
+	       
+       var data : DeviceTaskDataRecord
+       
+       type PF = pointer to record (ProcessFunction) s: Scheduler end 
+       
+		 proc (this: PF) apply(packet: Packet; wordArg: RBObject): TaskControlBlock
+			 var dataRecord: DeviceTaskDataRecord 
+				 functionWork: Packet
+		 begin
+			 dataRecord := wordArg(DeviceTaskDataRecord)
+			 functionWork := packet
+			 if NO_WORK = functionWork then
+				 functionWork := dataRecord.pending
+				 if NO_WORK = functionWork then
+					 return this.s.markWaiting()
+				 else
+					 dataRecord.pending := NO_WORK
+					 return this.s.queuePacket(functionWork)
+				 end
+			 else
+				 dataRecord.pending := functionWork
+	          if TRACING then
+	             this.s.trace(functionWork.datum)
+	          end
+             return this.s.holdSelf()
+ 			 end
+		 end apply
+		 
+       var func: PF
+   begin
+      data := createDeviceTaskDataRecord()
+      new(func)
+		func.s := this
+	   this.createTask(identity, priority, workPacket, state, func, data)
+	end createDevice
+  
+	proc (this: Scheduler) createHandler(identity: Destination; priority: integer;
+	       workPacket: Packet; state: TaskState )
+  
+       var data : HandlerTaskDataRecord
+       
+       type PF = pointer to record (ProcessFunction) s: Scheduler end 
+       
+		 proc (this: PF) apply(work: Packet; word: RBObject): TaskControlBlock 
+			 var dataRecord: HandlerTaskDataRecord
+				 workPacket, devicePacket: Packet
+				 count: integer
+		 begin
+			 dataRecord := word(HandlerTaskDataRecord)
+			 if NO_WORK # work then
+            if work.kind = WORK_PACKET_KIND then
+              dataRecord.workInAdd(work)
+            else
+              dataRecord.deviceInAdd(work)
+            end
+          end
+          
+          workPacket := dataRecord.workIn
+          if workPacket = NO_WORK then
+	          return this.s.markWaiting()
+	       else
+		       count := workPacket.datum
+		       if count >= DATA_SIZE then
+			       dataRecord.workIn := workPacket.link
+			       return this.s.queuePacket(workPacket)
+		       else
+			       devicePacket := dataRecord.deviceIn
+			       if devicePacket = NO_WORK then
+				       return this.s.markWaiting()
+				    else
+					    dataRecord.deviceIn := devicePacket.link
+	                devicePacket.datum := workPacket.data[count]
+	                workPacket.datum := count + 1
+	                return this.s.queuePacket(devicePacket)
+				    end
+		       end
+		    end
+		 end apply
+		 
+       var func: PF
+	begin
+      data := createHandlerTaskDataRecord()
+      new(func)
+		func.s := this
+	   this.createTask(identity, priority, workPacket, state, func, data);	
+	end createHandler
+
+	proc (this: Scheduler) createIdler(identity: Destination;priority: integer;
+	       workPacket: Packet; state: TaskState )
+	       
+		 var data: IdleTaskDataRecord
+		
+       type PF = pointer to record (ProcessFunction) s: Scheduler end 
+       
+		 proc (this: PF) apply(workArg: Packet; wordArg: RBObject): TaskControlBlock 
+			 var dataRecord: IdleTaskDataRecord
+		 begin
+			 dataRecord := wordArg(IdleTaskDataRecord) 
+			 dec(dataRecord.count)
+			 if dataRecord.count <= 0 then // original = 0
+	          return this.s.holdSelf()
+          else
+	          if 0 = bitand( dataRecord.control, 1 ) then
+	             dataRecord.control := dataRecord.control DIV 2
+	             return this.s.release(DEVICE_A)
+             else
+	             dataRecord.control := bitxor(dataRecord.control DIV 2, 53256) // control -1 ?
+	             return this.s.release(DEVICE_B)
+             end
+          end
+		 end apply
+		 
+       var func: PF
+	begin
+		data := createIdleTaskDataRecord()
+      new(func)
+		func.s := this
+	   this.createTask(identity, priority, workPacket, state, func, data);	
+	end createIdler
+
+	proc (this: Scheduler) createWorker(identity: Destination; priority: integer;
+	       workPacket: Packet; state: TaskState )
+		var dataRecord: WorkerTaskDataRecord
+		
+      type PF = pointer to record (ProcessFunction) s: Scheduler end 
+      
+		proc (this: PF) apply(packet: Packet; word: RBObject): TaskControlBlock 
+			var data: WorkerTaskDataRecord
+				i: integer
+		begin
+			data := word(WorkerTaskDataRecord) 
+			if NO_WORK = packet then
+				return this.s.markWaiting()
+			else
+				if HANDLER_A = data.destination then
+					data.destination := HANDLER_B
+				else
+					data.destination := HANDLER_A
+				end
+				packet.identity := data.destination
+				packet.datum := 0
+				for i := 0 to DATA_SIZE - 	1 do
+              inc(data.count)
+              if data.count > 26 then
+	              data.count := 1
+	           end
+              packet.data[i] := 65 + data.count - 1
+            end
+            return this.s.queuePacket(packet)
+			end
+		end apply
+		
+      var func: PF
+	begin
+		dataRecord := createWorkerTaskDataRecord()
+      new(func)
+		func.s := this
+	   this.createTask(identity, priority, workPacket, state, func, dataRecord);	
+	end createWorker      
+  
+  proc (this: Scheduler) start(): boolean
+    var workQ: Packet
+  begin
+    this.createIdler(IDLER, 0, NO_WORK, createRunning())
+    workQ := createPacket(NO_WORK, WORKER, WORK_PACKET_KIND)
+    workQ := createPacket(workQ,   WORKER, WORK_PACKET_KIND)
+
+    this.createWorker(WORKER, 1000, workQ, createWaitingWithPacket())
+    workQ := createPacket(NO_WORK, DEVICE_A, DEVICE_PACKET_KIND)
+    workQ := createPacket(workQ,   DEVICE_A, DEVICE_PACKET_KIND)
+    workQ := createPacket(workQ,   DEVICE_A, DEVICE_PACKET_KIND)
+
+    this.createHandler(HANDLER_A, 2000, workQ, createWaitingWithPacket())
+    workQ := createPacket(NO_WORK, DEVICE_B, DEVICE_PACKET_KIND)
+    workQ := createPacket(workQ, DEVICE_B, DEVICE_PACKET_KIND)
+    workQ := createPacket(workQ, DEVICE_B, DEVICE_PACKET_KIND)
+
+    this.createHandler(HANDLER_B, 3000, workQ, createWaitingWithPacket())
+    this.createDevice(DEVICE_A, 4000, NO_WORK, createWaiting())
+    this.createDevice(DEVICE_B, 5000, NO_WORK, createWaiting())
+
+    this.schedule()
+    return (this.queuePacketCount = 23246) & (this.holdCount = 9297)
+  end start
+  
+  proc (this: Scheduler) findTask(identity: Destination): TaskControlBlock
+	  var t: TaskControlBlock
+  begin
+    t := this.taskTable[ord(identity)];
+    if NO_TASK = t then
+	    assert(false) // findTask failed
+	 end
+    return t;
+  end findTask
+
+  proc (this: Scheduler) holdSelf(): TaskControlBlock
+  begin
+    inc(this.holdCount)
+    this.currentTask.taskHolding := true
+    return this.currentTask.link
+  end holdSelf
+
+  proc (this: Scheduler) queuePacket(packet: Packet ): TaskControlBlock
+	  var t: TaskControlBlock
+  begin
+    t := this.findTask(packet.identity)
+    if NO_TASK = t then
+	    return NO_TASK
+	 end
+    inc(this.queuePacketCount)
+    packet.link := NO_WORK
+    packet.identity := this.currentTaskIdentity
+    return t.addInputAndCheckPriority(packet, this.currentTask)
+  end queuePacket
+
+  proc (this: Scheduler) release(identity: Destination): TaskControlBlock
+	  var t: TaskControlBlock
+  begin
+    t := this.findTask(identity)
+    if NO_TASK = t then
+	    return NO_TASK
+	 end
+    t.taskHolding := false
+    if t.priority > this.currentTask.priority then
+      return t
+    else
+      return this.currentTask
+    end
+  end release
+
+  proc (this: Scheduler) trace(id: integer)
+  begin
+    dec(this.layout)
+    if 0 >= this.layout then
+      // Checkstyle: stop
+      Out.Ln
+      // Checkstyle: resume
+      this.layout := 50
+    end
+    // Checkstyle: stop
+    Out.Int(id,0)
+    // Checkstyle: resume
+  end trace
+
+  proc (this: Scheduler) markWaiting(): TaskControlBlock
+  begin
+    this.currentTask.taskWaiting := true
+    return this.currentTask
+  end markWaiting
+
+  proc (this: Scheduler) schedule()
+  begin
+    this.currentTask := this.taskList
+    while NO_TASK # this.currentTask do
+      if this.currentTask.isTaskHoldingOrWaiting() then
+        this.currentTask := this.currentTask.link
+      else
+        this.currentTaskIdentity := this.currentTask.identity
+        if TRACING then
+	        this.trace(ord(this.currentTaskIdentity))
+	     end
+        this.currentTask := this.currentTask.runTask()
+      end
+    end
+  end schedule
+  
+begin	
+	TRACING := false	
 end Richards

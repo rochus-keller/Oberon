@@ -23,7 +23,8 @@
  
 module Run
 	import B := Benchmark, Out, Input
-		Permute, Bounce, List, Mandelbrot, Queens, Sieve, Storage, Towers
+		Permute, Bounce, List, Mandelbrot, Queens, Sieve, Storage, Towers,
+		Richards
 	
 	type Run* = pointer to record
 								name : array 32 of char
@@ -61,6 +62,8 @@ module Run
 			return Storage.create()
 		elsif name = "Towers" then
 			return Towers.create()
+		elsif name = "Richards" then
+			return Richards.create()
 		end
 		// TODO
 		return nil

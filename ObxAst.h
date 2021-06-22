@@ -322,15 +322,17 @@ namespace Obx
         uint d_synthetic: 1;
         uint d_hasErrors : 1;
         uint d_liveTo : 20;
+        uint d_noBody : 1; // Procedure
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
             d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
             d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
-            d_hasErrors(0) {}
+            d_hasErrors(0),d_noBody(0) {}
         virtual QByteArray getName() const { return d_name; }
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
         Module* getModule();
+        QByteArrayList getQualifiedName() const;
         bool isPublic() const { return d_visibility == ReadWrite || d_visibility == ReadOnly; }
         const char* visibilitySymbol() const;
     };

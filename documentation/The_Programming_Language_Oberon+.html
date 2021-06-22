@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-06-19</span>
+      <span id="revdate">2021-06-22</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -916,10 +916,10 @@ fullSet = {min(set) .. max(set)}</pre>
         <div class="literalblock">
           <div class="title">Syntax:</div>
           <div class="content">
-            <pre>TypeDeclaration = identdef [TypeParams] '=' type
+            <pre>TypeDeclaration = identdef '=' type
 type            = NamedType | ArrayType | RecordType
                   | PointerType | ProcedureType | enumeration
-NamedType       = qualident [TypeActuals]</pre>
+NamedType       = qualident</pre>
           </div>
         </div>
         <div class="literalblock">
@@ -1710,10 +1710,11 @@ element          = expression ['..' expression]</pre>
             </table>
             <div class="paragraph">
               <p>Relations yield a BOOLEAN result. The relations <code>=</code>, <code>#</code>,
-                <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, and <code>&gt;=</code>                apply to the numeric types, as well as CHAR, strings, and CHAR arrays
-                containing <code>0x</code> as a terminator. The relations <code>=</code>                and <code>#</code> also apply to BOOLEAN and SET, as well as to pointer
-                and procedure types (including the value NIL). <code>x IN s</code>                stands for <em>x is an element of s</em>. <code>x</code> must be
-                of an integer type, and <code>s</code> of type SET. <code>v IS T</code>                stands for <em>the dynamic type of <code>v</code> is T (or an extension of T )</em>                and is called a type test. It is applicable if</p>
+                <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, and <code>&gt;=</code>                apply to the numeric types, as well as enumerations, CHAR, strings,
+                and CHAR arrays containing <code>0x</code> as a terminator. The relations
+                <code>=</code> and <code>#</code> also apply to BOOLEAN and SET,
+                as well as to pointer and procedure types (including the value NIL).
+                <code>x IN s</code> stands for <em>x is an element of s</em>. <code>x</code>                must be of an integer type, and <code>s</code> of type SET. <code>v IS T</code>                stands for <em>the dynamic type of <code>v</code> is T (or an extension of T )</em>                and is called a type test. It is applicable if</p>
             </div>
             <div class="olist arabic">
               <ol class="arabic">
@@ -2061,8 +2062,10 @@ end</pre>
           <h3 id="_for_statements">9.8. For statements</h3>
           <div class="paragraph">
             <p>A for statement specifies the repeated execution of a statement sequence
-              while a progression of values is assigned to an integer variable called
-              the control variable of the for statement.</p>
+              while a progression of values is assigned to a control variable of
+              the for statement. Control variables can be of integer or enumeration
+              types. An explicit BY expression is only supported for integer control
+              variables.</p>
           </div>
           <div class="literalblock">
             <div class="title">Syntax:</div>
@@ -2087,15 +2090,18 @@ end</pre>
             <div class="content">
               <pre>temp := last; v := first
 if step &gt; 0 then
-    while v &lt;= temp do statements; v := v + step end
+    while v &lt;= temp do statements; INC(v,step) end
 else
-    while v &gt;= temp do statements; v := v + step end
+    while v &gt;= temp do statements; DEC(v,-step) end
 end</pre>
             </div>
           </div>
           <div class="paragraph">
-            <p>temp has the same type as <code>v</code>. step must be a nonzero constant
-              expression. If step is not specified, it is assumed to be 1.</p>
+            <p>temp has the same type as <code>v</code>. For integer control variables,
+              step must be a nonzero constant expression; if step is not specified,
+              it is assumed to be 1. For enumeration control variables, there is
+              no explicit step, but the INC or DEC version of the while loop is used
+              depending on ORD(first) &#8656; ORD(last).</p>
           </div>
           <div class="literalblock">
             <div class="title">Examples:</div>
@@ -2238,9 +2244,8 @@ Guard         = qualident ':' qualident</pre>
             The latter are activated by a function designator as a constituent of
             an expression and yield a result that is an operand of the expression.
             Proper procedures are activated by a procedure call. A procedure is a
-            function procedure if its formal parameters specify a result type. The
-            body of a function procedure must contain a return statement which defines
-            its result.</p>
+            function procedure if its formal parameters specify a result type. Each
+            control path of a function procedure must return a value.</p>
         </div>
         <div class="paragraph">
           <p>All constants, variables, types, and procedures declared within a procedure
@@ -2253,6 +2258,11 @@ Guard         = qualident ':' qualident</pre>
             to constants, types and procedures declared in the environment of the
             procedure (unless shadowed by a local declaration), but don&#8217;t have
             access to the parameters or local variables of outer procedures.</p>
+        </div>
+        <div class="paragraph">
+          <p>A procedure body may have no statements in which case the ident after the
+            END keyword can also be left out; in a function procedure with no statements
+            a return statement with a default value is assumed.</p>
         </div>
         <div class="admonitionblock note">
           <table>
@@ -2275,13 +2285,12 @@ Guard         = qualident ':' qualident</pre>
           <div class="content">
             <pre>ProcedureDeclaration = ProcedureHeading [';']
                        ProcedureBody END [ ident ]
-ProcedureHeading     = ( PROCEDURE | PROC ) [ TypeParams ]
+ProcedureHeading     = ( PROCEDURE | PROC )
 					   [Receiver] identdef [ FormalParameters ]
 ProcedureBody        = DeclarationSequence
                        [ BEGIN StatementSequence
                        | ReturnStatement [';'] ]
-Receiver             = '(' [VAR] ident ':' ident
-                       [ TypeActuals ] ')'
+Receiver             = '(' [VAR] ident ':' ident ')'
 DeclarationSequence  = { CONST { ConstDeclaration [';'] }
 					   | TYPE { TypeDeclaration [';'] }
 					   | VAR { VariableDeclaration [';'] }
@@ -2407,9 +2416,9 @@ end log2</pre>
           <div class="literalblock">
             <div class="title">Syntax:</div>
             <div class="content">
-              <pre>ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ]
+              <pre>ProcedureHeading = ( PROCEDURE | PROC )
 				   [Receiver] identdef [ FormalParameters ]
-Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'</pre>
+Receiver         = '(' [VAR] ident ':' ident ')'</pre>
             </div>
           </div>
           <div class="paragraph">

@@ -107,6 +107,7 @@ import
 	
 	proc Test4()
 	begin
+	   H.run("Richards", 100, 1)
 	   H.run("Bounce", 1500, 1)
 	   H.run("List", 1500, 1)
 	   H.run("Mandelbrot", 500, 1)
@@ -122,5 +123,5 @@ begin
    // Test2()
    // Test3()
    Test4()
-   //H.run("Permute", 1000, 1)
+   //H.run("Richards", 100, 1)
 end Tester

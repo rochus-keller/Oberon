@@ -39,8 +39,9 @@ struct ValidatorImp : public AstVisitor
     QList<Level> levels;
     Type* curTypeDecl;
     Statement* prevStat;
+    bool returnValueFound;
 
-    ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0) {}
+    ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0),returnValueFound(false) {}
 
     //////// Scopes
 
@@ -196,8 +197,16 @@ struct ValidatorImp : public AstVisitor
     {
         levels.push_back(me);
         visitScope(me); // also handles formal parameters
-
+        returnValueFound = false;
         visitStats( me->d_body );
+        if( !mod->d_isDef && !me->d_noBody )
+        {
+            ProcType* pt = me->getProcType();
+            if( pt->d_return.isNull() && returnValueFound )
+                error( me->d_loc, Validator::tr("procedure is not expected to return a value"));
+            else if( !pt->d_return.isNull() && !returnValueFound )
+                error( me->d_loc, Validator::tr("procedure is expected to return a value"));
+        }
 
         levels.pop_back();
     }
@@ -444,6 +453,8 @@ struct ValidatorImp : public AstVisitor
                 b.d_type = bt.d_wcharType;
                 c.d_type = bt.d_setType;
                 d.d_type = derefed(args->d_args[0]->d_type.data());
+                if( d.d_type.isNull() )
+                    break; // already reported
                 e.d_type = bt.d_boolType;
                 if( d.d_type->getTag() == Thing::T_Pointer ||
                         d.d_type->getBaseType() == Type::REAL || d.d_type->getBaseType() == Type::LONGREAL )
@@ -964,6 +975,13 @@ struct ValidatorImp : public AstVisitor
                 return; // already reported
             // subType after points to array base type (which might be yet another array)
 
+            for( int i = 0; i < me->d_args.size(); i++ )
+            {
+                Type* td = derefed(me->d_args[i]->d_type.data());
+                if( !td->isInteger() )
+                    error( me->d_args[i]->d_loc, Validator::tr("expecting integer index") );
+            }
+
             if( me->d_args.size() > 1 )
             {
                 // Modify AST so that each IDX only has one dimension and me is the last element in the chain
@@ -1094,6 +1112,9 @@ struct ValidatorImp : public AstVisitor
         if( lhsT == 0 || rhsT == 0 )
             return;
 
+        const int ltag = lhsT->getTag();
+        const int rtag = rhsT->getTag();
+
         switch( me->d_op )
         {
         case BinExpr::Range: // int
@@ -1111,10 +1132,11 @@ struct ValidatorImp : public AstVisitor
                     ( isTextual(lhsT) && isTextual(rhsT) ) ||
                     ( lhsT == bt.d_boolType && rhsT == bt.d_boolType ) ||
                     ( lhsT == bt.d_setType && rhsT == bt.d_setType ) ||
-                    ( ( lhsT == bt.d_nilType || lhsT->getTag() == Thing::T_Pointer ) &&
-                      ( rhsT->getTag() == Thing::T_Pointer || rhsT == bt.d_nilType ) ) ||
-                    ( ( lhsT == bt.d_nilType || lhsT->getTag() == Thing::T_ProcType ) &&
-                      ( rhsT->getTag() == Thing::T_ProcType || rhsT == bt.d_nilType ) ) ||
+                    ( ltag == Thing::T_Enumeration && lhsT == rhsT ) ||
+                    ( ( lhsT == bt.d_nilType || ltag == Thing::T_Pointer ) &&
+                      ( rtag == Thing::T_Pointer || rhsT == bt.d_nilType ) ) ||
+                    ( ( lhsT == bt.d_nilType || ltag == Thing::T_ProcType ) &&
+                      ( rtag == Thing::T_ProcType || rhsT == bt.d_nilType ) ) ||
                     ( lhsT == bt.d_anyType && rhsT == bt.d_anyType ) ) // because of generics
                 me->d_type = bt.d_boolType;
             else
@@ -1129,6 +1151,7 @@ struct ValidatorImp : public AstVisitor
         case BinExpr::GT:
         case BinExpr::GEQ:
             if( ( isNumeric(lhsT) && isNumeric(rhsT) ) ||
+                    ( ltag == Thing::T_Enumeration && lhsT == rhsT ) ||
                     ( isTextual(lhsT) && isTextual(rhsT) ) )
                 me->d_type = bt.d_boolType;
             else
@@ -1660,6 +1683,7 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_what.isNull() )
         {
+            returnValueFound = true;
             me->d_what->accept(this);
             if( me->d_what->d_type.isNull() )
                 return;

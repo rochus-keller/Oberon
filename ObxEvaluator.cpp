@@ -485,7 +485,7 @@ struct EvalVisitor : public AstVisitor
             if( me->d_args.size() == 1 )
             {
                 me->d_args.first()->accept(this);
-                if( val.d_vtype == Literal::Char || val.d_vtype == Literal::Boolean )
+                if( val.d_vtype == Literal::Char || val.d_vtype == Literal::Boolean || val.d_vtype == Literal::Enum )
                 {
                     val.d_vtype = Literal::Integer;
                     return;

@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-06-20
+:revdate: 2021-06-22
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -341,10 +341,10 @@ A data type determines the set of values which variables of that type may assume
 
 .Syntax:
 ....
-TypeDeclaration = identdef [TypeParams] '=' type
+TypeDeclaration = identdef '=' type
 type            = NamedType | ArrayType | RecordType 
                   | PointerType | ProcedureType | enumeration
-NamedType       = qualident [TypeActuals]
+NamedType       = qualident
 ....
 
 .Examples:
@@ -962,11 +962,13 @@ with t: CenterTree do i := t.width; c := t.subnode end
 == Procedure declarations
 A procedure declaration consists of a procedure heading and a procedure body. The heading specifies the procedure identifier and the formal parameters (see <<Formal Parameters>>). For type-bound procedures it also specifies the receiver parameter. The body contains declarations and statements. The procedure identifier must be repeated at the end of the procedure declaration unless it has no body.
 
-There are two kinds of procedures: proper procedures and function procedures. The latter are activated by a function designator as a constituent of an expression and yield a result that is an operand of the expression. Proper procedures are activated by a procedure call. A procedure is a function procedure if its formal parameters specify a result type. The body of a function procedure must contain a return statement which defines its result.
+There are two kinds of procedures: proper procedures and function procedures. The latter are activated by a function designator as a constituent of an expression and yield a result that is an operand of the expression. Proper procedures are activated by a procedure call. A procedure is a function procedure if its formal parameters specify a result type. Each control path of a function procedure must return a value.
 
 All constants, variables, types, and procedures declared within a procedure body are local to the procedure. Since procedures may be declared as local objects too, procedure declarations may be nested. The call of a procedure within its declaration implies recursive activation.
 
 In case of nested procedure declarations, inner procedures have access to constants, types and procedures declared in the environment of the procedure (unless shadowed by a local declaration), but don't have access to the parameters or local variables of outer procedures. 
+
+A procedure body may have no statements in which case the ident after the END keyword can also be left out; in a function procedure with no statements a return statement with a default value is assumed.
 
 [NOTE]
 In Oberon 90 and Oberon-2 (in contrast to Oberon-07) the parameters and local variables of an outer procedure can be accessed from an inner procedure, but this features is a cause for considerably higher complexity of the compiler, with questionable added value, and can easily be worked around in practice. 
@@ -975,13 +977,12 @@ In Oberon 90 and Oberon-2 (in contrast to Oberon-07) the parameters and local va
 ....
 ProcedureDeclaration = ProcedureHeading [';'] 
                        ProcedureBody END [ ident ]
-ProcedureHeading     = ( PROCEDURE | PROC ) [ TypeParams ] 
+ProcedureHeading     = ( PROCEDURE | PROC ) 
 					   [Receiver] identdef [ FormalParameters ]
 ProcedureBody        = DeclarationSequence 
                        [ BEGIN StatementSequence
                        | ReturnStatement [';'] ]
-Receiver             = '(' [VAR] ident ':' ident 
-                       [ TypeActuals ] ')'
+Receiver             = '(' [VAR] ident ':' ident ')'
 DeclarationSequence  = { CONST { ConstDeclaration [';'] } 
 					   | TYPE { TypeDeclaration [';'] } 
 					   | VAR { VariableDeclaration [';'] } 
@@ -1053,9 +1054,9 @@ Procedures may be associated with a record type declared in the same scope. The 
 
 .Syntax:
 ....
-ProcedureHeading = ( PROCEDURE | PROC ) [ TypeParams ] 
+ProcedureHeading = ( PROCEDURE | PROC ) 
 				   [Receiver] identdef [ FormalParameters ]
-Receiver         = '(' [VAR] ident ':' ident [TypeActuals] ')'
+Receiver         = '(' [VAR] ident ':' ident ')'
 ....
 
 If a procedure P is bound to a type T0, it is implicitly also bound to any type T1 which is an extension of T0. However, a procedure P' (with the same name as P) may be explicitly bound to T1 in which case it overrides the binding of P. P' is considered a redefinition of P for T1. The formal parameter lists of P and P' must _match_ (see <<Definition of terms>>). Also the result types must _match_, or if P and P' both have pointer result types, then the result type of P' must be an _extension_ of the result type of P footnote:[this is called _covariance_, adopted with modifications from <<Om01>>]. If P and T1 are exported (see <<Declarations and scope rules>>) P' must be exported too.

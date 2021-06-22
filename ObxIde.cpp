@@ -2434,7 +2434,14 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
         }
         break;
     case Thing::T_Enumeration:
-        item->setText(1,"<enum>");
+        {
+            const int e = lua_tointeger(d_lua->getCtx(),-1);
+            Enumeration* et = cast<Enumeration*>(type);
+            if( e >= 0 && e < et->d_items.size() )
+                item->setText(1,et->d_items[e]->d_name);
+            else
+                item->setText(1,"<invalid enum value>");
+        }
         break;
     case Thing::T_ProcType:
         {
@@ -2613,8 +2620,13 @@ static QTreeWidgetItem* fillHierProc( T* parent, Procedure* p, Named* ref )
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
     Q_ASSERT( p->d_receiver && !p->d_receiver->d_type.isNull() );
     Q_ASSERT( p->d_receiver->d_type->getTag() == Thing::T_QualiType );
-    item->setText(0, QString("%1.%2").arg(p->getModule()->getName().constData())
-                  .arg(cast<QualiType*>(p->d_receiver->d_type.data())->d_quali->getIdent()->d_name.constData()));
+    QualiType* rqt = cast<QualiType*>(p->d_receiver->d_type.data());
+    Named* rid = rqt->d_quali->getIdent();
+    if( rid )
+        item->setText(0, rid->getQualifiedName().join('.'));
+    else
+        item->setText(0, QString("%1.%2").arg(p->getModule()->getName().constData())
+                      .arg(rqt->getQualiString().join('.').constData()));
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(p) ) );
     item->setIcon(0, QPixmap( p->d_visibility >= Named::ReadWrite ? ":/images/func.png" : ":/images/func_priv.png" ) );
     item->setToolTip(0,item->text(0));
@@ -2636,10 +2648,8 @@ static QTreeWidgetItem* fillHierClass( T* parent, Record* p, Record* ref )
 {
     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
     Named* name = p->findDecl(true);
-    Q_ASSERT( name != 0 );
-    Module* m = name->getModule();
-    if( m )
-        item->setText(0, QString("%1.%2").arg(m->getName().constData()).arg(name->d_name.constData()));
+    if( name )
+        item->setText(0, name->getQualifiedName().join('.') );
     else
         item->setText(0, name->d_name);
     item->setData(0, Qt::UserRole, QVariant::fromValue( NamedRef(name) ) );
@@ -2963,7 +2973,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.12");
+    a.setApplicationVersion("0.7.13");
     a.setStyle("Fusion");
 
     Ide w;

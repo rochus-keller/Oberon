@@ -32,8 +32,7 @@
 		
 	proc (this: Benchmark) benchmark(): Result end
 	
-	proc (this: Benchmark) verifyResult( result: Result ): boolean 
-		return false end
+	proc (this: Benchmark) verifyResult( result: Result ): boolean end
 	
 	proc (this: Benchmark) innerBenchmarkLoop*(innerIterations: integer): boolean
 		var i: integer

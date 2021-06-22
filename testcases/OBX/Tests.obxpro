@@ -14,9 +14,9 @@ size=0
 1\RelPath=Enum1.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported1b.obx
 2\RelPath=Imported1b.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported2b.obx
-3\RelPath=Imported2b.obx
-size=2
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/ProcType1.obx
+3\RelPath=ProcType1.obx
+size=3
 
 [Packages]
 1\Name=@ByteArray()

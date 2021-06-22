@@ -1707,6 +1707,7 @@ bool Parser::procedureBody(Procedure* p)
 #endif
     MATCH( Tok_END, tr("expecting a statement or closing END") );
     p->d_end = d_cur.toRowCol();
+    p->d_noBody = !hasBody;
     return hasBody;
 }
 

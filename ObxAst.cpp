@@ -631,6 +631,19 @@ Module* Named::getModule()
         return 0;
 }
 
+QByteArrayList Named::getQualifiedName() const
+{
+    QByteArrayList res;
+    res.append( d_name );
+    Named* scope = d_scope;
+    while( scope && !scope->d_name.isEmpty() )
+    {
+        res.prepend(scope->d_name);
+        scope = scope->d_scope;
+    }
+    return res;
+}
+
 const char*Named::visibilitySymbol() const
 {
     switch( d_visibility)
