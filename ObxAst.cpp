@@ -867,6 +867,19 @@ QList<Field*> Record::getOrderedFields() const
     return res;
 }
 
+Record*Record::findBySlot(int slot) const
+{
+    if( d_slot == slot )
+        return const_cast<Record*>(this);
+    for( int i = 0; i < d_subRecs.size(); i++ )
+    {
+        Record* r = d_subRecs[i]->findBySlot(slot);
+        if( r )
+            return r;
+    }
+    return 0;
+}
+
 bool Array::hasByteSize() const
 {
     if( d_lenExpr.isNull() )

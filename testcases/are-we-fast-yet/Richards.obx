@@ -1,5 +1,5 @@
 (*
- * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (migrated to Oberon+)
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
  *
  * This benchmark is derived from Mario Wolczko's Java and Smalltalk version of
  * Richards.
@@ -174,8 +174,7 @@ module Richards
 	type 
 		ProcessFunction = pointer to record end
 
-	proc (this: ProcessFunction) apply(work: Packet; word: RBObject): TaskControlBlock
-		return nil end
+	proc (this: ProcessFunction) apply(work: Packet; word: RBObject): TaskControlBlock end
 		
 	///////// TaskControlBlock /////////
 	type 

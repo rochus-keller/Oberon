@@ -649,8 +649,15 @@ struct ValidatorImp : public AstVisitor
     {
         Type* tf = derefed(formal->d_type.data());
         Type* ta = derefed(actual->d_type.data());
-        if( tf == 0 || ta == 0 )
+        if( tf == 0 )
             return; // error already handled
+
+        if( ta == 0 )
+        {
+            // happens when e.g. a procedure with no return type is used as an argument
+            error( actual->d_loc, Validator::tr("this expression cannot be used as actual parameter"));
+            return;
+        }
 
         const int tftag = tf->getTag();
         Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
@@ -978,7 +985,7 @@ struct ValidatorImp : public AstVisitor
             for( int i = 0; i < me->d_args.size(); i++ )
             {
                 Type* td = derefed(me->d_args[i]->d_type.data());
-                if( !td->isInteger() )
+                if( td && !td->isInteger() )
                     error( me->d_args[i]->d_loc, Validator::tr("expecting integer index") );
             }
 
@@ -1129,7 +1136,7 @@ struct ValidatorImp : public AstVisitor
         case BinExpr::EQ:
         case BinExpr::NEQ:
             if( ( isNumeric(lhsT) && isNumeric(rhsT) ) ||
-                    ( isTextual(lhsT) && isTextual(rhsT) ) ||
+                    ( isTextual(lhsT) && isTextual(rhsT) ) || // cannot compare pointer to array with string
                     ( lhsT == bt.d_boolType && rhsT == bt.d_boolType ) ||
                     ( lhsT == bt.d_setType && rhsT == bt.d_setType ) ||
                     ( ltag == Thing::T_Enumeration && lhsT == rhsT ) ||
@@ -1183,8 +1190,9 @@ struct ValidatorImp : public AstVisitor
             else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
-            else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT)) && (rhsT = isTextual(rhsT)) )
+            else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT,true)) && (rhsT = isTextual(rhsT,true)) )
             {
+                // TODO: add deref op in case of pointer to array
                 if( includes(lhsT,rhsT) ) // allow concat of mixed latin/unicode strings
                     me->d_type = me->d_lhs->d_type;
                 else
@@ -2230,11 +2238,11 @@ struct ValidatorImp : public AstVisitor
             return 0;
     }
 
-    inline Type* isTextual( Type* t ) const
+    inline Type* isTextual( Type* t, bool resolvePointer = false ) const
     {
         if( t && ( t->isChar() || t->isString() ) )
             return t;
-        return charArrayType(t);
+        return charArrayType(t, resolvePointer);
     }
 
     inline bool isCharConst( Expression* e ) const

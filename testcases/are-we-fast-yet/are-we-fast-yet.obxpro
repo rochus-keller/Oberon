@@ -36,6 +36,10 @@ size=5
 12\RelPath=Towers.obx
 13\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Richards.obx
 13\RelPath=Richards.obx
+14\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Json.obx
+14\RelPath=Json.obx
+15\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/NBody.obx
+15\RelPath=NBody.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Benchmark.obx
 2\RelPath=Benchmark.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Harness.obx
@@ -52,7 +56,7 @@ size=5
 8\RelPath=Mandelbrot.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Queens.obx
 9\RelPath=Queens.obx
-size=13
+size=15
 
 [Packages]
 1\Name=@ByteArray()

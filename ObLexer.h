@@ -58,6 +58,7 @@ namespace Ob
         static bool skipBom( QIODevice* );
         static bool isUtf8(const QByteArray& str);
         static bool isAscii( const QByteArray& str );
+        static bool isValidIdent( const QByteArray& str );
     protected:
         Token nextTokenImp();
         int skipWhiteSpace();

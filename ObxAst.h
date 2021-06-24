@@ -186,17 +186,14 @@ namespace Obx
         Type* d_binding; // points back to pointer or array type in case of anonymous type
 
         uint d_baseType : 4;    // used by BaseType
-        uint d_selfRef : 1; // used by QualiType
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
 
         Ref<Expression> d_flag; // optional system flag
 
-        Type():d_decl(0),d_binding(0),d_baseType(0),d_selfRef(false),
-            d_unsafe(false),d_union(false) {}
+        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
-        virtual bool isSelfRef() const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
         virtual bool hasByteSize() const { return true; }
@@ -269,6 +266,7 @@ namespace Obx
         Named* find(const QByteArray& name , bool recursive) const;
         QString pretty() const { return "RECORD"; }
         QList<Field*> getOrderedFields() const;
+        Record* findBySlot(int) const;
     };
 
     struct ProcType : public Type
@@ -298,7 +296,6 @@ namespace Obx
         QualiType(){}
         ModItem getQuali() const;
         QByteArrayList getQualiString() const;
-        bool isSelfRef() const { return d_selfRef; }
         int getTag() const { return T_QualiType; }
         bool hasByteSize() const;
         void accept(AstVisitor* v) { v->visit(this); }

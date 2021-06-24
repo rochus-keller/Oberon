@@ -1,6 +1,6 @@
 (* This code is derived from the SOM benchmarks, see AUTHORS.md file.
  *
- * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the 'Software'), to deal
@@ -24,7 +24,7 @@
 module Run
 	import B := Benchmark, Out, Input
 		Permute, Bounce, List, Mandelbrot, Queens, Sieve, Storage, Towers,
-		Richards
+		Richards, Json, NBody
 	
 	type Run* = pointer to record
 								name : array 32 of char
@@ -64,6 +64,10 @@ module Run
 			return Towers.create()
 		elsif name = "Richards" then
 			return Richards.create()
+		elsif name = "Json" then
+			return Json.create()
+		elsif name = "NBody" then
+			return NBody.create()
 		end
 		// TODO
 		return nil

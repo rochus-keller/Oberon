@@ -135,6 +135,7 @@ namespace Obx
         void onOakwood();
         void onObSysInner();
         void onAddFiles();
+        void onNewModule();
         void onAddDir();
         void onRemoveFile();
         void onRemoveDir();

@@ -1,5 +1,5 @@
 (* 
- * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch>
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the 'Software'), to deal
@@ -105,23 +105,27 @@ import
 		println("Test3 done")
 	end Test3
 	
-	proc Test4()
+	proc RunAll()
 	begin
 	   H.run("Richards", 100, 1)
+	   H.run("Json", 100, 1)
 	   H.run("Bounce", 1500, 1)
 	   H.run("List", 1500, 1)
 	   H.run("Mandelbrot", 500, 1)
+	   H.run("NBody", 250000, 1)
 	   H.run("Permute", 1000, 1)
 	   H.run("Queens", 1000, 1)
 	   H.run("Sieve", 3000, 1)
 	   H.run("Storage", 1000, 1)
 	   H.run("Towers", 600, 1)
-	end Test4
-	
+	end RunAll
+	var str : pointer to array of char
+	const l = len("12345")
 begin
    // TestVector()
    // Test2()
    // Test3()
-   Test4()
-   //H.run("Richards", 100, 1)
+   // RunAll()
+   //H.run("NBody", 250000, 1)
+   println(l)
 end Tester

@@ -286,16 +286,7 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
 
     nt->d_type = type(scope, nt.data(), 0);
 
-    if( !nt->d_type.isNull() )
-    {
-        if( nt->d_type->isSelfRef() )
-            semanticError(nt->d_loc,tr("recursive type definition"));
-
-        // NOTE: check SelfRefs when type is set. If type is pointer or procedure then there is only
-        // an issue when X = POINTER TO X, but not X = POINTER TO RECORD x: X; END.
-        // If type is not a pointer, then X = RECORD x: X; END is an error.
-        // The following cases are already checked: X = X or X = RECORD(X)
-    }
+    // self reference is now checked in validator
     return nt;
 }
 

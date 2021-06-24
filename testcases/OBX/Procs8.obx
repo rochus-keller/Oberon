@@ -1,0 +1,19 @@
+module Procs8
+
+	proc test(ch: char)
+	begin
+		println(ch)
+	end test
+	
+	proc test2():char
+	begin
+		return "A"
+	end test2
+	
+	var ch: char
+begin
+	trap()
+	ch := test2()
+	test(41x)
+	test("B")
+end Procs8

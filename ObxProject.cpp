@@ -904,9 +904,14 @@ bool Project::removeImportPath(const QByteArrayList& importPath)
 
 Project::FileGroup Project::getRootModules() const
 {
+    return getFiles(QByteArrayList());
+}
+
+Project::FileGroup Project::getFiles(const QByteArrayList& path) const
+{
     for( int i = 0; i < d_dirs.size(); i++ )
     {
-        if( d_dirs[i].d_importPath.isEmpty() )
+        if( d_dirs[i].d_importPath == path )
             return d_dirs[i];
     }
     return FileGroup();

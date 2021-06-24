@@ -728,3 +728,22 @@ bool Lexer::isAscii(const QByteArray& str)
     }
     return true;
 }
+
+bool Lexer::isValidIdent(const QByteArray& str)
+{
+    if( str.isEmpty() || !isAscii(str) )
+        return false;
+
+    if( !(::isalpha(str[0]) || str[0] == '_') )
+        return false;
+    for( int i = 1; i < str.size(); i++ )
+    {
+        if( !::isalnum(str[i]) && str[i] != '_')
+            return false;
+    }
+    if( isAllLowerCase(str) && tokenTypeFromString( str.toUpper() ) != Tok_Invalid )
+        return false;
+    if( tokenTypeFromString( str ) != Tok_Invalid )
+        return false;
+    return true;
+}

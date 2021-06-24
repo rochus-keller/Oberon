@@ -453,7 +453,7 @@ struct EvalVisitor : public AstVisitor
                         me->d_args.first()->accept(this);
                         if( val.d_vtype == Literal::String )
                         {
-                            val.d_value = QString::fromUtf8(val.d_value.toByteArray()).size();
+                            val.d_value = QString::fromUtf8(val.d_value.toByteArray()).size() + 1; // including \0
                             val.d_vtype = Literal::Integer;
                             return;
                         }

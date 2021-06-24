@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-06-22
+:revdate: 2021-06-25
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -1124,7 +1124,7 @@ The following table lists the predeclared procedures. Some are generic procedure
 |FLT(x)      |INTEGER              |REAL           |identity
 |LEN(v, n)   |v: array n: integer  |INTEGER        |length of v in dimension n (first dimension = 0)
 |LEN(v)      |v: array             |INTEGER        |equivalent to LEN(v, 0)
-|            |v: string            |INTEGER        |length of string (up to but without the first 0X)
+|            |v: string            |INTEGER        |length of string (including the terminating 0X)
 |LONG(x)     |x: SHORTINT          |INTEGER        |identity
 |            |x: INTEGER           |LONGINT		   |
 |            |x: REAL              |LONGREAL	   |
@@ -1153,8 +1153,8 @@ The following table lists the predeclared procedures. Some are generic procedure
 |            |x: WCHAR			   |CHAR		   |projection (0x if there is no projection)
 |			 |x: array of wchar or Unicode string | Latin-1 string | projection ("?" for characters where there is no projection)
 |BYTESIZE(T) |any type             |INTEGER        |number of bytes required by T
-|STRLEN(s)   |s: array of char     |INTEGER        |dynamic length of the string up to and not including the first 0X
-|            |s: string            |               |same as LEN(s)
+|STRLEN(s)   |s: array of char     |INTEGER        |dynamic length of the string up to and not including the terminating 0X
+|            |s: string            |               |
 |VAL(T,x)	 |T:enumeration type x:ordinal number|enumeration type|the value with the ordinal number x.
 |WCHR(x)      |integer type        |WCHAR          |Unicode BMP character with ordinal number x
 |===  

@@ -137,6 +137,7 @@ public:
         d_hl->addBuiltIn("BITXOR");
         d_hl->addBuiltIn("BITNOT");
         d_hl->addBuiltIn("ANYREC");
+        d_hl->addBuiltIn("STRLEN");
     }
 
     void clearBackHisto()
@@ -295,6 +296,7 @@ public:
 
     void onUpdateModel()
     {
+        markNonTerms(Editor::ExList());
 #if 0 // TODO
         d_ide->compile();
         if( !d_nonTerms.isEmpty() && !d_pro->getErrs()->getErrors().isEmpty() )
@@ -776,7 +778,8 @@ void Ide::createMenu()
     pop->addCommand( "Save Project", this, SLOT(onSavePro()), tr("CTRL+SHIFT+S"), false );
     pop->addCommand( "Save Project as...", this, SLOT(onSaveAs()) );
     pop->addSeparator();
-    pop->addCommand( "Add Modules...", this, SLOT(onAddFiles()) );
+    pop->addCommand( "New Module...", this, SLOT(onNewModule()), tr("CTRL+SHIFT+N"), false );
+    pop->addCommand( "Add existing Modules...", this, SLOT(onAddFiles()) );
     pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
     pop->addCommand( "Export minimized Module...", this, SLOT(onExpMod()) );
     pop->addSeparator();
@@ -795,6 +798,7 @@ void Ide::createMenu()
 
     new Gui::AutoShortcut( tr("CTRL+O"), this, this, SLOT(onOpenPro()) );
     new Gui::AutoShortcut( tr("CTRL+N"), this, this, SLOT(onNewPro()) );
+    new Gui::AutoShortcut( tr("CTRL+SHIFT+N"), this, this, SLOT(onNewModule()) );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+S"), this, this, SLOT(onSavePro()) );
     new Gui::AutoShortcut( tr("CTRL+S"), this, this, SLOT(onSaveFile()) );
     new Gui::AutoShortcut( tr("CTRL+R"), this, this, SLOT(onRun()) );
@@ -846,7 +850,8 @@ void Ide::createMenuBar()
     pop->addAutoCommand( "Set Indentation Level...", SLOT(handleSetIndent()) );
 
     pop = new Gui::AutoMenu( tr("Project"), this );
-    pop->addCommand( "Add Modules...", this, SLOT(onAddFiles()) );
+    pop->addCommand( "New Module...", this, SLOT(onNewModule()), tr("CTRL+SHIFT+N"), false );
+    pop->addCommand( "Add existing Modules...", this, SLOT(onAddFiles()) );
     pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
@@ -1421,6 +1426,68 @@ void Ide::onAddFiles()
         if( !d_pro->addFile(f,path) )
             qWarning() << "cannot add module" << f;
     }
+    compile();
+}
+
+void Ide::onNewModule()
+{
+    ENABLED_IF(true);
+
+    QByteArrayList path;
+
+    QList<QTreeWidgetItem*> sel = d_mods->selectedItems();
+    if( sel.size() == 1 && sel.first()->type() == 1 )
+        path = sel.first()->text(0).toLatin1().split('.');
+
+    const QByteArray name = QInputDialog::getText(this,tr("New Module"), tr("Enter a unique module name:") ).toLatin1();
+    if( name.isEmpty() )
+        return;
+
+    if( !Lexer::isValidIdent(name) )
+    {
+        QMessageBox::critical(this,tr("New Module"), tr("'%1' is not a valid module name").arg(name.constData()) );
+        return;
+    }
+    QDir dir;
+    Project::FileGroup fg = d_pro->getFiles(path);
+    for( int i = 0; i < fg.d_files.size(); i++ )
+    {
+        if( i == 0 )
+            dir = fg.d_files[i]->d_filePath;
+        if( !fg.d_files[i]->d_mod.isNull() && fg.d_files[i]->d_mod->d_name == name )
+        {
+            QString where;
+            if( !path.isEmpty() )
+                where = " in " + path.join('.');
+            QMessageBox::critical(this,tr("New Module"), tr("'%1' is not unique%2")
+                                  .arg(name.constData()).arg(where) );
+            return;
+        }
+    }
+
+    QString filePath = QFileDialog::getSaveFileName(this,tr("New Module"), dir.absoluteFilePath(name + ".obx"),"*.obx");
+    if( filePath.isEmpty() )
+        return;
+
+    if( !filePath.toLower().endsWith(".obx") )
+        filePath += ".obx";
+
+    QFile f(filePath);
+    if( !f.open(QIODevice::WriteOnly) )
+    {
+        QMessageBox::critical(this,tr("New Module"), tr("Cannot open file for writing: '%1'").arg(filePath) );
+        return;
+    }
+    f.write("module ");
+    f.write(name);
+    f.write("\n\n\n");
+    f.write("end ");
+    f.write(name);
+    f.write("\n");
+    f.close();
+
+    if( !d_pro->addFile(filePath,path) )
+        qWarning() << "cannot add module" << filePath;
     compile();
 }
 
@@ -2266,6 +2333,19 @@ static inline void createArrayElems( QTreeWidgetItem* parent, const void* ptr,
     }
 }
 
+static QString nameOf( Record* r, bool frame = false )
+{
+    QString name;
+    Named* decl = r->findDecl();
+    if( decl )
+        name = decl->d_name;
+    else if( frame )
+        name = "<record>";
+    else
+        name = "record";
+    return name;
+}
+
 void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
 {
     static const int numOfFetchedElems = 50;
@@ -2273,29 +2353,21 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
 
     if( depth > numOfLevels )
         return;
-
+    lua_State* L = d_lua->getCtx();
     type = derefed(type);
     Q_ASSERT( type );
     int tag = type->getTag();
-    if( tag == Thing::T_Pointer || tag == Thing::T_ProcType )
+    if( tag == Thing::T_Pointer )
     {
-        if( lua_isnil( d_lua->getCtx(), -1 ) )
-        {
-            item->setText(1,"nil");
-            return;
-        }
-        if( tag == Thing::T_Pointer )
-        {
-            type = derefed(cast<Pointer*>(type)->d_to.data());
-            tag = type->getTag();
-        }
+        type = derefed(cast<Pointer*>(type)->d_to.data());
+        tag = type->getTag();
     }
     if( tag == Thing::T_BaseType )
     {
         switch( type->getBaseType() )
         {
         case Type::BOOLEAN:
-            if( lua_toboolean(d_lua->getCtx(), -1) )
+            if( lua_toboolean(L, -1) )
                 item->setText(1,"true");
             else
                 item->setText(1,"false");
@@ -2303,28 +2375,28 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
         case Type::CHAR:
         case Type::WCHAR:
             {
-                const ushort uc = lua_tointeger(d_lua->getCtx(),-1);
+                const ushort uc = lua_tointeger(L,-1);
                 const QString ch = QChar( uc );
                 item->setText(1,QString("'%1' %2x").arg(ch.simplified()).arg(uc,0,16));
             }
             return;
         case Type::BYTE:
-            item->setText(1,QString("%1h").arg(lua_tointeger(d_lua->getCtx(),-1),0,16));
+            item->setText(1,QString("%1h").arg(lua_tointeger(L,-1),0,16));
             return;
         case Type::SHORTINT:
         case Type::INTEGER:
         case Type::LONGINT:
-            item->setText(1,QString::number(lua_tointeger(d_lua->getCtx(),-1)));
+            item->setText(1,QString::number(lua_tointeger(L,-1)));
             return;
         case Type::REAL:
         case Type::LONGREAL:
-            item->setText(1,QString::number(lua_tonumber(d_lua->getCtx(),-1)));
+            item->setText(1,QString::number(lua_tonumber(L,-1)));
             return;
         case Type::SET:
-            item->setText(1,QString("{%1}").arg((quint32)lua_tointeger(d_lua->getCtx(),-1),32,2,QChar('0')));
+            item->setText(1,QString("{%1}").arg((quint32)lua_tointeger(L,-1),32,2,QChar('0')));
             return;
         case Type::ANY:
-            item->setText(1,QString("<any> %1").arg(lua_tostring(d_lua->getCtx(),-1)));
+            item->setText(1,QString("<any> %1").arg(lua_tostring(L,-1)));
             return;
         case Type::NIL:
         case Type::STRING:
@@ -2340,11 +2412,13 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             Array* a = cast<Array*>(type);
             Type* at = derefed(a->d_type.data());
             Q_ASSERT( at );
-            const int arr = lua_gettop(d_lua->getCtx());
-            const int luatype = lua_type(d_lua->getCtx(), arr );
-            if( luatype == 10 ) // cdata
+            const int arr = lua_gettop(L);
+            const int luatype = lua_type(L, arr );
+            if( luatype == LUA_TNIL )
+                item->setText(1, QString("nil") );
+            else if( luatype == 10 ) // cdata
             {
-                const void* ptr = lua_topointer(d_lua->getCtx(), -1);
+                const void* ptr = lua_topointer(L, -1);
                 if( at->isChar() )
                 {
                     QString str;
@@ -2372,12 +2446,12 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                     item->setText(1,QString("\"%1\"").arg(str));
                 }else
                 {
-                    lua_getglobal(d_lua->getCtx(), "obxlj");
-                    lua_rawgeti(d_lua->getCtx(), -1, 26 ); // bytesize
-                    lua_pushvalue( d_lua->getCtx(), arr );
-                    lua_pcall( d_lua->getCtx(), 1, 1, 0 );
-                    const int bytesize = lua_tointeger( d_lua->getCtx(), -1 );
-                    lua_pop( d_lua->getCtx(), 2 ); // obxlj, count
+                    lua_getglobal(L, "obxlj");
+                    lua_rawgeti(L, -1, 26 ); // bytesize
+                    lua_pushvalue( L, arr );
+                    lua_pcall( L, 1, 1, 0 );
+                    const int bytesize = lua_tointeger( L, -1 );
+                    lua_pop( L, 2 ); // obxlj, count
                     switch( at->getBaseType() )
                     {
                     case Type::BOOLEAN:
@@ -2411,31 +2485,29 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                         break;
                     }
                 }
-            }else if( luatype == LUA_TNIL )
-                item->setText(1, QString("nil") );
-            else if( luatype != LUA_TTABLE )
+            }else if( luatype != LUA_TTABLE )
             {
-                item->setText(1, QString("<invalid array> %1").arg(lua_tostring(d_lua->getCtx(), arr) ) );
+                item->setText(1, QString("<invalid array> %1").arg(lua_tostring(L, arr) ) );
             }else
             {
-                lua_getfield( d_lua->getCtx(), arr, "count" );
-                const int count = lua_tointeger( d_lua->getCtx(), -1 );
-                lua_pop( d_lua->getCtx(), 1 );
+                lua_getfield( L, arr, "count" );
+                const int count = lua_tointeger( L, -1 );
+                lua_pop( L, 1 );
                 item->setText(1, QString("<array length %1>").arg(count) );
                 for( int i = 0; i < qMin(count,numOfFetchedElems); i++ )
                 {
                     QTreeWidgetItem* sub = new QTreeWidgetItem(item);
                     sub->setText(0,QString::number(i));
-                    lua_rawgeti( d_lua->getCtx(), arr, i );
+                    lua_rawgeti( L, arr, i );
                     printLocalVal(sub,at,depth+1);
-                    lua_pop( d_lua->getCtx(), 1 );
+                    lua_pop( L, 1 );
                 }
             }
         }
         break;
     case Thing::T_Enumeration:
         {
-            const int e = lua_tointeger(d_lua->getCtx(),-1);
+            const int e = lua_tointeger(L,-1);
             Enumeration* et = cast<Enumeration*>(type);
             if( e >= 0 && e < et->d_items.size() )
                 item->setText(1,et->d_items[e]->d_name);
@@ -2444,36 +2516,58 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
         }
         break;
     case Thing::T_ProcType:
+        if( lua_isnil( L, -1 ) )
+            item->setText(1,"nil");
+        else
         {
-            const void* ptr = lua_topointer(d_lua->getCtx(), -1);
+            const void* ptr = lua_topointer(L, -1);
 #if Q_PROCESSOR_WORDSIZE == 4
             const quint32 ptr2 = (quint32)ptr;
 #else
             const quint64 ptr2 = (quint64)ptr;
 #endif
-            item->setText(1,QString("proc 0x%1").arg(ptr2,0,16));
+            item->setText(1,QString("<proc 0x%1>").arg(ptr2,0,16));
         }
         break;
     case Thing::T_Record:
         {
-            const int rec = lua_gettop(d_lua->getCtx());
-            item->setText(1,"<record>");
+            const int rec = lua_gettop(L);
             Record* r = cast<Record*>(type);
-            QList<Field*> fs = r->getOrderedFields();
-            const int type = lua_type( d_lua->getCtx(), rec );
-            if( type != LUA_TTABLE )
+            const int type = lua_type( L, rec );
+            if( type == LUA_TNIL )
             {
-                item->setText(1,"<invalid record>");
+                item->setText(1,"nil");
+                break;
+            }else if( type != LUA_TTABLE )
+            {
+                item->setText(1,tr("<invalid %1>").arg(nameOf(r)));
                 qWarning() << "wrong type, expecting table, got type" << type;
                 break;
             }
+            if( !r->d_subRecs.isEmpty() )
+            {
+                // look for the dynamic type
+                if( lua_getmetatable(L,rec) )
+                {
+                    lua_getfield(L, -1, "@cls");
+                    if( !lua_isnil( L, -1 ) )
+                    {
+                        Record* rd = r->findBySlot( lua_tointeger(L, -1) );
+                        if( rd )
+                            r = rd;
+                    }
+                    lua_pop(L,2); // meta + field
+                }
+            }
+            item->setText(1,nameOf(r,true));
+            QList<Field*> fs = r->getOrderedFields();
             foreach( Field* f, fs )
             {
                 QTreeWidgetItem* sub = new QTreeWidgetItem(item);
                 sub->setText(0,f->d_name);
-                lua_rawgeti( d_lua->getCtx(), rec, f->d_slot );
+                lua_rawgeti( L, rec, f->d_slot );
                 printLocalVal(sub,derefed(f->d_type.data()),depth+1);
-                lua_pop( d_lua->getCtx(), 1 );
+                lua_pop( L, 1 );
             }
         }
         break;
@@ -2973,7 +3067,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.13");
+    a.setApplicationVersion("0.7.14");
     a.setStyle("Fusion");
 
     Ide w;

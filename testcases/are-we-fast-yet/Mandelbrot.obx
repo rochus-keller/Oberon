@@ -1,6 +1,6 @@
 (* This code is derived from the SOM benchmarks, see AUTHORS.md file.
  *
- * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (migrated to Oberon+)
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
  *
 // Copyright (C) 2004-2013 Brent Fulgham
 //

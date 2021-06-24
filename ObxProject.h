@@ -94,6 +94,7 @@ namespace Obx
         const FileHash& getFiles() const { return d_files; }
         const ImportPaths& getImportPaths() const { return d_dirs; }
         FileGroup getRootModules() const;
+        FileGroup getFiles( const QByteArrayList& path ) const;
         bool isDirty() const { return d_dirty; }
         FileList getFilesInExecOrder() const;
         Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col ) const;

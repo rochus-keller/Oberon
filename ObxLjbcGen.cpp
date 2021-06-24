@@ -298,6 +298,11 @@ struct ObxLjbcGenImp : public AstVisitor
 
         // make Module table a global variable
         bc.GSET( modSlot, me->getName(), me->d_end.packed() );
+        int tmp = ctx.back().buySlots(1);
+        // save the module path in the module table
+        bc.KSET(tmp, me->getName(), me->d_end.packed() );
+        bc.TSET(tmp,modSlot,"@mod", me->d_end.packed() );
+        ctx.back().sellSlots(tmp);
 
         // the module body is in a synthetic procedure so that upvalue access is uniform
         if( !me->d_body.isEmpty() )
@@ -1762,6 +1767,20 @@ struct ObxLjbcGenImp : public AstVisitor
                 releaseSlot();
             }
             break;
+        case BuiltIn::HALT:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+                Q_ASSERT( !slotStack.isEmpty() );
+
+                quint8 tmp = ctx.back().buySlots(2,true);
+                fetchObxlibMember(tmp,44,ae->d_loc); // ABORT
+                bc.MOV(tmp+1,slotStack.back(),ae->d_loc.packed());
+                bc.CALL(tmp,0,1,ae->d_loc.packed());
+                ctx.back().sellSlots(tmp,2);
+                releaseSlot();
+            }
+            break;
         case BuiltIn::ASSERT:
             {
                 Q_ASSERT( !ae->d_args.isEmpty() ); // TODO: by now second optional arg ignored!
@@ -2001,10 +2020,12 @@ struct ObxLjbcGenImp : public AstVisitor
             case Type::BOOLEAN:
             case Type::CHAR:
             case Type::BYTE:
+            case Type::STRING: // STRING happens e.g. in LEN("test")
                 // NOP
                 break;
             case Type::SHORTINT:
             case Type::WCHAR:
+            case Type::WSTRING:
                 divisor = 2;
                 break;
             case Type::INTEGER:
@@ -2147,6 +2168,8 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             if( trueVarParam( pt->d_formals[i].data() ) )
             {
+                Q_ASSERT( pt->d_formals[i]->d_var && !pt->d_formals[i]->d_const );
+                // here is a VAR but not IN param
                 varcount++;
                 accessor( me->d_args[i].data(), accs[i] );
             }
@@ -2180,22 +2203,39 @@ struct ObxLjbcGenImp : public AstVisitor
             const int off = i + 1 + ( isBound ? 1 : 0 );
             if( accs[i].kind != Accessor::Invalid )
             {
+                Q_ASSERT( pt->d_formals[i]->d_var && !pt->d_formals[i]->d_const );
                 emitAccToSlot(tmp+off, accs[i], me->d_args[i]->d_loc );
             }else
             {
+                // here all by val (i.e. !d_var) or IN (i.e. d_var && d_const)
                 me->d_args[i]->accept(this);
                 if( slotStack.isEmpty() )
                     return; // error already reported
 
+                // TODO we need
+                /*
+                */
                 Type* lhsT = derefed(pt->d_formals[i]->d_type.data());
+                Q_ASSERT( lhsT != 0 );
                 if( !pt->d_formals[i]->d_var && lhsT->isStructured() )
                 {
-                    // emitInitializer(tmp+1+i, lhsT, me->d_loc );
-
+                    // a structured arg (record, array) passed by val
                     emitCopy( true, pt->d_formals[i]->d_type.data(), tmp+1+i,
                               me->d_args[i]->d_type.data(), slotStack.back(), me->d_loc );
                 }else
+                {
+                    // a structured arg passed to IN, i.e. just pass the reference
+                    // or a non-structured arg passed by IN or by val, just pass the value in both cases
+                    Type* rhsT = derefed(me->d_args[i]->d_type.data());
+                    Q_ASSERT( rhsT != 0 );
+                    // the same code here as in visit(Assign*) if one-char-string to char:
+                    if( lhsT->isChar() && !rhsT->isChar() )
+                    {
+                        Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
+                        bc.TGETi( slotStack.back(), slotStack.back(), 0, me->d_loc.packed() );
+                    }
                     bc.MOV(tmp+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
+                }
                 releaseSlot();
             }
         }
@@ -2504,10 +2544,18 @@ struct ObxLjbcGenImp : public AstVisitor
             allocateClassTables( r->d_baseRec );
         if( !r->d_slotAllocated )
         {
-            bc.TNEW( curClass, r->d_methCount, 0, r->d_loc.packed() );
+            bc.TNEW( curClass, r->d_methCount, 2, r->d_loc.packed() );
             if( !checkValidSlot( r, r->d_loc ) )
                 return;
             Q_ASSERT( r->d_slotValid );
+
+            // store the record slot number and module reference in each class table
+            int tmp = ctx.back().buySlots(1);
+            bc.KSET(tmp,r->d_slot, r->d_loc.packed() );
+            bc.TSET(tmp, curClass, "@cls", r->d_loc.packed() );
+            bc.TSET(modSlot, curClass, "@mod", r->d_loc.packed() );
+            ctx.back().sellSlots(tmp);
+
             emitSetTableByIndex( curClass, modSlot, r->d_slot, r->d_loc );
             if( r->d_baseRec )
             {
@@ -2966,6 +3014,24 @@ struct ObxLjbcGenImp : public AstVisitor
                 what->accept(this);
                 if( slotStack.isEmpty() )
                     return; // error already reported
+
+                Type* lhsT = derefed(pt->d_return.data());
+                Type* rhsT = derefed(what->d_type.data());
+                if( lhsT && rhsT && lhsT->isChar() && !rhsT->isChar() )
+                {
+                    // len-1-string to char
+                    Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
+                    bc.TGETi( slotStack.back(), slotStack.back(), 0, loc.packed() );
+                }
+                if( lhsT && lhsT->isStructured() )
+                {
+                    // TODO: do we really need to copy structures returned by value?
+                    int tmp = ctx.back().buySlots(1);
+                    emitCopy( true, pt->d_return.data(), tmp, what->d_type.data(), slotStack.back(), loc );
+                    bc.MOV(slotStack.back(),tmp, loc.packed());
+                    ctx.back().sellSlots(tmp);
+                }
+
                 bc.RET(slotStack.back(),1,loc.packed());
                 releaseSlot();
             }else

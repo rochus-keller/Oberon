@@ -51,7 +51,7 @@ extern "C" {
             //qCritical() << "failed at line" << lua_tointeger(L,3);
             luaL_error(L,"assert fail at %s %d", lua_tostring(L,2), lua_tointeger(L,3) );
         }
-    #ifdef _DEBUG
+    #ifdef _DEBUG_
         else
             qDebug() << "passed line" << lua_tointeger(L,3);
     #endif
@@ -86,6 +86,8 @@ void LibFfi::install(lua_State* L)
 {
     lua_pushcfunction( L, Lua::Engine2::TRAP );
     lua_setglobal( L, "TRAP" );
+    lua_pushcfunction( L, Lua::Engine2::ABORT );
+    lua_setglobal( L, "ABORT" );
     lua_pushcfunction( L, _ASSERT );
     lua_setglobal( L, "ASSERT" );
     lua_pushcfunction( L, _TRACE );

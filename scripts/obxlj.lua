@@ -301,6 +301,7 @@ module[40] = getmetatable
 module[41] = bit.bxor
 module[42] = ADDRESSOF
 module[43] = module.createBoolArray
+module[44] = ABORT
 
 return module
 
