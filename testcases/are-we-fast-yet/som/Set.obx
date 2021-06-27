@@ -31,7 +31,7 @@ const
 	INITIAL_SIZE* = 10
 	
 type
-	Set = pointer to record 
+	Set* = pointer to record 
 			items : V.Vector
 		end
 	

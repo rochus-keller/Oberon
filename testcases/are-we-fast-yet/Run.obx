@@ -24,7 +24,7 @@
 module Run
 	import B := Benchmark, Out, Input
 		Permute, Bounce, List, Mandelbrot, Queens, Sieve, Storage, Towers,
-		Richards, Json, NBody
+		Richards, Json, NBody, CD
 	
 	type Run* = pointer to record
 								name : array 32 of char
@@ -68,6 +68,8 @@ module Run
 			return Json.create()
 		elsif name = "NBody" then
 			return NBody.create()
+		elsif name = "CD" then
+			return CD.create()
 		end
 		// TODO
 		return nil

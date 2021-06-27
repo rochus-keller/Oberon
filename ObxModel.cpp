@@ -547,8 +547,9 @@ bool Model::parseFiles(const FileGroups& files)
     for( i = d_insts.begin(); i != d_insts.end(); ++i )
     {
         foreach( const Ref<Module>& inst, i.value() )
-            qDebug() << inst->getName();
+            qDebug() << inst->getName() << inst.data();
     }
+    qDebug() << "**** end ";
 #endif
 
     return true;

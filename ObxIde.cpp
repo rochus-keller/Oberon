@@ -946,7 +946,6 @@ void Ide::onRun()
     bool hasErrors = false;
     foreach( const Project::FileRef& f, files )
     {
-        qDebug() << "file" << f->d_filePath;
         Project::ModCode::const_iterator j;
         for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
         {
@@ -2225,7 +2224,11 @@ void Ide::fillLocals()
 #if 1
         Module* m = d_scopes[ d_lua->getActiveLevel() ]->getModule();
         QTreeWidgetItem* parent = new QTreeWidgetItem(d_locals);
-        parent->setText(0,m->getName());
+        QString name = m->getName();
+        parent->setToolTip(0,name);
+        if( name.size() > 20 )
+            name = name.left(20) + "...";
+        parent->setText(0,name);
         parent->setText(1,"<module>");
         const int before = lua_gettop(d_lua->getCtx());
         lua_getglobal( d_lua->getCtx(), m->getName() );
@@ -2541,7 +2544,8 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             }else if( type != LUA_TTABLE )
             {
                 item->setText(1,tr("<invalid %1>").arg(nameOf(r)));
-                qWarning() << "wrong type, expecting table, got type" << type;
+                // qWarning() << "wrong type, expecting table, got type" << type;
+                // happens when a procedure is entered before initialization code could run
                 break;
             }
             if( !r->d_subRecs.isEmpty() )
@@ -3067,7 +3071,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.14");
+    a.setApplicationVersion("0.7.15");
     a.setStyle("Fusion");
 
     Ide w;

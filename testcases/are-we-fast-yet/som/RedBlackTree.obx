@@ -1,0 +1,444 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+
+module RedBlackTree<K,V>
+
+	import I := som.Interfaces<Entry>
+	
+	////////// Node //////////////////
+	type
+		Color = ( RED, BLACK )
+		Node = pointer to record
+					key: K
+					value: V
+					left, right, parent: Node
+					color: Color
+				end
+				
+	proc createNode(in key: K; in value: V): Node
+		var n: Node
+	begin
+		new(n)
+		n.key := key
+		n.value := value
+		n.color := RED
+		return n
+	end createNode
+	
+	proc treeMinimum(x: Node): Node
+		var current: Node
+	begin
+	   current := x
+      while current.left # nil do
+	      current := current.left
+      end
+      return current
+   end treeMinimum
+   
+   proc (this: Node) successor(): Node
+	   var x,y: Node
+   begin
+      x := this;
+      if x.right # nil then
+	      return treeMinimum(x.right)
+      end
+      y := x.parent
+      while (y # nil) & (x = y.right) do
+         x := y
+         y := y.parent
+      end
+      return y
+   end successor
+		
+	////////// RedBlackTree /////////////////
+	type
+		CompareFunc = proc(in lhs, rhs: K): integer
+		
+		RedBlackTree* = pointer to record 
+								root: Node
+								compare: CompareFunc
+							end
+							
+		InsertResult = record
+								isNewEntry: boolean
+								newNode: Node
+								oldValue: V
+							end	
+							
+		Entry* = record key*: K value*: V end
+							
+	proc create*(func: CompareFunc): RedBlackTree
+		var t: RedBlackTree
+	begin
+		new(t)
+		assert( func # nil )
+		t.compare := func			
+		return t	
+	end create
+	
+	proc (this: RedBlackTree) put*(in key: K; in value: V): V
+		var insertionResult: InsertResult
+			x,y: Node
+	begin
+    this.treeInsert(key, value,insertionResult)
+    if ~insertionResult.isNewEntry then
+      return insertionResult.oldValue
+    end
+    x := insertionResult.newNode
+
+    while (x # this.root) & (x.parent.color = RED) do
+      if x.parent = x.parent.parent.left then
+        y := x.parent.parent.right
+        if (y # nil) & (y.color = RED) then
+          // Case 1
+          x.parent.color := BLACK
+          y.color := BLACK
+          x.parent.parent.color := RED
+          x := x.parent.parent
+        else
+          if x = x.parent.right then
+            // Case 2
+            x := x.parent
+            this.leftRotate(x)
+          end
+          // Case 3
+          x.parent.color := BLACK;
+          x.parent.parent.color := RED;
+          this.rightRotate(x.parent.parent)
+        end
+      else 
+        // Same as "then" clause with "right" and "left" exchanged.
+        y := x.parent.parent.left
+        if (y # nil) & (y.color = RED) then
+          // Case 1
+          x.parent.color := BLACK
+          y.color := BLACK
+          x.parent.parent.color := RED
+          x := x.parent.parent
+        else
+          if x = x.parent.left then
+            // Case 2
+            x := x.parent
+            this.rightRotate(x)
+          end
+          // Case 3
+          x.parent.color := BLACK
+          x.parent.parent.color := RED
+          this.leftRotate(x.parent.parent)
+        end
+      end
+    end
+
+    this.root.color := BLACK
+    return value // original null
+  end put
+  
+  proc (this: RedBlackTree) remove*(in key: K): V
+	  var x,y,z,xParent: Node
+  begin
+    z := this.findNode(key)
+    if z = nil then
+      return default(V)
+    end
+
+    // Y is the node to be unlinked from the tree.
+    if (z.left = nil) or (z.right = nil) then
+      y := z
+    else
+      y := z.successor()
+    end
+
+    // Y is guaranteed to be non-null at this point.
+    if y.left # nil then
+      x := y.left
+    else
+      x := y.right
+    end
+
+    // X is the child of y which might potentially replace y in the tree. X might be null at
+    // this point.
+    if x # nil then
+      x.parent := y.parent
+      xParent := x.parent
+    else
+      xParent := y.parent
+    end
+    if y.parent = nil then
+      this.root := x
+    else
+      if y = y.parent.left then
+        y.parent.left := x
+      else
+        y.parent.right := x
+      end
+    end
+
+    if y # z then
+      if y.color = BLACK then
+        this.removeFixup(x, xParent)
+      end
+
+      y.parent := z.parent
+      y.color := z.color
+      y.left := z.left
+      y.right := z.right
+
+      if z.left # nil then
+        z.left.parent := y
+      end
+      if z.right # nil then
+        z.right.parent := y
+      end
+      if z.parent # nil then
+        if z.parent.left = z then
+          z.parent.left := y
+        else
+          z.parent.right := y
+        end
+      else
+        this.root := y
+      end
+    elsif y.color = BLACK then
+      this.removeFixup(x, xParent)
+    end
+
+    return z.value
+  end remove
+
+  proc (this: RedBlackTree) get*(in key: K): V
+	  var node: Node
+  begin
+    node := this.findNode(key)
+    if node = nil then
+      return default(V)
+    end
+    return node.value
+  end get
+  
+  proc (this: RedBlackTree) forEach*(fn: I.ForEachInterface)
+	  var current: Node
+		  e: Entry
+  begin
+    if this.root = nil then
+      return
+    end
+    current := treeMinimum(this.root)
+    while current # nil do
+	    e.key := current.key
+	    e.value := current.value
+       fn.apply(e)
+       current := current.successor()
+    end
+  end forEach
+  
+  proc (this: RedBlackTree) findNode(in key: K): Node
+	  var current: Node
+		  comparisonResult: integer
+  begin
+    current := this.root
+    while current # nil do
+      comparisonResult := this.compare(key,current.key)
+      if comparisonResult = 0 then
+        return current
+      elsif comparisonResult < 0 then
+        current := current.left
+      else
+        current := current.right
+      end
+    end
+    return nil
+  end findNode
+  
+  proc (this: RedBlackTree) treeInsert(in key: K; in value: V; var res: InsertResult) 
+	  var x,y,z: Node
+		  comparisonResult: integer
+  begin
+    x := this.root
+    while x # nil do
+      y := x
+      comparisonResult := this.compare(key,x.key)
+      if comparisonResult < 0 then
+        x := x.left
+      elsif comparisonResult > 0 then
+        x := x.right
+      else
+        res.isNewEntry := false
+        res.oldValue := x.value
+        x.value := value
+        return
+      end
+    end
+    z := createNode(key, value)
+    z.parent := y
+    if y = nil then
+      this.root := z
+    else
+      if this.compare(key,y.key) < 0 then
+        y.left := z
+      else
+        y.right := z
+      end
+    end
+    res.isNewEntry := true
+    res.newNode := z
+  end treeInsert
+  
+  proc (this: RedBlackTree) leftRotate(x: Node)
+	  var y: Node
+  begin
+    y := x.right
+
+    // Turn y's left subtree into x's right subtree.
+    x.right := y.left
+    if y.left # nil then
+      y.left.parent := x
+    end
+
+    // Link x's parent to y.
+    y.parent := x.parent
+    if x.parent = nil then
+      this.root := y
+    else 
+      if x = x.parent.left then
+        x.parent.left := y
+      else
+        x.parent.right := y
+      end
+    end
+
+    // Put x on y's left.
+    y.left := x
+    x.parent := y
+
+  end leftRotate
+  
+  proc (this: RedBlackTree) rightRotate(y: Node)
+	  var x: Node
+  begin
+    x := y.left
+
+    // Turn x's right subtree into y's left subtree.
+    y.left := x.right
+    if x.right # nil then
+      x.right.parent := y
+    end
+
+    // Link y's parent to x;
+    x.parent := y.parent
+    if y.parent = nil then
+      this.root := x
+    else 
+      if y = y.parent.left then
+        y.parent.left := x
+      else
+        y.parent.right := x
+      end
+    end
+
+    x.right := y
+    y.parent := x
+
+  end rightRotate
+  
+  proc (this: RedBlackTree) removeFixup(x, xParent: Node)
+	  var w: Node
+  begin
+    while (x # this.root) & ( (x = nil) or (x.color = BLACK) ) do
+      if x = xParent.left then
+        // Note: the text points out that w cannot be null. The reason is not obvious from
+        // simply looking at the code; it comes about from the properties of the red-black
+        // tree.
+        w := xParent.right
+        if w.color = RED then
+          // Case 1
+          w.color := BLACK;
+          xParent.color := RED
+          this.leftRotate(xParent)
+          w := xParent.right
+        end
+        if ( (w.left = nil) or (w.left.color = BLACK) )
+            & ( (w.right = nil) or (w.right.color = BLACK) ) then
+          // Case 2
+          w.color := RED
+          x := xParent
+          xParent := x.parent
+        else
+          if (w.right = nil) or (w.right.color = BLACK) then
+            // Case 3
+            w.left.color := BLACK
+            w.color := RED
+            this.rightRotate(w)
+            w := xParent.right
+          end
+          // Case 4
+          w.color := xParent.color
+          xParent.color := BLACK
+          if w.right # nil then
+            w.right.color := BLACK
+          end
+          this.leftRotate(xParent)
+          x := this.root
+          xParent := x.parent
+        end
+      else
+        // Same as "then" clause with "right" and "left" exchanged.
+        w := xParent.left
+        if w.color = RED then
+          // Case 1
+          w.color := BLACK
+          xParent.color := RED
+          this.rightRotate(xParent)
+          w := xParent.left
+        end
+        if ( (w.right = nil) or (w.right.color = BLACK) )
+            & ( (w.left = nil) or (w.left.color = BLACK) ) then
+          // Case 2
+          w.color := RED
+          x := xParent
+          xParent := x.parent
+        else
+          if (w.left = nil) or (w.left.color = BLACK) then
+            // Case 3
+            w.right.color := BLACK
+            w.color := RED
+            this.leftRotate(w)
+            w := xParent.left
+          end
+          // Case 4
+          w.color := xParent.color
+          xParent.color := BLACK
+          if w.left # nil then
+            w.left.color := BLACK
+          end
+          this.rightRotate(xParent)
+          x := this.root
+          xParent := x.parent
+        end
+      end
+    end
+    if x # nil then
+      x.color := BLACK
+    end
+  end removeFixup
+  
+end RedBlackTree

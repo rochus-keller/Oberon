@@ -638,7 +638,7 @@ QByteArrayList Named::getQualifiedName() const
     Named* scope = d_scope;
     while( scope && !scope->d_name.isEmpty() )
     {
-        res.prepend(scope->d_name);
+        res.prepend(scope->getName());
         scope = scope->d_scope;
     }
     return res;
@@ -953,23 +953,23 @@ quint8 IdentSel::visibilityFor(Module* m) const
     case Named::LocalAccess:
     case Named::NotApplicable:
     case Named::Private:
-        break; // stronger than this
+        break; // sub is stronger than this
     case Named::ReadOnly:
         switch( d_ident->d_visibility )
         {
         case Named::ReadOnly:
-            break; // keep it
-        case Named::ReadWrite:
-        case Named::Private:
         case Named::NotApplicable:
-            v = d_ident->d_visibility; // readonly and private are stronger
+        case Named::ReadWrite:
+            break; // sub is stronger than this
+        case Named::Private:
+            v = d_ident->d_visibility; // this is stronger than sub
             break;
         default:
             Q_ASSERT( false );
         }
         break;
     case Named::ReadWrite:
-        v = d_ident->d_visibility;
+        v = d_ident->d_visibility; // this is stronger
         break;
     }
     return v;
@@ -1150,7 +1150,7 @@ QByteArray Module::getName() const
             Q_ASSERT( td );
             Named* n = td->findDecl();
             if( n )
-                name += n->getName();
+                name += n->getQualifiedName().join('.'); // n->getName();
             else if( d_metaActuals[i]->getTag() == Thing::T_QualiType )
             {
                 QualiType* q = cast<QualiType*>( d_metaActuals[i].data() );
@@ -1193,6 +1193,19 @@ Import*Module::findImport(Module* m) const
             return i;
     }
     return 0;
+}
+
+void Module::findAllInstances(QList<Module*>& result) const
+{
+    foreach( Import* imp, d_imports )
+    {
+        Q_ASSERT( imp->d_mod.data() );
+        if( !imp->d_mod->d_metaParams.isEmpty() )
+        {
+            imp->d_mod->findAllInstances(result);
+            result.append(imp->d_mod.data());
+        }
+    }
 }
 
 quint8 UnExpr::visibilityFor(Module* m) const

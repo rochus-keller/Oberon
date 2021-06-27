@@ -120,12 +120,10 @@ import
 	   H.run("Towers", 600, 1)
 	end RunAll
 	var str : pointer to array of char
-	const l = len("12345")
 begin
    // TestVector()
    // Test2()
    // Test3()
-   // RunAll()
-   //H.run("NBody", 250000, 1)
-   println(l)
+   //RunAll()
+   H.run("CD", 1, 1)
 end Tester

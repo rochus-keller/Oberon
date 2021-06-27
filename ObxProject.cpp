@@ -1076,7 +1076,7 @@ bool Project::generate(Module* m)
     if( f == d_files.end() )
         return false;
 
-    qDebug() << "generating" << m->getName() << " " << m;
+    qDebug() << "generating" << m->getName();
     QBuffer buf;
     buf.open(QIODevice::WriteOnly);
     LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
@@ -1136,6 +1136,30 @@ bool Project::generate()
         i.value()->d_sourceCode.clear();
     const quint32 errs = d_mdl->getErrs()->getErrCount();
     QList<Module*> mods = d_mdl->getDepOrder();
+#if 0
+    qDebug() << "******* module generating order:";
+    QSet<Module*> test;
+    foreach( Module* m, mods )
+    {
+        if( m->d_metaParams.isEmpty() )
+        {
+            qDebug() << m->getName();
+            QList<Module*> result;
+            m->findAllInstances(result);
+            foreach( Module* inst, result )
+            {
+                if( test.contains(inst) )
+                    qWarning() << "already seen" << inst->getName();
+                else if( inst->isFullyInstantiated() )
+                    qDebug() << "instance" << inst->getName();
+                else
+                    qWarning() << "not fully instantiated" << inst->getName();
+                test.insert(inst);
+            }
+        }
+    }
+#endif
+    QSet<Module*> generated;
     foreach( Module* m, mods )
     {
         if( m->d_synthetic )
@@ -1160,12 +1184,25 @@ bool Project::generate()
         }else
         {
             if( m->d_metaParams.isEmpty() )
-                generate(m);
-            else
             {
-                QList<Module*> insts = d_mdl->instances(m);
-                foreach( Module* inst, insts )
-                    generate(inst);
+                LjbcGen::allocateSlots(m);
+                // module slots are allocated before generic instances are generated because records of
+                // the module could be used in the generic instance
+
+                QList<Module*> result;
+                m->findAllInstances(result);
+                foreach( Module* inst, result )
+                {
+                    // instances must be generated after the modules using them, otherwise we get !slotValid assertions
+                    if( !generated.contains(inst) )
+                    {
+                        generated.insert(inst);
+                        LjbcGen::allocateSlots(inst);
+                        generate(inst);
+                    }
+                }
+                // module is generated after the generic instances it depends on because there are required slots
+                generate(m);
             }
         }
     }

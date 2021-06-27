@@ -189,6 +189,7 @@ ProcedureType ::= ( PROCEDURE
 #endif 
 	) 
 	[ \LL:2\ '(' '^' ')'  ] // TODO type-bound procedure types; only for record pointers (records on stack go out of scope)
+	// alternatives: (:) (..) (^) 
 #ifdef BBOX
 	[ SysFlag ]
 #endif

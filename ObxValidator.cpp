@@ -1135,6 +1135,7 @@ struct ValidatorImp : public AstVisitor
 
         case BinExpr::EQ:
         case BinExpr::NEQ:
+            // TODO: shouldn't records and arrays of the same type be comparable?
             if( ( isNumeric(lhsT) && isNumeric(rhsT) ) ||
                     ( isTextual(lhsT) && isTextual(rhsT) ) || // cannot compare pointer to array with string
                     ( lhsT == bt.d_boolType && rhsT == bt.d_boolType ) ||
@@ -1828,7 +1829,7 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Call* me )
     {
-        // TODO: check that bound proc is not directly (ie without designator) called
+        // TODO: check that bound proc is not directly (ie without self designator) called
         if( !me->d_what.isNull() )
         {
             me->d_what->accept(this);
@@ -1869,6 +1870,10 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("cannot call this expression") );
                 return;
             }
+            ProcType* pt = cast<ProcType*>(t);
+            const bool isBuiltIn = pt->d_decl && pt->d_decl->getTag() == Thing::T_BuiltIn;
+            if( !isBuiltIn || !checkBuiltInArgs( pt, ae ) )
+                checkCallArgs( pt, ae );
             Named* id = proc->getIdent();
             if( id )
             {
@@ -1884,7 +1889,7 @@ struct ValidatorImp : public AstVisitor
                     Q_ASSERT( false );
                 }
             }
-        }
+        }// else error already reported
     }
 
     void visit( ForLoop* me )
@@ -2385,6 +2390,8 @@ struct ValidatorImp : public AstVisitor
         // T~v~ is a SET type and T~e~ is of INTEGER or smaller type
         if( lhsT == bt.d_setType && ( rhsT == bt.d_intType || rhsT == bt.d_shortType || rhsT == bt.d_byteType ) )
             return true;
+
+        // TODO: can we assign records with private fields? if yes, doesn't this undermine class integrity?
 
         // T~e~ and T~v~ are record types and T~e~ is a _type extension_ of T~v~ and the dynamic type of v is T~v~
         if( typeExtension(lhsT,rhsT) )

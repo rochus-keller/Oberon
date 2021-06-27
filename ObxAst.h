@@ -481,6 +481,7 @@ namespace Obx
         QByteArray getName() const;
         bool isFullyInstantiated() const;
         Import* findImport(Module*) const;
+        void findAllInstances(QList<Module*>&) const;
       };
 
     struct NamedType : public Named

@@ -23,7 +23,15 @@ size=0
 4\RelPath=som/Interfaces.obx
 5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Random.obx
 5\RelPath=som/Random.obx
-size=5
+6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Dictionary.obx
+6\RelPath=som/Dictionary.obx
+7\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/IdentityDictionary.obx
+7\RelPath=som/IdentityDictionary.obx
+8\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/IdentitySet.obx
+8\RelPath=som/IdentitySet.obx
+9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/RedBlackTree.obx
+9\RelPath=som/RedBlackTree.obx
+size=9
 
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Tester.obx
@@ -40,6 +48,8 @@ size=5
 14\RelPath=Json.obx
 15\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/NBody.obx
 15\RelPath=NBody.obx
+16\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/CD.obx
+16\RelPath=CD.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Benchmark.obx
 2\RelPath=Benchmark.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Harness.obx
@@ -56,7 +66,7 @@ size=5
 8\RelPath=Mandelbrot.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Queens.obx
 9\RelPath=Queens.obx
-size=15
+size=16
 
 [Packages]
 1\Name=@ByteArray()
