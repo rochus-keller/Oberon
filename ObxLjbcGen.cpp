@@ -249,7 +249,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
         foreach( Import* imp, me->d_imports )
             imp->accept(this);
-#if 0
+#if 0 // TEST, usually 0
         // qDebug() << "**** dump of" << me->getName();
         QFile out("/home/me/gendump.txt");
         bool res = out.open(QIODevice::Append);
@@ -291,10 +291,12 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             Procedure modBody;
             modBody.d_type = new ProcType();
+            modBody.d_type->d_loc = me->d_begin;
+            modBody.d_type->d_decl = me;
             modBody.d_name = "begin";
             modBody.d_body = me->d_body;
             modBody.d_scope = me;
-            modBody.d_loc = me->d_loc; // me->d_begin; doesn't work because there are vars initialized out of begin/end
+            modBody.d_loc = me->d_begin;
             modBody.d_end = me->d_end;
             modBody.accept(this);
             int tmp = ctx.back().buySlots(1,true);
@@ -1290,18 +1292,17 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( r );
         bc.TNEW( to, r->d_fieldCount, 0, loc.packed() );
 
-        int tmp = ctx.back().buySlots(1);
+        int tmp = ctx.back().buySlots(4,true);
         fetchClass(tmp, t, loc );
 
         // call setmetatable
-        int base = ctx.back().buySlots(3,true);
+        int base = tmp+1;
         fetchObxlibMember(base, 22, loc ); // setmetatable
 
         bc.MOV(base+1, to, loc.packed() );
         bc.MOV(base+2, tmp, loc.packed() );
         bc.CALL( base, 0, 2, loc.packed() );
-        ctx.back().sellSlots(base,3);
-        ctx.back().sellSlots(tmp);
+        ctx.back().sellSlots(tmp,4);
     }
 
     void emitCreateArray( quint8 to, Type* baseType, quint32 constLen, quint8 lenSlot, const RowCol& loc )
@@ -2180,7 +2181,8 @@ struct ObxLjbcGenImp : public AstVisitor
         }
 
         const int argCount = me->d_args.size() + ( isBound ? 1 : 0 ) + ( passFrame ? 1 : 0 );
-        int tmp = ctx.back().buySlots( argCount + 1 , true );
+        int tmp = ctx.back().buySlots( argCount + 1 , true ); // Allocate the slots for the call
+                                                              // func + this + args
         if( slotStack.isEmpty() )
             return; // error already reported
         bc.MOV( tmp, slotStack.back(), me->d_loc.packed() );
@@ -2209,15 +2211,12 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( slotStack.isEmpty() )
                     return; // error already reported
 
-                // TODO we need
-                /*
-                */
                 Type* lhsT = derefed(pt->d_formals[i]->d_type.data());
                 Q_ASSERT( lhsT != 0 );
                 if( !pt->d_formals[i]->d_var && lhsT->isStructured() )
                 {
                     // a structured arg (record, array) passed by val
-                    emitCopy( true, pt->d_formals[i]->d_type.data(), tmp+1+i,
+                    emitCopy( true, pt->d_formals[i]->d_type.data(), tmp+off,
                               me->d_args[i]->d_type.data(), slotStack.back(), me->d_loc );
                 }else
                 {

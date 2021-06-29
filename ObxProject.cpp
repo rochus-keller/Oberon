@@ -34,6 +34,7 @@ using namespace Ob;
 struct ObxHitTest : public AstVisitor
 {
     quint32 line; quint16 col;
+    QList<Scope*> scopes;
 
     void test(Expression* e)
     {
@@ -141,6 +142,7 @@ struct ObxHitTest : public AstVisitor
 
     void visit( Procedure* m)
     {
+        scopes.push_back(m);
         //if( m->d_type->d_ident == 0 )
         if( m->d_type )
             m->d_type->accept(this);
@@ -154,16 +156,19 @@ struct ObxHitTest : public AstVisitor
             m->d_body[i]->accept(this);
         for( int i = 0; i < m->d_helper.size(); i++ )
             m->d_helper[i]->accept(this);
+        scopes.pop_back();
     }
 
     void visit( Module* m )
     {
+        scopes.push_back(m);
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);
         for( int i = 0; i < m->d_body.size(); i++ )
             m->d_body[i]->accept(this);
         for( int i = 0; i < m->d_helper.size(); i++ )
             m->d_helper[i]->accept(this);
+        scopes.pop_back();
     }
 
     void visit( Call* c )
@@ -932,25 +937,30 @@ Project::FileList Project::getFilesInExecOrder() const
     return res;
 }
 
-Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col) const
+Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col, Scope** scopePtr) const
 {
     FileMod f = findFile(file);
     if( f.first == 0 )
         return 0;
 
+    ObxHitTest hit;
+    hit.col = col;
+    hit.line = line;
     try
     {
-        ObxHitTest hit;
-        hit.col = col;
-        hit.line = line;
         f.second->accept(&hit);
     }catch( Expression* e )
     {
+        Q_ASSERT( !hit.scopes.isEmpty() );
+        if( scopePtr )
+            *scopePtr = hit.scopes.back();
         return e;
     }catch(...)
     {
 
     }
+    if( scopePtr )
+        *scopePtr = 0;
     return 0;
 }
 

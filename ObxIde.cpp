@@ -210,6 +210,18 @@ public:
 
         sum << d_link;
 
+        if( d_ide->d_lua->isDebug() &&d_ide->d_lua->getMode() == Lua::Engine2::RowColMode )
+        {
+            QTextEdit::ExtraSelection line;
+            line.format.setBackground(QColor(Qt::yellow));
+            const int row = RowCol::unpackRow(d_ide->d_lua->getCurRowCol())-1;
+            const int col = RowCol::unpackCol(d_ide->d_lua->getCurRowCol())-1;
+            line.cursor = QTextCursor(document()->findBlockByNumber(row));
+            line.cursor.setPosition(line.cursor.position() + col);
+            line.cursor.select(QTextCursor::WordUnderCursor);
+            sum << line;
+        }
+
         setExtraSelections(sum);
     }
 
@@ -346,7 +358,7 @@ public:
         if( !lua->isBreakHit() )
         {
             if( source == "=[C]" && !msg.startsWith('[') )
-                msg = "[\"=[C]\"]:" + QByteArray::number(line) + ":" + msg;
+                msg = "[\"=[C]\"]:" + QByteArray::number(RowCol::unpackRow2(line)) + ":" + msg;
             if( d_ide->luaRuntimeMessage(msg,source) )
                 d_ide->onErrors();
         }
@@ -428,7 +440,7 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
-      d_lock2(false),d_lock3(false),d_lock4(false),d_bcDebug(false)
+      d_lock2(false),d_lock3(false),d_lock4(false)
 {
     s_this = this;
     LibFfi::setSendToLog(log);
@@ -436,6 +448,7 @@ Ide::Ide(QWidget *parent)
     d_pro = new Project(this);
 
     d_lua = new Lua::Engine2(this);
+    // d_lua->setJit(false);
     Lua::Engine2::setInst(d_lua);
     LibFfi::install(d_lua->getCtx());
     Obs::Display::install(d_lua->getCtx());
@@ -451,6 +464,7 @@ Ide::Ide(QWidget *parent)
 
     d_dbg = new Debugger(this);
     d_lua->setDbgShell(d_dbg);
+    // d_lua->setMode(Lua::Engine2::RowColMode); // default LineMode
     // d_lua->setAliveSignal(true); // reduces performance by factor 2 to 5
     connect( d_lua, SIGNAL(onNotify(int,QByteArray,int)),this,SLOT(onLuaNotify(int,QByteArray,int)) );
 
@@ -865,7 +879,8 @@ void Ide::createMenuBar()
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
     pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
-    pop->addCommand( "Enable Bytecode Debugger", this, SLOT(onBcDebug()) );
+    pop->addCommand( "Row/Column mode", this, SLOT(onRowColMode()) );
+    pop->addCommand( "Bytecode mode", this, SLOT(onBcDebug()) );
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     pop->addAction( d_dbgStepIn );
     pop->addAction( d_dbgStepOver );
@@ -939,9 +954,27 @@ void Ide::onRun()
         return;
     }
 
+#if 0
     Lua::BcDebugger* dbg = 0;
     if( d_bcDebug )
+    {
         dbg = new Lua::BcDebugger(d_lua);
+        Lua::BcDebugger::Files list;
+        foreach( const Project::FileRef& f, files )
+        {
+            Project::ModCode::const_iterator j;
+            for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
+            {
+                Lua::BcDebugger::SourceBinaryPair sbp;
+                sbp.first = j.key()->d_file;
+                sbp.second = j.key()->getName();
+                sbp.bc = j.value();
+                list << sbp;
+            }
+        }
+        dbg->initializeFromFiles(list);
+    }
+#endif
 
     bool hasErrors = false;
     foreach( const Project::FileRef& f, files )
@@ -1246,18 +1279,28 @@ void Ide::onStackDblClicked(QTreeWidgetItem* item, int)
     if( item )
     {
         const QString source = item->data(3,Qt::UserRole).toString();
-        if( !source.isEmpty() )
+        if( d_lua->getMode() == Lua::Engine2::PcMode )
         {
-            const quint32 line = item->data(2,Qt::UserRole).toUInt();
-            if( RowCol::isPacked(line) )
+            if( !source.isEmpty() )
+            {
+                const quint32 line = item->data(2,Qt::UserRole).toUInt();
+                const quint32 func = item->data(1,Qt::UserRole).toUInt();
+                showEditor(source, RowCol::unpackRow2(func), RowCol::unpackCol2(func), false );
+                d_bcv->parentWidget()->show();
+                d_bcv->gotoFuncPc(func,line, false, false);
+            }
+        }else
+        {
+            if( !source.isEmpty() )
+            {
+                const quint32 line = item->data(2,Qt::UserRole).toUInt();
                 showEditor( source, RowCol::unpackRow(line), RowCol::unpackCol(line) );
-            else
-                showEditor( source, line, 1 );
+            }
         }
         const int level = item->data(0,Qt::UserRole).toInt();
         d_lua->setActiveLevel(level);
         fillLocals();
-    }
+   }
 }
 
 void Ide::onTabChanged()
@@ -1771,7 +1814,8 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
             edit->setExt(f.second->d_isExt);
         edit->loadFromFile(f.first->d_filePath);
 
-        const Lua::Engine2::Breaks& br = d_lua->getBreaks( f.first->d_filePath.toUtf8() );
+        Q_ASSERT( f.first->d_mod );
+        const Lua::Engine2::Breaks& br = d_lua->getBreaks( f.first->d_mod->getName() );
         Lua::Engine2::Breaks::const_iterator j;
         for( j = br.begin(); j != br.end(); ++j )
             edit->addBreakPoint((*j) - 1);
@@ -1928,6 +1972,21 @@ static const char* roleName( Expression* e )
     return "";
 }
 
+static Named* adjustForModIdx( Named* sym )
+{
+    while( sym )
+    {
+        switch( sym->getTag() )
+        {
+        case Thing::T_Procedure:
+        case Thing::T_Module:
+            return sym;
+        }
+        sym = sym->d_scope;
+    }
+    return 0;
+}
+
 void Ide::fillXref()
 {
     Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
@@ -1941,13 +2000,16 @@ void Ide::fillXref()
     edit->getCursorPosition( &line, &col );
     line += 1;
     col += 1;
-    Expression* hitEx = d_pro->findSymbolBySourcePos(edit->getPath(), line, col);
+    Scope* scope = 0;
+    Expression* hitEx = d_pro->findSymbolBySourcePos(edit->getPath(), line, col, &scope);
     if( hitEx )
     {
         Named* hitSym = hitEx->getIdent();
         Q_ASSERT( hitSym != 0 );
 
         QTreeWidgetItem* mi = d_modIdx.value(hitSym);
+        if( mi == 0 )
+            mi = d_modIdx.value(adjustForModIdx(scope));
         if( mi && !d_lock2 )
         {
             d_mod->scrollToItem(mi,QAbstractItemView::PositionAtCenter);
@@ -2102,7 +2164,7 @@ void Ide::fillStack()
         if( l.d_inC )
         {
             item->setText(3,"(native)");
-        }else
+        }else if( d_lua->getMode() != Lua::Engine2::PcMode )
         {
             const int row = RowCol::unpackRow2(l.d_line);
             const int col = RowCol::unpackCol2(l.d_line);
@@ -2132,6 +2194,22 @@ void Ide::fillStack()
             {
                 showEditor(l.d_source, row, col, true );
                 d_lua->setActiveLevel(level);
+                opened = true;
+            }
+        }else
+        {
+            item->setData(1,Qt::UserRole,l.d_lineDefined );
+            item->setText(2,QString("%1").arg( l.d_line - 1 ));
+            item->setData(2, Qt::UserRole, l.d_line );
+            item->setText(3, l.d_source );
+            item->setData(3, Qt::UserRole, l.d_source );
+            item->setToolTip(3, l.d_source );
+            if( !opened )
+            {
+                showEditor(l.d_source, RowCol::unpackRow2(l.d_lineDefined), RowCol::unpackCol2(l.d_lineDefined), false );
+                d_lua->setActiveLevel(level);
+                d_bcv->parentWidget()->show();
+                d_bcv->gotoFuncPc(l.d_lineDefined,l.d_line, center, true);
                 opened = true;
             }
         }
@@ -2195,11 +2273,67 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
             item->setText(1,i.value().toString());
     }
 }
+
+static void fillRawLocals(QTreeWidget* locals, Lua::Engine2* lua)
+{
+    Lua::Engine2::LocalVars vs = lua->getLocalVars(true,2,50,true);
+    foreach( const Lua::Engine2::LocalVar& v, vs )
+    {
+        QTreeWidgetItem* item = new QTreeWidgetItem(locals);
+        QString name = v.d_name;
+        if( v.d_isUv )
+            name = "(" + name + ")";
+        item->setText(0,name);
+        if( v.d_value.canConvert<Lua::Engine2::VarAddress>() )
+        {
+            typeAddr(item,v.d_value);
+        }else if( v.d_value.type() == QMetaType::QVariantMap )
+        {
+            typeAddr(item,v.d_value);
+            fillLocalSubs(item,v.d_value.toMap() );
+        }else if( Lua::JitBytecode::isString(v.d_value) )
+        {
+            item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
+            item->setToolTip(1, v.d_value.toString() );
+        }else if( !v.d_value.isNull() )
+            item->setText(1,v.d_value.toString());
+        else
+        {
+            switch( v.d_type )
+            {
+            case Lua::Engine2::LocalVar::NIL:
+                item->setText(1, "nil");
+                break;
+            case Lua::Engine2::LocalVar::FUNC:
+                item->setText(1, "func");
+                break;
+            case Lua::Engine2::LocalVar::TABLE:
+                item->setText(1, "table");
+                break;
+            case Lua::Engine2::LocalVar::STRUCT:
+                item->setText(1, "struct");
+                break;
+            case Lua::Engine2::LocalVar::STRING:
+                item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
+                break;
+            default:
+                break;
+           }
+        }
+    }
+}
+
 #endif
 
 void Ide::fillLocals()
 {
     d_locals->clear();
+
+    if( d_lua->getMode() == Lua::Engine2::PcMode )
+    {
+        fillRawLocals(d_locals, d_lua);
+        return;
+    }
 
     lua_Debug ar;
     if( d_scopes[ d_lua->getActiveLevel() ] && lua_getstack( d_lua->getCtx(), d_lua->getActiveLevel(), &ar ) )
@@ -2255,51 +2389,7 @@ void Ide::fillLocals()
 #endif
     }
 #if 0 // TEST, usually 0
-    Lua::Engine2::LocalVars vs = d_lua->getLocalVars(true,2,50,true);
-    foreach( const Lua::Engine2::LocalVar& v, vs )
-    {
-        QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
-        QString name = v.d_name;
-        if( v.d_isUv )
-            name = "(" + name + ")";
-        item->setText(0,name);
-        if( v.d_value.canConvert<Lua::Engine2::VarAddress>() )
-        {
-            typeAddr(item,v.d_value);
-        }else if( v.d_value.type() == QMetaType::QVariantMap )
-        {
-            typeAddr(item,v.d_value);
-            fillLocalSubs(item,v.d_value.toMap() );
-        }else if( Lua::JitBytecode::isString(v.d_value) )
-        {
-            item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
-            item->setToolTip(1, v.d_value.toString() );
-        }else if( !v.d_value.isNull() )
-            item->setText(1,v.d_value.toString());
-        else
-        {
-            switch( v.d_type )
-            {
-            case Lua::Engine2::LocalVar::NIL:
-                item->setText(1, "nil");
-                break;
-            case Lua::Engine2::LocalVar::FUNC:
-                item->setText(1, "func");
-                break;
-            case Lua::Engine2::LocalVar::TABLE:
-                item->setText(1, "table");
-                break;
-            case Lua::Engine2::LocalVar::STRUCT:
-                item->setText(1, "struct");
-                break;
-            case Lua::Engine2::LocalVar::STRING:
-                item->setText(1, "\"" + v.d_value.toString().simplified() + "\"");
-                break;
-            default:
-                break;
-           }
-        }
-    }
+    fillRawLocals(d_locals, d_lua);
 #endif
 }
 
@@ -2840,6 +2930,7 @@ void Ide::removePosMarkers()
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         e->setPositionMarker(-1);
     }
+    d_bcv->clearMarker();
 }
 
 void Ide::enableDbgMenu()
@@ -2899,10 +2990,12 @@ void Ide::onToggleBreakPt()
 
     quint32 line;
     const bool on = edit->toggleBreakPoint(&line);
+    Project::FileMod fm = d_pro->findFile(edit->getPath());
+    Q_ASSERT( fm.first && fm.first->d_mod );
     if( on )
-        d_lua->addBreak( edit->getPath().toUtf8(), line + 1 );
+        d_lua->addBreak( fm.first->d_mod->getName(), line + 1 );
     else
-        d_lua->removeBreak( edit->getPath().toUtf8(), line + 1 );
+        d_lua->removeBreak( fm.first->d_mod->getName(), line + 1 );
 }
 
 void Ide::onSingleStep()
@@ -3041,9 +3134,22 @@ void Ide::onExpMod()
 
 void Ide::onBcDebug()
 {
-    CHECKED_IF( true, d_bcDebug );
+    CHECKED_IF( true, d_lua->getMode() == Lua::Engine2::PcMode );
 
-    d_bcDebug = !d_bcDebug;
+    if( d_lua->getMode() == Lua::Engine2::PcMode )
+        d_lua->setMode( Lua::Engine2::LineMode );
+    else
+        d_lua->setMode( Lua::Engine2::PcMode );
+}
+
+void Ide::onRowColMode()
+{
+    CHECKED_IF( true, d_lua->getMode() == Lua::Engine2::RowColMode );
+
+    if( d_lua->getMode() == Lua::Engine2::RowColMode )
+        d_lua->setMode( Lua::Engine2::LineMode );
+    else
+        d_lua->setMode( Lua::Engine2::RowColMode );
 }
 
 void Ide::onShowBcFile()
@@ -3071,7 +3177,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.15");
+    a.setApplicationVersion("0.7.16");
     a.setStyle("Fusion");
 
     Ide w;

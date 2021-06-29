@@ -97,7 +97,7 @@ namespace Obx
         FileGroup getFiles( const QByteArrayList& path ) const;
         bool isDirty() const { return d_dirty; }
         FileList getFilesInExecOrder() const;
-        Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col ) const;
+        Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col, Scope** = 0 ) const;
         FileMod findFile( const QString& file ) const;
         ExpList getUsage( Named* ) const;
         QString getWorkingDir(bool resolved = false) const;

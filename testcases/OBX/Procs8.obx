@@ -12,7 +12,6 @@ module Procs8
 	
 	var ch: char
 begin
-	trap()
 	ch := test2()
 	test(41x)
 	test("B")

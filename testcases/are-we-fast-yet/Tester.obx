@@ -27,6 +27,16 @@ import
 	I := som.Interfaces<integer>
 	H := Harness
 	R := som.Random
+	B := som.RedBlackTree<integer,String>
+	IB := som.Interfaces<B.Entry>
+	SV := som.Vector<String>
+	CD
+	RVV := som.RedBlackTree<CD.Vector2D,SV.Vector>
+	IVV := som.Interfaces<RVV.Entry>
+	Out
+
+	type
+		String = array 32 of char
 		
 	proc TestVector()
 		var
@@ -105,6 +115,104 @@ import
 		println("Test3 done")
 	end Test3
 	
+	proc Test4()
+		var t : B.RedBlackTree
+			s : String
+		proc intComp(in lhs,rhs: integer): integer
+		begin
+			if lhs < rhs then
+				return -1
+			elsif lhs > rhs then
+				return 1
+			else
+				return 0
+			end
+		end intComp
+		
+		type FI = record (IB.ForEachInterface) i: integer end
+		
+		proc (var this: FI) apply(in elem: B.Entry) 
+		begin
+			Out.Int(elem.key,0)
+			Out.String("=")
+			Out.String(elem.value) Out.Ln
+		end apply
+		
+		var it : FI
+	begin
+		t := B.create(intComp)
+		
+		s := t.put( long(long(10)), "Mandelbrot")
+		s := t.put( long(long(3)), "Nbody")	
+		s := t.put( long(long(6)), "Permute")	
+		s := t.put( long(long(2)), "Queens")	
+		s := t.put( long(long(4)), "Richards")	
+		s := t.put( long(long(8)), "Sieve")	
+		s := t.put( long(long(11)), "Storage")	
+		s := t.put( long(long(9)), "Tower")	
+		s := t.put( long(long(3)), "Json")	
+		s := t.remove(long(long(11)))
+		
+		trap()
+		it.i := 33
+		t.forEach(it)
+		
+		println("Done Test4")
+	end Test4
+	
+	proc Test5()
+		var t : RVV.RedBlackTree
+		
+		type FI = record (IVV.ForEachInterface) i: integer end
+		
+		proc (var this: FI) apply(in elem: RVV.Entry) 
+			var i: integer
+		begin
+			Out.String("Point ")
+			Out.Int(elem.key.x,0)
+			Out.String(":")
+			Out.Int(elem.key.y,0) Out.Ln
+			for i := 0 to elem.value.getSize()-1 do
+				Out.String(elem.value.at(i)) Out.Ln
+			end
+		end apply
+		
+		var it : FI
+			point: CD.Vector2D
+			vec: SV.Vector
+	begin
+		t := RVV.create(CD.compareVector2D)
+		
+		vec := SV.create()
+		vec.append("Mandelbrot")
+		vec.append("Nbody")
+		vec.append("Permute")
+		point.x := 10
+		point.y := 20
+		vec := t.put( point, vec)
+
+		vec := SV.create()
+		vec.append("Queens")
+		vec.append("Richards")
+		vec.append("Sieve")
+		point.x := 30
+		point.y := 40
+		vec := t.put( point, vec)
+
+		vec := SV.create()
+		vec.append("Storage")
+		vec.append("Tower")
+		vec.append("Json")
+		point.x := 50
+		point.y := 60
+		vec := t.put( point, vec)
+
+		it.i := 33
+		t.forEach(it)
+		
+		println("Done Test5")
+	end Test5
+	
 	proc RunAll()
 	begin
 	   H.run("Richards", 100, 1)
@@ -124,6 +232,8 @@ begin
    // TestVector()
    // Test2()
    // Test3()
+   // Test4()
+   // Test5()
    //RunAll()
-   H.run("CD", 1, 1)
+   H.run("CD", 1, 2)
 end Tester

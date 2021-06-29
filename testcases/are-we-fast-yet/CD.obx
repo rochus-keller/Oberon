@@ -55,7 +55,7 @@ module CD
 			time: longreal
 			collisions: OV.Vector
 	begin
-		numAircrafts := 2
+	   trap()
 	   simulator := createSimulator(numAircrafts)
       detector := createCD()
 
@@ -121,7 +121,7 @@ module CD
 
 	/////// Vector2D ////////////////////////
 	type 
-		Vector2D = record x,y: longreal end
+		Vector2D* = record x*,y*: longreal end
 	
 	proc (in this: Vector2D) plus( in other: Vector2D ): Vector2D
 		var res: Vector2D
@@ -139,7 +139,7 @@ module CD
 		return res
 	end minus
 	
-	proc compareVector2D( in lhs, rhs: Vector2D ): integer
+	proc compareVector2D*( in lhs, rhs: Vector2D ): integer
 		var result: integer
 	begin
     result := compareNumbers(lhs.x, rhs.x)

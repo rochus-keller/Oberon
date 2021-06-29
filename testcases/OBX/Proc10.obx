@@ -1,0 +1,43 @@
+module Proc10
+
+	type
+		A = pointer to record a: integer end
+		B = record b: integer end
+		
+	proc (this: A) test( v: B )
+	begin
+		assert(this.a = 33)
+		assert(v.b = 44)
+		println(this.a)
+		println(v.b)
+	end test
+	
+	proc (this: A) test2( var v: B )
+	begin
+		v.b := 55
+	end test2
+	
+	proc (this: A) test3( var v: B): integer
+	begin
+		v.b := 66
+		return 77
+	end test3
+	
+	var a: A
+		b: B
+begin
+	trap()
+	new(a)
+	a.a := 33
+
+	b.b := 44
+	a.test(b)
+
+	a.test2(b)
+	assert(b.b = 55)
+	
+	assert( a.test3(b) = 77 )
+	assert( b.b = 66 )
+	
+	println("Done Proc10")
+end Proc10

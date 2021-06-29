@@ -8,7 +8,6 @@ module Procs9
 	proc test(): Aircraft
 		var a: Aircraft
 	begin
-	trap()
 		 a.callsign.value := 5
 		 a.position.x := 6
 		 a.position.y := 7

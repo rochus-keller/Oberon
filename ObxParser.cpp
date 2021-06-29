@@ -107,10 +107,10 @@ bool Parser::module(bool definition )
     if( d_la == Tok_BEGIN || d_la == Tok_DO )
     {
         next();
+        m->d_begin = d_cur.toRowCol();
         if( definition )
             semanticError( d_cur.toLoc(), tr("There is no statement sequence in a DEFINITION module") );
         m->d_body = statementSequence(m.data());
-        m->d_begin = d_cur.toRowCol();
     }
     MATCH( Tok_END, tr("expecting END keyword at the end of the module") );
     MATCH( Tok_ident, tr("expecting module name after END keyword") );

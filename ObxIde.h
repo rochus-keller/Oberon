@@ -157,6 +157,7 @@ namespace Obx
         void onQt();
         void onExpMod();
         void onBcDebug();
+        void onRowColMode();
         void onShowBcFile();
     private:
         class DocTab;
@@ -191,7 +192,6 @@ namespace Obx
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
-        bool d_bcDebug;
     };
 }
 

@@ -235,7 +235,7 @@ module RedBlackTree<K,V>
     return node.value
   end get
   
-  proc (this: RedBlackTree) forEach*(fn: I.ForEachInterface)
+  proc (this: RedBlackTree) forEach*( var fn: I.ForEachInterface)
 	  var current: Node
 		  e: Entry
   begin
