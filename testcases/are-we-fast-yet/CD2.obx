@@ -21,9 +21,8 @@
  * THE SOFTWARE.
  *)
 
-// this version uses only dynamically allocated records (like the original version)
-
-module CD2
+// this version uses value records where possible
+module CD
 
 	import B := Benchmark, Out
 
@@ -122,27 +121,25 @@ module CD2
 
 	/////// Vector2D ////////////////////////
 	type 
-		Vector2D* = pointer to record x*,y*: longreal end
+		Vector2D* = record x*,y*: longreal end
 	
-	proc (this: Vector2D) plus( other: Vector2D ): Vector2D
+	proc (in this: Vector2D) plus( in other: Vector2D ): Vector2D
 		var res: Vector2D
 	begin
-		new(res)
 		res.x := this.x + other.x
 		res.y := this.y + other.y
 		return res
 	end plus
 	
-	proc (this: Vector2D) minus( other: Vector2D ): Vector2D
+	proc (in this: Vector2D) minus( in other: Vector2D ): Vector2D
 		var res: Vector2D
 	begin
-		new(res)
 		res.x := this.x - other.x
 		res.y := this.y - other.y
 		return res
 	end minus
 	
-	proc compareVector2D*(in lhs, rhs: Vector2D ): integer
+	proc compareVector2D*( in lhs, rhs: Vector2D ): integer
 		var result: integer
 	begin
     result := compareNumbers(lhs.x, rhs.x)
@@ -173,50 +170,47 @@ module CD2
 	
 	///////// Vector3D ////////
 	type
-		Vector3D* = pointer to record x*,y*,z*: longreal end
+		Vector3D = record x,y,z: longreal end
 		
-	proc (this: Vector3D) plus( other: Vector3D ): Vector3D
+	proc (in this: Vector3D) plus( in other: Vector3D ): Vector3D
 		var res: Vector3D
 	begin
-		new(res)
 		res.x := this.x + other.x
 		res.y := this.y + other.y
 		res.z := this.z + other.z
 		return res
 	end plus
 	
-	proc (this: Vector3D) minus( other: Vector3D ): Vector3D
+	proc (in this: Vector3D) minus( in other: Vector3D ): Vector3D
 		var res: Vector3D
 	begin
-		new(res)
 		res.x := this.x - other.x
 		res.y := this.y - other.y
 		res.z := this.z - other.z
 		return res
 	end minus
 	
-	proc (this: Vector3D) times( amount: longreal ): Vector3D
+	proc (in this: Vector3D) times( amount: longreal ): Vector3D
 		var res: Vector3D
 	begin
-		new(res)
 		res.x := this.x * amount
 		res.y := this.y * amount
 		res.z := this.z * amount
 		return res
 	end times
 	
-	proc (this: Vector3D) dot(other: Vector3D): longreal
+	proc (in this: Vector3D) dot(in other: Vector3D): longreal
 	    return this.x * other.x + this.y * other.y + this.z * other.z end
 
-	proc (this: Vector3D) squaredMagnitude(): longreal
+	proc (in this: Vector3D) squaredMagnitude(): longreal
 	    return this.dot(this) end
   
-	proc (this: Vector3D) magnitude(): longreal
+	proc (in this: Vector3D) magnitude(): longreal
 	    return Math.sqrt(short(this.squaredMagnitude())) end
   
    ///////// CallSign /////////////
    type 
-	   CallSign = pointer to record value: integer end
+	   CallSign = record value: integer end
 	   
 	proc compareCallSign( in lhs, rhs: CallSign ): integer
 	begin
@@ -231,24 +225,14 @@ module CD2
 	
 	///////// Aircraft ////////////
 	type
-		Aircraft = pointer to record callsign: CallSign; position: Vector3D end
+		Aircraft = record callsign: CallSign; position: Vector3D end
 		
 	//////// Collision /////////////
 	type 
-		Collision = pointer to record 
+		Collision = record 
 							aircraftA, aircraftB: CallSign
 							position: Vector3D
 						end
-						
-		proc createCollision(aircraftA, aircraftB: CallSign; position: Vector3D): Collision
-			var res: Collision
-		begin
-			new(res)
-			res.aircraftA := aircraftA
-			res.aircraftB := aircraftB
-			res.position := position
-			return res;
-		end createCollision
 	
 	//////// Simulator ////////////
 	type
@@ -262,7 +246,6 @@ module CD2
 		new(sim)
 		sim.aircraft := CV.create()
 		for i := 0 to numAircraft-1 do
-			new(cs)
 			cs.value := i
 			sim.aircraft.append(cs)
 		end
@@ -276,19 +259,13 @@ module CD2
 	begin
 		frame := AV.create()
 		for i := 0 to this.aircraft.getSize()-1 by 2 do
-			new(ac)
-			new(ac.position)
 			ac.callsign := this.aircraft.at(i)
 			ac.position.x := time
 			ac.position.y := Math.cos(short(time)) * 2.0 + flt(i) * 3.0
 			ac.position.z := 10
 	      frame.append(ac)
-			new(ac)
-			new(ac.position)
 			ac.callsign := this.aircraft.at(i+1)
-			ac.position.x := time
 			ac.position.y := Math.sin(short(time)) * 2.0 + flt(i) * 3.0
-			ac.position.z := 10
 	      frame.append(ac)
       end
 		return frame
@@ -301,7 +278,7 @@ module CD2
 						posOne, posTwo: Vector3D
 					end
 					
-	proc createMotion( in callsign: CallSign; posOne, posTwo: Vector3D ): Motion
+	proc createMotion( in callsign: CallSign; in posOne, posTwo: Vector3D ): Motion
 		var m: Motion
 	begin
 		new(m)
@@ -314,8 +291,8 @@ module CD2
 	proc (this: Motion) delta(): Vector3D
     return this.posTwo.minus(this.posOne) end
 
-	proc (this: Motion) findIntersection(other: Motion ): Vector3D
-		var init1, init2, vec1, vec2, result1, result2, result: Vector3D
+	proc (this: Motion) findIntersection(other: Motion; var result: Vector3D ): boolean
+		var init1, init2, vec1, vec2, result1, result2: Vector3D
 			radius, a, b, c, discr, v, v1, v2, dist: longreal
 	begin
     init1 := this.posOne
@@ -366,7 +343,7 @@ module CD2
 
       discr := b * b - 4.0 * a * c
       if discr < 0.0 then
-        return nil
+        return false
       end
 
       v1 := (-b - Math.sqrt(short(discr))) / (2.0 * a)
@@ -394,11 +371,11 @@ module CD2
             (result.y <= MAX_Y) &
             (result.z >= MIN_Z) &
             (result.z <= MAX_Z) then
-          return result
+          return true
         end
       end
 
-      return nil
+      return false
     end
 
     // the planes have the same speeds and are moving in parallel (or they are not moving at all)
@@ -407,10 +384,11 @@ module CD2
     // dist = || i2 - i1 || = sqrt(  ( i2 - i1 )^T * ( i2 - i1 ) )
     dist := init2.minus(init1).magnitude()
     if dist <= radius then
-      return init1.plus(init2).times(0.5)
+      result := init1.plus(init2).times(0.5)
+      return true
     end
 
-    return nil
+    return false
   end findIntersection
     	
   //////////// CollisionDetector //////////////
@@ -454,21 +432,22 @@ module CD2
 			allReduced: VV.Vector
 			reduced: MV.Vector
 			motion1, motion2: Motion
-			collision: Vector3D
-			
+			collisionPos: Vector3D
+			collision: Collision
+			newEntry: boolean
 	begin
     motions := MV.create()
     seen := RCB.create(compareCallSign)
 
 	 for i := 0 to frame.getSize()-1 do
 		 aircraft := frame.at(i)
-       oldPosition := this.state.put(aircraft.callsign, aircraft.position)
+       oldPosition := this.state.putChecked(aircraft.callsign, aircraft.position, newEntry)
        newPosition := aircraft.position;
        dummy := seen.put(aircraft.callsign, true)
 
-       if oldPosition = nil then 
-        // Treat newly introduced aircraft as if they were stationary.
-         oldPosition := newPosition
+	    if newEntry then 
+           // Treat newly introduced aircraft as if they were stationary.
+	        oldPosition := newPosition
        end
        motions.append(createMotion(aircraft.callsign,oldPosition,newPosition))
     end
@@ -492,9 +471,11 @@ module CD2
         motion1 := reduced.at(i)
         for j := i + 1 to reduced.getSize()-1 do
           motion2 := reduced.at(j)
-          collision := motion1.findIntersection(motion2)
-          if collision # nil then
-           collisions.append(createCollision(motion1.callsign,motion2.callsign,collision))
+          if motion1.findIntersection(motion2,collisionPos) then
+	         collision.aircraftA := motion1.callsign
+ 	         collision.aircraftB := motion2.callsign
+ 	         collision.position := collisionPos
+            collisions.append(collision)
           end
         end
       end
@@ -503,7 +484,7 @@ module CD2
     return collisions
   end handleNewFrame
 	
-	proc isInVoxel(voxel: Vector2D; motion: Motion ): boolean
+	proc isInVoxel(in voxel: Vector2D; motion: Motion ): boolean
 		var init, fin: Vector3D
 			v_s, r, v_x, x0, xv, v_y, y0, yv, low_x, high_x, tmp,
 				low_y, high_y: longreal
@@ -559,7 +540,7 @@ module CD2
              ((low_x <= low_y) & (high_y <= high_x)))
   end isInVoxel
 
-  proc putIntoMap(voxelMap: RVV.RedBlackTree; voxel: Vector2D; motion: Motion)
+  proc putIntoMap( voxelMap: RVV.RedBlackTree; in voxel: Vector2D; motion: Motion)
 	  var arr, dummy: MV.Vector
   begin
     arr := voxelMap.get(voxel)
@@ -599,8 +580,8 @@ module CD2
     return result;
   end reduceCollisionSet
   
-  proc recurse(voxelMap: RVV.RedBlackTree; seen: RVB.RedBlackTree; 
-				  nextVoxel: Vector2D; motion: Motion )
+  proc recurse( voxelMap: RVV.RedBlackTree; seen: RVB.RedBlackTree; 
+				  in nextVoxel: Vector2D; motion: Motion )
   begin
     if ~isInVoxel(nextVoxel, motion) then
       return
@@ -622,13 +603,13 @@ module CD2
     recurse(voxelMap, seen, nextVoxel.plus(horizontal).plus(vertical), motion)
   end recurse
   
-  proc voxelHash*(position: Vector3D): Vector2D 
+  proc voxelHash(in position: Vector3D ): Vector2D 
 	  var xDiv, yDiv: integer
 		  x,y: longreal
 		  res: Vector2D
   begin
-    xDiv := floor(position.x / GOOD_VOXEL_SIZE)
-    yDiv := floor(position.y / GOOD_VOXEL_SIZE)
+    xDiv := floor(short(position.x / GOOD_VOXEL_SIZE))
+    yDiv := floor(short(position.y / GOOD_VOXEL_SIZE))
 
     x := GOOD_VOXEL_SIZE * flt(xDiv)
     y := GOOD_VOXEL_SIZE * flt(yDiv)
@@ -640,7 +621,6 @@ module CD2
       y := y - GOOD_VOXEL_SIZE
     end
 
-	 new(res)
 	 res.x := x
 	 res.y := y
 	 return res
@@ -655,10 +635,8 @@ module CD2
   
   
 begin
-	new(horizontal)
 	horizontal.x := GOOD_VOXEL_SIZE
 	horizontal.y := 0.0
-	new(vertical)
 	vertical.x := 0.0
 	vertical.y := GOOD_VOXEL_SIZE	
-end CD2
+end CD

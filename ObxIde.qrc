@@ -38,5 +38,8 @@
         <file>scripts/Obs/Input.lua</file>
         <file>scripts/Obs/Kernel.lua</file>
         <file>scripts/Obs/Modules.lua</file>
+        <file>images/break-marker.png</file>
+        <file>images/breakpoint.png</file>
+        <file>images/marker.png</file>
     </qresource>
 </RCC>

@@ -97,12 +97,17 @@ module RedBlackTree<K,V>
 	end create
 	
 	proc (this: RedBlackTree) put*(in key: K; in value: V): V
+		var newEntry: boolean
+		return this.putChecked(key,value,newEntry) end
+	
+	proc (this: RedBlackTree) putChecked*(in key: K; in value: V; var newEntry: boolean): V
 		var insertionResult: InsertResult
 			x,y: Node
 	begin
     this.treeInsert(key, value,insertionResult)
     if ~insertionResult.isNewEntry then
-      return insertionResult.oldValue
+	    newEntry := false
+       return insertionResult.oldValue
     end
     x := insertionResult.newNode
 
@@ -150,8 +155,9 @@ module RedBlackTree<K,V>
     end
 
     this.root.color := BLACK
-    return value // original null
-  end put
+    newEntry := true
+    return default(V) // original null
+  end putChecked
   
   proc (this: RedBlackTree) remove*(in key: K): V
 	  var x,y,z,xParent: Node

@@ -106,7 +106,7 @@ Q_DECLARE_METATYPE(ExRef)
 class Ide::Editor : public CodeEditor
 {
 public:
-    Editor(Ide* p, Project* pro):CodeEditor(p),d_pro(pro),d_ide(p)
+    Editor(Ide* p, Project* pro):CodeEditor(p),d_pro(pro),d_ide(p),dbgRow(0),dbgCol(0)
     {
         setCharPerTab(3);
         setTypingLatency(400);
@@ -122,6 +122,7 @@ public:
     Ide* d_ide;
     Highlighter* d_hl;
     Project* d_pro;
+    int dbgRow, dbgCol;
 
     void setExt( bool on )
     {
@@ -210,14 +211,21 @@ public:
 
         sum << d_link;
 
-        if( d_ide->d_lua->isDebug() &&d_ide->d_lua->getMode() == Lua::Engine2::RowColMode )
+        if( d_ide->d_lua->isDebug() &&
+                ( d_ide->d_lua->getMode() == Lua::Engine2::RowColMode ||
+                  d_ide->d_lua->getMode() == Lua::Engine2::PcMode ) )
         {
+            if( d_ide->d_lua->getMode() == Lua::Engine2::RowColMode )
+            {
+                dbgRow = RowCol::unpackRow(d_ide->d_lua->getCurRowCol())-1;
+                dbgCol = RowCol::unpackCol(d_ide->d_lua->getCurRowCol())-1;
+            }
             QTextEdit::ExtraSelection line;
             line.format.setBackground(QColor(Qt::yellow));
-            const int row = RowCol::unpackRow(d_ide->d_lua->getCurRowCol())-1;
-            const int col = RowCol::unpackCol(d_ide->d_lua->getCurRowCol())-1;
-            line.cursor = QTextCursor(document()->findBlockByNumber(row));
-            line.cursor.setPosition(line.cursor.position() + col);
+            line.format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
+            line.format.setUnderlineColor(Qt::red);
+            line.cursor = QTextCursor(document()->findBlockByNumber(dbgRow));
+            line.cursor.setPosition(line.cursor.position() + dbgCol);
             line.cursor.select(QTextCursor::WordUnderCursor);
             sum << line;
         }
@@ -1186,9 +1194,9 @@ void Ide::onCursor()
     Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
     if( edit )
     {
-        QTextCursor cur = edit->textCursor();
-        const int line = cur.blockNumber() + 1;
-        d_bcv->gotoLine(RowCol(line,cur.positionInBlock() + 1).packed());
+        int row, col;
+        edit->getCursorPosition(&row,&col);
+        d_bcv->gotoLine(RowCol(row+1,col+1).packed());
     }
     d_lock = false;
 }
@@ -2206,10 +2214,19 @@ void Ide::fillStack()
             item->setToolTip(3, l.d_source );
             if( !opened )
             {
-                showEditor(l.d_source, RowCol::unpackRow2(l.d_lineDefined), RowCol::unpackCol2(l.d_lineDefined), false );
+                Editor* edit = showEditor(l.d_source, RowCol::unpackRow2(l.d_lineDefined), RowCol::unpackCol2(l.d_lineDefined), false );
                 d_lua->setActiveLevel(level);
                 d_bcv->parentWidget()->show();
-                d_bcv->gotoFuncPc(l.d_lineDefined,l.d_line, center, true);
+                const quint32 rowCol = d_bcv->gotoFuncPc(l.d_lineDefined,l.d_line, center, true);
+                if( rowCol && edit )
+                {
+                    d_lock = true;
+                    edit->dbgRow = RowCol::unpackRow2(rowCol) - 1;
+                    edit->dbgCol = RowCol::unpackCol2(rowCol) - 1;
+                    edit->setCursorPosition( edit->dbgRow, edit->dbgCol, center );
+                    edit->setPositionMarker(edit->dbgRow);
+                    d_lock = false;
+                }
                 opened = true;
             }
         }
@@ -2218,7 +2235,6 @@ void Ide::fillStack()
     d_stack->parentWidget()->show();
 }
 
-#if 1 // TEST, usually 0
 static void typeAddr( QTreeWidgetItem* item, const QVariant& val )
 {
     if( val.canConvert<Lua::Engine2::VarAddress>() )
@@ -2322,8 +2338,6 @@ static void fillRawLocals(QTreeWidget* locals, Lua::Engine2* lua)
         }
     }
 }
-
-#endif
 
 void Ide::fillLocals()
 {
@@ -3137,9 +3151,9 @@ void Ide::onBcDebug()
     CHECKED_IF( true, d_lua->getMode() == Lua::Engine2::PcMode );
 
     if( d_lua->getMode() == Lua::Engine2::PcMode )
-        d_lua->setMode( Lua::Engine2::LineMode );
+        d_lua->setDebugMode( Lua::Engine2::LineMode );
     else
-        d_lua->setMode( Lua::Engine2::PcMode );
+        d_lua->setDebugMode( Lua::Engine2::PcMode );
 }
 
 void Ide::onRowColMode()
@@ -3147,9 +3161,9 @@ void Ide::onRowColMode()
     CHECKED_IF( true, d_lua->getMode() == Lua::Engine2::RowColMode );
 
     if( d_lua->getMode() == Lua::Engine2::RowColMode )
-        d_lua->setMode( Lua::Engine2::LineMode );
+        d_lua->setDebugMode( Lua::Engine2::LineMode );
     else
-        d_lua->setMode( Lua::Engine2::RowColMode );
+        d_lua->setDebugMode( Lua::Engine2::RowColMode );
 }
 
 void Ide::onShowBcFile()
@@ -3177,7 +3191,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.16");
+    a.setApplicationVersion("0.7.17");
     a.setStyle("Fusion");
 
     Ide w;

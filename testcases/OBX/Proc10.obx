@@ -26,7 +26,6 @@ module Proc10
 	var a: A
 		b: B
 begin
-	trap()
 	new(a)
 	a.a := 33
 

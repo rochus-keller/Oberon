@@ -1697,8 +1697,33 @@ struct ObxLjbcGenImp : public AstVisitor
         const int res = ctx.back().buySlots(1);
         switch( bi->d_func )
         {
-        // TODO: BuiltIn::DEFAULT
-
+        case BuiltIn::DEFAULT:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() && !ae->d_args.first()->d_type.isNull() );
+                Expression* e = ae->d_args.first().data();
+                Type* t = derefed(e->d_type.data());
+                switch( t->getTag() )
+                {
+                case Thing::T_Pointer:
+                case Thing::T_ProcType:
+                    bc.KNIL(res,1,e->d_loc.packed());
+                    break;
+                case Thing::T_BaseType:
+                    if( t->getBaseType() == Type::BOOLEAN )
+                        bc.KSET(res, false, e->d_loc.packed() );
+                    else
+                        bc.KSET(res, 0.0, e->d_loc.packed());
+                    break;
+                case Thing::T_Record:
+                case Thing::T_Array:
+                    emitInitializer(res, e->d_type.data(), false, false, ae->d_loc );
+                    break;
+                default:
+                    Q_ASSERT( false ); // TODO
+                    break;
+                }
+            }
+            break;
         case BuiltIn::PRINTLN:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
