@@ -82,6 +82,7 @@ module CD2
     if numAircrafts =  250 then return actualCollisions = 10830 end
     if numAircrafts =  200 then return actualCollisions =  8655 end
     if numAircrafts =  100 then return actualCollisions =  4305 end
+    if numAircrafts =   50 then return actualCollisions =  2130 end
     if numAircrafts =   10 then return actualCollisions =   390 end
     if numAircrafts =    2 then return actualCollisions =    42 end
 

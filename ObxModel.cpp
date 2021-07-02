@@ -70,6 +70,9 @@ struct Model::CrossReferencer : public AstVisitor
                 s->accept(this);
         }
 
+        me->d_helper << new IdentLeaf( me, me->d_begin ,d_mod, 0, DeclRole);
+        d_mdl->d_xref[me].append( me->d_helper.back().data() );
+
         stack.pop_back();
     }
 
@@ -982,8 +985,11 @@ void Model::fillGlobals()
     // Oberon IDE
     bi = new BuiltIn(BuiltIn::TRAP, new ProcType());
     d_globals->add( bi.data());
-
     bi = new BuiltIn(BuiltIn::TRAPIF, new ProcType( Type::List() << d_boolType.data() ) );
+    d_globals->add( bi.data());
+    bi = new BuiltIn(BuiltIn::TRACE, new ProcType( Type::List() << d_stringType.data() ) );
+    d_globals->add( bi.data());
+    bi = new BuiltIn(BuiltIn::NOP, new ProcType() );
     d_globals->add( bi.data());
 
     // Oberon-2

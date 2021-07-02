@@ -117,8 +117,7 @@ module Run
 		end
 		endTime := Input.Time()
 		runTime := endTime - startTime
-		// TODO 
-		// this.printResult(runTime)
+		this.printResult(runTime)
 		this.total := this.total + runTime
 		return true
 	end measure	
@@ -138,6 +137,7 @@ module Run
 	
 	proc (this: Run) printResult(runTime: integer)
 	begin
+		return // TODO
 		Out.String(this.name)
 		Out.String(": iterations=1 runtime: ")
 		Out.Int(runTime,0)

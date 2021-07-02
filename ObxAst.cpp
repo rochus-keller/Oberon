@@ -43,7 +43,7 @@ const char* BuiltIn::s_typeName[] =
 {
     "ABS", "ODD", "LEN", "LSL", "ASR", "ROR", "FLOOR", "FLT", "ORD",
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
-    "LED", "TRAP", "TRAPIF",
+    "LED", "TRAP", "TRAPIF", "TRACE", "NOP",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "BYTESIZE", "ENTIER",
     "BITS",

@@ -25,12 +25,14 @@ module Vector<E>
 import
 	I := som.Interfaces<E>
 	
-type
-	Vector* = pointer to record
-			storage : pointer to array of E
-			firstIdx, lastIdx : integer
-		end
+	type
+		Vector* = pointer to record
+				storage : pointer to array of E
+				firstIdx, lastIdx : integer
+			end
 			
+	const	INITIAL_SIZE = 50
+	
 	proc createWithSize*(siz : integer) : Vector
 		var v : Vector
 	begin
@@ -43,7 +45,7 @@ type
 	
 	proc create*() : Vector
 	begin
-		return createWithSize(50)
+		return createWithSize(INITIAL_SIZE)
 	end create
 	
 	proc createWithElement*(in elem : E) : Vector

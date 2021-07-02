@@ -105,6 +105,7 @@ namespace Obx
         void enableDbgMenu();
         void pushLocation( const Location& );
         void clear();
+        void showBc( const QByteArray& bc );
 
     protected slots:
         void onCompile();
@@ -159,6 +160,7 @@ namespace Obx
         void onBcDebug();
         void onRowColMode();
         void onShowBcFile();
+        void onJitEnabled();
     private:
         class DocTab;
         class Debugger;
@@ -192,6 +194,7 @@ namespace Obx
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
+        bool d_jitEnabled;
     };
 }
 

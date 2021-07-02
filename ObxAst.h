@@ -409,7 +409,7 @@ namespace Obx
                NEW, ASSERT, PACK, UNPK,
                LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                // IDE
-               TRAP, TRAPIF,
+               TRAP, TRAPIF, TRACE, NOP,
                // SYSTEM
                SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY,
                // Oberon-2

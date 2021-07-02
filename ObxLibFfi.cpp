@@ -27,6 +27,8 @@
 #include <math.h>
 #include <QString>
 #include <QtDebug>
+#include <QFile>
+#include <QDir>
 using namespace Obx;
 
 #ifdef _WIN32
@@ -43,6 +45,14 @@ void LibFfi::setSendToLog(SendToLog f)
 }
 
 extern "C" {
+    void ObxFfi_DBGTRACE( const char* str );
+
+    static int _DBGTRACE(lua_State* L)
+    {
+        ObxFfi_DBGTRACE(lua_tostring(L,1));
+        return 0;
+    }
+
     static int _ASSERT(lua_State* L)
     {
         const bool ok = lua_toboolean(L,1);
@@ -92,6 +102,8 @@ void LibFfi::install(lua_State* L)
     lua_setglobal( L, "ASSERT" );
     lua_pushcfunction( L, _TRACE );
     lua_setglobal( L, "TRACE" );
+    lua_pushcfunction( L, _DBGTRACE );
+    lua_setglobal( L, "DBGTRACE" );
     lua_pushcfunction( L, _ADDRESSOF );
     lua_setglobal( L, "ADDRESSOF" );
 }
@@ -231,6 +243,35 @@ DllExport void ObxFfi_printWcharArray( WcharArray wa, int count )
     printwstring(wa, count);
 }
 
+DllExport void ObxFfi_DBGTRACE( const char* str )
+{
+    static QFile log( QDir::home().absoluteFilePath("trace.log") );
+    if( !log.isOpen() )
+        log.open(QIODevice::Append );
+    log.write(str);
+    log.write("\n");
+    log.flush();
+}
+
+DllExport void ObxFfi_TRACE( const char* str )
+{
+    qDebug() << "TRACE:" << str;
+}
+
+DllExport void ObxFfi_NOP()
+{
+    qDebug() << "NOP";
+
+    // works, but ends pcall with error:
+    //lua_pushstring(Lua::Engine2::getInst()->getCtx(),"hello from nop");
+    //lua_error(Lua::Engine2::getInst()->getCtx());
+}
+
+
+DllExport void ObxFfi_CRASH(int)
+{
+    *(int*)0 = 0;
+}
 
 }
 

@@ -249,9 +249,14 @@ begin
    // Test4()
    // Test5()
    // Test6()
-   RunAll()
-   //H.run("CD2", 100, 10) 
-   // CD/2 crashes with innerIterations > 50 (increase Vector size)
-   // CD tends to crash with numIterations > 90; CD2 is ok with 100
+   // RunAll()
+   
+   H.run("CD", 100, 10) 
+   // CD2 250,1000 works
+   // CD/CD2  10,1000/ 50,100/ 50,10/ 100,10 works
+   // CD tends to crash with numIterations > 90
+   // with DBGTRACE there is no crash in both CD as CD2! 
+   // with ObxFfi_DBGTRACE both CD and CD2 crash in the first second
+   // with JIT off there is no crash in CD 250,100
 
 end Tester

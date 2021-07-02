@@ -34,7 +34,6 @@ begin
 
 	a.test2(b)
 	assert(b.b = 55)
-	
 	assert( a.test3(b) = 77 )
 	assert( b.b = 66 )
 	

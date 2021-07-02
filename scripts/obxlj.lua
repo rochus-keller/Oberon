@@ -50,7 +50,10 @@ ffi.cdef[[
 	int ObxFfi_wstrRelOp( WcharArray lhs, int lcount, WcharArray rhs, int rcount, int op );
 	void ObxFfi_printString( const char* str );
 	void ObxFfi_printWcharArray( WcharArray wa, int count );
-	
+	void ObxFfi_DBGTRACE( const char* str );
+	void ObxFfi_CRASH(int);
+	void ObxFfi_TRACE( const char* str );
+	void ObxFfi_NOP();
 ]]
 
 local BoolArray = ffi.typeof("BoolArray")
@@ -302,6 +305,10 @@ module[41] = bit.bxor
 module[42] = ADDRESSOF
 module[43] = module.createBoolArray
 module[44] = ABORT
+module[45] = C.ObxFfi_DBGTRACE -- or DBGTRACE
+module[46] = C.ObxFfi_CRASH
+module[47] = C.ObxFfi_TRACE -- or TRACE
+module[48] = C.ObxFfi_NOP
 
 return module
 

@@ -132,6 +132,7 @@ public:
         d_hl->addBuiltIn("PRINTLN");
         d_hl->addBuiltIn("TRAP");
         d_hl->addBuiltIn("TRAPIF");
+        d_hl->addBuiltIn("TRACE");
         d_hl->addBuiltIn("DEFAULT");
         d_hl->addBuiltIn("BITAND");
         d_hl->addBuiltIn("BITOR");
@@ -211,7 +212,7 @@ public:
 
         sum << d_link;
 
-        if( d_ide->d_lua->isDebug() &&
+        if( d_ide->d_lua->isDebug() && d_ide->d_lua->isExecuting() &&
                 ( d_ide->d_lua->getMode() == Lua::Engine2::RowColMode ||
                   d_ide->d_lua->getMode() == Lua::Engine2::PcMode ) )
         {
@@ -448,7 +449,7 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
-      d_lock2(false),d_lock3(false),d_lock4(false)
+      d_lock2(false),d_lock3(false),d_lock4(false),d_jitEnabled(true)
 {
     s_this = this;
     LibFfi::setSendToLog(log);
@@ -456,7 +457,6 @@ Ide::Ide(QWidget *parent)
     d_pro = new Project(this);
 
     d_lua = new Lua::Engine2(this);
-    // d_lua->setJit(false);
     Lua::Engine2::setInst(d_lua);
     LibFfi::install(d_lua->getCtx());
     Obs::Display::install(d_lua->getCtx());
@@ -468,6 +468,7 @@ Ide::Ide(QWidget *parent)
     d_lua->addLibrary(Lua::Engine2::FFI);
     d_lua->addLibrary(Lua::Engine2::OS);
     // TODO LjLib::install(d_lua->getCtx());
+    // d_lua->setJit(false); // must be called after addLibrary! doesn't have any effect otherwise
     loadLuaLib( d_lua, "obxlj" );
 
     d_dbg = new Debugger(this);
@@ -814,6 +815,7 @@ void Ide::createMenu()
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "JIT Enabled", this, SLOT(onJitEnabled()) );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     addTopCommands(pop);
@@ -883,6 +885,7 @@ void Ide::createMenuBar()
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "JIT Enabled", this, SLOT(onJitEnabled()) );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
@@ -985,20 +988,28 @@ void Ide::onRun()
 #endif
 
     bool hasErrors = false;
-    foreach( const Project::FileRef& f, files )
+    try
     {
-        Project::ModCode::const_iterator j;
-        for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
+
+        foreach( const Project::FileRef& f, files )
         {
-            qDebug() << "loading" << j.key()->getName();
-            if( !d_lua->addSourceLib( j.value(), j.key()->getName() ) )
-                hasErrors = true;
+            Project::ModCode::const_iterator j;
+            for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
+            {
+                qDebug() << "loading" << j.key()->getName();
+                if( !d_lua->addSourceLib( j.value(), j.key()->getName() ) )
+                    hasErrors = true;
+            }
+            if( d_lua->isAborted() )
+            {
+                removePosMarkers();
+                return;
+            }
         }
-        if( d_lua->isAborted() )
-        {
-            removePosMarkers();
-            return;
-        }
+    }catch(...)
+    {
+        hasErrors = true;
+        qCritical() << "LuaJIT crashed"; // doesn't help if the JIT crashes!
     }
 
     if( hasErrors )
@@ -1323,17 +1334,9 @@ void Ide::onTabChanged()
         if( f.first )
         {
             fillModule(f.first->d_mod.data());
-            d_curBc = f.first->d_sourceCode.value(f.second);
-            if( d_curBc.isEmpty() && !f.first->d_sourceCode.isEmpty() )
-                d_curBc = f.first->d_sourceCode.begin().value();
-            if( !d_curBc.isEmpty() )
-            {
-                QBuffer buf( &d_curBc );
-                buf.open(QIODevice::ReadOnly);
-                d_bcv->loadFrom(&buf);
-                onCursor();
-                return;
-            }
+            showBc(f.first->d_sourceCode.value(f.second));
+            onCursor();
+            return;
         }
     }
     // else
@@ -1831,6 +1834,7 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         d_tab->addDoc(edit,f.first->d_filePath);
         onEditorChanged();
     }
+    showBc( f.first->d_sourceCode.value(f.second) );
     if( row > 0 && col > 0 )
     {
         edit->setCursorPosition( row-1, col-1, center );
@@ -2292,7 +2296,7 @@ static void fillLocalSubs( QTreeWidgetItem* super, const QVariantMap& vals )
 
 static void fillRawLocals(QTreeWidget* locals, Lua::Engine2* lua)
 {
-    Lua::Engine2::LocalVars vs = lua->getLocalVars(true,2,50,true);
+    Lua::Engine2::LocalVars vs = lua->getLocalVars(true,2,55,true);
     foreach( const Lua::Engine2::LocalVar& v, vs )
     {
         QTreeWidgetItem* item = new QTreeWidgetItem(locals);
@@ -2350,9 +2354,11 @@ void Ide::fillLocals()
     }
 
     lua_Debug ar;
-    if( d_scopes[ d_lua->getActiveLevel() ] && lua_getstack( d_lua->getCtx(), d_lua->getActiveLevel(), &ar ) )
+    const int level = d_lua->getActiveLevel();
+    Scope* scope = d_scopes[ level ];
+    if( scope && lua_getstack( d_lua->getCtx(), level, &ar ) )
     {
-        foreach( const Ref<Named>& n, d_scopes[ d_lua->getActiveLevel() ]->d_order )
+        foreach( const Ref<Named>& n, scope->d_order )
         {
             const int tag = n->getTag();
             if( tag == Thing::T_Parameter || tag == Thing::T_LocalVar )
@@ -2370,7 +2376,7 @@ void Ide::fillLocals()
             }
         }
 #if 1
-        Module* m = d_scopes[ d_lua->getActiveLevel() ]->getModule();
+        Module* m = scope->getModule();
         QTreeWidgetItem* parent = new QTreeWidgetItem(d_locals);
         QString name = m->getName();
         parent->setToolTip(0,name);
@@ -2402,7 +2408,7 @@ void Ide::fillLocals()
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
 #endif
     }
-#if 0 // TEST, usually 0
+#if 1 // TEST, usually 0
     fillRawLocals(d_locals, d_lua);
 #endif
 }
@@ -2455,7 +2461,7 @@ static QString nameOf( Record* r, bool frame = false )
 
 void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
 {
-    static const int numOfFetchedElems = 50;
+    static const int numOfFetchedElems = 55;
     static const int numOfLevels = 5;
 
     if( depth > numOfLevels )
@@ -3105,6 +3111,17 @@ void Ide::clear()
     d_errs->clear();
 }
 
+void Ide::showBc(const QByteArray& bc)
+{
+    if( !bc.isEmpty() )
+    {
+        d_curBc = bc;
+        QBuffer buf( &d_curBc );
+        buf.open(QIODevice::ReadOnly);
+        d_bcv->loadFrom(&buf);
+    }
+}
+
 void Ide::onAbout()
 {
     ENABLED_IF(true);
@@ -3185,13 +3202,21 @@ void Ide::onShowBcFile()
 
 }
 
+void Ide::onJitEnabled()
+{
+    CHECKED_IF(true,d_jitEnabled);
+
+    d_jitEnabled = !d_jitEnabled;
+    d_lua->setJit(d_jitEnabled);
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.17");
+    a.setApplicationVersion("0.7.18");
     a.setStyle("Fusion");
 
     Ide w;
