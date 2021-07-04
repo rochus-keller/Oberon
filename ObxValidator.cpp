@@ -503,6 +503,12 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::MIN:
             if( args->d_args.size() == 1 )
             {
+                Named* n = args->d_args.first()->getIdent();
+                if( n == 0 || n->getTag() != Thing::T_NamedType )
+                {
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting named type"));
+                    break;
+                }
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
                 if( !isBasicOrSet(lhs) && lhs->getTag() != Thing::T_Enumeration )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting basic, set or enumeration type"));

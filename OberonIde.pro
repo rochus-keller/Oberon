@@ -26,6 +26,7 @@ TEMPLATE = app
 
 INCLUDEPATH += .. ../LuaJIT/src
 
+#DEFINES += LUA_USE_ASSERT
 SOURCES += OberonIde.cpp \
     ../GuiTools/CodeEditor.cpp \
     ../LjTools/LuaJitBytecode.cpp \

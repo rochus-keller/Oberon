@@ -106,8 +106,6 @@ module CD
 		RVV := som.RedBlackTree<Vector2D,MV.Vector>
 		RVB := som.RedBlackTree<Vector2D, boolean>
 		RCB := som.RedBlackTree<CallSign, boolean>
-		IR := som.Interfaces<RVV.Entry>
-		IC := som.Interfaces<RCV.Entry>
 
 	const
 		MIN_X = 0.0
@@ -407,7 +405,7 @@ module CD
 	
 	proc (this: CollisionDetector) handleNewFrame(frame: AV.Vector): OV.Vector
 	  type
-		  ForEachInterface = record (IC.ForEachInterface) 
+		  ForEachInterface = record (RCV.ForEachInterface) 
 									  toRemove: CV.Vector 
 									  seen: RCB.RedBlackTree
 									  end
@@ -553,7 +551,7 @@ module CD
 
   proc reduceCollisionSet(motions: MV.Vector): VV.Vector
 	  type
-		  ForEachInterface = record (IR.ForEachInterface) result: VV.Vector end
+		  ForEachInterface = record (RVV.ForEachInterface) result: VV.Vector end
 	  
 	  proc (var this: ForEachInterface) apply(in elem: RVV.Entry) 
 	  begin

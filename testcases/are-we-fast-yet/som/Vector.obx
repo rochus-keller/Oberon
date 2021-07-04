@@ -30,6 +30,8 @@ import
 				storage : pointer to array of E
 				firstIdx, lastIdx : integer
 			end
+		ForEachInterface* = I.ForEachInterface
+		TestInterface* = I.TestInterface
 			
 	const	INITIAL_SIZE = 50
 	

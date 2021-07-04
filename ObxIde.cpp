@@ -159,8 +159,8 @@ public:
         {
             Named* ident = s->getIdent();
             Q_ASSERT( ident );
-            QTextCursor c( document()->findBlockByNumber( s->d_loc.d_row - 1) );
-            c.setPosition( c.position() + s->d_loc.d_col - 1 );
+            QTextCursor c( document()->findBlockByNumber( qMax(s->d_loc.d_row - 1,0)) );
+            c.setPosition( c.position() + qMax(s->d_loc.d_col - 1, 0) );
             int pos = c.position();
             c.setPosition( pos + ident->d_name.size(), QTextCursor::KeepAnchor );
 
@@ -1341,6 +1341,7 @@ void Ide::onTabChanged()
     }
     // else
     d_bcv->clear();
+    fillModule(0);
 }
 
 void Ide::onTabClosing(int i)
@@ -2692,7 +2693,7 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
     }
 }
 
-static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx );
+static void fillModItems(QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx );
 
 static void fillRecord(QTreeWidgetItem* item, Named* n, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
 {
@@ -2705,9 +2706,14 @@ static void fillRecord(QTreeWidgetItem* item, Named* n, Record* r, bool sort, QH
 }
 
 template<class T>
-static void createModItem(T* parent, Named* n, bool nonbound, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
+static void createModItem(T* parent, Named* n, Type* t, bool nonbound, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
 {
-    if( n->d_type.isNull() )
+    bool isAlias = false;
+    if( t == 0 )
+        t = n->d_type.data();
+    else
+        isAlias = true;
+    if( t == 0 )
         return;
     if( idx.contains(n) )
     {
@@ -2717,25 +2723,33 @@ static void createModItem(T* parent, Named* n, bool nonbound, bool sort, QHash<N
     switch( n->getTag() )
     {
     case Thing::T_NamedType:
-        switch( n->d_type->getTag() )
+        switch( t->getTag() )
         {
         case Thing::T_Record:
             {
                 QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-                Record* r = cast<Record*>(n->d_type.data());
-                fillRecord(item,n,r,sort,idx);
+                if( !isAlias  )
+                    fillRecord(item,n,cast<Record*>(t),sort,idx);
+                else
+                    fillModItems(item,n, 0, 0, sort, idx);
             }
             break;
         case Thing::T_Pointer:
             {
-                Pointer* p = cast<Pointer*>(n->d_type.data());
+                Pointer* p = cast<Pointer*>(t);
                 if( p->d_to && p->d_to->getTag() == Thing::T_Record )
                 {
                     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-                    Record* r = cast<Record*>(p->d_to.data());
-                    fillRecord(item,n,r,sort,idx);
+                    if( !isAlias )
+                        fillRecord(item,n,cast<Record*>(p->d_to.data()),sort,idx);
+                    else
+                        fillModItems(item,n, 0, 0, sort, idx);
                 }
             }
+            break;
+        case Thing::T_QualiType:
+            if( t->toRecord() )
+                createModItem(parent,n,t->derefed(),nonbound, sort, idx);
             break;
         }
         break;
@@ -2768,11 +2782,11 @@ static void walkModItems(T* parent, Scope* p, Record* r, bool sort, QHash<Named*
             tmp.insert( n->d_name.toLower(), n.data() );
         Sort::const_iterator i;
         for( i = tmp.begin(); i != tmp.end(); ++i )
-            createModItem(parent,i.value(),true, sort, idx);
+            createModItem(parent,i.value(),0,true, sort, idx);
     }else if( p )
     {
         foreach( const Ref<Named>& n, p->d_order )
-            createModItem(parent,n.data(),true, sort, idx);
+            createModItem(parent,n.data(),0,true, sort, idx);
     }
     if( r && sort )
     {
@@ -2781,15 +2795,16 @@ static void walkModItems(T* parent, Scope* p, Record* r, bool sort, QHash<Named*
             tmp.insert( n->d_name.toLower(), n.data() );
         Sort::const_iterator i;
         for( i = tmp.begin(); i != tmp.end(); ++i )
-            createModItem(parent,i.value(),false, sort, idx);
+            createModItem(parent,i.value(),0,false, sort, idx);
     }else if( r )
     {
         foreach( const Ref<Procedure>& n, r->d_methods )
-            createModItem(parent,n.data(),false, sort, idx);
+            createModItem(parent,n.data(),0,false, sort, idx);
     }
 }
 
-static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
+static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r,
+                          bool sort, QHash<Named*,QTreeWidgetItem*>& idx )
 {
     const bool pub = n->d_visibility >= Named::Private;
     item->setText(0,n->d_name);
@@ -2800,6 +2815,8 @@ static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, 
     case Thing::T_NamedType:
         if( r && r->d_baseRec == 0 && r->d_methods.isEmpty() )
             item->setIcon(0, QPixmap( pub ? ":/images/struct.png" : ":/images/struct_priv.png" ) );
+        else if( r == 0 && p == 0 )
+            item->setIcon(0, QPixmap( pub ? ":/images/alias.png" : ":/images/alias_priv.png" ) );
         else
             item->setIcon(0, QPixmap( pub ? ":/images/class.png" : ":/images/class_priv.png" ) );
         break;
@@ -2807,7 +2824,6 @@ static void fillModItems( QTreeWidgetItem* item, Named* n, Scope* p, Record* r, 
         item->setIcon(0, QPixmap( pub ? ":/images/func.png" : ":/images/func_priv.png" ) );
         break;
     }
-
     walkModItems(item,p,r,sort, idx);
 }
 
@@ -3216,7 +3232,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.18");
+    a.setApplicationVersion("0.7.19");
     a.setStyle("Fusion");
 
     Ide w;

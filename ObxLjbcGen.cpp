@@ -1708,6 +1708,47 @@ struct ObxLjbcGenImp : public AstVisitor
         const int res = ctx.back().buySlots(1);
         switch( bi->d_func )
         {
+        case BuiltIn::MAX:
+        case BuiltIn::MIN:
+            if( ae->d_args.size() == 1 )
+            {
+                Type* t = derefed(ae->d_args.first()->d_type.data());
+                switch( t->getTag() )
+                {
+                case Thing::T_BaseType:
+                    {
+                    BaseType* bt = cast<BaseType*>(t);
+                    if( bi->d_func == BuiltIn::MAX )
+                        bc.KSET(res, bt->maxVal(), ae->d_args.first()->d_loc.packed() );
+                    else
+                        bc.KSET(res, bt->minVal(), ae->d_args.first()->d_loc.packed() );
+                    }
+                    break;
+                default:
+                    Q_ASSERT( false );
+                }
+            }else if( ae->d_args.size() == 2 )
+            {
+                ae->d_args.first()->accept(this);
+                ae->d_args.last()->accept(this);
+                Q_ASSERT( slotStack.size() >= 2 );
+                if( bi->d_func == BuiltIn::MAX )
+                    bc.ISGE( slotStack[ slotStack.size()-2 ], slotStack[ slotStack.size()-1 ], ae->d_loc.packed() );
+                else
+                    bc.ISLE( slotStack[ slotStack.size()-2 ], slotStack[ slotStack.size()-1 ], ae->d_loc.packed() );
+                bc.JMP(ctx.back().pool.d_frameSize,0, ae->d_loc.packed());
+                const quint32 pc1 = bc.getCurPc();
+                bc.MOV(res, slotStack[ slotStack.size()-1 ], ae->d_loc.packed() );
+                bc.JMP(ctx.back().pool.d_frameSize,0,ae->d_loc.packed());
+                const quint32 pc2 = bc.getCurPc();
+                bc.patch(pc1);
+                bc.MOV(res, slotStack[ slotStack.size()-2 ], ae->d_loc.packed() );
+                bc.patch(pc2);
+                releaseSlot();
+                releaseSlot();
+            }else
+                Q_ASSERT( false );
+            break;
         case BuiltIn::DEFAULT:
             {
                 Q_ASSERT( !ae->d_args.isEmpty() && !ae->d_args.first()->d_type.isNull() );

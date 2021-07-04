@@ -32,10 +32,10 @@ module IdentityDictionary<K,V>
 	// NOTE this is identical to Dictionary; don't know why a separate module is implemented,
 	// overriding Entry makes no sense, Entry.match is identical
 	
-	proc create(hf: HashFunc): IdentityDictionary
+	proc create*(hf: HashFunc): IdentityDictionary
 		return D.create(hf) end
 	
-	proc createWithSize(size: integer; hf: HashFunc): IdentityDictionary
+	proc createWithSize*(size: integer; hf: HashFunc): IdentityDictionary
 		return D.createWithSize(size,hf) end
 	
 

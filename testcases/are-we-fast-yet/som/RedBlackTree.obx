@@ -78,6 +78,7 @@ module RedBlackTree<K,V>
 								root: Node
 								compare: CompareFunc
 							end
+		ForEachInterface* = I.ForEachInterface
 							
 		InsertResult = record
 								isNewEntry: boolean

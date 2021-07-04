@@ -41,5 +41,7 @@
         <file>images/break-marker.png</file>
         <file>images/breakpoint.png</file>
         <file>images/marker.png</file>
+        <file>images/alias_priv.png</file>
+        <file>images/alias.png</file>
     </qresource>
 </RCC>
