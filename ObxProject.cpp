@@ -194,7 +194,10 @@ struct ObxHitTest : public AstVisitor
     void visit( IfLoop* l )
     {
         for( int i = 0; i < l->d_if.size(); i++ )
-            l->d_if[i]->accept(this);
+        {
+            if( l->d_if[i] )
+                l->d_if[i]->accept(this);
+        }
         for( int i = 0; i < l->d_then.size(); i++ )
         {
             const StatSeq& then = l->d_then[i];

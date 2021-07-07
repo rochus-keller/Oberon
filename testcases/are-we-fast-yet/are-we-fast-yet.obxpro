@@ -54,6 +54,8 @@ size=9
 17\RelPath=CD2.obx
 18\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Havlak.obx
 18\RelPath=Havlak.obx
+19\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/DeltaBlue.obx
+19\RelPath=DeltaBlue.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Benchmark.obx
 2\RelPath=Benchmark.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Harness.obx
@@ -70,7 +72,7 @@ size=9
 8\RelPath=Mandelbrot.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/Queens.obx
 9\RelPath=Queens.obx
-size=18
+size=19
 
 [Packages]
 1\Name=@ByteArray()

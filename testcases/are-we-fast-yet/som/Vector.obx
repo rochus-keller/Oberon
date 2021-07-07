@@ -178,30 +178,35 @@ import
 		return false 
 	end getOne
 	
-	(* TODO: avoid '=' for comparison
-	proc (this: Vector) remove*(in obj: E) : boolean
+	type CheckEqual = proc(in lhs,rhs: E): boolean
+	
+	proc (this: Vector) remove*(in obj: E; eq: CheckEqual) : boolean
 		var
 			newArray : pointer to array of E
-			i, off : integer
+			i, newLast : integer
+			found: boolean
 	begin
 		new(newArray,this.capacity())
-		off := 0
+		newLast := 0
+		found := false
 		for i := this.firstIdx to this.lastIdx - 1 do
-			if this.storage[i] = obj then
-				off := off -1
+			if eq(this.storage[i], obj) then
+				found := true
 			else
-				newArray[i+off] := this.storage[i]
+				newArray[newLast] := this.storage[i]
+				inc(newLast)
 			end
 		end		
 		this.storage := newArray
-		this.lastIdx := this.lastIdx + off
-		return (off # 0)
-	end remove *)
+		this.lastIdx := newLast
+		this.firstIdx := 0
+		return found
+	end remove
 	
 	proc (this: Vector) sort*(var c: I.Comparator)
 	begin
 		if this.getSize() > 0 then
-			this.sortImp(this.firstIdx,this.lastIdx,c)
+			this.sortImp(this.firstIdx,this.lastIdx-1,c)
 		end
 	end sort
 	

@@ -27,6 +27,10 @@
 
 	proc (var this: ForEachInterface) apply*(in elem: E) end 
 	
+	type ForEachInterfaceRW* = record end
+
+	proc (var this: ForEachInterfaceRW) apply*(var elem: E) end
+	
 	type TestInterface* = record end
 	
 	proc (var this: TestInterface) test*(in elem: E) : boolean end

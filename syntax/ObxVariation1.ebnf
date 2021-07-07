@@ -1,0 +1,327 @@
+// Source: The Programming Language Oberon, Revision 1.10.2013 / 3.5.2016, Niklaus Wirth
+// Download: https://www.inf.ethz.ch/personal/wirth/Oberon/Oberon07.Report.pdf
+// Adapted and modified 2019, 2020 by Rochus Keller <mailto:me@rochus-keller.ch>
+
+// Modification Steps:
+// - manually copied all productions from PDF to EbnfStudio and adapted syntax
+// - added top
+// - disabled/designated lexer productions
+// - removed LL(1) first/first and first/follow ambiguities
+// - renamed case to Case because of C++ keyword
+// - modified selector and removed ActualParams so parser needs no type info 
+// - added variableOrFunctionCall to remind that factor can include ActualParams
+// - allow FieldListSequence to have trailing ';' as seen in the ProjectOberon source 
+// - added explicit ReturnStatement with optional closing semi
+// - added explicit LengthList 
+// - added hexchar and hexstring
+// - added explicit Elsif/ElseStatement 
+// - integrated DEFINITION syntax
+// - made LengthList optional in ArrayType (like Oberon-2)
+// - added type-bound procedures from Oberon-2
+// - added paths to import; most right element of the path is the module name
+// - added enumerations, adopted from Pascal scalar type
+// - added shortcuts: BEGIN or DO, PROCEDURE or PROC, POINTER TO or '^', ARRAY n OF or '[n]'
+// - made all semicolons ';' optional
+// - added const VAR params using the IN keyword
+// - allow more than one TYPE, CONST, VAR in declaration sequence in arbitrary order interleaved with procedures
+// - added '-' to identdef as in Oberon-2 (only effective on RECORD level, MODULE level als '*' is read-only)
+// - added WITH, LOOP, EXIT statements from Oberon-2 for backward compatibility
+// - added syntax elements to parse Blackbox Component Pascal 1.7
+// - made end ident of procedures optional
+// - added UNSAFE POINTER, CSTRUCT,  CUNION and CARRAY for external C library integration
+// - switched to generic modules (instead of generic types, similar to a subset of Ada) to avoid semantic complexities
+// - allow import lists to occur several times interleaved with declaration sequence; optional commas between imports
+// - optional commas in FPSection, IdentList, enumeration and TypeParams
+// - removed all conditional parts so only pure OBX syntax remains
+// - module and procs can have more than one statement sequence, each prefixed by BEGIN or DO
+
+/// Top
+Oberon ::=  module | definition // also in OBX we require one module or definition per file
+
+/// 3. Vocabulary
+
+// letter ::= 'A' | 'B' | ... | 'Z' | 'a' | 'b' | ... | 'z'
+
+// digit ::=  '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+
+// hexDigit ::= digit | 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
+
+ident ::= // letter {letter | digit}
+
+integer ::= // digit {digit} | digit {hexDigit} 'H'
+
+real ::= // digit {digit} '.' {digit} [ScaleFactor]
+
+ScaleFactor- ::= // 'E' ['+' | '-'] digit {digit}
+
+number ::= integer | real
+
+string ::= // '"' {character} '"' | digit {hexDigit} 'X', also multiline hex strings $ ... $ seen in PO source
+hexchar ::=
+hexstring ::=
+
+comment- ::= '(*' '*)' '//'
+// line comments like in BCPL and Delphi/Free Pascal
+
+/// 4. Declarations and scope rules
+
+qualident ::= [ \LL:2\ ident '.' ] ident  // works even though EbnfStudio disagrees
+
+identdef ::= ident [ '*' | '-' ] 
+
+/// 5. Constant declarations
+
+ConstDeclaration ::= identdef '=' ConstExpression
+
+ConstExpression* ::= expression
+
+/// 6. Type declarations
+
+TypeDeclaration ::= identdef 	'=' type
+
+type ::= NamedType  | enumeration
+	| ArrayType | RecordType | PointerType | ProcedureType
+
+NamedType ::= qualident 
+
+TypeParams ::= '<' ident { [','] ident } '>'
+
+TypeActuals ::= '<' TypeActual { ',' TypeActual } '>' 
+
+TypeActual ::= NamedType
+
+enumeration ::= '('  ident { [','] ident } ')' 
+
+/// 6.1. Basic types
+
+/// 6.2. Array types
+
+ArrayType ::= ( ARRAY  | CARRAY ) [ LengthList ] OF type 
+	 | '[' [ LengthList ] ']' type
+
+LengthList ::= length {',' length}
+
+length* ::= ConstExpression
+
+/// 6.3. Record types
+
+RecordType ::=  ( RECORD  | CSTRUCT | CUNION )
+	['(' BaseType ')'] [FieldListSequence]  END 
+
+BaseType ::= NamedType
+
+FieldListSequence ::= FieldList 
+	[ ';' ] { FieldList [ ';' ] }
+
+FieldList ::= IdentList ':' type
+
+IdentList ::= identdef { [','] identdef}
+
+/// 6.4. Pointer types
+
+PointerType ::= (  [UNSAFE] POINTER TO | '^' ) type
+
+/// 6.5. Procedure types
+
+ProcedureType ::= ( PROCEDURE  | PROC ) 
+	[ \LL:2\ '(' '^' ')'  ] // TODO type-bound procedure types; only for record pointers (records on stack go out of scope)
+	// alternatives: (:) (..) (^) 
+	[FormalParameters]
+
+/// 7. Variable declarations
+
+VariableDeclaration ::= IdentList ':' type
+
+/// 8. Expressions
+
+/// 8.1. Operands
+
+designator ::= qualident {selector}
+
+selector ::= '.' ident | '[' ExpList ']' | '^'  
+	| '(' [ ExpList ] ')' // substitute for (qualident) and ActualParameters
+	// original: | '(' qualident ')'  // typeguard, nur unterscheidbar von ActualParams wenn qualident ein Type ist
+	// Man also Oberon in der Originalsyntax ohne Typeninformation nicht parsen!
+
+ExpList ::= expression {',' expression}
+
+/// 8.2. Operators
+
+expression ::= SimpleExpression [ relation SimpleExpression ]
+
+relation ::= '=' | '#' | '<' | '<=' | '>' | '>=' | IN | IS
+
+SimpleExpression ::= ['+' | '-'] term { AddOperator term }
+
+AddOperator ::= '+' | '-' | OR
+
+term ::= factor {MulOperator factor}
+
+MulOperator ::= '*' | '/' | DIV | MOD | '&'
+
+literal ::= number | string | hexstring | hexchar | NIL | set 
+	| TRUE | FALSE // in Oberon-2 and Blackbox these are just predeclared consts
+
+factor ::= literal
+	| variableOrFunctionCall // replaces: designator [ActualParameters]
+	| '(' expression ')' | '~' factor
+
+variableOrFunctionCall ::= designator // designator enthält neu auch: [ ActualParameters ] 
+	
+set ::= '{' [ element {',' element} ] '}'
+
+element ::= expression ['..' expression]
+
+ActualParameters- ::= '(' [ ExpList ] ')'  
+
+/// 9. Statements
+
+statement ::=
+	assignmentOrProcedureCall | ReturnStatement | ExitStatement | blockstatement
+
+blockstatement ::= IfStatement | CaseStatement |
+	WithStatement | LoopStatement | 
+	WhileStatement | RepeatStatement | ForStatement
+
+/// 9.1. Assignments
+
+/// 9.2. Procedure calls
+
+// merge of assignment and ProcedureCall
+assignmentOrProcedureCall ::=
+	designator 
+	[
+		':=' expression // assignment
+		// designator enthält neu auch Params: | [ ActualParameters ] // ProcedureCall
+	]
+	
+assignment- ::= designator ':=' expression
+
+ProcedureCall- ::= designator [ ActualParameters ]
+
+/// 9.3. Statement sequences
+
+StatementSequence ::= 
+	{ ';' } { statement { ';' } }  // in OS/OR we find things like "BEGIN;" or "statement;;"
+
+// BlockStatementSequence ::=  ( blockstatement | ReturnStatement ) [';'] { assignmentOrProcedureCall [';'] }
+
+/// 9.4. If statements
+
+IfStatement ::= IF expression THEN StatementSequence
+	{ ElsifStatement }
+	[ ElseStatement ] END
+ElsifStatement ::= ELSIF expression THEN StatementSequence 
+ElseStatement ::= ELSE StatementSequence
+
+/// 9.5. Case statements
+
+CaseStatement ::= CASE expression OF Case { '|' Case }
+	[ ELSE StatementSequence ]
+	END
+
+Case ::= [ CaseLabelList ':' StatementSequence ]
+
+CaseLabelList ::= LabelRange { ',' LabelRange }
+
+LabelRange ::= label [ '..' label ]
+
+label ::= 
+	ConstExpression
+
+/// 9.6. While statements
+
+WhileStatement ::= WHILE expression DO StatementSequence
+	{ElsifStatement2} END
+ElsifStatement2 ::= ELSIF expression DO StatementSequence 
+
+/// 9.7. Repeat Statements
+
+RepeatStatement ::= REPEAT StatementSequence UNTIL expression
+
+/// 9.8. For statements
+
+ForStatement ::= FOR ident ':=' expression TO expression [ BY ConstExpression ]
+	DO StatementSequence END
+
+WithStatement ::= WITH [ '|' ] Guard DO StatementSequence
+	{ '|' Guard DO StatementSequence}
+	[ ELSE StatementSequence ] END
+Guard ::= qualident ':' qualident
+
+LoopStatement ::= LOOP StatementSequence END
+
+ExitStatement ::= EXIT
+
+/// 10. Procedure declarations
+ProcedureDeclaration ::= 
+	\LL:2\ PROCEDURE ( '^' | '-' ) [Receiver] identdef [ FormalParameters ] [ literal ] 
+		// OBN87/90 allows forward declarations (^) and external declarations (-), just for backward compatibility.
+	|  ProcedureHeading [ ';' ] ProcedureBody [ ident ] // postfix ident can be left out if body empty or just return
+
+ProcedureHeading ::= ( PROCEDURE | PROC )
+	[ '*' | '+' ]  // the star is from Oberon 87 (ignored)
+	[Receiver]
+	 identdef 
+	 [ FormalParameters ]
+
+Receiver ::= '(' [ VAR | IN ] ident ':' ident ')'
+
+ProcedureBody ::= BlockSequence END
+	
+BlockSequence ::= 
+	{ CONST { ConstDeclaration [';'] } 
+	| TYPE { TypeDeclaration [';'] } 
+	| VAR { VariableDeclaration [';'] } 
+	| ProcedureDeclaration [';'] 
+	| ( BEGIN | DO ) StatementSequence // BEGIN/DO can be left out if statement starts with a keyword
+	// BlockStatementSequence (if BEGIN/DO is left out); ambiguous with StatementSequence
+	}
+
+ReturnStatement ::= RETURN [ expression ]
+	 // expression leads to LL(k) ambig with qualident statement; resolve by checking if proc has return type
+
+DeclarationSequence2 ::= 
+	{ CONST { ConstDeclaration [';'] }
+	| TYPE { TypeDeclaration [';'] }
+	| VAR { VariableDeclaration [';'] }
+	| ProcedureHeading [';'] } // difference to DeclarationSequence
+
+/// 10.1. Formal parameters
+
+FormalParameters ::= '(' [ FPSection {  [';']  FPSection } ] ')'  [ ':' ReturnType ]
+
+ReturnType ::= NamedType | ( POINTER TO | '^') NamedType
+
+FPSection ::= [ VAR  | IN  ]  ident { [','] ident } ':' FormalType 
+
+FormalType ::=  type
+
+
+/// 10.2. Predefined procedures
+
+/// 11. Modules
+
+module ::= MODULE ident  [ TypeParams ] 
+	( [';']  { ImportList | BlockSequence }
+	END ident ['.'] )
+
+ImportList ::= IMPORT import { [ ',' ] import } [';']
+
+import ::= [ \LL:2\ ident ':=' ] ident 
+	{ '/' ident } // NOTE: paths are not case sensitive 
+	[ TypeActuals ] 
+
+/// 11.1 The Module SYSTEM
+
+/// Definitions
+
+definition ::= DEFINITION ident [';']  [ ImportList ] DeclarationSequence2 END ident ['.']
+
+/// Helper Tokens
+Comment ::=
+
+/// Pragmas
+%module ::= 'Oberon'
+%namespace ::= 'Obx'
+%suppress ::= ';' ',' '.' ':'

@@ -401,6 +401,8 @@ struct ValidatorImp : public AstVisitor
                 Parameter lhs;
                 lhs.d_var = true;
                 lhs.d_type = derefed(args->d_args.first()->d_type.data());
+                if( lhs.d_type.isNull() )
+                    break; // already reported
                 if( !isInteger( lhs.d_type.data() ) && lhs.d_type->getTag() != Thing::T_Enumeration )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting integer or enumeration argument"));
                 checkCallArg( &lhs, args->d_args[0] );
@@ -2527,7 +2529,14 @@ struct ValidatorImp : public AstVisitor
                 return true;
 #endif
             // `f` is a value parameter and T~a~ is _assignment compatible_ with T~f~
-            return assignmentCompatible( lhs->d_type.data(), rhs );
+            const bool res = assignmentCompatible( lhs->d_type.data(), rhs );
+            if( res && tftag != Thing::T_Pointer && typeExtension(tf, ta ) &&
+                    tf->toRecord()->d_fields.size() < ta->toRecord()->d_fields.size() )
+            {
+                // rhs is a subrecord of lhs (if it's the same record type we don't come here) and we try to pass by value
+                warning(rhs->d_loc,Validator::tr("passing record by value to base type loses fields"));
+            }
+            return res;
         }
     }
 

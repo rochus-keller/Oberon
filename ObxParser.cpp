@@ -1373,11 +1373,24 @@ StatSeq Parser::statementSequence(Scope* scope)
     {
         next();
     }
+    bool returnFound = false;
     while( firstOfStatement(d_la) )
     {
+        if( returnFound )
+        {
+            returnFound = false;
+            warning(d_next.toLoc(), tr("this statement will not be executed") );
+        }
         Ref<Statement> s = statement(scope);
         if( !s.isNull() )
             seq << s;
+        switch(s->getTag())
+        {
+        case Thing::T_Return:
+        case Thing::T_Exit:
+            returnFound = true;
+            break;
+        }
         while( d_la == Tok_Semi )
         {
             next();

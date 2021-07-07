@@ -302,7 +302,7 @@ struct ObxLjbcGenImp : public AstVisitor
             const int tmp = ctx.back().buySlots(1,true);
             bc.FNEW( tmp, modBody.d_slot, me->d_end.packed() );
             bc.UCLO( modSlot, 0, me->d_end.packed() );
-            bc.CALL(tmp,0,0,me->d_end.packed());
+            bc.CALL(tmp,1,0,me->d_end.packed()); // returns at least nil even if d_body.isEmtpty
             ctx.back().sellSlots(tmp);
         }else
             bc.UCLO( modSlot, 0, me->d_end.packed() );
@@ -1753,27 +1753,7 @@ struct ObxLjbcGenImp : public AstVisitor
             {
                 Q_ASSERT( !ae->d_args.isEmpty() && !ae->d_args.first()->d_type.isNull() );
                 Expression* e = ae->d_args.first().data();
-                Type* t = derefed(e->d_type.data());
-                switch( t->getTag() )
-                {
-                case Thing::T_Pointer:
-                case Thing::T_ProcType:
-                    bc.KNIL(res,1,e->d_loc.packed());
-                    break;
-                case Thing::T_BaseType:
-                    if( t->getBaseType() == Type::BOOLEAN )
-                        bc.KSET(res, false, e->d_loc.packed() );
-                    else
-                        bc.KSET(res, 0.0, e->d_loc.packed());
-                    break;
-                case Thing::T_Record:
-                case Thing::T_Array:
-                    emitInitializer(res, e->d_type.data(), false, false, ae->d_loc );
-                    break;
-                default:
-                    Q_ASSERT( false ); // TODO
-                    break;
-                }
+                emitDefault(res,e->d_type.data(),e->d_loc);
             }
             break;
         case BuiltIn::PRINTLN:
@@ -3132,6 +3112,10 @@ struct ObxLjbcGenImp : public AstVisitor
                     return; // error already reported
                 bc.MOV(tmp,slotStack.back(),loc.packed());
                 releaseSlot();
+            }else if( !pt->d_return.isNull() )
+            {
+                // a function with no body
+                emitDefault(tmp,pt->d_return.data(),loc);
             }
             int pos = 1;
             for( int i = 0; i < pt->d_formals.size(); i++ )
@@ -3185,10 +3169,17 @@ struct ObxLjbcGenImp : public AstVisitor
                 releaseSlot();
             }else
             {
+                // a function with no body
+                const int tmp = ctx.back().buySlots(1);
+                if( !pt->d_return.isNull() )
+                    emitDefault(tmp,pt->d_return.data(),loc);
+                else
+                    bc.KNIL(tmp,1,loc.packed());
 #ifdef _INSERT_DGBTRACE
                 emitTraceEnd(loc);
 #endif
-                bc.RET(loc.packed());
+                bc.RET(tmp,1,loc.packed()); // procedures always return one slot
+                ctx.back().sellSlots(tmp);
             }
         }
     }
@@ -3394,6 +3385,36 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         default:
             Q_ASSERT( false );
+        }
+    }
+
+    void emitDefault( quint8 to, Type* t, const RowCol& loc )
+    {
+        Type* td = derefed(t);
+        if( td == 0 )
+            return; // already reported
+        switch( td->getTag() )
+        {
+        case Thing::T_Pointer:
+        case Thing::T_ProcType:
+            bc.KNIL(to,1,loc.packed());
+            break;
+        case Thing::T_BaseType:
+            if( td->getBaseType() == Type::BOOLEAN )
+                bc.KSET(to, false, loc.packed() );
+            else
+                bc.KSET(to, 0.0, loc.packed());
+            break;
+        case Thing::T_Record:
+        case Thing::T_Array:
+            emitInitializer(to, t, false, false, loc );
+            break;
+        case Thing::T_Enumeration:
+            bc.KSET(to, 0, loc.packed());
+            break;
+        default:
+            Q_ASSERT( false ); // TODO
+            break;
         }
     }
 

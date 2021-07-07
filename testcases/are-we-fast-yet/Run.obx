@@ -24,7 +24,7 @@
 module Run
 	import B := Benchmark, Out, Input
 		Permute, Bounce, List, Mandelbrot, Queens, Sieve, Storage, Towers,
-		Richards, Json, NBody, CD, CD2, Havlak
+		Richards, Json, NBody, CD, CD2, Havlak, DeltaBlue
 	
 	type Run* = pointer to record
 								name : array 32 of char
@@ -74,8 +74,9 @@ module Run
 			return CD.create()
 		elsif name = "Havlak" then
 			return Havlak.create()
+		elsif name = "DeltaBlue" then
+			return DeltaBlue.create()
 		end
-		// TODO
 		return nil
 	end getSuiteFromName
 	

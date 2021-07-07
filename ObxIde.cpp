@@ -2409,7 +2409,7 @@ void Ide::fillLocals()
         Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
 #endif
     }
-#if 1 // TEST, usually 0
+#if 0 // TEST, usually 0
     fillRawLocals(d_locals, d_lua);
 #endif
 }
@@ -3232,7 +3232,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.19");
+    a.setApplicationVersion("0.7.20");
     a.setStyle("Fusion");
 
     Ide w;

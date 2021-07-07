@@ -228,6 +228,7 @@ import
 	
 	proc RunAll()
 	begin
+		H.run("DeltaBlue", 12000, 1 )
 	   H.run("Richards", 100, 1)
 	   H.run("Json", 100, 1)
 	   H.run("Havlak", 3, 1 )
@@ -252,9 +253,9 @@ begin
    // Test6()
    RunAll()
 
-	//H.run("Havlak", 3, 1 )
+	// H.run("DeltaBlue", 12000, 1 )
 	
-   // H.run("CD2", 100, 10) 
+   // H.run("CD2", 200, 10) 
    // CD2 250,1000 works
    // CD/CD2  10,1000/ 50,100/ 50,10/ 100,10 works
    // CD tends to crash with numIterations > 90
