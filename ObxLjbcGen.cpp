@@ -302,7 +302,7 @@ struct ObxLjbcGenImp : public AstVisitor
             const int tmp = ctx.back().buySlots(1,true);
             bc.FNEW( tmp, modBody.d_slot, me->d_end.packed() );
             bc.UCLO( modSlot, 0, me->d_end.packed() );
-            bc.CALL(tmp,1,0,me->d_end.packed()); // returns at least nil even if d_body.isEmtpty
+            bc.CALL(tmp,0,0,me->d_end.packed()); // no var, no return arg
             ctx.back().sellSlots(tmp);
         }else
             bc.UCLO( modSlot, 0, me->d_end.packed() );
@@ -1397,24 +1397,11 @@ struct ObxLjbcGenImp : public AstVisitor
         case Thing::T_BaseType:
             // at least the oberon system assumes initialized module variables
             // nil is the default value of luajit tables and not suited as a default BaseType
-            switch( td->getBaseType() )
-            {
-            case Type::BOOLEAN:
+            if( td->getBaseType() == Type::BOOLEAN )
                 bc.KSET(to,false,loc.packed());
-                return true;
-            case Type::INTEGER:
-            case Type::SHORTINT:
-            case Type::LONGINT:
-            case Type::REAL:
-            case Type::LONGREAL:
-            case Type::BYTE:
-            case Type::SET:
-            case Type::CHAR:
-            case Type::WCHAR:
-                bc.KSET(to,0,loc.packed());
-                return true;
-            }
-            break;
+            else
+                bc.KSET(to,0.0,loc.packed());
+            return true;
         case Thing::T_Enumeration:
             bc.KSET(to,0,loc.packed());
             return true;
@@ -1427,7 +1414,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 Record* r = cast<Record*>(td);
                 emitCreateRecord( to, t, loc );
 
-                // initialize structured fields
+                // initialize fields
                 const int tmp = ctx.back().buySlots(1);
                 QList<Field*> fields = r->getOrderedFields();
                 for( int i = 0; i < fields.size(); i++ )
@@ -1435,12 +1422,9 @@ struct ObxLjbcGenImp : public AstVisitor
                     Type* t2 = fields[i]->d_type.data();
                     Type* t2d = derefed(t2);
                     Q_ASSERT( t2d );
-                    //const int tag = t2d->getTag();
-                    if( true ) // tag == Thing::T_Record || tag == Thing::T_Array ) // oberon system expects all vars to be initialized
-                    {
-                        if( emitInitializer(tmp, t2, false, false, loc ) )
+                    // oberon system expects all vars to be initialized
+                    if( emitInitializer(tmp, t2, false, false, loc ) )
                             emitSetTableByIndex(tmp,to,fields[i]->d_slot,loc);
-                    }
                 }
                 ctx.back().sellSlots(tmp);
             }
@@ -2232,21 +2216,22 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
         ProcType* pt = cast<ProcType*>( subT );
         Q_ASSERT( pt->d_formals.size() == me->d_args.size() );
-        bool passFrame = false;
+
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
+        bool passFrame = false;
         if( pt->d_ident && ( pt->d_ident->d_upvalIntermediate || pt->d_ident->d_upvalSink ) )
             passFrame = true;
 #endif
 
         QVector<Accessor> accs(me->d_args.size());
-        int varcount = 0;
+        int varCount = 0; // number of true var params which have to be returned by the function
         for( int i = 0; i < me->d_args.size(); i++ )
         {
             if( trueVarParam( pt->d_formals[i].data() ) )
             {
                 Q_ASSERT( pt->d_formals[i]->d_var && !pt->d_formals[i]->d_const );
                 // here is a VAR but not IN param
-                varcount++;
+                varCount++;
                 accessor( me->d_args[i].data(), accs[i] );
             }
         }
@@ -2258,12 +2243,22 @@ struct ObxLjbcGenImp : public AstVisitor
             isBound = !p->d_receiver.isNull();
         }
 
-        const int argCount = me->d_args.size() + ( isBound ? 1 : 0 ) + ( passFrame ? 1 : 0 );
-        const int tmp = ctx.back().buySlots( argCount + 1 , true ); // Allocate the slots for the call
-                                                              // func + this + args
+        const int funcCount = 1;
+        // we always assume a return value if there are vars to be returned even if there isn't one
+        const int retCount = pt->d_return.isNull() && varCount == 0 ? 0 : 1;
+
+        const int thisCount = ( isBound ? 1 : 0 );
+        const int argCount = me->d_args.size()
+#ifdef _HAVE_OUTER_LOCAL_ACCESS
+                + ( passFrame ? 1 : 0 )
+#endif
+                ;
+
+        const int slot = ctx.back().buySlots( funcCount + thisCount + argCount, true ); // Allocate the slots for the call
+
         if( slotStack.isEmpty() )
             return; // error already reported
-        bc.MOV( tmp, slotStack.back(), me->d_loc.packed() );
+        bc.MOV( slot, slotStack.back(), me->d_loc.packed() );
         releaseSlot();
 
         if( isBound )
@@ -2271,17 +2266,17 @@ struct ObxLjbcGenImp : public AstVisitor
             if( slotStack.size() < 1 )
                 return; // already reported
             Q_ASSERT( slotStack.size() >= 1 );
-            bc.MOV(tmp+1, slotStack.back(), me->d_loc.packed() );
+            bc.MOV(slot+funcCount, slotStack.back(), me->d_loc.packed() ); // 'this' is always the first param
             releaseSlot();
         }
 
         for( int i = 0; i < me->d_args.size(); i++ )
         {
-            const int off = i + 1 + ( isBound ? 1 : 0 );
+            const int off = funcCount + thisCount + i;
             if( accs[i].kind != Accessor::Invalid )
             {
                 Q_ASSERT( pt->d_formals[i]->d_var && !pt->d_formals[i]->d_const );
-                emitAccToSlot(tmp+off, accs[i], me->d_args[i]->d_loc );
+                emitAccToSlot(slot+off, accs[i], me->d_args[i]->d_loc );
             }else
             {
                 // here all by val (i.e. !d_var) or IN (i.e. d_var && d_const)
@@ -2294,7 +2289,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( !pt->d_formals[i]->d_var && lhsT->isStructured() )
                 {
                     // a structured arg (record, array) passed by val
-                    emitCopy( true, pt->d_formals[i]->d_type.data(), tmp+off,
+                    emitCopy( true, pt->d_formals[i]->d_type.data(), slot+off,
                               me->d_args[i]->d_type.data(), slotStack.back(), me->d_loc );
                 }else
                 {
@@ -2308,7 +2303,7 @@ struct ObxLjbcGenImp : public AstVisitor
                         Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
                         bc.TGETi( slotStack.back(), slotStack.back(), 0, me->d_loc.packed() );
                     }
-                    bc.MOV(tmp+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
+                    bc.MOV(slot+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
                 }
                 releaseSlot();
             }
@@ -2330,22 +2325,23 @@ struct ObxLjbcGenImp : public AstVisitor
         }
 #endif
 
-        // we always assume a return value even if there isn't any
-        bc.CALL( tmp, 1 + varcount, argCount, me->d_loc.packed() );
-        bc.MOV(res, tmp, me->d_loc.packed() );
+        bc.CALL( slot, retCount + varCount, thisCount + argCount, me->d_loc.packed() );
+        if( retCount )
+            bc.MOV(res, slot, me->d_loc.packed() );
 
-        // handle returned accs
-        int pos = 1;
+        // handle returned vars
+        int off = retCount;
         foreach( const Accessor& acc, accs )
         {
+            Q_ASSERT( retCount != 0 );
             if( acc.kind == Accessor::Invalid )
                 continue;
-            emitSlotToAcc(acc,tmp+pos,me->d_loc);
-            pos++;
+            emitSlotToAcc(acc,slot+off,me->d_loc);
+            off++;
             releaseAcc(acc);
         }
 
-        ctx.back().sellSlots( tmp, argCount + 1 );
+        ctx.back().sellSlots( slot, funcCount + thisCount + argCount );
         slotStack.push_back(res);
     }
 
@@ -3167,19 +3163,23 @@ struct ObxLjbcGenImp : public AstVisitor
 #endif
                 bc.RET(slotStack.back(),1,loc.packed());
                 releaseSlot();
-            }else
+            }else if( !pt->d_return.isNull() )
             {
                 // a function with no body
                 const int tmp = ctx.back().buySlots(1);
-                if( !pt->d_return.isNull() )
-                    emitDefault(tmp,pt->d_return.data(),loc);
-                else
-                    bc.KNIL(tmp,1,loc.packed());
+                emitDefault(tmp,pt->d_return.data(),loc);
 #ifdef _INSERT_DGBTRACE
                 emitTraceEnd(loc);
 #endif
                 bc.RET(tmp,1,loc.packed()); // procedures always return one slot
                 ctx.back().sellSlots(tmp);
+            }else
+            {
+#ifdef _INSERT_DGBTRACE
+                emitTraceEnd(loc);
+#endif
+                bc.RET(loc.packed()); // if we combine this with the !pt->d_return.isNull() part and
+                                        // always return an arg then OberonSystem crashes randomly
             }
         }
     }
@@ -3197,6 +3197,7 @@ struct ObxLjbcGenImp : public AstVisitor
         {
         case Thing::T_Record:
             {
+                qDebug() << "copy record used in" << thisMod->getName() << loc.d_row << loc.d_col;
                 Record* r = cast<Record*>(lhsTd);
                 if( create )
                     emitCreateRecord(lhs,rhsT,loc); // use original type, not derefed
@@ -3212,7 +3213,8 @@ struct ObxLjbcGenImp : public AstVisitor
                     {
                         const int lhs2 = ctx.back().buySlots(1);
                         const int rhs2 = ctx.back().buySlots(1);
-                        emitGetTableByIndex(lhs2,lhs,f->d_slot,loc);
+                        if( !create ) // if lhs table is newly created it is empty; no need to fetch.
+                            emitGetTableByIndex(lhs2,lhs,f->d_slot,loc);
                         emitGetTableByIndex(rhs2,rhs,f->d_slot,loc);
                         emitCopy(create, f->d_type.data(),lhs2, f->d_type.data(), rhs2, loc );
                         if( create )
@@ -3232,6 +3234,7 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         case Thing::T_Array:
             {
+                qDebug() << "copy array used in" << thisMod->getName() << loc.d_row << loc.d_col;
                 // cases: normal array, char array (strlen, wide/normal), literal rhs (char or string)
                 Array* lhsA = cast<Array*>(lhsTd);
                 Type* laT = derefed(lhsA->d_type.data());
@@ -3390,32 +3393,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void emitDefault( quint8 to, Type* t, const RowCol& loc )
     {
-        Type* td = derefed(t);
-        if( td == 0 )
-            return; // already reported
-        switch( td->getTag() )
-        {
-        case Thing::T_Pointer:
-        case Thing::T_ProcType:
-            bc.KNIL(to,1,loc.packed());
-            break;
-        case Thing::T_BaseType:
-            if( td->getBaseType() == Type::BOOLEAN )
-                bc.KSET(to, false, loc.packed() );
-            else
-                bc.KSET(to, 0.0, loc.packed());
-            break;
-        case Thing::T_Record:
-        case Thing::T_Array:
-            emitInitializer(to, t, false, false, loc );
-            break;
-        case Thing::T_Enumeration:
-            bc.KSET(to, 0, loc.packed());
-            break;
-        default:
-            Q_ASSERT( false ); // TODO
-            break;
-        }
+        emitInitializer(to,t,false,true,loc);
     }
 
     void emitSlotToAcc( const Accessor& acc, quint8 slot, const RowCol& loc )

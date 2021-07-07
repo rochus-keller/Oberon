@@ -72,6 +72,7 @@ module CD2
   
 	proc (this: CD) innerBenchmarkLoop*(innerIterations: integer): boolean
 	begin
+		if innerIterations < 2 then innerIterations := 2 end
 		return verifyResult2(benchmark2(innerIterations), innerIterations) 
 	end innerBenchmarkLoop
 

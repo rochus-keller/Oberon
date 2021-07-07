@@ -1,5 +1,5 @@
 This is a version of the "Are We Fast Yet?" benchmark suite
-migrated (work in progress) to Oberon+.
+migrated to Oberon+.
 
 The original source code was downloaded on 2020-08-08 from 
 https://github.com/smarr/are-we-fast-yet/
