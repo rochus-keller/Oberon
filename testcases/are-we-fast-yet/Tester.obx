@@ -226,6 +226,19 @@ import
 	   println(vec2.x)
 	end Test6
 	
+	proc Test7():integer
+		var i: integer
+		do i := 33
+		if i = 0 then return i end
+		proc sub() end sub
+		do sub
+		println("test") 
+		var k: integer
+		return 0 
+	end Test7
+	
+	proc Test8():integer end
+	
 	proc RunAll()
 	begin
 		H.run("DeltaBlue", 12000, 1 )

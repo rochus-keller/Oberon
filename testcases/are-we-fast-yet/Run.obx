@@ -140,7 +140,7 @@ module Run
 	
 	proc (this: Run) printResult(runTime: integer)
 	begin
-		return // TODO
+		return ;// TODO
 		Out.String(this.name)
 		Out.String(": iterations=1 runtime: ")
 		Out.Int(runTime,0)
@@ -150,7 +150,7 @@ module Run
 		
 	proc (this: Run) printTotal*()
 	begin
-		return // TODO
+		return ;// TODO
 		Out.String("Total Runtime: ")
 		Out.Int(this.total,0)
 		Out.String("us")

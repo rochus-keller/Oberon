@@ -94,9 +94,9 @@ namespace Obx
         Ref<Procedure> procedureDeclaration(bool headingOnly, Scope* scope);
         enum { ProcNormal, ProcForward, ProcCImp };
         int procedureHeading(Procedure* proc, Scope* scope);
-        bool procedureBody(Procedure* p);
+        void procedureBody(Procedure* p);
         Ref<Parameter> receiver();
-        void declarationSequence(bool definition, Scope* scope);
+        void blockSequence(bool definition, Scope* scope);
         Ref<Statement> returnStatement(Scope* scope);
         bool fPSection(Scope* scope, ProcType* p);
         Ref<Type> formalType(Scope* scope, Type* binding);
@@ -124,6 +124,7 @@ namespace Obx
         void warning(const Ob::Loc&, const QString& err );
         void semanticError(const Ob::Loc&, const QString& err );
         void semanticError(const Ob::RowCol&, const QString& err );
+        void checkDeclAllowed(Scope* scope);
 
         void addEnum( Scope* scope, Enumeration* e, const Ob::Token& t );
     private:

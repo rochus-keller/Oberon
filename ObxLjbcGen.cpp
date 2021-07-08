@@ -3197,7 +3197,7 @@ struct ObxLjbcGenImp : public AstVisitor
         {
         case Thing::T_Record:
             {
-                qDebug() << "copy record used in" << thisMod->getName() << loc.d_row << loc.d_col;
+                //qDebug() << "copy record used in" << thisMod->getName() << loc.d_row << loc.d_col;
                 Record* r = cast<Record*>(lhsTd);
                 if( create )
                     emitCreateRecord(lhs,rhsT,loc); // use original type, not derefed
@@ -3234,7 +3234,7 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         case Thing::T_Array:
             {
-                qDebug() << "copy array used in" << thisMod->getName() << loc.d_row << loc.d_col;
+                //qDebug() << "copy array used in" << thisMod->getName() << loc.d_row << loc.d_col;
                 // cases: normal array, char array (strlen, wide/normal), literal rhs (char or string)
                 Array* lhsA = cast<Array*>(lhsTd);
                 Type* laT = derefed(lhsA->d_type.data());

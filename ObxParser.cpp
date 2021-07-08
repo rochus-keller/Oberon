@@ -88,6 +88,7 @@ bool Parser::module(bool definition )
     m->d_hasErrors = !d_cur.isValid();
     m->d_name = d_cur.d_val;
     m->d_loc = d_cur.toRowCol();
+    m->d_begin = m->d_loc; // might change lager
     m->d_file = d_cur.d_sourcePath;
 
     if( d_la == Tok_Lt )
@@ -103,15 +104,7 @@ bool Parser::module(bool definition )
 
     if( d_la == Tok_Semi )
         next();
-    declarationSequence(false, m.data() );
-    if( d_la == Tok_BEGIN || d_la == Tok_DO )
-    {
-        next();
-        m->d_begin = d_cur.toRowCol();
-        if( definition )
-            semanticError( d_cur.toLoc(), tr("There is no statement sequence in a DEFINITION module") );
-        m->d_body = statementSequence(m.data());
-    }
+    blockSequence(definition, m.data() );
     MATCH( Tok_END, tr("expecting END keyword at the end of the module") );
     MATCH( Tok_ident, tr("expecting module name after END keyword") );
     if( d_cur.isValid() && d_cur.d_val.constData() != m->d_name.constData() )
@@ -1101,6 +1094,7 @@ Ref<Expression> Parser::element()
     return lhs;
 }
 
+
 Ref<Statement> Parser::statement(Scope* scope)
 {
     switch( d_la )
@@ -1560,6 +1554,22 @@ Ref<Expression> Parser::label()
 #endif
 }
 
+static inline bool expectEndIdent( Procedure* p )
+{
+    if( p->d_order.size() > p->d_parCount ) // as soon as there are other than param declarations expect an end ident
+        return true;
+    if( p->d_bodyKind == Scope::EmptyBody )
+        return false;
+    if( p->d_bodyKind == Scope::MixedBody )
+    {
+        if( p->d_body.isEmpty() )
+            return false;
+        if( p->d_body.size() == 1 && p->d_body.first()->getTag() == Thing::T_Return )
+            return false;
+    }
+    return true;
+}
+
 Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
 {
     if( d_mod->d_isDef )
@@ -1581,7 +1591,8 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
         }
         if( kind == ProcNormal )
         {
-            if( procedureBody( res.data() ) )
+            procedureBody( res.data() );
+            if( expectEndIdent(res.data()) )
             {
                 MATCH( Tok_ident, tr("expecting procedure name after END keyword") );
                 hasEndIdent = true;
@@ -1674,45 +1685,11 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
     return kind;
 }
 
-bool Parser::procedureBody(Procedure* p)
+void Parser::procedureBody(Procedure* p)
 {
-    declarationSequence(false, p);
-    bool hasBody = false;
-    if( d_la == Tok_BEGIN || d_la == Tok_DO
-#ifndef OBN07
-            || d_la == Tok_RETURN
-#endif
-            )
-    {
-#ifndef OBN07
-        if( d_la == Tok_RETURN )
-            p->d_body << returnStatement(p);
-        else
-        {
-            hasBody = true;
-            next();
-            p->d_body = statementSequence(p);
-        }
-#else
-        hasBody = true;
-        next();
-        p->d_body = statementSequence(p);
-#endif
-    }
-#ifdef OBN07
-    if( d_la == Tok_RETURN )
-    {
-        Ref<Statement> ret = returnStatement(p);
-        if( !ret.isNull() )
-            p->d_body << ret;
-        if( d_la == Tok_Semi )
-            next();
-    }
-#endif
+    blockSequence(false, p);
     MATCH( Tok_END, tr("expecting a statement or closing END") );
     p->d_end = d_cur.toRowCol();
-    p->d_noBody = !hasBody;
-    return hasBody;
 }
 
 Ref<Parameter> Parser::receiver()
@@ -1753,25 +1730,40 @@ Ref<Parameter> Parser::receiver()
     return v;
 }
 
-void Parser::declarationSequence(bool definition, Scope* scope )
+static inline bool firstOfKeywordStatement( quint8 t )
 {
+    if( t == Tok_ident )
+        return false;
+    else
+        return firstOfStatement(t);
+}
+
+static inline bool firstOfBlockSequence( quint8 t )
+{
+    return t == Tok_CONST || t == Tok_TYPE || t == Tok_VAR ||
+            t == Tok_PROCEDURE || t == Tok_PROC || t == Tok_IMPORT ||
+            t == Tok_BEGIN || t == Tok_DO || firstOfKeywordStatement(t);
+}
+
+void Parser::blockSequence(bool definition, Scope* scope )
+{
+    Q_ASSERT( scope );
     static const TokSet toks = TokSet() << Tok_CONST << Tok_PROC << Tok_PROCEDURE << Tok_TYPE << Tok_VAR << Tok_IMPORT;
     if( d_sync )
         sync(toks);
 
-    while( d_la == Tok_CONST || d_la == Tok_TYPE || d_la == Tok_VAR ||
-           d_la == Tok_PROCEDURE || d_la == Tok_PROC || d_la == Tok_IMPORT )
+    while( firstOfBlockSequence(d_la) )
     {
         switch( d_la )
         {
         case Tok_IMPORT:
-            Q_ASSERT( scope );
+            checkDeclAllowed(scope);
             if( scope->getTag() != Thing::T_Module )
                 syntaxError( tr("IMPORT only supported on module level") );
-            else
-                importList();
+            importList();
             break;
         case Tok_CONST:
+            checkDeclAllowed(scope);
             next();
             while( d_la == Tok_ident )
             {
@@ -1781,6 +1773,7 @@ void Parser::declarationSequence(bool definition, Scope* scope )
             }
             break;
         case Tok_TYPE:
+            checkDeclAllowed(scope);
             next();
             while( d_la == Tok_ident )
             {
@@ -1790,6 +1783,7 @@ void Parser::declarationSequence(bool definition, Scope* scope )
             }
             break;
         case Tok_VAR:
+            checkDeclAllowed(scope);
             next();
             while( d_la == Tok_ident )
             {
@@ -1800,12 +1794,58 @@ void Parser::declarationSequence(bool definition, Scope* scope )
             break;
         case Tok_PROCEDURE:
         case Tok_PROC:
+            checkDeclAllowed(scope);
             procedureDeclaration(definition,scope);
             if( d_la == Tok_Semi )
                 next();
             break;
         default:
-            Q_ASSERT(false);
+            if( firstOfStatement(d_la) || d_la == Tok_BEGIN || d_la == Tok_DO )
+            {
+                if( definition )
+                {
+                    semanticError( d_cur.toLoc(), tr("There is no statement sequence in a DEFINITION module") );
+                }
+                if( d_la == Tok_BEGIN )
+                {
+                    next();
+                    switch( scope->d_bodyKind )
+                    {
+                    case Scope::BeginBody:
+                        semanticError( d_cur.toLoc(), tr("Only one BEGIN permitted in body") );
+                        break;
+                    case Scope::MixedBody:
+                        semanticError( d_cur.toLoc(), tr("No BEGIN permitted in a mixed body") );
+                        break;
+                    default:
+                        scope->d_bodyKind = Scope::BeginBody;
+                        if( scope->getTag() == Thing::T_Module )
+                            cast<Module*>(scope)->d_begin = d_cur.toRowCol();
+                        break;
+                    }
+                }
+                if( d_la == Tok_DO )
+                {
+                    next();
+                    switch( scope->d_bodyKind )
+                    {
+                    case Scope::BeginBody:
+                        semanticError( d_cur.toLoc(), tr("No BEGIN permitted in a mixed body") );
+                        break;
+                    default:
+                        scope->d_bodyKind = Scope::MixedBody;
+                        break;
+                    }
+                }
+                if( scope->d_body.isEmpty() )
+                {
+                    // this is the first statement
+                    if( scope->d_bodyKind != Scope::BeginBody )
+                        scope->d_bodyKind = Scope::MixedBody;
+                }
+                scope->d_body += statementSequence(scope);
+            }else
+                Q_ASSERT(false);
             break;
         }
     }
@@ -1827,9 +1867,9 @@ Ref<Statement> Parser::returnStatement(Scope* scope)
         r->d_what = expression();
     else
     {
-        if( !firstOfStatement(d_la) && !followOfStatement(d_la) )
-            // if what follows is not what is expected in an expression less return then try expression;
-            // in this case the user has likely forgot to specify a return value of the procedure
+        if( !firstOfBlockSequence(d_la) && !followOfStatement(d_la) )
+            // if what follows is not what is expected in an expression-less return then try expression;
+            // in this case the user has likely forgotten to specify a return value of the procedure
             r->d_what = expression();
     }
 
@@ -2073,5 +2113,11 @@ void Parser::semanticError(const Loc& l, const QString& err)
 void Parser::semanticError(const RowCol& rc, const QString& err)
 {
     semanticError( Loc( rc.d_row, rc.d_col, d_mod->d_file ), err );
+}
+
+void Parser::checkDeclAllowed(Scope* scope)
+{
+    if( scope->d_bodyKind == Scope::BeginBody )
+        semanticError( d_next.toRowCol(), tr("No declarations permitted after BEGIN") );
 }
 
