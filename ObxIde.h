@@ -31,7 +31,6 @@ namespace Lua
 class Engine2;
 class BcViewer2;
 class Terminal2;
-class JitEngine;
 }
 namespace Gui
 {
@@ -46,6 +45,7 @@ namespace Obx
     class Expression;
     class Scope;
     class Type;
+    class LjRuntime;
 
     class Ide : public QMainWindow
     {
@@ -84,7 +84,7 @@ namespace Obx
         void createMenuBar();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
-        bool compile(bool generate = false);
+        bool compile(bool doGenerate = false);
         void fillMods();
         void showDocument( const QString& filePath );
         void addTopCommands(Gui::AutoMenu * pop);
@@ -122,7 +122,6 @@ namespace Obx
         void onFullScreen();
         void onCursor();
         void onExportBc();
-        void onExportAsm();
         void onModsDblClicked(QTreeWidgetItem*,int);
         void onModDblClicked(QTreeWidgetItem*,int);
         void onHierDblClicked(QTreeWidgetItem*,int);
@@ -164,10 +163,9 @@ namespace Obx
     private:
         class DocTab;
         class Debugger;
-        Project* d_pro;
+        LjRuntime* d_rt;
         DocTab* d_tab;
         Debugger* d_dbg;
-        Lua::Engine2* d_lua;
         Lua::BcViewer2* d_bcv;
         Lua::Terminal2* d_term;
         QTreeWidget* d_mods;
@@ -194,7 +192,6 @@ namespace Obx
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
-        bool d_jitEnabled;
     };
 }
 

@@ -6,11 +6,6 @@ MainProc=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
-[.]
-size=0
-
-[.richards]
-size=0
 
 [.som]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Pair.obx
@@ -78,5 +73,4 @@ size=19
 1\Name=@ByteArray()
 2\Name=@ByteArray()
 3\Name=@ByteArray(som)
-4\Name=@ByteArray(richards)
 size=3

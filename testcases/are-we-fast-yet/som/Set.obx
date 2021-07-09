@@ -24,8 +24,8 @@
 module Set<E>
 
 import 
-	V := som.Vector<E>, 
-	I := som.Interfaces<E>
+	V := Vector<E>, 
+	I := Interfaces<E>
 
 const
 	INITIAL_SIZE* = 10

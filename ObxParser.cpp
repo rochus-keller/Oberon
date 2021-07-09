@@ -1581,7 +1581,7 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
         }
         if( kind == ProcNormal )
         {
-            if( procedureBody( res.data() ) )
+            if( procedureBody( res.data() ) || res->d_order.size() > res->d_parCount )
             {
                 MATCH( Tok_ident, tr("expecting procedure name after END keyword") );
                 hasEndIdent = true;
@@ -1768,8 +1768,7 @@ void Parser::declarationSequence(bool definition, Scope* scope )
             Q_ASSERT( scope );
             if( scope->getTag() != Thing::T_Module )
                 syntaxError( tr("IMPORT only supported on module level") );
-            else
-                importList();
+            importList();
             break;
         case Tok_CONST:
             next();

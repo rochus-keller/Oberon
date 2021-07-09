@@ -35,7 +35,7 @@ namespace Ob
 
     protected:
         QTextCharFormat formatForCategory(int) const;
-        static QSet<QByteArray> createBuiltins(bool withLowercase = false);
+        //static QSet<QByteArray> createBuiltins(bool withLowercase = false);
 
         // overrides
         void highlightBlock(const QString &text);

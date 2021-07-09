@@ -2,7 +2,7 @@
 #define OBXMODEL_H
 
 /*
-* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the OBX parser/code model library.
 *
@@ -32,26 +32,17 @@ namespace Obx
     class Model : public QObject, Instantiator
     {
     public:
-        struct FileGroup
-        {
-            QByteArrayList d_groupName; // the hierarchical name of the group (groups form a "virtual file system")
-            QStringList d_files; // absolute file paths
-        };
-        typedef QList<FileGroup> FileGroups;
-
         explicit Model(QObject *parent = 0);
         void clear();
 
-        void setFileRoot( const QString& root ) { d_fileRoot = root; }
-        bool parseFiles(const FileGroups& files);
-        Ref<Module> parseFile( const QString& path );
-        Ref<Module> parseFile(QIODevice* , const QString& path);
+        bool parseFiles(const PackageList& files);
+        Ref<Module> parseFile( const QString& filePath );
+        Ref<Module> parseFile(QIODevice* , const QString& filePath);
         const QList<Module*>& getDepOrder() const { return d_depOrder; }
-        Module* findModule( const QByteArray& name ) const;
         quint32 getSloc() const { return d_sloc; }
 
         void setFillXref( bool b ) { d_fillXref = b; }
-        typedef QHash<Named*, ExpList > XRef; // name used by ident expression
+        typedef QHash<Named*,ExpList> XRef; // name used by ident expression
         const XRef& getXref() const { return d_xref; }
 
         Ref<Module> treeShaken(Module*) const;
@@ -69,6 +60,7 @@ namespace Obx
         bool resolveImports();
         bool resolveImport(Module*);
         bool findProcessingOrder();
+        Module* findModule(const VirtualPath& package, const VirtualPath& module);
         bool error( const QString& file, const QString& msg );
         bool error( const Ob::Loc& loc, const QString& msg );
     private:
@@ -97,11 +89,12 @@ namespace Obx
         typedef QHash<Module*,ModList> ModInsts;
         ModInsts d_insts; // generic module -> instances
 
-        typedef QHash<QByteArrayList,Ref<Module> > Modules;
+        typedef QHash<VirtualPath,Ref<Module> > Modules;
+        typedef QHash<VirtualPath,QList<Module*> > Packages;
         Modules d_modules, d_others;
+        Packages d_packages;
         XRef d_xref;
         quint32 d_sloc;
-        QString d_fileRoot;
 
         Ob::Errors* d_errs;
         Ob::FileCache* d_fc;

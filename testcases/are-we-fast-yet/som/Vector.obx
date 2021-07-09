@@ -23,7 +23,7 @@
  
 module Vector<E>
 import
-	I := som.Interfaces<E>
+	I := Interfaces<E>
 	
 	type
 		Vector* = pointer to record

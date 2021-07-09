@@ -23,7 +23,7 @@
 
 module IdentitySet<E>
 
-	import S := som.Set<E>
+	import S := Set<E>
 	
 	type
 		IdentitySet* = S.Set

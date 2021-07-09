@@ -1,10 +1,10 @@
-#ifndef OBXLIBFFI_H
-#define OBXLIBFFI_H
+#ifndef OBXPACKAGE_H
+#define OBXPACKAGE_H
 
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the OBX parser/code model library.
+* This file is part of the Oberon+ parser/compiler library.
 *
 * The following is the license that applies to this copy of the
 * library. For a license to use the library under conditions
@@ -20,20 +20,23 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include <QString>
-
-typedef struct lua_State lua_State;
+#include <QByteArrayList>
+#include <QStringList>
 
 namespace Obx
 {
-    typedef void (*SendToLog)( const QString& );
+    typedef QByteArrayList VirtualPath;
+    // A virtual path is a hierarchical name to identify a Package or a Module
+    // either the complete path of a virtual dir or a module in it
 
-    struct LibFfi
+    // A Package is just a bunch of physical module files which are associated with the same VirtualPath
+    struct Package
     {
-        static void setSendToLog(SendToLog);
-        static void install(lua_State *L);
+        VirtualPath d_path;
+        QStringList d_files; // list of absolute module file paths belonging to the package
     };
+    typedef QList<Package> PackageList;
+
 }
 
-#endif // OBXLIBFFI_H
-
+#endif // OBXPACKAGE_H

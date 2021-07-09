@@ -41,15 +41,12 @@ namespace Obx
     {
         Q_OBJECT
     public:
-        typedef QHash<Module*,QByteArray> ModCode;
-
         struct FileGroup;
         struct File : public QSharedData
         {
             QString d_filePath;
             FileGroup* d_group;
             Ref<Module> d_mod;
-            ModCode d_sourceCode; // lua source or byte code, module -> code
             bool d_isLib;
             File():d_isLib(false),d_group(0){}
         };
@@ -57,11 +54,11 @@ namespace Obx
 
         struct FileGroup
         {
-            QByteArrayList d_importPath;
+            VirtualPath d_package;
             QList<File*> d_files;
         };
 
-        typedef QList<FileGroup> ImportPaths; // ImportPath -> File
+        typedef QList<FileGroup> FileGroups;
         typedef QHash<QString,FileRef> FileHash; // FilePath -> File
         typedef QPair<File*,Module*> FileMod;
         typedef QHash<QByteArray,FileMod> ModuleHash; // Module.fullName -> File
@@ -71,37 +68,42 @@ namespace Obx
         explicit Project(QObject *parent = 0);
         void clear();
 
-        bool loadFrom( const QString& filePath );
         void createNew();
-        bool recompile();
-        bool generate();
+        bool initializeFromDir( const QDir&, bool recursive = false );
+        bool initializeFromPackageList( const PackageList& );
+        bool loadFrom( const QString& filePath );
         bool save();
         bool saveTo(const QString& filePath );
-        bool initializeFromDir( const QDir&, bool recursive = false );
         void setSuffixes( const QStringList& ); // Form: ".suffix"
         const QStringList& getSuffixes() const { return d_suffixes; }
+        const QString& getProjectPath() const { return d_filePath; }
+        bool isDirty() const { return d_dirty; }
+
         void setMain( const ModProc& );
         const ModProc& getMain() const { return d_main; }
         void setUseBuiltInOakwood(bool);
         bool useBuiltInOakwood() const { return d_useBuiltInOakwood; }
         void setUseBuiltInObSysInner(bool);
         bool useBuiltInObSysInner() const { return d_useBuiltInObSysInner; }
-        bool addFile( const QString& filePath, const QByteArrayList& importPath = QByteArrayList() );
-        bool addImportPath( const QByteArrayList& importPath );
-        bool removeFile( const QString& filePath );
-        bool removeImportPath( const QByteArrayList& importPath );
-        const QString& getFilePath() const { return d_filePath; }
-        const FileHash& getFiles() const { return d_files; }
-        const ImportPaths& getImportPaths() const { return d_dirs; }
-        FileGroup getRootModules() const;
-        FileGroup getFiles( const QByteArrayList& path ) const;
-        bool isDirty() const { return d_dirty; }
-        FileList getFilesInExecOrder() const;
-        Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col, Scope** = 0 ) const;
-        FileMod findFile( const QString& file ) const;
-        ExpList getUsage( Named* ) const;
         QString getWorkingDir(bool resolved = false) const;
         void setWorkingDir( const QString& );
+
+        bool addFile(const QString& filePath, const VirtualPath& package = QByteArrayList() );
+        bool removeFile( const QString& filePath );
+        bool addPackagePath(const VirtualPath& path );
+        bool removePackagePath( const VirtualPath& path );
+
+        bool reparse();
+
+        const FileHash& getFiles() const { return d_files; }
+        const FileGroups& getFileGroups() const { return d_groups; }
+        FileGroup getRootFileGroup() const;
+        FileGroup findFileGroup(const VirtualPath& package ) const;
+        QList<Module*> getModulesToGenerate() const; // in exec/depencency order
+        FileMod findFile( const QString& file ) const;
+
+        Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col, Scope** = 0 ) const;
+        ExpList getUsage( Named* ) const;
         bool printTreeShaken( const QString& module, const QString& fileName );
 
         Ob::Errors* getErrs() const;
@@ -109,18 +111,18 @@ namespace Obx
     signals:
         void sigModified(bool);
         void sigRenamed();
-        void sigRecompiled();
+        void sigReparsed();
     protected:
         QStringList findFiles(const QDir& , bool recursive = false);
         void touch();
-        int findImportPath(const QByteArrayList& ) const;
-        bool generate( Module* );
+        int findPackage(const VirtualPath& path ) const;
+        // bool generate( Module* );
     private:
         Model* d_mdl;
 
         FileHash d_files;
         ModuleHash d_modules;
-        ImportPaths d_dirs;
+        FileGroups d_groups;
         QString d_filePath;
         QStringList d_suffixes;
         QString d_workingDir;

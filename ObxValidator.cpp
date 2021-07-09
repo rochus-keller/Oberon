@@ -199,7 +199,9 @@ struct ValidatorImp : public AstVisitor
         visitScope(me); // also handles formal parameters
         returnValueFound = false;
         visitStats( me->d_body );
-        if( !mod->d_isDef && !me->d_noBody )
+        if( !mod->d_isDef &&
+                !( me->d_noBody && me->d_order.size() == me->d_parCount ) // empty or only one return statement, and no declarations
+                )
         {
             ProcType* pt = me->getProcType();
             if( pt->d_return.isNull() && returnValueFound )

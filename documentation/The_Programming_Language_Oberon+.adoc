@@ -11,7 +11,7 @@
 = The Programming Language Oberon+
 :author: Rochus Keller 
 :email: me@rochus-keller.ch
-:revdate: 2021-06-25
+:revdate: 2021-07-09
 :revremark: work in progress
 :doctype: article
 :listing-caption: Listing
@@ -1096,6 +1096,8 @@ end Insert
 [NOTE]
 The name of a type-bound procedure must be unique within the type to which it is bound, not within the scope in which it is declared.
 
+// TODO type-bound procedure types (delegates)
+
 === Predeclared procedures
 The following table lists the predeclared procedures. Some are generic procedures, i.e. they apply to several types of operands. `v` stands for a variable, `x` and `n` for expressions, and T for a type.
 
@@ -1227,7 +1229,7 @@ The import list specifies the names of the imported modules. If a module A is im
 
 If A is imported as `B := A`, the object `x` must be referenced as `B.x`. This allows short alias names in qualified identifiers. 
 
-In Oberon+ the import can refer to a module by means of a module name optionally prefixed with an import path. There is no requirement that the import path actually exists in the file system, or that the source files corresponding to an import path are in the same file system directory. It is up to the compiler how source files are mapped to import paths.
+In Oberon+ the import can refer to a module by means of a module name optionally prefixed with an import path. There is no requirement that the import path actually exists in the file system, or that the source files corresponding to an import path are in the same file system directory. It is up to the compiler how source files are mapped to import paths. An imported module with no import path is first looked up in the import path of the importing module.
 
 A module must not import itself. 
 

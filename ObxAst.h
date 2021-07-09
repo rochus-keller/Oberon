@@ -2,7 +2,7 @@
 #define OBXAST_H
 
 /*
-* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the OBX parser/code model library.
 *
@@ -21,6 +21,7 @@
 */
 
 #include <Oberon/ObRowCol.h>
+#include <Oberon/ObxPackage.h>
 #include <bitset>
 #include <QSharedData>
 #include <QExplicitlySharedDataPointer>
@@ -394,7 +395,7 @@ namespace Obx
 
     struct Import : public Named
     {
-        QByteArrayList d_path;
+        VirtualPath d_path;
         Ob::RowCol d_aliasPos; // invalid if no alias present
         Ref<Module> d_mod;
         MetaActuals d_metaActuals;
@@ -466,7 +467,7 @@ namespace Obx
     {
         QList<Import*> d_imports;
         QString d_file;
-        QByteArrayList d_fullName;  // Path segments (if present) + module name
+        VirtualPath d_fullName;  // package path (if present) + module name
         MetaParams d_metaParams;
         MetaActuals d_metaActuals; // set if this is an instance of a generic module
         Ob::RowCol d_begin;

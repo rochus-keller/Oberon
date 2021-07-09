@@ -251,12 +251,12 @@ begin
    // Test4()
    // Test5()
    // Test6()
-   //RunAll()
-
-	//H.run("DeltaBlue", 12000, 1 )
-	H.run("Permute", 1000, 1)
+   RunAll()
 	
-   //H.run("CD2", 250, 2) 
+	//H.run("DeltaBlue", 12000, 1 )
+	//H.run("Permute", 1000, 1)
+	
+   //H.run("CD", 250, 2) 
    // CD2 250,1000 works
    // CD/CD2  10,1000/ 50,100/ 50,10/ 100,10 works
    // CD tends to crash with numIterations > 90

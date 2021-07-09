@@ -47,7 +47,7 @@ Highlighter::Highlighter(QTextDocument* parent) :
     d_format[C_Section].setForeground(QColor(0, 128, 0));
     d_format[C_Section].setBackground(QColor(230, 255, 230));
 
-    d_builtins = createBuiltins();
+    //d_builtins = createBuiltins();
 }
 
 void Highlighter::setEnableExt(bool b)
@@ -56,7 +56,7 @@ void Highlighter::setEnableExt(bool b)
     d_enableExt = b;
     if( old != b )
     {
-        d_builtins = createBuiltins(d_enableExt);
+        //d_builtins = createBuiltins(d_enableExt);
         rehighlight();
     }
 }
@@ -73,6 +73,7 @@ QTextCharFormat Highlighter::formatForCategory(int c) const
     return d_format[c];
 }
 
+#if 0
 QSet<QByteArray> Highlighter::createBuiltins(bool withLowercase)
 {
     QSet<QByteArray> res = CodeModel::getBuitinIdents().toSet();
@@ -85,6 +86,7 @@ QSet<QByteArray> Highlighter::createBuiltins(bool withLowercase)
     }
     return res;
 }
+#endif
 
 void Highlighter::highlightBlock(const QString& text)
 {

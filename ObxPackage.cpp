@@ -1,10 +1,7 @@
-#ifndef OBXLIBFFI_H
-#define OBXLIBFFI_H
-
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
-* This file is part of the OBX parser/code model library.
+* This file is part of the Oberon+ parser/compiler library.
 *
 * The following is the license that applies to this copy of the
 * library. For a license to use the library under conditions
@@ -20,20 +17,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include <QString>
+#include "ObxPackage.h"
+using namespace Obx;
 
-typedef struct lua_State lua_State;
-
-namespace Obx
-{
-    typedef void (*SendToLog)( const QString& );
-
-    struct LibFfi
-    {
-        static void setSendToLog(SendToLog);
-        static void install(lua_State *L);
-    };
-}
-
-#endif // OBXLIBFFI_H
 

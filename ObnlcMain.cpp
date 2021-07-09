@@ -281,6 +281,12 @@ static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
     qDebug() << "generating files using gen=4 ...";
 
     Obx::LjbcGen::translate(&model, outPath,mod);
+    QDir dir(outPath);
+    if( !mod.isEmpty() )
+    {
+        dir.mkpath( mod );
+        dir.cd( mod );
+    }
 
     return 0;
 }

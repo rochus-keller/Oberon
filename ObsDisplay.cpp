@@ -38,6 +38,11 @@ Display*Display::inst()
     return s_disp;
 }
 
+bool Display::isOpen()
+{
+    return s_disp != 0;
+}
+
 static int Display_RegisterHandler(lua_State* L)
 {
     // Params:

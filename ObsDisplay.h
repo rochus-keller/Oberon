@@ -48,6 +48,7 @@ namespace Obs
         int idleHandler;
 
         static Display* inst();
+        static bool isOpen();
         static void install(lua_State *L);
 
         static int mapToQt(int yOb);

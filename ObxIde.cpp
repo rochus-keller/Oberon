@@ -27,6 +27,8 @@
 #include "ObxModel.h"
 #include "ObxLibFfi.h"
 #include "ObsDisplay.h"
+#include "ObxLjbcGen.h"
+#include "ObxLjRuntime.h"
 #include <LjTools/Engine2.h>
 #include <LjTools/Terminal2.h>
 #include <LjTools/BcViewer2.h>
@@ -127,19 +129,11 @@ public:
     void setExt( bool on )
     {
         d_hl->setEnableExt(on);
-        d_hl->addBuiltIn("WCHAR");
-        d_hl->addBuiltIn("WCHR");
-        d_hl->addBuiltIn("PRINTLN");
-        d_hl->addBuiltIn("TRAP");
-        d_hl->addBuiltIn("TRAPIF");
-        d_hl->addBuiltIn("TRACE");
-        d_hl->addBuiltIn("DEFAULT");
-        d_hl->addBuiltIn("BITAND");
-        d_hl->addBuiltIn("BITOR");
-        d_hl->addBuiltIn("BITXOR");
-        d_hl->addBuiltIn("BITNOT");
+        for( int i = BuiltIn::ABS; i < BuiltIn::BITXOR; i++ )
+            d_hl->addBuiltIn(BuiltIn::s_typeName[i]);
+        for( int i = Type::ANY; i < Type::SET; i++ )
+            d_hl->addBuiltIn(BaseType::s_typeName[i]);
         d_hl->addBuiltIn("ANYREC");
-        d_hl->addBuiltIn("STRLEN");
     }
 
     void clearBackHisto()
@@ -212,14 +206,14 @@ public:
 
         sum << d_link;
 
-        if( d_ide->d_lua->isDebug() && d_ide->d_lua->isExecuting() &&
-                ( d_ide->d_lua->getMode() == Lua::Engine2::RowColMode ||
-                  d_ide->d_lua->getMode() == Lua::Engine2::PcMode ) )
+        if( d_ide->d_rt->getLua()->isDebug() && d_ide->d_rt->getLua()->isExecuting() &&
+                ( d_ide->d_rt->getLua()->getMode() == Lua::Engine2::RowColMode ||
+                  d_ide->d_rt->getLua()->getMode() == Lua::Engine2::PcMode ) )
         {
-            if( d_ide->d_lua->getMode() == Lua::Engine2::RowColMode )
+            if( d_ide->d_rt->getLua()->getMode() == Lua::Engine2::RowColMode )
             {
-                dbgRow = RowCol::unpackRow(d_ide->d_lua->getCurRowCol())-1;
-                dbgCol = RowCol::unpackCol(d_ide->d_lua->getCurRowCol())-1;
+                dbgRow = RowCol::unpackRow(d_ide->d_rt->getLua()->getCurRowCol())-1;
+                dbgCol = RowCol::unpackCol(d_ide->d_rt->getLua()->getCurRowCol())-1;
             }
             QTextEdit::ExtraSelection line;
             line.format.setBackground(QColor(Qt::yellow));
@@ -320,7 +314,7 @@ public:
         markNonTerms(Editor::ExList());
 #if 0 // TODO
         d_ide->compile();
-        if( !d_nonTerms.isEmpty() && !d_pro->getErrs()->getErrors().isEmpty() )
+        if( !d_nonTerms.isEmpty() && !d_rt->getPro()->getErrs()->getErrors().isEmpty() )
         {
             d_nonTerms.clear();
             updateExtraSelections();
@@ -449,33 +443,17 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
-      d_lock2(false),d_lock3(false),d_lock4(false),d_jitEnabled(true)
+      d_lock2(false),d_lock3(false),d_lock4(false)
 {
     s_this = this;
     LibFfi::setSendToLog(log);
 
-    d_pro = new Project(this);
-
-    d_lua = new Lua::Engine2(this);
-    Lua::Engine2::setInst(d_lua);
-    LibFfi::install(d_lua->getCtx());
-    Obs::Display::install(d_lua->getCtx());
-    d_lua->addStdLibs();
-    d_lua->addLibrary(Lua::Engine2::PACKAGE);
-    d_lua->addLibrary(Lua::Engine2::IO);
-    d_lua->addLibrary(Lua::Engine2::BIT);
-    d_lua->addLibrary(Lua::Engine2::JIT);
-    d_lua->addLibrary(Lua::Engine2::FFI);
-    d_lua->addLibrary(Lua::Engine2::OS);
-    // TODO LjLib::install(d_lua->getCtx());
-    // d_lua->setJit(false); // must be called after addLibrary! doesn't have any effect otherwise
-    loadLuaLib( d_lua, "obxlj" );
+    d_rt = new LjRuntime(this);
 
     d_dbg = new Debugger(this);
-    d_lua->setDbgShell(d_dbg);
-    // d_lua->setMode(Lua::Engine2::RowColMode); // default LineMode
-    // d_lua->setAliveSignal(true); // reduces performance by factor 2 to 5
-    connect( d_lua, SIGNAL(onNotify(int,QByteArray,int)),this,SLOT(onLuaNotify(int,QByteArray,int)) );
+    d_rt->getLua()->setDbgShell(d_dbg);
+    // d_rt->getLua()->setAliveSignal(true); // reduces performance by factor 2 to 5
+    connect( d_rt->getLua(), SIGNAL(onNotify(int,QByteArray,int)),this,SLOT(onLuaNotify(int,QByteArray,int)) );
 
     d_tab = new DocTab(this);
     d_tab->setCloserIcon( ":/images/close.png" );
@@ -564,8 +542,8 @@ Ide::Ide(QWidget *parent)
         restoreState( state.toByteArray() );
 
 
-    connect( d_pro,SIGNAL(sigRenamed()),this,SLOT(onCaption()) );
-    connect( d_pro,SIGNAL(sigModified(bool)),this,SLOT(onCaption()) );
+    connect( d_rt->getPro(),SIGNAL(sigRenamed()),this,SLOT(onCaption()) );
+    connect( d_rt->getPro(),SIGNAL(sigModified(bool)),this,SLOT(onCaption()) );
 }
 
 Ide::~Ide()
@@ -579,10 +557,10 @@ void Ide::loadFile(const QString& path)
 
     if( info.isDir() && info.suffix() != ".obxpro" )
     {
-        d_pro->initializeFromDir( path );
+        d_rt->getPro()->initializeFromDir( path );
     }else
     {
-        d_pro->loadFrom(path);
+        d_rt->getPro()->loadFrom(path);
     }
 
     QDir::setCurrent(QFileInfo(path).absolutePath());
@@ -605,7 +583,7 @@ void Ide::closeEvent(QCloseEvent* event)
     event->setAccepted(ok);
     if( ok )
     {
-        d_lua->terminate(true);
+        d_rt->getLua()->terminate(true);
         // TODO SysInnerLib::quit();
     }
 }
@@ -616,7 +594,7 @@ void Ide::createTerminal()
     dock->setObjectName("Terminal");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
-    d_term = new Lua::Terminal2(dock, d_lua);
+    d_term = new Lua::Terminal2(dock, d_rt->getLua());
     dock->setWidget(d_term);
     addDockWidget( Qt::BottomDockWidgetArea, dock );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+C"), this, d_term, SLOT(onClear()) );
@@ -639,7 +617,6 @@ void Ide::createDumpView()
     pop->addSeparator();
     pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
-    pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
     pop->addCommand( "Show bytecode file...", this, SLOT(onShowBcFile()) );
     addTopCommands(pop);
 }
@@ -847,7 +824,6 @@ void Ide::createMenuBar()
     pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
     pop->addSeparator();
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
-    pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
     pop->addSeparator();
     pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addAutoCommand( "Export PDF...", SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
@@ -929,128 +905,18 @@ void Ide::onCompile()
 
 void Ide::onRun()
 {
-    ENABLED_IF( !d_pro->getFiles().isEmpty() && !d_lua->isExecuting() );
+    ENABLED_IF( !d_rt->getPro()->getFiles().isEmpty() && !d_rt->getLua()->isExecuting() );
 
-    QDir::setCurrent(d_pro->getWorkingDir(true));
-
-    if( d_pro->useBuiltInOakwood() )
-    {
-        loadLuaLib(d_lua,"In");
-        loadLuaLib(d_lua,"Out");
-        loadLuaLib(d_lua,"Files");
-        loadLuaLib(d_lua,"Input");
-        loadLuaLib(d_lua,"Math");
-        loadLuaLib(d_lua,"Strings");
-        loadLuaLib(d_lua,"Coroutines");
-        loadLuaLib(d_lua,"XYPlane");
-    }
-
-    if( d_pro->useBuiltInObSysInner() )
-    {
-        loadLuaLib(d_lua,"Obs/Input", "Input");
-        loadLuaLib(d_lua,"Obs/Kernel", "Kernel");
-        loadLuaLib(d_lua,"Obs/Display", "Display");
-        loadLuaLib(d_lua,"Obs/Modules", "Modules");
-        loadLuaLib(d_lua,"Obs/FileDir", "FileDir");
-        loadLuaLib(d_lua,"Obs/Files", "Files");
-    }
-
-    if( !compile(true) )
-        return;
-
-    Project::FileList files = d_pro->getFilesInExecOrder();
-    if( files.isEmpty() )
-    {
-        qWarning() << "nothing to run";
-        return;
-    }
-
-#if 0
-    Lua::BcDebugger* dbg = 0;
-    if( d_bcDebug )
-    {
-        dbg = new Lua::BcDebugger(d_lua);
-        Lua::BcDebugger::Files list;
-        foreach( const Project::FileRef& f, files )
-        {
-            Project::ModCode::const_iterator j;
-            for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
-            {
-                Lua::BcDebugger::SourceBinaryPair sbp;
-                sbp.first = j.key()->d_file;
-                sbp.second = j.key()->getName();
-                sbp.bc = j.value();
-                list << sbp;
-            }
-        }
-        dbg->initializeFromFiles(list);
-    }
-#endif
-
-    bool hasErrors = false;
-    try
-    {
-
-        foreach( const Project::FileRef& f, files )
-        {
-            Project::ModCode::const_iterator j;
-            for( j = f->d_sourceCode.begin(); j != f->d_sourceCode.end(); ++j )
-            {
-                qDebug() << "loading" << j.key()->getName();
-                if( !d_lua->addSourceLib( j.value(), j.key()->getName() ) )
-                    hasErrors = true;
-            }
-            if( d_lua->isAborted() )
-            {
-                removePosMarkers();
-                return;
-            }
-        }
-    }catch(...)
-    {
-        hasErrors = true;
-        qCritical() << "LuaJIT crashed"; // doesn't help if the JIT crashes!
-    }
-
-    if( hasErrors )
-    {
-        removePosMarkers();
-        onErrors();
-        return;
-    }
-
-    Project::ModProc main = d_pro->getMain();
-    if( main.first.isNull() )
-    {
-        Q_ASSERT( !files.isEmpty() );
-        main.first = files.back()->d_mod->d_name;
-    }
-
-    QByteArray src;
-    QTextStream out(&src);
-
-    //out << "jit.off()" << endl;
-    //out << "jit.opt.start(3)" << endl;
-    //out << "jit.opt.start(\"-abc\")" << endl;
-    //out << "jit.opt.start(\"-fuse\")" << endl;
-    //out << "jit.opt.start(\"hotloop=10\", \"hotexit=2\")" << endl;
-
-    if( !main.second.isEmpty() )
-    {
-        out << "local " << main.first << " = require '" << main.first << "'" << endl;
-        out << main.first << "." << main.second << "()" << endl;
-    }
-    out.flush();
-    if( !src.isEmpty() )
-        d_lua->executeCmd(src,"terminal");
+    const bool res = d_rt->run();
     removePosMarkers();
-
+    if( !res )
+        onErrors();
 }
 
 void Ide::onAbort()
 {
-    // ENABLED_IF( d_lua->isWaiting() );
-    d_lua->terminate();
+    // ENABLED_IF( d_rt->getLua()->isWaiting() );
+    d_rt->getLua()->terminate();
 }
 
 void Ide::onGenerate()
@@ -1068,7 +934,7 @@ void Ide::onNewPro()
 
     // we need a path up front because this path is also the first root path to the source code
     QString fileName = QFileDialog::getSaveFileName(this, tr("New Project"),
-                                                          QFileInfo(d_pro->getFilePath()).absolutePath(),
+                                                          QFileInfo(d_rt->getPro()->getProjectPath()).absolutePath(),
                                                           tr("Oberon+ Project (*.obxpro)") );
 
     if (fileName.isEmpty())
@@ -1079,12 +945,12 @@ void Ide::onNewPro()
     if( !fileName.endsWith(".obxpro",Qt::CaseInsensitive ) )
         fileName += ".obxpro";
 
-    d_pro->createNew();
+    d_rt->getPro()->createNew();
     d_tab->onCloseAll();
     compile();
 
 
-    d_pro->saveTo(fileName);
+    d_rt->getPro()->saveTo(fileName);
 
 }
 
@@ -1104,17 +970,17 @@ void Ide::onOpenPro()
 
     d_tab->onCloseAll();
     clear();
-    d_pro->loadFrom(fileName);
+    d_rt->getPro()->loadFrom(fileName);
 
     compile();
 }
 
 void Ide::onSavePro()
 {
-    ENABLED_IF( d_pro->isDirty() );
+    ENABLED_IF( d_rt->getPro()->isDirty() );
 
-    if( !d_pro->getFilePath().isEmpty() )
-        d_pro->save();
+    if( !d_rt->getPro()->getProjectPath().isEmpty() )
+        d_rt->getPro()->save();
     else
         onSaveAs();
 }
@@ -1125,7 +991,7 @@ void Ide::onSaveFile()
     ENABLED_IF( edit && edit->isModified() );
 
     edit->saveToFile( edit->getPath() );
-    d_pro->getFc()->removeFile( edit->getPath() );
+    d_rt->getPro()->getFc()->removeFile( edit->getPath() );
 }
 
 void Ide::onSaveAs()
@@ -1133,7 +999,7 @@ void Ide::onSaveAs()
     ENABLED_IF(true);
 
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Project"),
-                                                          QFileInfo(d_pro->getFilePath()).absolutePath(),
+                                                          QFileInfo(d_rt->getPro()->getProjectPath()).absolutePath(),
                                                           tr("Oberon+ Project (*.obxpro)") );
 
     if (fileName.isEmpty())
@@ -1144,19 +1010,19 @@ void Ide::onSaveAs()
     if( !fileName.endsWith(".obxpro",Qt::CaseInsensitive ) )
         fileName += ".obxpro";
 
-    d_pro->saveTo(fileName);
+    d_rt->getPro()->saveTo(fileName);
     onCaption();
 }
 
 void Ide::onCaption()
 {
-    const QString star = d_pro->isDirty() || d_filesDirty ? "*" : "";
-    if( d_pro->getFilePath().isEmpty() )
+    const QString star = d_rt->getPro()->isDirty() || d_filesDirty ? "*" : "";
+    if( d_rt->getPro()->getProjectPath().isEmpty() )
     {
         setWindowTitle(tr("<unnamed>%2 - %1").arg(qApp->applicationName()).arg(star));
     }else
     {
-        QFileInfo info(d_pro->getFilePath());
+        QFileInfo info(d_rt->getPro()->getProjectPath());
         setWindowTitle(tr("%1%2 - %3").arg(info.fileName()).arg(star).arg(qApp->applicationName()) );
     }
 }
@@ -1214,48 +1080,27 @@ void Ide::onCursor()
 
 void Ide::onExportBc()
 {
-    const QString curPath = d_tab->getCurrentDoc().toString();
-    Project::FileMod fm = d_pro->findFile(curPath);
-    ENABLED_IF(d_tab->getCurrentTab() != 0 && fm.first && !fm.first->d_sourceCode.isEmpty() );
+    ENABLED_IF(d_tab->getCurrentTab() != 0 );
 
     const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Binary") );
 
     if (dirPath.isEmpty())
         return;
 
-    QDir::setCurrent(dirPath);
+    QDir dir(dirPath);
 
+    const QString curPath = d_tab->getCurrentDoc().toString();
 
-    Project::ModCode::const_iterator i;
-    for( i = fm.first->d_sourceCode.begin(); i != fm.first->d_sourceCode.end(); ++i )
+    LjRuntime::BytecodeList l = d_rt->findByteCode(curPath);
+    for( int i = 0; i < l.size(); i++ )
     {
-        QString path = dirPath + "/" + i.key()->getName();
-        path += ".ljbc";
+        QString path = dir.absoluteFilePath(l[i].first->getName() + ".ljbc");
         QFile out(path);
         out.open(QIODevice::WriteOnly);
-        out.write(i.value());
+        out.write(l[i].second);
     }
-}
-
-void Ide::onExportAsm()
-{
-    const QString curPath = d_tab->getCurrentDoc().toString();
-    Project::FileMod fm = d_pro->findFile(curPath);
-    ENABLED_IF(d_tab->getCurrentTab() != 0 && fm.first && fm.first->d_sourceCode.isEmpty() );
-
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Assembler"),
-                                                          d_tab->getCurrentDoc().toString(),
-                                                          tr("*.ljasm") );
-
-    if (fileName.isEmpty())
-        return;
-
-    QDir::setCurrent(QFileInfo(fileName).absolutePath());
-
-    if( !fileName.endsWith(".ljasm",Qt::CaseInsensitive ) )
-        fileName += ".ljasm";
-
-    d_bcv->saveTo(fileName);
+    if( l.isEmpty() )
+        QMessageBox::warning(this,tr("Export Bytecode"), tr("No bytecode was found for given module") );
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -1298,7 +1143,7 @@ void Ide::onStackDblClicked(QTreeWidgetItem* item, int)
     if( item )
     {
         const QString source = item->data(3,Qt::UserRole).toString();
-        if( d_lua->getMode() == Lua::Engine2::PcMode )
+        if( d_rt->getLua()->getMode() == Lua::Engine2::PcMode )
         {
             if( !source.isEmpty() )
             {
@@ -1317,7 +1162,7 @@ void Ide::onStackDblClicked(QTreeWidgetItem* item, int)
             }
         }
         const int level = item->data(0,Qt::UserRole).toInt();
-        d_lua->setActiveLevel(level);
+        d_rt->getLua()->setActiveLevel(level);
         fillLocals();
    }
 }
@@ -1330,11 +1175,11 @@ void Ide::onTabChanged()
 
     if( !path.isEmpty() )
     {
-        Project::FileMod f = d_pro->findFile(path);
+        Project::FileMod f = d_rt->getPro()->findFile(path);
         if( f.first )
         {
             fillModule(f.first->d_mod.data());
-            showBc(f.first->d_sourceCode.value(f.second));
+            showBc(d_rt->findByteCode(f.second));
             onCursor();
             return;
         }
@@ -1346,7 +1191,7 @@ void Ide::onTabChanged()
 
 void Ide::onTabClosing(int i)
 {
-    d_pro->getFc()->removeFile( d_tab->getDoc(i).toString() );
+    d_rt->getPro()->getFc()->removeFile( d_tab->getDoc(i).toString() );
 }
 
 void Ide::onEditorChanged()
@@ -1360,7 +1205,7 @@ void Ide::onEditorChanged()
         if( e->isModified() )
             d_filesDirty = true;
         const QString path = d_tab->getDoc(i).toString();
-        Project::FileMod f = d_pro->findFile(path);
+        Project::FileMod f = d_rt->getPro()->findFile(path);
         QString name;
         if( f.first->d_mod )
             name = f.first->d_mod->getName();
@@ -1399,7 +1244,7 @@ static bool errorEntryLessThan(const Errors::Entry &s1, const Errors::Entry &s2)
 void Ide::onErrors()
 {
     d_errs->clear();
-    QList<Errors::Entry> errs = d_pro->getErrs()->getErrors().toList();
+    QList<Errors::Entry> errs = d_rt->getPro()->getErrs()->getErrors().toList();
     std::sort(errs.begin(), errs.end(), errorEntryLessThan );
 
     for( int i = 0; i < errs.size(); i++ )
@@ -1415,7 +1260,7 @@ void Ide::onErrors()
             item->setIcon(0, QPixmap(":/images/exclamation-red.png") );
         else
             item->setIcon(0, QPixmap(":/images/exclamation-circle.png") );
-        Project::FileMod f = d_pro->findFile(errs[i].d_file);
+        Project::FileMod f = d_rt->getPro()->findFile(errs[i].d_file);
         if( f.first )
             item->setText(0, f.second->getName() );
         else
@@ -1445,20 +1290,20 @@ void Ide::onOpenFile()
 
 void Ide::onOakwood()
 {
-    CHECKED_IF( true, d_pro->useBuiltInOakwood() );
+    CHECKED_IF( true, d_rt->getPro()->useBuiltInOakwood() );
 
-    d_pro->setUseBuiltInOakwood( !d_pro->useBuiltInOakwood() );
-    if( d_pro->useBuiltInOakwood() )
-        d_pro->setUseBuiltInObSysInner(false);
+    d_rt->getPro()->setUseBuiltInOakwood( !d_rt->getPro()->useBuiltInOakwood() );
+    if( d_rt->getPro()->useBuiltInOakwood() )
+        d_rt->getPro()->setUseBuiltInObSysInner(false);
 }
 
 void Ide::onObSysInner()
 {
-    CHECKED_IF( true, d_pro->useBuiltInObSysInner() );
+    CHECKED_IF( true, d_rt->getPro()->useBuiltInObSysInner() );
 
-    d_pro->setUseBuiltInObSysInner( !d_pro->useBuiltInObSysInner() );
-    if( d_pro->useBuiltInObSysInner() )
-        d_pro->setUseBuiltInOakwood(false);
+    d_rt->getPro()->setUseBuiltInObSysInner( !d_rt->getPro()->useBuiltInObSysInner() );
+    if( d_rt->getPro()->useBuiltInObSysInner() )
+        d_rt->getPro()->setUseBuiltInOakwood(false);
 }
 
 void Ide::onAddFiles()
@@ -1472,12 +1317,12 @@ void Ide::onAddFiles()
         path = sel.first()->text(0).toLatin1().split('.');
 
     QString filter;
-    foreach( const QString& suf, d_pro->getSuffixes() )
+    foreach( const QString& suf, d_rt->getPro()->getSuffixes() )
         filter += " *" + suf;
     const QStringList files = QFileDialog::getOpenFileNames(this,tr("Add Modules"),QString(),filter );
     foreach( const QString& f, files )
     {
-        if( !d_pro->addFile(f,path) )
+        if( !d_rt->getPro()->addFile(f,path) )
             qWarning() << "cannot add module" << f;
     }
     compile();
@@ -1503,7 +1348,7 @@ void Ide::onNewModule()
         return;
     }
     QDir dir;
-    Project::FileGroup fg = d_pro->getFiles(path);
+    Project::FileGroup fg = d_rt->getPro()->findFileGroup(path);
     for( int i = 0; i < fg.d_files.size(); i++ )
     {
         if( i == 0 )
@@ -1540,7 +1385,7 @@ void Ide::onNewModule()
     f.write("\n");
     f.close();
 
-    if( !d_pro->addFile(filePath,path) )
+    if( !d_rt->getPro()->addFile(filePath,path) )
         qWarning() << "cannot add module" << filePath;
     compile();
 }
@@ -1577,7 +1422,7 @@ void Ide::onAddDir()
             return;
         }
     }
-    d_pro->addImportPath(segments);
+    d_rt->getPro()->addPackagePath(segments);
     fillMods();
 }
 
@@ -1597,7 +1442,7 @@ void Ide::onRemoveFile()
                               tr("Do you really want to remove module '%1' from project?").arg(m->d_name.constData()),
                            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes ) != QMessageBox::Yes )
         return;
-    if( !d_pro->removeFile( m->d_file ) )
+    if( !d_rt->getPro()->removeFile( m->d_file ) )
         qWarning() << "cannot remove module" << m->d_name;
     else
         compile();
@@ -1613,24 +1458,24 @@ void Ide::onRemoveDir()
                            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes ) != QMessageBox::Yes )
         return;
     QByteArrayList path = d_mods->currentItem()->text(0).toLatin1().split('.');
-    if( !d_pro->removeImportPath( path ) )
+    if( !d_rt->getPro()->removePackagePath( path ) )
         qWarning() << "cannot remove import path" << d_mods->currentItem()->text(0);
     fillMods();
 }
 
 void Ide::onEnableDebug()
 {
-    CHECKED_IF( true, d_lua->isDebug() );
+    CHECKED_IF( true, d_rt->getLua()->isDebug() );
 
-    d_lua->setDebug( !d_lua->isDebug() );
+    d_rt->getLua()->setDebug( !d_rt->getLua()->isDebug() );
     enableDbgMenu();
 }
 
 void Ide::onBreak()
 {
     // normal call because called during processEvent which doesn't seem to enable
-    // the functions: ENABLED_IF( d_lua->isExecuting() );
-    d_lua->runToNextLine();
+    // the functions: ENABLED_IF( d_rt->getLua()->isExecuting() );
+    d_rt->getLua()->runToNextLine();
 }
 
 bool Ide::checkSaved(const QString& title)
@@ -1649,21 +1494,21 @@ bool Ide::checkSaved(const QString& title)
             return false;
         }
     }
-    if( d_pro->isDirty() )
+    if( d_rt->getPro()->isDirty() )
     {
         switch( QMessageBox::critical( this, title, tr("The the project has not been saved; do you want to save it?"),
                                QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Yes ) )
         {
         case QMessageBox::Yes:
-            if( !d_pro->getFilePath().isEmpty() )
-                return d_pro->save();
+            if( !d_rt->getPro()->getProjectPath().isEmpty() )
+                return d_rt->getPro()->save();
             else
             {
                 const QString path = QFileDialog::getSaveFileName( this, title, QString(), "Oberon+ Project (*.obxpro)" );
                 if( path.isEmpty() )
                     return false;
                 QDir::setCurrent(QFileInfo(path).absolutePath());
-                return d_pro->saveTo(path);
+                return d_rt->getPro()->saveTo(path);
             }
             break;
         case QMessageBox::No:
@@ -1675,40 +1520,23 @@ bool Ide::checkSaved(const QString& title)
     return true;
 }
 
-bool Ide::compile(bool generate )
+bool Ide::compile(bool doGenerate )
 {
     for( int i = 0; i < d_tab->count(); i++ )
     {
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         if( e->isModified() )
-            d_pro->getFc()->addFile( e->getPath(), e->toPlainText().toUtf8() );
+            d_rt->getPro()->getFc()->addFile( e->getPath(), e->toPlainText().toUtf8() );
         else
-            d_pro->getFc()->removeFile( e->getPath() );
+            d_rt->getPro()->getFc()->removeFile( e->getPath() );
     }
-    if( d_pro->useBuiltInOakwood() )
-    {
-        preloadLib(d_pro,"In");
-        preloadLib(d_pro,"Out");
-        preloadLib(d_pro,"Files");
-        preloadLib(d_pro,"Input");
-        preloadLib(d_pro,"Math");
-        preloadLib(d_pro,"Strings");
-        preloadLib(d_pro,"Coroutines");
-        preloadLib(d_pro,"XYPlane");
-    }
-    const quint32 errCount = d_pro->getErrs()->getErrCount();
-    const QTime start = QTime::currentTime();
-    d_pro->recompile();
-    qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
-    if( generate )
-        d_pro->generate();
+    const bool res = d_rt->compile(doGenerate);
     onErrors();
     fillMods();
     fillModule(0);
     fillHier(0);
     fillXref();
     onTabChanged();
-    return errCount == d_pro->getErrs()->getErrCount();
 }
 
 static bool sortNamed( Named* lhs, Named* rhs )
@@ -1743,11 +1571,11 @@ void Ide::fillMods()
 {
     d_mods->clear();
 
-    const Project::ImportPaths& paths = d_pro->getImportPaths();
+    const Project::FileGroups& paths = d_rt->getPro()->getFileGroups();
     typedef QList<Group> Sort1;
     Sort1 sort1;
     foreach( const Project::FileGroup& fg, paths )
-        sort1.append( qMakePair( fg.d_importPath.join('.'), fg.d_files ) );
+        sort1.append( qMakePair( fg.d_package.join('.'), fg.d_files ) );
     std::sort( sort1.begin(), sort1.end(), sortNamed1 );
 
     for( int j = 0; j < sort1.size(); j++ )
@@ -1801,7 +1629,7 @@ void Ide::addTopCommands(Gui::AutoMenu* pop)
 
 Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMarker, bool center )
 {
-    Project::FileMod f = d_pro->findFile(path);
+    Project::FileMod f = d_rt->getPro()->findFile(path);
     if( f.first == 0 )
         return 0;
 
@@ -1813,7 +1641,7 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         edit = static_cast<Editor*>( d_tab->widget(i) );
     }else
     {
-        edit = new Editor(this,d_pro);
+        edit = new Editor(this,d_rt->getPro());
         createMenu(edit);
 
         connect(edit, SIGNAL(modificationChanged(bool)), this, SLOT(onEditorChanged()) );
@@ -1827,7 +1655,7 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         edit->loadFromFile(f.first->d_filePath);
 
         Q_ASSERT( f.first->d_mod );
-        const Lua::Engine2::Breaks& br = d_lua->getBreaks( f.first->d_mod->getName() );
+        const Lua::Engine2::Breaks& br = d_rt->getLua()->getBreaks( f.first->d_mod->getName() );
         Lua::Engine2::Breaks::const_iterator j;
         for( j = br.begin(); j != br.end(); ++j )
             edit->addBreakPoint((*j) - 1);
@@ -1835,7 +1663,7 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         d_tab->addDoc(edit,f.first->d_filePath);
         onEditorChanged();
     }
-    showBc( f.first->d_sourceCode.value(f.second) );
+    showBc( d_rt->findByteCode(f.second) );
     if( row > 0 && col > 0 )
     {
         edit->setCursorPosition( row-1, col-1, center );
@@ -1870,7 +1698,6 @@ void Ide::createMenu(Ide::Editor* edit)
     addDebugMenu(pop);
     pop->addSeparator();
     pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
-    pop->addCommand( "Export LjAsm...", this, SLOT(onExportAsm()) );
     pop->addSeparator();
     pop->addCommand( "Undo", edit, SLOT(handleEditUndo()), tr("CTRL+Z"), true );
     pop->addCommand( "Redo", edit, SLOT(handleEditRedo()), tr("CTRL+Y"), true );
@@ -1935,7 +1762,7 @@ bool Ide::luaRuntimeMessage(const QByteArray& msg, const QString& file )
             const quint32 row = packed ? RowCol::unpackRow(id) : id;
             const quint32 col = packed ? RowCol::unpackCol(id) : 1;
 
-            d_pro->getErrs()->error(Errors::Runtime, path.isEmpty() ? file : path, row, col, msg.mid(secondColon+1) );
+            d_rt->getPro()->getErrs()->error(Errors::Runtime, path.isEmpty() ? file : path, row, col, msg.mid(secondColon+1) );
             return true;
         }
     }
@@ -2014,7 +1841,7 @@ void Ide::fillXref()
     line += 1;
     col += 1;
     Scope* scope = 0;
-    Expression* hitEx = d_pro->findSymbolBySourcePos(edit->getPath(), line, col, &scope);
+    Expression* hitEx = d_rt->getPro()->findSymbolBySourcePos(edit->getPath(), line, col, &scope);
     if( hitEx )
     {
         Named* hitSym = hitEx->getIdent();
@@ -2031,7 +1858,7 @@ void Ide::fillXref()
         }
         fillHier(hitSym);
 
-        ExpList exp = d_pro->getUsage(hitSym);
+        ExpList exp = d_rt->getPro()->getUsage(hitSym);
 
         Editor::ExList l1, l2;
         foreach( const Ref<Expression> e, exp )
@@ -2132,7 +1959,7 @@ void Ide::fillXref(Named* sym)
     if( sym == 0 )
         return;
 
-    ExpList exp = d_pro->getUsage(sym);
+    ExpList exp = d_rt->getPro()->getUsage(sym);
 
     Editor::ExList l2;
     foreach( const Ref<Expression> e, exp )
@@ -2162,7 +1989,7 @@ void Ide::fillStack()
 {
     d_stack->clear();
 
-    Lua::Engine2::StackLevels ls = d_lua->getStackTrace();
+    Lua::Engine2::StackLevels ls = d_rt->getLua()->getStackTrace();
     d_scopes = QVector<Scope*>(ls.size());
 
     bool opened = false;
@@ -2177,14 +2004,14 @@ void Ide::fillStack()
         if( l.d_inC )
         {
             item->setText(3,"(native)");
-        }else if( d_lua->getMode() != Lua::Engine2::PcMode )
+        }else if( d_rt->getLua()->getMode() != Lua::Engine2::PcMode )
         {
             const int row = RowCol::unpackRow2(l.d_line);
             const int col = RowCol::unpackCol2(l.d_line);
             const int row2 = RowCol::unpackRow2(l.d_lineDefined);
             const int col2 = RowCol::unpackCol2(l.d_lineDefined);
-            Project::FileMod fm = d_pro->findFile( l.d_source );
-            Expression* e = d_pro->findSymbolBySourcePos(l.d_source,row2,col2);
+            Project::FileMod fm = d_rt->getPro()->findFile( l.d_source );
+            Expression* e = d_rt->getPro()->findSymbolBySourcePos(l.d_source,row2,col2);
             if( e && e->getIdent() )
             {
                 const int tag = e->getIdent()->getTag();
@@ -2206,7 +2033,7 @@ void Ide::fillStack()
             if( !opened )
             {
                 showEditor(l.d_source, row, col, true );
-                d_lua->setActiveLevel(level);
+                d_rt->getLua()->setActiveLevel(level);
                 opened = true;
             }
         }else
@@ -2220,7 +2047,7 @@ void Ide::fillStack()
             if( !opened )
             {
                 Editor* edit = showEditor(l.d_source, RowCol::unpackRow2(l.d_lineDefined), RowCol::unpackCol2(l.d_lineDefined), false );
-                d_lua->setActiveLevel(level);
+                d_rt->getLua()->setActiveLevel(level);
                 d_bcv->parentWidget()->show();
                 const quint32 rowCol = d_bcv->gotoFuncPc(l.d_lineDefined,l.d_line, center, true);
                 if( rowCol && edit )
@@ -2348,16 +2175,16 @@ void Ide::fillLocals()
 {
     d_locals->clear();
 
-    if( d_lua->getMode() == Lua::Engine2::PcMode )
+    if( d_rt->getLua()->getMode() == Lua::Engine2::PcMode )
     {
-        fillRawLocals(d_locals, d_lua);
+        fillRawLocals(d_locals, d_rt->getLua());
         return;
     }
 
     lua_Debug ar;
-    const int level = d_lua->getActiveLevel();
+    const int level = d_rt->getLua()->getActiveLevel();
     Scope* scope = d_scopes[ level ];
-    if( scope && lua_getstack( d_lua->getCtx(), level, &ar ) )
+    if( scope && lua_getstack( d_rt->getLua()->getCtx(), level, &ar ) )
     {
         foreach( const Ref<Named>& n, scope->d_order )
         {
@@ -2365,15 +2192,15 @@ void Ide::fillLocals()
             if( tag == Thing::T_Parameter || tag == Thing::T_LocalVar )
             {
                 QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
-                const int before = lua_gettop(d_lua->getCtx());
-                if( lua_getlocal( d_lua->getCtx(), &ar, n->d_slot + 1 ) )
+                const int before = lua_gettop(d_rt->getLua()->getCtx());
+                if( lua_getlocal( d_rt->getLua()->getCtx(), &ar, n->d_slot + 1 ) )
                 {
                     item->setText(0,n->d_name);
                     printLocalVal(item,n->d_type.data(), 0);
-                    lua_pop( d_lua->getCtx(), 1 );
+                    lua_pop( d_rt->getLua()->getCtx(), 1 );
                 }else
                     item->setText(0,"<invalid>");
-                Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+                Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
             }
         }
 #if 1
@@ -2385,32 +2212,32 @@ void Ide::fillLocals()
             name = name.left(20) + "...";
         parent->setText(0,name);
         parent->setText(1,"<module>");
-        const int before = lua_gettop(d_lua->getCtx());
-        lua_getglobal( d_lua->getCtx(), m->getName() );
-        if( !lua_isnil( d_lua->getCtx(), -1 ) )
+        const int before = lua_gettop(d_rt->getLua()->getCtx());
+        lua_getglobal( d_rt->getLua()->getCtx(), m->getName() );
+        if( !lua_isnil( d_rt->getLua()->getCtx(), -1 ) )
         {
-            const int mod = lua_gettop( d_lua->getCtx() );
+            const int mod = lua_gettop( d_rt->getLua()->getCtx() );
             foreach( const Ref<Named>& n, m->d_order )
             {
                 if( n->getTag() == Thing::T_Variable )
                 {
                     QTreeWidgetItem* item = new QTreeWidgetItem(parent);
                     item->setText(0,n->d_name);
-                    const int before = lua_gettop(d_lua->getCtx());
-                    lua_rawgeti( d_lua->getCtx(), mod, n->d_slot );
+                    const int before = lua_gettop(d_rt->getLua()->getCtx());
+                    lua_rawgeti( d_rt->getLua()->getCtx(), mod, n->d_slot );
                     printLocalVal(item,n->d_type.data(), 0);
-                    lua_pop( d_lua->getCtx(), 1 );
-                    Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+                    lua_pop( d_rt->getLua()->getCtx(), 1 );
+                    Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
                 }
             }
         }else
             parent->setText(1,"<???>");
-        lua_pop( d_lua->getCtx(), 1 ); // module
-        Q_ASSERT( before == lua_gettop(d_lua->getCtx()) );
+        lua_pop( d_rt->getLua()->getCtx(), 1 ); // module
+        Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
 #endif
     }
 #if 0 // TEST, usually 0
-    fillRawLocals(d_locals, d_lua);
+    fillRawLocals(d_locals, d_rt->getLua());
 #endif
 }
 
@@ -2467,7 +2294,7 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
 
     if( depth > numOfLevels )
         return;
-    lua_State* L = d_lua->getCtx();
+    lua_State* L = d_rt->getLua()->getCtx();
     type = derefed(type);
     Q_ASSERT( type );
     int tag = type->getTag();
@@ -2971,12 +2798,12 @@ void Ide::removePosMarkers()
 
 void Ide::enableDbgMenu()
 {
-    d_dbgBreak->setEnabled(!d_lua->isWaiting() && d_lua->isExecuting() && d_lua->isDebug() );
-    d_dbgAbort->setEnabled(d_lua->isWaiting());
-    d_dbgContinue->setEnabled(d_lua->isWaiting());
-    d_dbgStepIn->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
-    d_dbgStepOver->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
-    d_dbgStepOut->setEnabled(d_lua->isWaiting() && d_lua->isDebug() );
+    d_dbgBreak->setEnabled(!d_rt->getLua()->isWaiting() && d_rt->getLua()->isExecuting() && d_rt->getLua()->isDebug() );
+    d_dbgAbort->setEnabled(d_rt->getLua()->isWaiting());
+    d_dbgContinue->setEnabled(d_rt->getLua()->isWaiting());
+    d_dbgStepIn->setEnabled(d_rt->getLua()->isWaiting() && d_rt->getLua()->isDebug() );
+    d_dbgStepOver->setEnabled(d_rt->getLua()->isWaiting() && d_rt->getLua()->isDebug() );
+    d_dbgStepOut->setEnabled(d_rt->getLua()->isWaiting() && d_rt->getLua()->isDebug() );
 }
 
 void Ide::handleGoBack()
@@ -3026,36 +2853,36 @@ void Ide::onToggleBreakPt()
 
     quint32 line;
     const bool on = edit->toggleBreakPoint(&line);
-    Project::FileMod fm = d_pro->findFile(edit->getPath());
+    Project::FileMod fm = d_rt->getPro()->findFile(edit->getPath());
     Q_ASSERT( fm.first && fm.first->d_mod );
     if( on )
-        d_lua->addBreak( fm.first->d_mod->getName(), line + 1 );
+        d_rt->getLua()->addBreak( fm.first->d_mod->getName(), line + 1 );
     else
-        d_lua->removeBreak( fm.first->d_mod->getName(), line + 1 );
+        d_rt->getLua()->removeBreak( fm.first->d_mod->getName(), line + 1 );
 }
 
 void Ide::onSingleStep()
 {
-    // ENABLED_IF( d_lua->isWaiting() );
+    // ENABLED_IF( d_rt->getLua()->isWaiting() );
 
-    d_lua->runToNextLine();
+    d_rt->getLua()->runToNextLine();
 }
 
 void Ide::onStepOver()
 {
-    d_lua->runToNextLine(Lua::Engine2::StepOver);
+    d_rt->getLua()->runToNextLine(Lua::Engine2::StepOver);
 }
 
 void Ide::onStepOut()
 {
-    d_lua->runToNextLine(Lua::Engine2::StepOut);
+    d_rt->getLua()->runToNextLine(Lua::Engine2::StepOut);
 }
 
 void Ide::onContinue()
 {
-    // ENABLED_IF( d_lua->isWaiting() );
+    // ENABLED_IF( d_rt->getLua()->isWaiting() );
 
-    d_lua->runToBreakPoint();
+    d_rt->getLua()->runToBreakPoint();
 }
 
 void Ide::onShowLlBc()
@@ -3076,10 +2903,10 @@ void Ide::onWorkingDir()
 
     bool ok;
     const QString res = QInputDialog::getText(this,tr("Set Working Directory"), QString(), QLineEdit::Normal,
-                                              d_pro->getWorkingDir(), &ok );
+                                              d_rt->getPro()->getWorkingDir(), &ok );
     if( !ok )
         return;
-    d_pro->setWorkingDir(res);
+    d_rt->getPro()->setWorkingDir(res);
 }
 
 void Ide::onLuaNotify(int messageType, QByteArray val1, int val2)
@@ -3112,7 +2939,7 @@ void Ide::clear()
 {
     d_backHisto.clear();
     d_forwardHisto.clear();
-    d_pro->clear();
+    d_rt->getPro()->clear();
     d_mods->clear();
     d_mod->clear();
     d_hier->clear();
@@ -3176,27 +3003,27 @@ void Ide::onExpMod()
     if( path.isEmpty() )
         return;
 
-    d_pro->printTreeShaken( m->d_file, path );
+    d_rt->getPro()->printTreeShaken( m->d_file, path );
 }
 
 void Ide::onBcDebug()
 {
-    CHECKED_IF( true, d_lua->getMode() == Lua::Engine2::PcMode );
+    CHECKED_IF( true, d_rt->getLua()->getMode() == Lua::Engine2::PcMode );
 
-    if( d_lua->getMode() == Lua::Engine2::PcMode )
-        d_lua->setDebugMode( Lua::Engine2::LineMode );
+    if( d_rt->getLua()->getMode() == Lua::Engine2::PcMode )
+        d_rt->getLua()->setDebugMode( Lua::Engine2::LineMode );
     else
-        d_lua->setDebugMode( Lua::Engine2::PcMode );
+        d_rt->getLua()->setDebugMode( Lua::Engine2::PcMode );
 }
 
 void Ide::onRowColMode()
 {
-    CHECKED_IF( true, d_lua->getMode() == Lua::Engine2::RowColMode );
+    CHECKED_IF( true, d_rt->getLua()->getMode() == Lua::Engine2::RowColMode );
 
-    if( d_lua->getMode() == Lua::Engine2::RowColMode )
-        d_lua->setDebugMode( Lua::Engine2::LineMode );
+    if( d_rt->getLua()->getMode() == Lua::Engine2::RowColMode )
+        d_rt->getLua()->setDebugMode( Lua::Engine2::LineMode );
     else
-        d_lua->setDebugMode( Lua::Engine2::RowColMode );
+        d_rt->getLua()->setDebugMode( Lua::Engine2::RowColMode );
 }
 
 void Ide::onShowBcFile()
@@ -3215,15 +3042,13 @@ void Ide::onShowBcFile()
     view->loadFrom(path);
     view->setWindowTitle( tr("%1 - Bytecode View").arg( QFileInfo(path).fileName() ) );
     view->show();
-
 }
 
 void Ide::onJitEnabled()
 {
-    CHECKED_IF(true,d_jitEnabled);
+    CHECKED_IF(true,d_rt->jitEnabled());
 
-    d_jitEnabled = !d_jitEnabled;
-    d_lua->setJit(d_jitEnabled);
+    d_rt->setJitEnabled( !d_rt->jitEnabled() );
 }
 
 int main(int argc, char *argv[])
@@ -3232,7 +3057,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.21");
+    a.setApplicationVersion("0.7.22");
     a.setStyle("Fusion");
 
     Ide w;

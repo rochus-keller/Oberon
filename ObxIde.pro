@@ -27,7 +27,7 @@ TEMPLATE = app
 INCLUDEPATH += .. ../LuaJIT/src
 
 #DEFINES += LUA_USE_ASSERT
-DEFINES += OBX_BBOX LUAIDE_EMBEDDED _HAS_GENERICS #_INSERT_DGBTRACE
+DEFINES +=  #_INSERT_DGBTRACE
 DEFINES += _LJTOOLS_DONT_CREATE_TAIL_CALLS
 
 SOURCES += ObxIde.cpp \
@@ -36,25 +36,18 @@ SOURCES += ObxIde.cpp \
     ../LjTools/Engine2.cpp \
     ../LjTools/Terminal2.cpp \
     ../LjTools/ExpressionParser.cpp \
-    ../LjTools/LuaJitEngine.cpp \
     ../LjTools/LuaJitComposer.cpp \
     ObnHighlighter.cpp \
-    ../LjTools/LjDisasm.cpp \
     ../LjTools/BcViewer2.cpp \
     ../GuiTools/DocSelector.cpp \
     ../GuiTools/DocTabWidget.cpp \
     ../LjTools/BcViewer.cpp \
-    ObxProject.cpp \
-    ObxModel.cpp \
-    ObxParser.cpp \
-    ObxValidator.cpp \
-    ObxEvaluator.cpp \
-    ObxAst.cpp \
     ObxLjbcGen.cpp \
     ObxLibFfi.cpp \
-    ../LjTools/LjBcDebugger.cpp \
     ObsDisplay.cpp \
-    ObsFiles.cpp
+    ObsFiles.cpp \
+    ObxLjRuntime.cpp \
+    ../LjTools/LjDisasm.cpp
 
 HEADERS  += ObxIde.h \
     ../GuiTools/CodeEditor.h \
@@ -62,24 +55,17 @@ HEADERS  += ObxIde.h \
     ../LjTools/Engine2.h \
     ../LjTools/Terminal2.h \
     ../LjTools/ExpressionParser.h \
-    ../LjTools/LuaJitEngine.h \
     ../LjTools/LuaJitComposer.h \
     ObnHighlighter.h \
-    ../LjTools/LjDisasm.h \
     ../LjTools/BcViewer2.h \
     ../GuiTools/DocSelector.h \
     ../GuiTools/DocTabWidget.h \
     ../LjTools/BcViewer.h \
-    ObxProject.h \
-    ObxModel.h \
-    ObxParser.h \
-    ObxValidator.h \
-    ObxEvaluator.h \
-    ObxAst.h \
     ObxLjbcGen.h \
     ObxLibFfi.h \
-    ../LjTools/LjBcDebugger.h \
-    ObsDisplay.h
+    ObsDisplay.h \
+    ObxLjRuntime.h \
+    ../LjTools/LjDisasm.h
 
 # NOTE on LuaJIT: to make use of the line:column position information used in
 # OberonIDE please use this version: https://github.com/rochus-keller/LuaJIT/tree/LjTools
@@ -104,7 +90,7 @@ macx {
     QMAKE_LFLAGS += -rdynamic -ldl -pagezero_size 10000 -image_base 100000000
 }
 
-include( Oberon.pri )
+include( ObxParser.pri )
 include( ../GuiTools/Menu.pri )
 
 CONFIG(debug, debug|release) {

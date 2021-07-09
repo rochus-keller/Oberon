@@ -23,7 +23,7 @@
 
 module RedBlackTree<K,V>
 
-	import I := som.Interfaces<Entry>
+	import I := Interfaces<Entry>
 	
 	////////// Node //////////////////
 	type
@@ -99,7 +99,8 @@ module RedBlackTree<K,V>
 	
 	proc (this: RedBlackTree) put*(in key: K; in value: V): V
 		var newEntry: boolean
-		return this.putChecked(key,value,newEntry) end
+		return this.putChecked(key,value,newEntry) 
+	end put
 	
 	proc (this: RedBlackTree) putChecked*(in key: K; in value: V; var newEntry: boolean): V
 		var insertionResult: InsertResult

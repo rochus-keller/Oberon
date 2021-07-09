@@ -21,7 +21,6 @@
 #include "ObxAst.h"
 #include "ObxModel.h"
 #include "ObErrors.h"
-#include "ObxLjbcGen.h"
 #include <QBuffer>
 #include <QDir>
 #include <QtDebug>
@@ -798,7 +797,7 @@ void Project::clear()
 {
     d_mdl->clear();
     d_modules.clear();
-    d_dirs.clear();
+    d_groups.clear();
     d_filePath.clear();
     d_files.clear();
 }
@@ -821,6 +820,19 @@ bool Project::initializeFromDir(const QDir& dir, bool recursive)
     foreach( const QString& filePath, files )
         addFile(filePath);
     emit sigRenamed();
+    return true;
+}
+
+bool Project::initializeFromPackageList(const PackageList& pl)
+{
+    clear();
+    d_dirty = false;
+    foreach( const Package& p, pl )
+    {
+        foreach( const QString& path, p.d_files )
+            addFile(path,p.d_path);
+    }
+
     return true;
 }
 
@@ -848,18 +860,18 @@ void Project::setUseBuiltInObSysInner(bool on)
     touch();
 }
 
-bool Project::addFile(const QString& filePath, const QByteArrayList& importPath)
+bool Project::addFile(const QString& filePath, const VirtualPath& package)
 {
     if( d_files.contains(filePath) )
         return false;
-    int pos = findImportPath(importPath);
+    int pos = findPackage(package);
     if( pos == -1 )
     {
-        pos = d_dirs.size();
-        d_dirs.append( FileGroup() );
-        d_dirs.back().d_importPath = importPath;
+        pos = d_groups.size();
+        d_groups.append( FileGroup() );
+        d_groups.back().d_package = package;
     }
-    FileGroup& fg = d_dirs[pos];
+    FileGroup& fg = d_groups[pos];
     FileRef ref( new File() );
     fg.d_files.append(ref.data());
     ref->d_group = &fg;
@@ -869,75 +881,60 @@ bool Project::addFile(const QString& filePath, const QByteArrayList& importPath)
     return true;
 }
 
-bool Project::addImportPath(const QByteArrayList& importPath)
+bool Project::addPackagePath(const VirtualPath& path)
 {
-    int pos = findImportPath(importPath);
+    int pos = findPackage(path);
     if( pos == -1 )
     {
-        pos = d_dirs.size();
-        d_dirs.append( FileGroup() );
-        d_dirs.back().d_importPath = importPath;
+        pos = d_groups.size();
+        d_groups.append( FileGroup() );
+        d_groups.back().d_package = path;
         touch();
         return true;
     }else
         return false;
 }
 
-bool Project::removeFile(const QString& path)
+bool Project::removeFile(const QString& filePath)
 {
-    FileHash::iterator i = d_files.find(path);
+    FileHash::iterator i = d_files.find(filePath);
     if( i == d_files.end() )
         return false;
-    const int pos = findImportPath( i.value()->d_group->d_importPath );
+    const int pos = findPackage( i.value()->d_group->d_package );
     Q_ASSERT( pos != -1 );
-    d_dirs[pos].d_files.removeAll(i.value().data());
+    d_groups[pos].d_files.removeAll(i.value().data());
     d_files.erase(i);
     touch();
     return true;
 }
 
-bool Project::removeImportPath(const QByteArrayList& importPath)
+bool Project::removePackagePath(const VirtualPath& path)
 {
-    if( importPath.isEmpty() )
+    if( path.isEmpty() )
         return false;
-    int pos = findImportPath(importPath);
+    int pos = findPackage(path);
     if( pos == -1 )
         return false;
-    if( !d_dirs[pos].d_files.isEmpty() )
+    if( !d_groups[pos].d_files.isEmpty() )
         return false;
-    d_dirs.removeAt(pos);
+    d_groups.removeAt(pos);
     touch();
     return true;
 }
 
-Project::FileGroup Project::getRootModules() const
+Project::FileGroup Project::getRootFileGroup() const
 {
-    return getFiles(QByteArrayList());
+    return findFileGroup(QByteArrayList());
 }
 
-Project::FileGroup Project::getFiles(const QByteArrayList& path) const
+Project::FileGroup Project::findFileGroup(const VirtualPath& package) const
 {
-    for( int i = 0; i < d_dirs.size(); i++ )
+    for( int i = 0; i < d_groups.size(); i++ )
     {
-        if( d_dirs[i].d_importPath == path )
-            return d_dirs[i];
+        if( d_groups[i].d_package == package )
+            return d_groups[i];
     }
     return FileGroup();
-}
-
-Project::FileList Project::getFilesInExecOrder() const
-{
-    const QList<Module*>& order = d_mdl->getDepOrder();
-    FileList res;
-    foreach( Module* m, order )
-    {
-        Q_ASSERT( m );
-        FileHash::const_iterator i = d_files.find( m->d_file );
-        if( i == d_files.end() || i.value()->d_sourceCode.isEmpty() || i.value()->d_mod.isNull() )
-            continue;
-        res.append( i.value() );
-    }
-    return res;
 }
 
 Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, quint16 col, Scope** scopePtr) const
@@ -1066,12 +1063,12 @@ void Project::touch()
     }
 }
 
-int Project::findImportPath(const QByteArrayList& importPath) const
+int Project::findPackage(const VirtualPath& path) const
 {
     int pos = -1;
-    for( int i = 0; i < d_dirs.size(); i++ )
+    for( int i = 0; i < d_groups.size(); i++ )
     {
-        if( d_dirs[i].d_importPath == importPath )
+        if( d_groups[i].d_package == path )
         {
             pos = i;
             break;
@@ -1080,6 +1077,7 @@ int Project::findImportPath(const QByteArrayList& importPath) const
     return pos;
 }
 
+#if 0
 bool Project::generate(Module* m)
 {
     Q_ASSERT( m );
@@ -1094,27 +1092,27 @@ bool Project::generate(Module* m)
     buf.open(QIODevice::WriteOnly);
     LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
     buf.close();
-    f.value()->d_sourceCode[m] = buf.buffer();
+    f.value()->d_byteCode[m] = buf.buffer();
     return true;
 }
+#endif
 
-bool Project::recompile()
+bool Project::reparse()
 {
     d_modules.clear();
-    Model::FileGroups fgs;
-    for( int i = 0; i < d_dirs.size(); i++ )
+    PackageList fgs;
+    for( int i = 0; i < d_groups.size(); i++ )
     {
-        Model::FileGroup fg;
-        for( int j = 0; j < d_dirs[i].d_files.size(); j++ )
-            fg.d_files << d_dirs[i].d_files[j]->d_filePath;
-        fg.d_groupName = d_dirs[i].d_importPath;
+        Package fg;
+        for( int j = 0; j < d_groups[i].d_files.size(); j++ )
+            fg.d_files << d_groups[i].d_files[j]->d_filePath;
+        fg.d_path = d_groups[i].d_package;
         fgs << fg;
     }
     const bool res = d_mdl->parseFiles( fgs );
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
     {
-        //qDebug() << "******* recompile" << m->getName();
         if( m->d_file.isEmpty() || ( m->d_isDef && !d_files.contains(m->d_file) ) )
             continue; // e.g. SYSTEM
         FileHash::iterator i = d_files.find(m->d_file);
@@ -1129,7 +1127,7 @@ bool Project::recompile()
             {
                 QList<Module*> insts = d_mdl->instances(m);
                 foreach( Module* inst, insts )
-                d_modules.insert(inst->getName(),qMakePair(f, inst));
+                    d_modules.insert(inst->getName(),qMakePair(f, inst));
             }
             //m->dump();
         }else
@@ -1138,15 +1136,16 @@ bool Project::recompile()
             Q_ASSERT( false );
         }
     }
-    emit sigRecompiled();
+    emit sigReparsed();
     return res;
 }
 
+#if 0 // moved to IDE to make Project independent of backend
 bool Project::generate()
 {
     FileHash::const_iterator i;
     for( i = d_files.begin(); i != d_files.end(); ++i )
-        i.value()->d_sourceCode.clear();
+        i.value()->d_byteCode.clear();
     const quint32 errs = d_mdl->getErrs()->getErrCount();
     QList<Module*> mods = d_mdl->getDepOrder();
 #if 0
@@ -1221,6 +1220,45 @@ bool Project::generate()
     }
     return errs == d_mdl->getErrs()->getErrCount();
 }
+#endif
+
+QList<Module*> Project::getModulesToGenerate() const
+{
+    QList<Module*> res;
+    FileHash::const_iterator i;
+    QList<Module*> mods = d_mdl->getDepOrder();
+#if 0
+    qDebug() << "******* module generating order:";
+    QSet<Module*> test;
+    foreach( Module* m, mods )
+    {
+        if( m->d_metaParams.isEmpty() )
+        {
+            qDebug() << m->getName();
+            QList<Module*> result;
+            m->findAllInstances(result);
+            foreach( Module* inst, result )
+            {
+                if( test.contains(inst) )
+                    qWarning() << "already seen" << inst->getName();
+                else if( inst->isFullyInstantiated() )
+                    qDebug() << "instance" << inst->getName();
+                else
+                    qWarning() << "not fully instantiated" << inst->getName();
+                test.insert(inst);
+            }
+        }
+    }
+#endif
+    foreach( Module* m, mods )
+    {
+        if( m->d_synthetic )
+            ; // NOP
+        else if( m->d_isDef || m->d_metaParams.isEmpty() )
+            res.append(m); // we don't add generic modules because the instances to generate are identified by Module:findAllInstances
+    }
+    return res;
+}
 
 bool Project::save()
 {
@@ -1240,7 +1278,7 @@ bool Project::save()
     out.setValue("MainProc", d_main.second );
     out.setValue("WorkingDir", d_workingDir );
 
-    FileGroup root = getRootModules();
+    FileGroup root = getRootFileGroup();
     out.beginWriteArray("Modules", root.d_files.size() ); // nested arrays don't work
     for( int i = 0; i < root.d_files.size(); i++ )
     {
@@ -1252,22 +1290,22 @@ bool Project::save()
     }
     out.endArray();
 
-    out.beginWriteArray("Packages", d_dirs.size() );
-    for( int i = 0; i < d_dirs.size(); i++ )
+    out.beginWriteArray("Packages", d_groups.size() );
+    for( int i = 0; i < d_groups.size(); i++ )
     {
         out.setArrayIndex(i);
-        out.setValue("Name", d_dirs[i].d_importPath.join('.') ); // '/' in key gives strange effects
+        out.setValue("Name", d_groups[i].d_package.join('.') ); // '/' in key gives strange effects
     }
     out.endArray();
 
-    for( int i = 0; i < d_dirs.size(); i++ )
+    for( int i = 0; i < d_groups.size(); i++ )
     {
-        if(d_dirs[i].d_importPath.isEmpty())
+        if(d_groups[i].d_package.isEmpty())
             continue;
-        out.beginWriteArray("." + d_dirs[i].d_importPath.join('.'), d_dirs[i].d_files.size() );
-        for( int j = 0; j < d_dirs[i].d_files.size(); j++ )
+        out.beginWriteArray("." + d_groups[i].d_package.join('.'), d_groups[i].d_files.size() );
+        for( int j = 0; j < d_groups[i].d_files.size(); j++ )
         {
-            const QString absPath = d_dirs[i].d_files[j]->d_filePath;
+            const QString absPath = d_groups[i].d_files[j]->d_filePath;
             const QString relPath = dir.relativeFilePath( absPath );
             out.setArrayIndex(j);
             out.setValue("AbsPath", absPath );
@@ -1286,7 +1324,6 @@ bool Project::loadFrom(const QString& filePath)
     clear();
 
     d_filePath = filePath;
-    d_mdl->setFileRoot(d_filePath);
 
     QDir dir = QFileInfo(d_filePath).dir();
 
@@ -1325,7 +1362,7 @@ bool Project::loadFrom(const QString& filePath)
         in.setArrayIndex(i);
         QString name = in.value("Name").toString();
         paths << name.toLatin1().split('.');
-        addImportPath( paths.back() );
+        addPackagePath( paths.back() );
     }
     in.endArray();
 
@@ -1360,7 +1397,6 @@ bool Project::loadFrom(const QString& filePath)
 bool Project::saveTo(const QString& filePath)
 {
     d_filePath = filePath;
-    d_mdl->setFileRoot(d_filePath);
     const bool res = save();
     emit sigRenamed();
     return res;

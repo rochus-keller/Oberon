@@ -23,8 +23,8 @@
 
 module Dictionary<K,V>
 
-	import KV := som.Vector<K>
-		VV := som.Vector<V>
+	import KV := Vector<K>
+		VV := Vector<V>
 		
 	/////// Entry ////////
 	type

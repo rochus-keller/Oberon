@@ -33,7 +33,10 @@ using namespace Ob;
 
 static uint qHash( const QByteArrayList& ba, uint seed )
 {
-    return qHash(ba.last(),seed);
+    uint res = 0;
+    for( int i = 0; i < ba.size(); i++ )
+        res ^= qHash(ba[i],seed);
+    return res;
 }
 
 struct Model::CrossReferencer : public AstVisitor
@@ -363,6 +366,7 @@ struct Model::CrossReferencer : public AstVisitor
 
     void visit( Literal* l)
     {
+#if 0 // obsolete; tries to interpret a string a a module/command
         if( l->d_vtype == Literal::String && !l->d_wide )
         {
             QByteArray str = l->d_val.toByteArray();
@@ -394,6 +398,7 @@ struct Model::CrossReferencer : public AstVisitor
                 }
             }
         }
+#endif
     }
 
 
@@ -438,12 +443,13 @@ void Model::clear()
     unbindFromGlobal();
     d_insts.clear();
     d_modules.clear();
+    d_packages.clear();
     d_others.clear();
     d_xref.clear();
     d_sloc = 0;
 }
 
-bool Model::parseFiles(const FileGroups& files)
+bool Model::parseFiles(const PackageList& files)
 {
     if( files.isEmpty() )
     {
@@ -453,34 +459,23 @@ bool Model::parseFiles(const FileGroups& files)
 
     clear();
 
-    const QString old = QDir::currentPath();
-    if( !d_fileRoot.isEmpty() )
-        QDir::setCurrent(d_fileRoot);
-
     const quint32 before = d_errs->getErrCount();
-    foreach( const FileGroup& fg, files )
+    foreach( const Package& package, files )
     {
-        foreach( const QString& file, fg.d_files )
+        foreach( const QString& filePath, package.d_files )
         {
-            if( d_fileRoot.isEmpty() && QFileInfo(file).isRelative() )
-            {
-                error( file, tr("cannot resolve relative path '%1'").arg(file));
-                continue;
-            }
-
-            const QString path = QDir::current().absoluteFilePath(file);
-            qDebug() << "parsing" << path;
-            Ref<Module> m = parseFile(path);
+            qDebug() << "parsing" << filePath;
+            Ref<Module> m = parseFile(filePath);
             if( m.isNull() )
-                error( path, tr("cannot open file") );
+                error( filePath, tr("cannot open file") );
             else
             {
-                m->d_fullName = fg.d_groupName;
+                m->d_fullName = package.d_path;
                 m->d_fullName << m->d_name;
 
                 if( d_modules.contains( m->d_fullName ) )
-                    error( path,tr("full name of module is not unique in file groups: %1").
-                           arg(m->d_fullName.join('/').constData()));
+                    error( filePath,tr("Module name is not unique in package: %1").
+                           arg(m->d_fullName.join('.').constData()));
                 else
                 {
                     if( m->d_isExt )
@@ -488,12 +483,11 @@ bool Model::parseFiles(const FileGroups& files)
                     else
                         m->d_scope = d_globals.data();
                     d_modules.insert( m->d_fullName, m );
+                    d_packages[package.d_path].append(m.data());
                 }
             }
         }
     }
-
-    QDir::setCurrent(old);
 
     resolveImports();
     if( !findProcessingOrder() )
@@ -558,26 +552,26 @@ bool Model::parseFiles(const FileGroups& files)
     return true;
 }
 
-Ref<Module> Model::parseFile(const QString& path)
+Ref<Module> Model::parseFile(const QString& filePath)
 {
     bool found;
-    FileCache::Entry content = d_fc->getFile(path, &found );
+    FileCache::Entry content = d_fc->getFile(filePath, &found );
     if( found )
     {
         QBuffer buf;
         buf.setData( content.d_code );
         buf.open(QIODevice::ReadOnly);
-        return parseFile( &buf, path );
+        return parseFile( &buf, filePath );
     }else
     {
-        QFile file(path);
+        QFile file(filePath);
         if( !file.open(QIODevice::ReadOnly) )
             return 0;
-        return parseFile( &file, path );
+        return parseFile( &file, filePath );
     }
 }
 
-Ref<Module> Model::parseFile(QIODevice* in, const QString& path)
+Ref<Module> Model::parseFile(QIODevice* in, const QString& filePath)
 {
     Ob::Lexer lex;
     lex.setErrors(d_errs);
@@ -585,17 +579,12 @@ Ref<Module> Model::parseFile(QIODevice* in, const QString& path)
     lex.setIgnoreComments(true);
     lex.setPackComments(true);
     lex.setSensExt(true);
-    lex.setStream( in, path );
+    lex.setStream( in, filePath );
     Obx::Parser p(&lex,d_errs);
     Ref<Module> res = p.parse();
     d_sloc += lex.getSloc();
     // qDebug() << path << "with" << lex.getSloc() << "LOC";
     return res;
-}
-
-Module*Model::findModule(const QByteArray& name) const
-{
-    return d_modules.value(QByteArrayList() << name ).data();
 }
 
 struct TreeShaker : public AstVisitor
@@ -1074,9 +1063,11 @@ bool Model::resolveImport(Module* m)
     bool hasErrors = false;
     foreach( Import* i, m->d_imports )
     {
-        i->d_mod = d_modules.value(i->d_path);
+        i->d_mod = findModule(m->d_fullName.mid(0,m->d_fullName.size()-1), i->d_path );
         if( i->d_mod.isNull() )
         {
+            // mechanism to resolve built-in modules and preloads (SYSTEM, oakwook, etc.)
+            // which are not explicitly part of the project
             if( i->d_path.size() == 1 && i->d_path.last() == d_systemModule->d_name )
                 i->d_mod = d_systemModule;
             else
@@ -1084,7 +1075,7 @@ bool Model::resolveImport(Module* m)
                 i->d_mod = d_others.value( i->d_path );
                 if( i->d_mod.isNull() )
                 {
-                    i->d_mod = parseFile( i->d_path.join('.') );
+                    i->d_mod = parseFile( i->d_path.join('.') ); // works because of FileCache which includes both file and virtual paths
                     if( i->d_mod.isNull() )
                     {
                         error( Loc( i->d_loc, m->d_file ), tr("cannot find module '%1'").
@@ -1230,6 +1221,23 @@ bool Model::findProcessingOrder()
         qDebug() << m->d_name;
 #endif
     return true;
+}
+
+Module*Model::findModule(const VirtualPath& package, const VirtualPath& module)
+{
+    // module could be an absolute or a relative path
+    // first check in the same package then in the global module path list
+    if( module.size() == 1 )
+    {
+        const QByteArray name = module.first();
+        QList<Module*> mods = d_packages.value(package);
+        foreach( Module* m, mods )
+        {
+            if( m->d_name == name )
+                return m;
+        }
+    }
+    return d_modules.value(module).data();
 }
 
 bool Model::error(const QString& file, const QString& msg)

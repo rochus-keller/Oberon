@@ -23,7 +23,7 @@
 
 module IdentityDictionary<K,V>
 
-	import D := som.Dictionary<K,V>
+	import D := Dictionary<K,V>
 	
 	type
 	   HashFunc* = D.HashFunc
