@@ -831,7 +831,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT(false);
             break;
         case BinExpr::SUB:
-            if( lhsT->isNumeric() && rhsT->isNumeric() ||
+            if( (lhsT->isNumeric() && rhsT->isNumeric()) ||
                     ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
                 bc.SUB(res, slotStack[slotStack.size()-2], slotStack.back(), me->d_loc.packed() );
             else if( lhsT->isSet() && rhsT->isSet() )

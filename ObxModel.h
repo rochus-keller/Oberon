@@ -60,9 +60,10 @@ namespace Obx
         bool resolveImports();
         bool resolveImport(Module*);
         bool findProcessingOrder();
-        Module* findModule(const VirtualPath& package, const VirtualPath& module);
+        QPair<Module*, Module*> findModule(const VirtualPath& package, const VirtualPath& module);
         bool error( const QString& file, const QString& msg );
         bool error( const Ob::Loc& loc, const QString& msg );
+        bool warning( const Ob::Loc& loc, const QString& msg );
     private:
         struct CrossReferencer;
         Ref<Scope> d_globals;

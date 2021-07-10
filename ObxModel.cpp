@@ -1063,7 +1063,14 @@ bool Model::resolveImport(Module* m)
     bool hasErrors = false;
     foreach( Import* i, m->d_imports )
     {
-        i->d_mod = findModule(m->d_fullName.mid(0,m->d_fullName.size()-1), i->d_path );
+        QPair<Module*,Module*> res = findModule(m->d_fullName.mid(0,m->d_fullName.size()-1), i->d_path );
+        if( res.first && res.second )
+        {
+            warning( Loc(i->d_loc,m->d_file), tr("ambigous imports: prefer %1 in same package instead of top-level %2")
+                     .arg( res.first->getName().constData() ).arg( res.second->getName().constData() ) );
+            i->d_mod = res.first;
+        }else
+            i->d_mod = res.first;
         if( i->d_mod.isNull() )
         {
             // mechanism to resolve built-in modules and preloads (SYSTEM, oakwook, etc.)
@@ -1197,6 +1204,7 @@ bool Model::findProcessingOrder()
         return false;
     }
 #else
+    int circularErrs = 0;
     while( !mods.isEmpty() )
     {
         Module* m = *mods.begin();
@@ -1209,7 +1217,7 @@ bool Model::findProcessingOrder()
                 names << mm->d_name;
             error( trace.first()->d_file, tr("there are circular import dependencies among: %1")
                    .arg( names.join(" ") ) );
-            return false;
+            circularErrs++;
         }
     }
 
@@ -1220,11 +1228,15 @@ bool Model::findProcessingOrder()
     foreach( Module* m, d_depOrder )
         qDebug() << m->d_name;
 #endif
-    return true;
+    if( circularErrs )
+        return false;
+    else
+        return true;
 }
 
-Module*Model::findModule(const VirtualPath& package, const VirtualPath& module)
+QPair<Module*,Module*> Model::findModule(const VirtualPath& package, const VirtualPath& module)
 {
+    Module* top = d_modules.value(module).data();
     // module could be an absolute or a relative path
     // first check in the same package then in the global module path list
     if( module.size() == 1 )
@@ -1234,10 +1246,15 @@ Module*Model::findModule(const VirtualPath& package, const VirtualPath& module)
         foreach( Module* m, mods )
         {
             if( m->d_name == name )
-                return m;
+            {
+                if( top != m )
+                {
+                    return  qMakePair(m,top); // ambiguous
+                }
+            }
         }
     }
-    return d_modules.value(module).data();
+    return qMakePair(top,(Module*)0);
 }
 
 bool Model::error(const QString& file, const QString& msg)
@@ -1249,6 +1266,12 @@ bool Model::error(const QString& file, const QString& msg)
 bool Model::error(const Loc& loc, const QString& msg)
 {
     d_errs->error( Errors::Semantics, loc, msg );
+    return false;
+}
+
+bool Model::warning(const Loc& loc, const QString& msg)
+{
+    d_errs->warning( Errors::Semantics, loc, msg );
     return false;
 }
 

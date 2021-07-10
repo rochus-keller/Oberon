@@ -1207,7 +1207,7 @@ void Ide::onEditorChanged()
         const QString path = d_tab->getDoc(i).toString();
         Project::FileMod f = d_rt->getPro()->findFile(path);
         QString name;
-        if( f.first->d_mod )
+        if( f.first && f.first->d_mod )
             name = f.first->d_mod->getName();
         else
             name = QFileInfo( path ).fileName();
@@ -1265,6 +1265,7 @@ void Ide::onErrors()
             item->setText(0, f.second->getName() );
         else
             item->setText(0, QFileInfo(errs[i].d_file).completeBaseName() );
+        item->setToolTip(0, errs[i].d_file );
         item->setText(1, QString("%1:%2").arg(errs[i].d_line).arg(errs[i].d_col));
         item->setData(0, Qt::UserRole, errs[i].d_file );
         item->setData(1, Qt::UserRole, errs[i].d_line );
@@ -1629,11 +1630,12 @@ void Ide::addTopCommands(Gui::AutoMenu* pop)
 
 Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMarker, bool center )
 {
+    QString filePath = path;
     Project::FileMod f = d_rt->getPro()->findFile(path);
-    if( f.first == 0 )
-        return 0;
+    if( f.first != 0 )
+        filePath = f.first->d_filePath;
 
-    const int i = d_tab->findDoc(f.first->d_filePath);
+    const int i = d_tab->findDoc(filePath);
     Editor* edit = 0;
     if( i != -1 )
     {
@@ -1652,15 +1654,17 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
             edit->setExt(true);
         else
             edit->setExt(f.second->d_isExt);
-        edit->loadFromFile(f.first->d_filePath);
+        edit->loadFromFile(filePath);
 
-        Q_ASSERT( f.first->d_mod );
-        const Lua::Engine2::Breaks& br = d_rt->getLua()->getBreaks( f.first->d_mod->getName() );
-        Lua::Engine2::Breaks::const_iterator j;
-        for( j = br.begin(); j != br.end(); ++j )
-            edit->addBreakPoint((*j) - 1);
+        if( f.first && f.first->d_mod )
+        {
+            const Lua::Engine2::Breaks& br = d_rt->getLua()->getBreaks( f.first->d_mod->getName() );
+            Lua::Engine2::Breaks::const_iterator j;
+            for( j = br.begin(); j != br.end(); ++j )
+                edit->addBreakPoint((*j) - 1);
+        }
 
-        d_tab->addDoc(edit,f.first->d_filePath);
+        d_tab->addDoc(edit,filePath);
         onEditorChanged();
     }
     showBc( d_rt->findByteCode(f.second) );
@@ -3057,7 +3061,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.22");
+    a.setApplicationVersion("0.7.23");
     a.setStyle("Fusion");
 
     Ide w;
