@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXLJ");
-    a.setApplicationVersion("2021-07-09");
+    a.setApplicationVersion("2021-07-11");
 
     QTextStream out(stdout);
     out << "OBXLJ version: " << a.applicationVersion() <<

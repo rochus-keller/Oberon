@@ -243,6 +243,25 @@ import
 	   H.run("Storage", 1000, 1)
 	   H.run("Towers", 600, 1)
 	end RunAll
+
+	proc RunEachOnce()
+	begin
+		H.run("DeltaBlue", 1, 1 )
+	   H.run("Richards", 1, 1)
+	   H.run("Json", 1, 1)
+	   H.run("Havlak", 1, 1 )
+      H.run("CD2", 1, 2)
+	   H.run("Bounce", 1, 1)
+	   H.run("List", 1, 1)
+	   H.run("Mandelbrot", 1, 1)
+	   H.run("NBody", 1, 1)
+	   H.run("Permute", 1, 1)
+	   H.run("Queens", 1, 1)
+	   H.run("Sieve", 1, 1)
+	   H.run("Storage", 1, 1)
+	   H.run("Towers", 1, 1)
+	end RunEachOnce
+
 	var str : pointer to array of char
 begin
    // TestVector()
@@ -251,11 +270,9 @@ begin
    // Test4()
    // Test5()
    // Test6()
-   RunAll()
-	
-	//H.run("DeltaBlue", 12000, 1 )
-	//H.run("Permute", 1000, 1)
-	
+   //RunAll()
+   RunEachOnce()
+		
    //H.run("CD", 250, 2) 
    // CD2 250,1000 works
    // CD/CD2  10,1000/ 50,100/ 50,10/ 100,10 works
@@ -263,6 +280,17 @@ begin
    // with DBGTRACE there is no crash in both CD as CD2! 
    // with ObxFfi_DBGTRACE both CD and CD2 crash in the first second
    // with JIT off there is no crash in CD 250,100
+   // fixed in 0.7.24, runs without crash, even before upgrade to latest LJ v2.0 commits
+   
+   // but the following crash since 0.7.24, even after upgrade to latest LJ v2.0
+	// crashes in JIT, no crash if JIT off (it runs sometimes in OBXLJ with JIT on): 
+	//H.run("Havlak", 1, 1 )   
+   //H.run("Towers", 1, 1)
+   // all others run, even with large numIterations, no crashes observed so far
+	// DeltaBlue, CD2, Bounce and Storage
+	// run but assert in rec_check_slots itype2irt(tv) == tref_type(tr), 
+	// Bounce crashes in rec_check_slots gco2func(frame_gc(tv))
+	// DeltaBlue and Storage run each other run
 
-	println("End Tester")
+   println("End Tester")
 end Tester

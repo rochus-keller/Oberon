@@ -26,8 +26,6 @@ TEMPLATE = app
 
 INCLUDEPATH += .. ../LuaJIT/src
 
-#DEFINES += LUA_USE_ASSERT
-DEFINES +=  #_INSERT_DGBTRACE
 DEFINES += _LJTOOLS_DONT_CREATE_TAIL_CALLS
 
 SOURCES += ObxIde.cpp \
@@ -95,6 +93,8 @@ include( ../GuiTools/Menu.pri )
 
 CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
+    # DEFINES += LUA_USE_ASSERT
+    # DEFINES +=  _INSERT_DGBTRACE
 }
 
 !win32 {

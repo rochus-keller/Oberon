@@ -142,6 +142,8 @@ struct ObxLjbcGenImp : public AstVisitor
         Upvals upvals;
         Ctx(Scope* s = 0):scope(s) { }
 
+        int usedCount() const { return pool.d_slots.count(); }
+
         int buySlots(int len = 1, bool call = false )
         {
             const int tmp = JitComposer::nextFreeSlot(pool,len, call );
@@ -170,6 +172,15 @@ struct ObxLjbcGenImp : public AstVisitor
             return nr;
         }
     };
+#ifdef _DEBUG
+    #define CHECK_SLOTS_START() const int __usedSlotsAtStart = ctx.back().usedCount();
+#define CHECK_SLOTS_COUNT(off) { const int used = ctx.back().usedCount(); \
+                if( __usedSlotsAtStart + (off) != used ) { qCritical() << "ERR use offset" << (used-__usedSlotsAtStart); Q_ASSERT( false );}}
+#else
+    #define CHECK_SLOTS_START()
+    #define CHECK_SLOTS_COUNT(off)
+#endif
+
 
     QList<Ctx> ctx;
     JitComposer bc;
@@ -180,8 +191,9 @@ struct ObxLjbcGenImp : public AstVisitor
     QList<quint8> slotStack;
     QList <quint32> exitJumps;
     QByteArray system;
+    bool passingThis;
 
-    ObxLjbcGenImp():err(0),thisMod(0),ownsErr(false),modSlot(0),obxlj(0),curClass(0),stripped(0){}
+    ObxLjbcGenImp():err(0),thisMod(0),ownsErr(false),modSlot(0),obxlj(0),curClass(0),stripped(0),passingThis(false){}
 
     struct Accessor
     {
@@ -286,9 +298,13 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.TSET(tmp,modSlot,"@mod", me->d_end.packed() );
         ctx.back().sellSlots(tmp);
 
+        bc.UCLO( 0, 0, me->d_end.packed() );
+
         // the module body is in a synthetic procedure so that upvalue access is uniform
         if( !me->d_body.isEmpty() )
         {
+#if 1
+            CHECK_SLOTS_START();
             Procedure modBody;
             modBody.d_type = new ProcType();
             modBody.d_type->d_loc = me->d_begin;
@@ -301,11 +317,14 @@ struct ObxLjbcGenImp : public AstVisitor
             modBody.accept(this);
             const int tmp = ctx.back().buySlots(1,true);
             bc.FNEW( tmp, modBody.d_slot, me->d_end.packed() );
-            bc.UCLO( modSlot, 0, me->d_end.packed() );
             bc.CALL(tmp,0,0,me->d_end.packed()); // no var, no return arg
             ctx.back().sellSlots(tmp);
-        }else
-            bc.UCLO( modSlot, 0, me->d_end.packed() );
+            CHECK_SLOTS_COUNT(0);
+#else
+            foreach( const Ref<Statement>& s, me->d_body )
+                s->accept(this);
+#endif
+        }
 
         bc.RET( modSlot, 1, me->d_end.packed() ); // return module
 
@@ -325,6 +344,7 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( Procedure* me)
     {
         ctx.push_back( Ctx(me) );
+        CHECK_SLOTS_START();
 
         const int parCount =
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
@@ -439,6 +459,7 @@ struct ObxLjbcGenImp : public AstVisitor
         }
         bc.setUpvals(uv);
         bc.closeFunction(ctx.back().pool.d_frameSize);
+        CHECK_SLOTS_COUNT(me->d_varCount + me->d_parCount);
         ctx.pop_back();
 
         if( me->d_slotValid )
@@ -474,35 +495,47 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void visit( Import* me)
     {
+        CHECK_SLOTS_START();
         if( me->d_mod->d_name.constData() == system.constData() )
             return;
         emitImport( me->d_mod->getName(), me->d_slot, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc );
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( Variable* me)
     {
+        CHECK_SLOTS_START();
         emitInitializer(me);
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( LocalVar* me)
     {
+        CHECK_SLOTS_START();
         emitInitializer(me);
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( Call* me)
     {
+        CHECK_SLOTS_START();
         Q_ASSERT( me->d_what );
         me->d_what->accept(this);
+        releaseSlot();
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( Return* me )
     {
+        CHECK_SLOTS_START();
         Q_ASSERT( ctx.back().scope->getTag() == Thing::T_Procedure );
         emitReturn( cast<Procedure*>(ctx.back().scope)->getProcType(), me->d_what.data(), me->d_loc );
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( Assign* me )
     {
+        CHECK_SLOTS_START();
         Q_ASSERT( me->d_rhs );
         me->d_rhs->accept(this);
         if( slotStack.isEmpty() )
@@ -538,10 +571,12 @@ struct ObxLjbcGenImp : public AstVisitor
             emitAssig( me->d_lhs.data(), slotStack.back(), me->d_loc );
         }
         releaseSlot(); // rhs
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( ForLoop* me)
     {
+        CHECK_SLOTS_START();
         // i := from;
         // WHILE i <= to DO statements; i := i + by END
         // WHILE i >= to DO statements; i := i + by END
@@ -584,10 +619,12 @@ struct ObxLjbcGenImp : public AstVisitor
 
         a->accept(this);
         loop->accept(this);
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( IfLoop* me)
     {
+        CHECK_SLOTS_START();
         switch( me->d_op )
         {
         case IfLoop::IF:
@@ -606,31 +643,39 @@ struct ObxLjbcGenImp : public AstVisitor
             emitLoop(me);
             break;
         }
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( Exit* me)
     {
+        CHECK_SLOTS_START();
         bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
         exitJumps << bc.getCurPc();
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( CaseStmt* me)
     {
+        CHECK_SLOTS_START();
         if( me->d_typeCase )
             emitTypeCase(me);
         else
             emitPlainCase(me);
+        CHECK_SLOTS_COUNT(0);
     }
 
     void visit( Literal* me)
     {
+        CHECK_SLOTS_START();
         const int res = ctx.back().buySlots(1);
         emitConst( res, me->d_vtype, me->d_val, me->d_loc );
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1);
     }
 
     void visit( SetExpr* me)
     {
+        CHECK_SLOTS_START();
         const int res = ctx.back().buySlots(1);
 
         bc.KSET(res, 0, me->d_loc.packed() );
@@ -679,10 +724,12 @@ struct ObxLjbcGenImp : public AstVisitor
         ctx.back().sellSlots(addElemToSet);
         ctx.back().sellSlots(addRangeToSet);
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1);
     }
 
     void visit( UnExpr* me)
     {
+        CHECK_SLOTS_START();
         Q_ASSERT( !me->d_sub.isNull() );
 
         me->d_sub->accept(this);
@@ -726,6 +773,7 @@ struct ObxLjbcGenImp : public AstVisitor
                     Procedure* p = cast<Procedure*>(id);
                     if( !p->d_receiver.isNull() )
                     {
+                        Q_ASSERT(passingThis);
                         const int proc = ctx.back().buySlots(1);
                         fetchObxlibMember( proc, 40, me->d_loc ); // getmetatable
                         const int tmp = ctx.back().buySlots(2,true);
@@ -756,10 +804,12 @@ struct ObxLjbcGenImp : public AstVisitor
         }
         //releaseSlot();
         //slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1 + (passingThis?1:0));
     }
 
     void visit( BinExpr* me)
     {
+        CHECK_SLOTS_START();
         Q_ASSERT( !me->d_lhs.isNull() && !me->d_rhs.isNull() &&
                   !me->d_lhs->d_type.isNull() && !me->d_rhs->d_type.isNull() );
         me->d_lhs->accept(this);
@@ -1026,19 +1076,24 @@ struct ObxLjbcGenImp : public AstVisitor
         if( me->d_op != BinExpr::AND && me->d_op != BinExpr::OR )
             releaseSlot();
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1);
     }
 
     void visit( IdentLeaf* me)
     {
+        CHECK_SLOTS_START();
         Named* id = me->getIdent();
         if( id == 0 )
             return; // already reported
         const int tag = id->getTag();
 
-        if( tag == Thing::T_BuiltIn )
-            return; // no slot used
-
         const int res = ctx.back().buySlots(1);
+        if( tag == Thing::T_BuiltIn )
+        {
+            slotStack.push_back(res);
+            CHECK_SLOTS_COUNT(1);
+            return;
+        }
 
         switch( tag )
         {
@@ -1118,24 +1173,31 @@ struct ObxLjbcGenImp : public AstVisitor
         }
 
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1);
     }
 
     void visit( IdentSel* me)
     {
+        CHECK_SLOTS_START();
         Q_ASSERT( !me->d_sub.isNull() );
+
+        const int res = ctx.back().buySlots(1);
 
         // shortcut SYSTEM.x
         Named* subId = me->d_sub->getIdent();
         const bool derefImport = subId && subId->getTag() == Thing::T_Import;
         if( derefImport && subId->d_name.constData() == system.constData() )
+        {
+            slotStack.push_back(res);
+            CHECK_SLOTS_COUNT(1);
             return; // no slot used
+        }
 
         me->d_sub->accept(this);
 
         Named* id = me->getIdent();
         Q_ASSERT( id );
         const int tag = id->getTag();
-        const int res = ctx.back().buySlots(1);
 
         switch( tag )
         {
@@ -1144,6 +1206,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 return;
             else
             {
+                Q_ASSERT( !passingThis );
                 Procedure* p = cast<Procedure*>(id);
                 Q_ASSERT( id->d_slotValid );
                 if( !p->d_receiver.isNull() )
@@ -1156,6 +1219,7 @@ struct ObxLjbcGenImp : public AstVisitor
                     bc.CALL( tmp, 1, 1, me->d_loc.packed() );
                     emitGetTableByIndex( res, tmp, id->d_slot, me->d_loc );
                     ctx.back().sellSlots(tmp,2);
+                    passingThis = true;
                 }else
                 {
                     emitGetTableByIndex(res, slotStack.back(), id->d_slot, me->d_loc );
@@ -1223,10 +1287,12 @@ struct ObxLjbcGenImp : public AstVisitor
         }
 
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1 + (passingThis?1:0));
     }
 
     void visit( ArgExpr* me )
     {
+        CHECK_SLOTS_START();
         switch( me->d_op )
         {
         case ArgExpr::IDX:
@@ -1239,6 +1305,7 @@ struct ObxLjbcGenImp : public AstVisitor
             me->d_sub->accept(this);
             break;
         }
+        CHECK_SLOTS_COUNT(1);
     }
 
     ///// Not used
@@ -1274,7 +1341,10 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void fetchObxlib( quint8 to, const RowCol& loc )
     {
-        bc.UGET(to, ctx.back().resolveUpval(obxlj,"@obxlj"), loc.packed() );
+        if( ctx.back().scope == thisMod )
+            bc.MOV( to, obxlj, loc.packed() );
+        else
+            bc.UGET(to, ctx.back().resolveUpval(obxlj,"@obxlj"), loc.packed() );
     }
 
     void fetchObxlibMember( quint8 to, quint8 what, const RowCol& loc )
@@ -1689,6 +1759,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void emitBuiltIn( BuiltIn* bi, ArgExpr* ae )
     {
+        CHECK_SLOTS_START();
         const int res = ctx.back().buySlots(1);
         switch( bi->d_func )
         {
@@ -1706,6 +1777,15 @@ struct ObxLjbcGenImp : public AstVisitor
                         bc.KSET(res, bt->maxVal(), ae->d_args.first()->d_loc.packed() );
                     else
                         bc.KSET(res, bt->minVal(), ae->d_args.first()->d_loc.packed() );
+                    }
+                    break;
+                case Thing::T_Enumeration:
+                    {
+                        Enumeration* e = cast<Enumeration*>(t);
+                        if( bi->d_func == BuiltIn::MAX )
+                            bc.KSET(res, e->d_items.last()->d_val, ae->d_args.first()->d_loc.packed() );
+                        else
+                            bc.KSET(res, e->d_items.first()->d_val, ae->d_args.first()->d_loc.packed() );
                     }
                     break;
                 default:
@@ -2060,6 +2140,7 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         }
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1);
     }
 
     void emitCalcDynLen(quint8 res, quint8 table, quint8 baseType, const RowCol& loc )
@@ -2192,10 +2273,15 @@ struct ObxLjbcGenImp : public AstVisitor
 
     void emitCall( ArgExpr* me )
     {
-        const int res = ctx.back().buySlots(1);
+        CHECK_SLOTS_START();
 
         Q_ASSERT( me->d_sub );
         me->d_sub->accept(this);
+        CHECK_SLOTS_COUNT(1+(passingThis?1:0));
+
+        const bool myPassingThis = passingThis;
+        passingThis = false;
+        // passingThis ends in emitCall and must not be passed on to args
 
         Named* func = 0;
         if( me->d_sub->getUnOp() == UnExpr::DEREF )
@@ -2208,9 +2294,13 @@ struct ObxLjbcGenImp : public AstVisitor
 
         if( func && func->getTag() == Thing::T_BuiltIn )
         {
+            releaseSlot(); // we dont use the procedure slot
+            Q_ASSERT( !myPassingThis );
             emitBuiltIn( cast<BuiltIn*>(func), me );
             return;
         }
+
+        const int res = ctx.back().buySlots(1);
 
         Type* subT = derefed( me->d_sub->d_type.data() );
         Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
@@ -2265,10 +2355,12 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             if( slotStack.size() < 1 )
                 return; // already reported
+            Q_ASSERT( myPassingThis );
             Q_ASSERT( slotStack.size() >= 1 );
             bc.MOV(slot+funcCount, slotStack.back(), me->d_loc.packed() ); // 'this' is always the first param
             releaseSlot();
-        }
+        }else
+            Q_ASSERT( !myPassingThis );
 
         for( int i = 0; i < me->d_args.size(); i++ )
         {
@@ -2343,6 +2435,7 @@ struct ObxLjbcGenImp : public AstVisitor
 
         ctx.back().sellSlots( slot, funcCount + thisCount + argCount );
         slotStack.push_back(res);
+        CHECK_SLOTS_COUNT(1);
     }
 
     static void allocateClasses( Record* r, quint32& slotNr, Module* thisMod, bool resolveSuper )
@@ -2557,76 +2650,6 @@ struct ObxLjbcGenImp : public AstVisitor
             Q_ASSERT( false );
         }
     }
-
-#if 0
-    void fetchClassImp1( quint8 to, quint8 mod, Type* t, bool isAlias, const RowCol& loc )
-    {
-        // TODO isAlias should not be presupposed, but determined by d_decl which is NamedType
-
-        switch( t->getTag() )
-        {
-        case Thing::T_QualiType:
-            if( !isAlias )
-            {
-                QualiType* q = cast<QualiType*>(t);
-
-                int m = -1;
-                QByteArray name = "@mod";
-                Expression* qe = q->d_quali.data();
-                if( qe->getTag() == Thing::T_IdentLeaf )
-                {
-                    m = modSlot; // target is in this module
-                }else
-                {
-                    // target is in another module
-                    Q_ASSERT( qe->getTag() == Thing::T_IdentSel );
-                    IdentSel* sel = cast<IdentSel*>(qe);
-                    Q_ASSERT( sel->d_sub && sel->d_sub->getTag() == Thing::T_IdentLeaf );
-                    IdentLeaf* leaf = cast<IdentLeaf*>( sel->d_sub.data() );
-
-                    Q_ASSERT( leaf->getIdent()->getTag() == Thing::T_Import && leaf->getIdent()->d_slotValid );
-                    Q_ASSERT( qe->d_type.data() == sel->d_type.data() );
-
-                    m = leaf->getIdent()->d_slot;
-                    name = leaf->d_name;
-                }
-                // TODO: check, doesn't look right
-                if( ctx.back().scope == thisMod )
-                {
-                    // qDebug() << "fetchClass local" << m << name << thisMod->d_name << loc.d_row;
-                    fetchClassImp1( to, m, qe->d_type.data(), true, loc );
-                }else
-                {
-                    // qDebug() << "fetchClass upval" << m << name << thisMod->d_name << loc.d_row;
-                    bc.UGET(to, ctx.back().resolveUpval(m,name), loc.packed() );
-                    fetchClassImp1( to, to, qe->d_type.data(), true, loc );
-                }
-            }else
-            {
-                // if a quali points to another quali, then this one is the one with the slot
-                Q_ASSERT( t->d_slotAllocated );
-                emitGetTableByIndex( to, mod, t->d_slot, loc );
-            }
-            break;
-        case Thing::T_Pointer:
-            {
-                Pointer* p = cast<Pointer*>(t);
-                fetchClassImp1( to, mod, p->d_to.data(), false, loc );
-            }
-            break;
-        case Thing::T_Record:
-            {
-                // this is a local decl
-                if( !t->d_slotAllocated )
-                    return; // error already reported
-                emitGetTableByIndex( to, mod, t->d_slot, loc );
-            }
-            break;
-        default:
-            Q_ASSERT( false );
-        }
-    }
-#endif
 
     void allocateClassTables( Record* r )
     {
@@ -3038,7 +3061,6 @@ struct ObxLjbcGenImp : public AstVisitor
             {
             case Thing::T_Variable:
                 {
-                    Q_ASSERT( ctx.back().scope != thisMod );
                     const int tmp = ctx.back().buySlots(1);
                     fetchModule(tmp,desig->d_loc); // it's identleaf, it's local
                     acc.slot = tmp;
