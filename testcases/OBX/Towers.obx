@@ -1,152 +1,142 @@
-// see Main.obx
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+ 
 module Towers
 
 	import Out
-	
-	const 
-		maxcells = 18
-		stackrange = (* 0.. *)3
-		
-	type
-		element = record 
-				discsize: integer
-				next: integer 
-		end 
 
-	var
-		stack: array stackrange + 1 of integer
-		cellspace: array maxcells + 1 of element
-		freelist: integer
-		movesdone: integer
+	type 
+		Towers = pointer to record 
+						movesDone : integer
+						piles : pointer to array of TowersDisk
+					end
+					
+		TowersDisk = pointer to record
+							size : integer
+							next : TowersDisk
+						end
 
-	proc Makenull(s: integer)
-	begin 
-		stack[s] := 0
-	end Makenull
-	
-	proc Getelement(): integer
-		var 
-			temp: integer
-	begin 
-		if (freelist > 0) then
-			temp := freelist
-			freelist := cellspace[freelist].next 
-		else 
-			Out.String("out of space   $") 
-		end 
-		return (temp)
-	end Getelement
-	
-	proc locnop() 
+	proc create*(): Towers
+		var t : Towers
 	begin
-	end locnop
+		new(t)
+		return t
+	end create
 	
-	proc Push(i, s: integer)
-		var 
-			localel: integer
-			errorfound: boolean
-	begin 
-		errorfound := false
-		inc(_count)
+	proc createDisk(s: integer):TowersDisk
+		var d : TowersDisk
+	begin
+		new(d)
+		d.size := s
+		return d
+	end createDisk
 
-		//trapif(_count=142)
-		
-		// this "if" crashes if _INSERT_DGBTRACE enabled!!!
-		if stack[s] > 0 then
-			// doesn't help not to crash: errorfound := false
-			// trace("gugus") // helps not to crash !!
-			// locnop // doesn't help not to crash, even with args and some body, unless body includes trace
-			nop // ObxFfi_NOP, doesn't help not to crash!!! even if nop returns a value
-			
-			// also crashes as long as the next "if" is false or commented out
-		   (*if (cellspace[stack[s]].discsize <= i) then
-				errorfound := true
-				Out.String("disc size error$") 
-			end*)
-		end
-		// looks like there is an issue with the JIT; no better explanation so far
-		
-		if ~errorfound then
-			localel := Getelement()
-			cellspace[localel].next := stack[s]
-			stack[s] := localel
-			cellspace[localel].discsize := i 
-		end 
-	end Push
-	
-	proc Init(s, n: integer)
-		var 
-			discctr: integer
-	begin 
-		Makenull(s)
-		discctr := n
-		while discctr >= 1 do 
-			Push(discctr, s)
-			dec(discctr) 
-		end 
-	end Init
-	
-	proc Pop(s: integer): integer
-		var 
-			temp, temp1: integer
-	begin 
-		if (stack[s] > 0) then
-			temp1 := cellspace[stack[s]].discsize
-			temp := cellspace[stack[s]].next
-			cellspace[stack[s]].next := freelist
-			freelist := stack[s]
-			stack[s] := temp 
-		else 
-			Out.String("nothing to pop $")
-			temp1 := 0 
-		end 
-		return (temp1)
-	end Pop
-	
-	proc Move(s1, s2: integer)
-	begin 
-		Push(Pop(s1), s2)
-		movesdone := movesdone + 1
-	end Move
-	
-	proc tower(i, j, k: integer)
-		var 
-			other: integer
-	begin 
-		if (k = 1) then
-			Move(i, j) 
-		else 
-			other := 6 - i - j
-			tower(i, other, k - 1)
-			Move(i, j)
-			tower(other, j, k - 1) 
-		end 
-	end tower
-	
-	proc Run*()
-		var 
-			i: integer
-	begin 
-		i := 1
-		while i <= maxcells do 
-			cellspace[i].next := i - 1
-			inc(i) 
-		end 
-		freelist := maxcells
-		Init(1, 14)
-		Makenull(2)
-		Makenull(3)
-		movesdone := 0
-		tower(1, 2, 14)
-		if (movesdone # 16383) then
-			Out.String(" Error in Towers.$") 
-		end 
-	end Run
+  proc (this: Towers) pushDisk(disk: TowersDisk; pile: integer )
+	  var top: TowersDisk
+  begin
+    top := this.piles[pile]
+    if ( top # nil ) & (disk.size >= top.size) then
+	    trap()
+      Out.String("Cannot put a big disk on a smaller one") Out.Ln
+    end
+    disk.next := top
+    this.piles[pile] := disk
+  end pushDisk
+  
+  proc (this: Towers) popDiskFrom(pile: integer):TowersDisk 
+	  var top: TowersDisk
+  begin
+  	  inc(count)
+	  //println(count)
+		//trapif(count=120) // 122
+    top := this.piles[pile]
+    if top = nil then
+      Out.String("Attempting to remove a disk from an empty pile") Out.Ln
+    end
+    this.piles[pile] := top.next
+    top.next := nil
+    return top
+  end popDiskFrom
+  
+  // crashes after two or three runs here when this.popDiskFrom(fromPile)
+  // returns; reliably repeatable
+  // doesnt crash if this.popDiskFrom(fromPile) is a separate statement!
+  // steped trhough on bytecode level and checked allocation; no apparent
+  // issue with call order and register allocation order.
+  proc (this: Towers) moveTopDisk(fromPile, toPile: integer) 
+  begin
+    this.pushDisk( 
+	    this.popDiskFrom(fromPile)
+	    , toPile)
+    inc(this.movesDone)
+  end moveTopDisk
 
-	var _count : integer
+  proc (this: Towers) buildTowerAt(pile, disks: integer) 
+	  var i: integer
+  begin
+    for i := disks to 0 by -1 do    
+      this.pushDisk( createDisk(i), pile )
+    end
+  end buildTowerAt
+
+  proc (this: Towers) moveDisks(disks, fromPile, toPile: integer) 
+	  var otherPile: integer
+  begin
+    if disks = 1 then
+      this.moveTopDisk(fromPile, toPile)
+    else
+      otherPile := (3 - fromPile) - toPile
+      this.moveDisks(disks - 1, fromPile, otherPile)
+      this.moveTopDisk(fromPile, toPile)
+      this.moveDisks(disks - 1, otherPile, toPile)
+    end
+  end moveDisks
+    
+	proc (this: Towers) benchmark(): integer
+	begin
+		new(this.piles,3)
+		this.buildTowerAt(0, 13)
+		this.movesDone := 0
+		this.moveDisks(13, 0, 1)
+		return this.movesDone
+	end benchmark	
+
+	proc (this: Towers) verifyResult( result: integer ): boolean 
+	begin
+		return ( result = 8191 )
+	end verifyResult
+
+var 
+	t: Towers	
+	res, count: integer
 begin
-	_count := 0
-	println("Start")
-	Run()
-	println("End")
+	count := 0
+	t := create()
+	res := t.benchmark()
+	if t.verifyResult(res) then
+		Out.String("Towers successful")
+	else
+		Out.String("Towers failed")
+	end
+	Out.Ln
 end Towers

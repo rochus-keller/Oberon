@@ -298,7 +298,6 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.TSET(tmp,modSlot,"@mod", me->d_end.packed() );
         ctx.back().sellSlots(tmp);
 
-        bc.UCLO( 0, 0, me->d_end.packed() );
 
         // the module body is in a synthetic procedure so that upvalue access is uniform
         if( !me->d_body.isEmpty() )
@@ -326,6 +325,7 @@ struct ObxLjbcGenImp : public AstVisitor
 #endif
         }
 
+        bc.UCLO( 0, 0, me->d_end.packed() );
         bc.RET( modSlot, 1, me->d_end.packed() ); // return module
 
         JitComposer::VarNameList sn(ctx.back().pool.d_frameSize);
@@ -649,7 +649,7 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( Exit* me)
     {
         CHECK_SLOTS_START();
-        bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
+        emitJMP( 0, me->d_loc.packed() );
         exitJumps << bc.getCurPc();
         CHECK_SLOTS_COUNT(0);
     }
@@ -933,7 +933,7 @@ struct ObxLjbcGenImp : public AstVisitor
             {
                 // lhs was run and slot has a bool result
                 bc.ISF(slotStack.back(),me->d_loc.packed());
-                bc.JMP(ctx.back().pool.d_frameSize,0,me->d_loc.packed());
+                emitJMP(0,me->d_loc.packed());
                 const quint32 pc1 = bc.getCurPc();
                 me->d_rhs->accept(this);
                 if( slotStack.size() < 2 )
@@ -941,10 +941,10 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT( slotStack.size() >= 2 );
                 bc.ISF(slotStack.back(),me->d_loc.packed());
                 releaseSlot();
-                bc.JMP(ctx.back().pool.d_frameSize,0,me->d_loc.packed());
+                emitJMP(0,me->d_loc.packed());
                 const quint32 pc2 = bc.getCurPc();
                 bc.KSET(res, true, me->d_loc.packed() );
-                bc.JMP(ctx.back().pool.d_frameSize,0,me->d_loc.packed());
+                emitJMP(0,me->d_loc.packed());
                 const quint32 pc3 = bc.getCurPc();
                 bc.patch(pc1);
                 bc.patch(pc2);
@@ -957,7 +957,7 @@ struct ObxLjbcGenImp : public AstVisitor
             if( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN )
             {
                 bc.IST(slotStack.back(),me->d_loc.packed());
-                bc.JMP(ctx.back().pool.d_frameSize,0,me->d_loc.packed());
+                emitJMP(0,me->d_loc.packed());
                 const quint32 pc1 = bc.getCurPc();
                 me->d_rhs->accept(this);
                 if( slotStack.size() < 2 )
@@ -965,10 +965,10 @@ struct ObxLjbcGenImp : public AstVisitor
                 Q_ASSERT( slotStack.size() >= 2 );
                 bc.IST(slotStack.back(),me->d_loc.packed());
                 releaseSlot();
-                bc.JMP(ctx.back().pool.d_frameSize,0,me->d_loc.packed());
+                emitJMP(0,me->d_loc.packed());
                 const quint32 pc2 = bc.getCurPc();
                 bc.KSET(res, false, me->d_loc.packed() );
-                bc.JMP(ctx.back().pool.d_frameSize,0,me->d_loc.packed());
+                emitJMP(0,me->d_loc.packed());
                 const quint32 pc3 = bc.getCurPc();
                 bc.patch(pc1);
                 bc.patch(pc2);
@@ -1181,16 +1181,17 @@ struct ObxLjbcGenImp : public AstVisitor
         CHECK_SLOTS_START();
         Q_ASSERT( !me->d_sub.isNull() );
 
-        const int res = ctx.back().buySlots(1);
+        //const int res = ctx.back().buySlots(1); // if here crashes the JIT after some rounds, see below
 
         // shortcut SYSTEM.x
         Named* subId = me->d_sub->getIdent();
         const bool derefImport = subId && subId->getTag() == Thing::T_Import;
         if( derefImport && subId->d_name.constData() == system.constData() )
         {
+            const int res = ctx.back().buySlots(1);
             slotStack.push_back(res);
             CHECK_SLOTS_COUNT(1);
-            return; // no slot used
+            return;
         }
 
         me->d_sub->accept(this);
@@ -1199,6 +1200,8 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( id );
         const int tag = id->getTag();
 
+        const int res = ctx.back().buySlots(1); // this must be here (not above) otherwise Havlak (but not Towers) crashes!!!
+                                                 // no influence on Oberon System
         switch( tag )
         {
         case Thing::T_Procedure:
@@ -1605,10 +1608,10 @@ struct ObxLjbcGenImp : public AstVisitor
     void jumpTrueFalse( quint8 res, const RowCol& loc )
     {
         // if true
-        bc.JMP(ctx.back().pool.d_frameSize,0,loc.packed());
+        emitJMP(0,loc.packed());
         const quint32 pc1 = bc.getCurPc();
         bc.KSET(res, false, loc.packed() );
-        bc.JMP(ctx.back().pool.d_frameSize,0,loc.packed());
+        emitJMP(0,loc.packed());
         const quint32 pc2 = bc.getCurPc();
         bc.patch(pc1);
         bc.KSET(res, true, loc.packed() );
@@ -1800,10 +1803,10 @@ struct ObxLjbcGenImp : public AstVisitor
                     bc.ISGE( slotStack[ slotStack.size()-2 ], slotStack[ slotStack.size()-1 ], ae->d_loc.packed() );
                 else
                     bc.ISLE( slotStack[ slotStack.size()-2 ], slotStack[ slotStack.size()-1 ], ae->d_loc.packed() );
-                bc.JMP(ctx.back().pool.d_frameSize,0, ae->d_loc.packed());
+                emitJMP(0, ae->d_loc.packed());
                 const quint32 pc1 = bc.getCurPc();
                 bc.MOV(res, slotStack[ slotStack.size()-1 ], ae->d_loc.packed() );
-                bc.JMP(ctx.back().pool.d_frameSize,0,ae->d_loc.packed());
+                emitJMP(0,ae->d_loc.packed());
                 const quint32 pc2 = bc.getCurPc();
                 bc.patch(pc1);
                 bc.MOV(res, slotStack[ slotStack.size()-2 ], ae->d_loc.packed() );
@@ -1852,6 +1855,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 const int tmp = ctx.back().buySlots(1,true);
                 fetchObxlibMember(tmp,48,ae->d_loc); // module.nop
                 bc.CALL(tmp,0,0,ae->d_loc.packed());
+                ctx.back().sellSlots(tmp);
             }
             break;
         case BuiltIn::INC:
@@ -2275,9 +2279,11 @@ struct ObxLjbcGenImp : public AstVisitor
     {
         CHECK_SLOTS_START();
 
+        const int res = ctx.back().buySlots(1); // this must be here at the top; if put below leads to crashes
+
         Q_ASSERT( me->d_sub );
         me->d_sub->accept(this);
-        CHECK_SLOTS_COUNT(1+(passingThis?1:0));
+        CHECK_SLOTS_COUNT(1+1+(passingThis?1:0));
 
         const bool myPassingThis = passingThis;
         passingThis = false;
@@ -2295,12 +2301,15 @@ struct ObxLjbcGenImp : public AstVisitor
         if( func && func->getTag() == Thing::T_BuiltIn )
         {
             releaseSlot(); // we dont use the procedure slot
+            ctx.back().sellSlots(res);
             Q_ASSERT( !myPassingThis );
+            CHECK_SLOTS_COUNT(0);
             emitBuiltIn( cast<BuiltIn*>(func), me );
             return;
         }
 
-        const int res = ctx.back().buySlots(1);
+        // const int res = ctx.back().buySlots(1); // leads to crashes in Towers and Havlak if put here or below!!!!
+                                        // On the other hand OberonSystem Hennessy crashes if res is defined above!!!
 
         Type* subT = derefed( me->d_sub->d_type.data() );
         Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
@@ -2344,6 +2353,7 @@ struct ObxLjbcGenImp : public AstVisitor
 #endif
                 ;
 
+        // const int res = ctx.back().buySlots(1); // leads to crashes in Towers and Havlak if put here
         const int slot = ctx.back().buySlots( funcCount + thisCount + argCount, true ); // Allocate the slots for the call
 
         if( slotStack.isEmpty() )
@@ -2757,6 +2767,23 @@ struct ObxLjbcGenImp : public AstVisitor
             return true;
     }
 
+    void emitJMP( qint16 offset, quint32 line )
+    {
+#if 0
+        // this has a negative effect; Havlak becomes much slower (factor 8!!); no influence on Oberon System crash
+        // and no influence on Havlak or Towers crash
+        const int tmp = ctx.back().buySlots(1);
+        bc.JMP(tmp, offset, line );
+        ctx.back().sellSlots(tmp);
+        // TODO does the Towers crash (when different res allocation order in emitCall) and the JMP handling have any
+        // correlation? It could be that if the JMP rbase is out of frame this causes the crash!
+        // I already verified that adding +1 to closeFunction doesn't safe the Towers/Havlak crash order in emitCall.
+        // seems to be a very fragile issue with the LuaJIT JIT
+#else
+        bc.JMP(ctx.back().pool.d_frameSize, offset, line );
+#endif
+    }
+
     void emitIf( IfLoop* me)
     {
         me->d_if[0]->accept(this); // IF
@@ -2765,14 +2792,14 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.ISF( slotStack.back(), me->d_if[0]->d_loc.packed());
         releaseSlot();
 
-        bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
+        emitJMP(0, me->d_loc.packed() );
         const quint32 afterFirst = bc.getCurPc();
 
         for( int i = 0; i < me->d_then[0].size(); i++ )
             me->d_then[0][i]->accept(this);
 
         QList<quint32> afterEnd;
-        bc.JMP(ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
+        emitJMP(0, me->d_loc.packed() );
         afterEnd << bc.getCurPc();
 
         bc.patch(afterFirst);
@@ -2784,13 +2811,13 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.ISF( slotStack.back(), me->d_if[i]->d_loc.packed());
             releaseSlot();
 
-            bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() );
+            emitJMP(0, me->d_loc.packed() );
             const quint32 afterNext = bc.getCurPc();
 
             for( int j = 0; j < me->d_then[i].size(); j++ )
                 me->d_then[i][j]->accept(this);
 
-            bc.JMP(ctx.back().pool.d_frameSize, 0, me->d_if[i]->d_loc.packed() );
+            emitJMP(0, me->d_if[i]->d_loc.packed() );
             afterEnd << bc.getCurPc();
 
             bc.patch(afterNext);
@@ -2845,11 +2872,11 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.IST( slotStack.back(), me->d_if[0]->d_loc.packed());
         releaseSlot();
 
-        bc.JMP( ctx.back().pool.d_frameSize, 0, me->d_loc.packed() ); // if true jump to afterEnd
+        emitJMP(0, me->d_loc.packed() ); // if true jump to afterEnd
         const quint32 afterEnd = bc.getCurPc();
 
         bc.patch(loopStart);
-        bc.JMP( ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // if false jump to loopStart
+        emitJMP(loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // if false jump to loopStart
 
         bc.patch( afterEnd );
     }
@@ -2863,7 +2890,7 @@ struct ObxLjbcGenImp : public AstVisitor
             me->d_then.first()[i]->accept(this);
 
         bc.patch(loopStart);
-        bc.JMP( ctx.back().pool.d_frameSize, loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // jump to loopStart
+        emitJMP(loopStart - bc.getCurPc() - 2, me->d_loc.packed() ); // jump to loopStart
 
         foreach( quint32 pc, exitJumps )
             bc.patch(pc);

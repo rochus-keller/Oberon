@@ -9,16 +9,30 @@ WorkingDir=
 [.]
 size=0
 
+[.som]
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Dictionary.obx
+1\RelPath=../are-we-fast-yet/som/Dictionary.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/IdentityDictionary.obx
+2\RelPath=../are-we-fast-yet/som/IdentityDictionary.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/IdentitySet.obx
+3\RelPath=../are-we-fast-yet/som/IdentitySet.obx
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Interfaces.obx
+4\RelPath=../are-we-fast-yet/som/Interfaces.obx
+5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Set.obx
+5\RelPath=../are-we-fast-yet/som/Set.obx
+6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/are-we-fast-yet/som/Vector.obx
+6\RelPath=../are-we-fast-yet/som/Vector.obx
+size=6
+
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Procs1.obx
-1\RelPath=Procs1.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Enum1.obx
-2\RelPath=Enum1.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Imported1b.obx
-3\RelPath=Imported1b.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Havlak.obx
+1\RelPath=Havlak.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Havlak.obx
+2\RelPath=Havlak.obx
 size=1
 
 [Packages]
 1\Name=@ByteArray()
 2\Name=@ByteArray()
-size=2
+3\Name=@ByteArray(som)
+size=3

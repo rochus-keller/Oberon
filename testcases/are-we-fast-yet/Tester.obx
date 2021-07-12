@@ -270,8 +270,8 @@ begin
    // Test4()
    // Test5()
    // Test6()
-   //RunAll()
-   RunEachOnce()
+   RunAll()
+   //RunEachOnce()
 		
    //H.run("CD", 250, 2) 
    // CD2 250,1000 works
@@ -291,6 +291,7 @@ begin
 	// run but assert in rec_check_slots itype2irt(tv) == tref_type(tr), 
 	// Bounce crashes in rec_check_slots gco2func(frame_gc(tv))
 	// DeltaBlue and Storage run each other run
+	// Fixed in IDE 0.7.25; reason was changed order of res=buySlots in LjbcGen emitCall and visit( IdentSel*)
 
    println("End Tester")
 end Tester

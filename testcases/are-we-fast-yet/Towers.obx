@@ -76,7 +76,11 @@ module Towers
   end popDiskFrom
   
   proc (this: Towers) moveTopDisk(fromPile, toPile: integer) 
+	  var t: TowersDisk
   begin
+	  // modified to avoid unexplicable JIT crash (2021-07-11)
+	  //t := this.popDiskFrom(fromPile)
+	  //this.pushDisk( t, toPile) // TODO
     this.pushDisk( this.popDiskFrom(fromPile), toPile)
     inc(this.movesDone)
   end moveTopDisk

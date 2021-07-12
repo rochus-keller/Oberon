@@ -35,11 +35,11 @@
 
 module Havlak
 
-	import B := Benchmark, Out
+	import Out
 	
 	type
-		IntIntResult* = pointer to record (B.Result) res1, res2 : integer end
-		Havlak = pointer to record (B.Benchmark) end
+		IntIntResult* = pointer to record  res1, res2 : integer end
+		Havlak = pointer to record  end
 
 	proc create*(): Havlak
 		var h : Havlak
@@ -48,25 +48,13 @@ module Havlak
 		return h
 	end create
 
-	proc (this: Havlak) benchmark(): B.Result
-	begin
-	   assert(false) // Should never be reached
-		return nil
-	end benchmark
-	
-	proc (this: Havlak) verifyResult( result: B.Result ): boolean 
-	begin
-		assert(false) // Should never be reached
-		return false
-	end verifyResult
-
-	proc (this: Havlak) innerBenchmarkLoop*(innerIterations: integer): boolean
+	proc (this: Havlak) run*(innerIterations: integer): boolean
 		var app: LoopTesterApp
 	begin
 	   app := createLoopTesterApp()
 		return verifyResult2(app.main(
         innerIterations, 50, 10 (* was 100 *), 10, 5), innerIterations) 
-	end innerBenchmarkLoop
+	end run
 		
 	proc verifyResult2(r: IntIntResult; innerIterations: integer): boolean
 	begin
@@ -586,8 +574,7 @@ module Havlak
         if v # UNVISITED then
           if this.this.isAncestor(this.w, v) then
             this.this.backPreds.at(this.w).append(v)
-          else // TODO
-	          // fix to avoid misterious crash in JIT (2021-07-11)
+          else
             //tmp := this.this.nonBackPreds.at(this.w)
             //tmp.add(v)
             this.this.nonBackPreds.at(this.w).add(v)
@@ -743,10 +730,9 @@ module Havlak
 
       if ~this.this.isAncestor(this.w, ydash.dfsNumber) then
         this.this.type_[this.w] := BB_IRREDUCIBLE
-		  // fix to avoid misterious crash in JIT (2021-07-11) TODO
-		  //tmp := this.this.nonBackPreds.at(this.w)
-		  //tmp.add(ydash.dfsNumber)
-		  this.this.nonBackPreds.at(this.w).add(ydash.dfsNumber)
+        //tmp := this.this.nonBackPreds.at(this.w)
+        //tmp.add(ydash.dfsNumber)
+        this.this.nonBackPreds.at(this.w).add(ydash.dfsNumber)
       else
         if ydash.dfsNumber # this.w then
 	       iter.ydash := ydash
@@ -828,4 +814,12 @@ module Havlak
      this.backPreds.at(w).forEach(iter)
   end stepD						  					  
   
+var h: Havlak
+begin
+	h := create();
+	if h.run(1) then
+		println("Havlak ok")
+	else
+		println("Havlak failed")
+	end
 end Havlak
