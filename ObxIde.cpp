@@ -153,8 +153,8 @@ public:
         {
             Named* ident = s->getIdent();
             Q_ASSERT( ident );
-            QTextCursor c( document()->findBlockByNumber( qMax(s->d_loc.d_row - 1,0)) );
-            c.setPosition( c.position() + qMax(s->d_loc.d_col - 1, 0) );
+            QTextCursor c( document()->findBlockByNumber( qMax(int(s->d_loc.d_row - 1),0)) );
+            c.setPosition( c.position() + qMax(int(s->d_loc.d_col - 1), 0) );
             int pos = c.position();
             c.setPosition( pos + ident->d_name.size(), QTextCursor::KeepAnchor );
 
@@ -1538,6 +1538,7 @@ bool Ide::compile(bool doGenerate )
     fillHier(0);
     fillXref();
     onTabChanged();
+    return true;
 }
 
 static bool sortNamed( Named* lhs, Named* rhs )

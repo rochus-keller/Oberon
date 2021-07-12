@@ -59,6 +59,7 @@ extern "C"
 DllExport int ObsFiles_setRootPath( const char* path )
 {
     s_root = QString::fromLatin1(path);
+    return 0;
 }
 
 DllExport int ObsFiles_listFiles()

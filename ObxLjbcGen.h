@@ -30,7 +30,7 @@ namespace Ob
 namespace Obx
 {
     class Model;
-    class Module;
+    struct Module;
 
     class LjbcGen
     {

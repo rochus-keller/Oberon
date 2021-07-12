@@ -31,7 +31,7 @@ class Engine2;
 namespace Obx
 {
     class Project;
-    class Module;
+    struct Module;
 
     class LjRuntime : public QObject
     {

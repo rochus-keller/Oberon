@@ -45,7 +45,7 @@ void LibFfi::setSendToLog(SendToLog f)
 }
 
 extern "C" {
-    void ObxFfi_DBGTRACE( const char* str );
+    DllExport void ObxFfi_DBGTRACE( const char* str );
 
     static int _DBGTRACE(lua_State* L)
     {
@@ -53,7 +53,7 @@ extern "C" {
         return 0;
     }
 
-    static int _ASSERT(lua_State* L)
+    static int OBX_ASSERT(lua_State* L)
     {
         const bool ok = lua_toboolean(L,1);
         if( !ok )
@@ -83,7 +83,7 @@ extern "C" {
         return 0;
     }
 
-    static int _ADDRESSOF(lua_State* L)
+    static int OBX_ADDRESSOF(lua_State* L)
     {
         const void* ptr = lua_topointer(L, 1);
         lua_pushinteger(L,(lua_Integer)ptr);
@@ -98,13 +98,13 @@ void LibFfi::install(lua_State* L)
     lua_setglobal( L, "TRAP" );
     lua_pushcfunction( L, Lua::Engine2::ABORT );
     lua_setglobal( L, "ABORT" );
-    lua_pushcfunction( L, _ASSERT );
+    lua_pushcfunction( L, OBX_ASSERT );
     lua_setglobal( L, "ASSERT" );
     lua_pushcfunction( L, _TRACE );
     lua_setglobal( L, "TRACE" );
     lua_pushcfunction( L, _DBGTRACE );
     lua_setglobal( L, "DBGTRACE" );
-    lua_pushcfunction( L, _ADDRESSOF );
+    lua_pushcfunction( L, OBX_ADDRESSOF );
     lua_setglobal( L, "ADDRESSOF" );
 }
 

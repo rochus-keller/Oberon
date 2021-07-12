@@ -28,6 +28,8 @@
 #include <QVariant>
 #include <QSet>
 
+class QIODevice;
+
 namespace Obx
 {
 // adopted from Ob::Ast

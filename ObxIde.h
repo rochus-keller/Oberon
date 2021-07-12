@@ -40,11 +40,11 @@ class AutoMenu;
 namespace Obx
 {
     class Project;
-    class Named;
-    class Module;
-    class Expression;
-    class Scope;
-    class Type;
+    struct Named;
+    struct Module;
+    struct Expression;
+    struct Scope;
+    struct Type;
     class LjRuntime;
 
     class Ide : public QMainWindow
