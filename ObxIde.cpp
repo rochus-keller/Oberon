@@ -115,6 +115,17 @@ public:
         setPaintIndents(false);
         d_hl = new Highlighter( document() );
         updateTabWidth();
+        QSettings set;
+        if( !set.contains("CodeEditor/Font") )
+        {
+            QFont monospace("Monospace",9);
+            if( !monospace.exactMatch() )
+            {
+                monospace = QFont("DejaVu Sans Mono",9);
+                monospace.setStyleName("Book");
+            }
+            setFont(monospace);
+        }
     }
 
     ~Editor()
@@ -511,15 +522,15 @@ Ide::Ide(QWidget *parent)
 
     enableDbgMenu();
 
-    createTerminal();
-    createDumpView();
     createMods();
     createMod();
     createHier();
-    createErrs();
     createXref();
-    createStack();
+    createErrs();
+    createDumpView();
     createLocals();
+    createStack();
+    createTerminal();
     createMenu();
 
     setCentralWidget(d_tab);
@@ -598,11 +609,13 @@ void Ide::createTerminal()
     dock->setWidget(d_term);
     addDockWidget( Qt::BottomDockWidgetArea, dock );
     new Gui::AutoShortcut( tr("CTRL+SHIFT+C"), this, d_term, SLOT(onClear()) );
+    connect( d_rt->getLua(), SIGNAL(onNotify(int,QByteArray,int)), dock, SLOT(show()) );
 }
 
 void Ide::createDumpView()
 {
     QDockWidget* dock = new QDockWidget( tr("Bytecode"), this );
+    dock->setVisible(false);
     dock->setObjectName("Bytecode");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
@@ -735,6 +748,7 @@ void Ide::createXref()
 void Ide::createStack()
 {
     QDockWidget* dock = new QDockWidget( tr("Stack"), this );
+    dock->setVisible(false);
     dock->setObjectName("Stack");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
@@ -747,13 +761,14 @@ void Ide::createStack()
     d_stack->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     d_stack->header()->setSectionResizeMode(3, QHeaderView::Stretch);
     dock->setWidget(d_stack);
-    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    addDockWidget( Qt::RightDockWidgetArea, dock );
     connect( d_stack, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onStackDblClicked(QTreeWidgetItem*,int)) );
 }
 
 void Ide::createLocals()
 {
     QDockWidget* dock = new QDockWidget( tr("Locals"), this );
+    dock->setVisible(false);
     dock->setObjectName("Locals");
     dock->setAllowedAreas( Qt::AllDockWidgetAreas );
     dock->setFeatures( QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetClosable );
@@ -764,7 +779,7 @@ void Ide::createLocals()
     d_locals->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     d_locals->header()->setSectionResizeMode(1, QHeaderView::Stretch);
     dock->setWidget(d_locals);
-    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    addDockWidget( Qt::RightDockWidgetArea, dock );
 }
 
 void Ide::createMenu()
@@ -787,7 +802,7 @@ void Ide::createMenu()
     pop->addCommand( "Remove Import Path...", this, SLOT(onRemoveDir()) );
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
-    pop->addCommand( "Built-in Oberon System Inner", this, SLOT(onObSysInner()) );
+    pop->addCommand( "Built-in Oberon Sys. Inner Mod.", this, SLOT(onObSysInner()) );
     pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
@@ -855,7 +870,7 @@ void Ide::createMenuBar()
     pop->addCommand( "Remove Module...", this, SLOT(onRemoveFile()) );
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
-    pop->addCommand( "Built-in Oberon System Inner", this, SLOT(onObSysInner()) );
+    pop->addCommand( "Built-in Oberon System Inner Modules", this, SLOT(onObSysInner()) );
     pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
 
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
@@ -2183,6 +2198,7 @@ void Ide::fillLocals()
     if( d_rt->getLua()->getMode() == Lua::Engine2::PcMode )
     {
         fillRawLocals(d_locals, d_rt->getLua());
+        d_locals->parentWidget()->show();
         return;
     }
 
@@ -2244,6 +2260,7 @@ void Ide::fillLocals()
 #if 0 // TEST, usually 0
     fillRawLocals(d_locals, d_rt->getLua());
 #endif
+    d_locals->parentWidget()->show();
 }
 
 static inline Type* derefed( Type* type )
@@ -3062,8 +3079,9 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.7.25");
-    a.setStyle("Fusion");
+    a.setApplicationVersion("0.8");
+    a.setStyle("Fusion");    
+    QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
     Ide w;
     if( a.arguments().size() > 1 )

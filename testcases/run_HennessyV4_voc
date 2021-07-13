@@ -1,5 +1,0 @@
-export PATH="/opt/voc/bin:$PATH"
-voc -OC HennessyV4.Mod -m
-rm HennessyV4.c
-./HennessyV4
-rm HennessyV4

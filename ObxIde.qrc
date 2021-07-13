@@ -43,5 +43,6 @@
         <file>images/marker.png</file>
         <file>images/alias_priv.png</file>
         <file>images/alias.png</file>
+        <file>font/DejaVuSansMono.ttf</file>
     </qresource>
 </RCC>

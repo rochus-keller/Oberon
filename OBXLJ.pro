@@ -37,7 +37,8 @@ DEFINES += OBX_BBOX
 
 include( ObxParser.pri )
 
-DEFINES += _LJTOOLS_DONT_CREATE_TAIL_CALLS # crashes otherwise in are-we-fast-yet runall
+DEFINES += LUA_ENGINE_USE_DEFAULT_PRINT
+#DEFINES += _LJTOOLS_DONT_CREATE_TAIL_CALLS
 
 SOURCES += \
     ObxLjMain.cpp \
@@ -76,17 +77,25 @@ CONFIG(debug, debug|release) {
         DEFINES += _DEBUG
 }
 
-INCLUDEPATH += .. ../LjTools/luajit-2.0
-DEFINES += LUA_ENGINE_USE_DEFAULT_PRINT
-
-include( ../LuaJIT/src/LuaJit.pri ){
-    LIBS += -ldl
-} else {
-    LIBS += -lluajit
+win32 {
+    INCLUDEPATH += .. ../LjTools/luajit-2.0
+    LIBS += -L../LuaJIT/src -llua51
 }
 
-QMAKE_LFLAGS += -rdynamic -ldl
-#rdynamic is required so that the LjLibFfi functions are visible to LuaJIT FFI
+linux {
+    include( ../LuaJIT/src/LuaJit.pri ){
+        LIBS += -ldl
+    } else {
+        LIBS += -lluajit
+    }
+
+    QMAKE_LFLAGS += -rdynamic -ldl
+    #rdynamic is required so that the LjLibFfi functions are visible to LuaJIT FFI
+}
+macx {
+    include( ../LuaJIT/src/LuaJit.pri )
+    QMAKE_LFLAGS += -rdynamic -ldl -pagezero_size 10000 -image_base 100000000
+}
 
 
 RESOURCES += \

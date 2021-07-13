@@ -17,7 +17,7 @@
     <div class="details">
       <span id="author" class="author">Rochus Keller</span><br>
       <span id="email" class="email"><a href="mailto:me@rochus-keller.ch">me@rochus-keller.ch</a></span><br>
-      <span id="revdate">2021-06-22</span>
+      <span id="revdate">2021-07-09</span>
       <br><span id="revremark">work in progress</span>
     </div>
     <div id="toc" class="toc2">
@@ -2791,7 +2791,7 @@ end Insert</pre>
                     <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">length of string (up to but without the first 0X)</p>
+                    <p class="tableblock">length of string (including the terminating 0X)</p>
                   </td>
                 </tr>
                 <tr>
@@ -3165,7 +3165,7 @@ end Insert</pre>
                     <p class="tableblock">INTEGER</p>
                   </td>
                   <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">dynamic length of the string up to and not including the first
+                    <p class="tableblock">dynamic length of the string up to and not including the terminating
                       0X</p>
                   </td>
                 </tr>
@@ -3175,9 +3175,7 @@ end Insert</pre>
                     <p class="tableblock">s: string</p>
                   </td>
                   <td class="tableblock halign-left valign-top"></td>
-                  <td class="tableblock halign-left valign-top">
-                    <p class="tableblock">same as LEN(s)</p>
-                  </td>
+                  <td class="tableblock halign-left valign-top"></td>
                 </tr>
                 <tr>
                   <td class="tableblock halign-left valign-top">
@@ -3526,7 +3524,9 @@ ImportPath = { ident '.' }</pre>
             prefixed with an import path. There is no requirement that the import
             path actually exists in the file system, or that the source files corresponding
             to an import path are in the same file system directory. It is up to
-            the compiler how source files are mapped to import paths.</p>
+            the compiler how source files are mapped to import paths. An imported
+            module with no import path is first looked up in the import path of the
+            importing module.</p>
         </div>
         <div class="paragraph">
           <p>A module must not import itself.</p>

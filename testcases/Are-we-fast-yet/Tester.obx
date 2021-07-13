@@ -270,28 +270,11 @@ begin
    // Test4()
    // Test5()
    // Test6()
+   
    RunAll()
    //RunEachOnce()
-		
+
    //H.run("CD", 250, 2) 
-   // CD2 250,1000 works
-   // CD/CD2  10,1000/ 50,100/ 50,10/ 100,10 works
-   // CD tends to crash with numIterations > 90
-   // with DBGTRACE there is no crash in both CD as CD2! 
-   // with ObxFfi_DBGTRACE both CD and CD2 crash in the first second
-   // with JIT off there is no crash in CD 250,100
-   // fixed in 0.7.24, runs without crash, even before upgrade to latest LJ v2.0 commits
-   
-   // but the following crash since 0.7.24, even after upgrade to latest LJ v2.0
-	// crashes in JIT, no crash if JIT off (it runs sometimes in OBXLJ with JIT on): 
-	//H.run("Havlak", 1, 1 )   
-   //H.run("Towers", 1, 1)
-   // all others run, even with large numIterations, no crashes observed so far
-	// DeltaBlue, CD2, Bounce and Storage
-	// run but assert in rec_check_slots itype2irt(tv) == tref_type(tr), 
-	// Bounce crashes in rec_check_slots gco2func(frame_gc(tv))
-	// DeltaBlue and Storage run each other run
-	// Fixed in IDE 0.7.25; reason was changed order of res=buySlots in LjbcGen emitCall and visit( IdentSel*)
 
    println("End Tester")
 end Tester

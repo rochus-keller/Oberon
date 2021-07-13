@@ -586,10 +586,7 @@ module Havlak
         if v # UNVISITED then
           if this.this.isAncestor(this.w, v) then
             this.this.backPreds.at(this.w).append(v)
-          else // TODO
-	          // fix to avoid misterious crash in JIT (2021-07-11)
-            //tmp := this.this.nonBackPreds.at(this.w)
-            //tmp.add(v)
+          else 
             this.this.nonBackPreds.at(this.w).add(v)
           end
         end
@@ -743,9 +740,6 @@ module Havlak
 
       if ~this.this.isAncestor(this.w, ydash.dfsNumber) then
         this.this.type_[this.w] := BB_IRREDUCIBLE
-		  // fix to avoid misterious crash in JIT (2021-07-11) TODO
-		  //tmp := this.this.nonBackPreds.at(this.w)
-		  //tmp.add(ydash.dfsNumber)
 		  this.this.nonBackPreds.at(this.w).add(ydash.dfsNumber)
       else
         if ydash.dfsNumber # this.w then
