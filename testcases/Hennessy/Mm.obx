@@ -1,64 +1,64 @@
 // see Main.obx
 module Mm
 
-	import Util
+    import Util
 
-	// Multiplies two real matrices.
-	
-	const
-		rowsize = 40
+    // Multiplies two real matrices.
+    
+    const
+        rowsize = 40
 
-	type
-		realmatrix = array rowsize + 1, rowsize + 1 of longreal
+    type
+        realmatrix = array rowsize + 1, rowsize + 1 of longreal
 
-	var
-		rma, rmb, rmr: realmatrix
+    var
+        rma, rmb, rmr: realmatrix
 
-	proc rInitmatrix(var m: realmatrix)
-		var 
-			temp, i, j: integer
-	begin 
-		i := 1
-		while i <= rowsize do 
-			j := 1
-			while j <= rowsize do 
-				temp := Util.Rand()
-				m[i][j] := flt((temp - (temp div 120) * 120 - 60) div 3)
-				inc(j) 
-			end 
-			inc(i) 
-		end 
-	end rInitmatrix
-	
-	proc rInnerproduct(var result: longreal; var a, b: realmatrix; row, column: integer)
-		// computes the inner product of A[row,*] and B[*,column]
-		var 
-			i: integer
-	begin 
-		result := 0.0
-		i := 1
-		while i <= rowsize do 
-			result := result + a[row][i] * b[i][column]
-			inc(i) 
-		end 
-	end rInnerproduct
-	
-	proc Run*()
-		var  // rma, rmb, rmr: realmatrix;
-			i, j: integer
-	begin 
-		Util.Initrand()
-		rInitmatrix(rma)
-		rInitmatrix(rmb)
-		i := 1
-		while i <= rowsize do 
-			j := 1
-			while j <= rowsize do 
-				rInnerproduct(rmr[i][j], rma, rmb, i, j)
-				inc(j) 
-			end 
-			inc(i) 
-		end 
-	end Run
+    proc rInitmatrix(var m: realmatrix)
+        var 
+            temp, i, j: integer
+    begin 
+        i := 1
+        while i <= rowsize do 
+            j := 1
+            while j <= rowsize do 
+                temp := Util.Rand()
+                m[i][j] := flt((temp - (temp div 120) * 120 - 60) div 3)
+                inc(j) 
+            end 
+            inc(i) 
+        end 
+    end rInitmatrix
+    
+    proc rInnerproduct(var result: longreal; var a, b: realmatrix; row, column: integer)
+        // computes the inner product of A[row,*] and B[*,column]
+        var 
+            i: integer
+    begin 
+        result := 0.0
+        i := 1
+        while i <= rowsize do 
+            result := result + a[row][i] * b[i][column]
+            inc(i) 
+        end 
+    end rInnerproduct
+    
+    proc Run*()
+        var  // rma, rmb, rmr: realmatrix;
+            i, j: integer
+    begin 
+        Util.Initrand()
+        rInitmatrix(rma)
+        rInitmatrix(rmb)
+        i := 1
+        while i <= rowsize do 
+            j := 1
+            while j <= rowsize do 
+                rInnerproduct(rmr[i][j], rma, rmb, i, j)
+                inc(j) 
+            end 
+            inc(i) 
+        end 
+    end Run
 end Mm
 

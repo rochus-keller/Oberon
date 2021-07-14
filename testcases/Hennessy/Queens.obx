@@ -1,72 +1,72 @@
 // see Main.obx
 module Queens
-	import Util
-	
-	proc Try(i: integer; var q: boolean; var a, b, c: array of boolean; var x: array of integer)
-		var 
-			j: integer
-	begin 
-		j := 0
-		q := false
-		while (~q) & (j # 8) do 
-			j := j + 1
-			q := false
-			if b[j] & a[i + j] & c[i - j + 7] then
-				x[i] := j
-				b[j] := false
-				a[i + j] := false
-				c[i - j + 7] := false
-				if i < 8 then
-					Try(i + 1, q, a, b, c, x)
-					if ~q then
-						b[j] := true
-						a[i + j] := true
-						c[i - j + 7] := true 
-					end  
-				else 
-					q := true 
-				end  
-			end  
-		end 
-	end Try
-	
-	proc Doit()
-		var 
-			i: integer
-			q: boolean
-			a: array 9 of boolean
-			b: array 17 of boolean
-			c: array 15 of boolean
-			x: array 9 of integer
-	begin 
-		i := 0 - 7
-		while i <= 16 do 
-			if (i >= 1) & (i <= 8) then
-				a[i] := true 
-			end 
-			if i >= 2 then
-				b[i] := true 
-			end 
-			if i <= 7 then
-				c[i + 7] := true 
-			end 
-			i := i + 1 
-		end 
-		Try(1, q, b, a, c, x)
-		if (~q) then
-			Util.Str(" Error in Queens.$") 
-		end 
-	end Doit
-	
-	proc Run*()
-		var 
-			i: integer
-	begin 
-		i := 1
-		while i <= 50 do 
-			Doit()
-			inc(i) 
-		end 
-	end Run
-	
+    import Util
+    
+    proc Try(i: integer; var q: boolean; var a, b, c: array of boolean; var x: array of integer)
+        var 
+            j: integer
+    begin 
+        j := 0
+        q := false
+        while (~q) & (j # 8) do 
+            j := j + 1
+            q := false
+            if b[j] & a[i + j] & c[i - j + 7] then
+                x[i] := j
+                b[j] := false
+                a[i + j] := false
+                c[i - j + 7] := false
+                if i < 8 then
+                    Try(i + 1, q, a, b, c, x)
+                    if ~q then
+                        b[j] := true
+                        a[i + j] := true
+                        c[i - j + 7] := true 
+                    end  
+                else 
+                    q := true 
+                end  
+            end  
+        end 
+    end Try
+    
+    proc Doit()
+        var 
+            i: integer
+            q: boolean
+            a: array 9 of boolean
+            b: array 17 of boolean
+            c: array 15 of boolean
+            x: array 9 of integer
+    begin 
+        i := 0 - 7
+        while i <= 16 do 
+            if (i >= 1) & (i <= 8) then
+                a[i] := true 
+            end 
+            if i >= 2 then
+                b[i] := true 
+            end 
+            if i <= 7 then
+                c[i + 7] := true 
+            end 
+            i := i + 1 
+        end 
+        Try(1, q, b, a, c, x)
+        if (~q) then
+            Util.Str(" Error in Queens.$") 
+        end 
+    end Doit
+    
+    proc Run*()
+        var 
+            i: integer
+    begin 
+        i := 1
+        while i <= 50 do 
+            Doit()
+            inc(i) 
+        end 
+    end Run
+    
 end Queens

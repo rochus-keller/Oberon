@@ -23,70 +23,70 @@
  
 module Permute
 
-	import B := Benchmark
-	
-	type 
-		Permute = pointer to record (B.Benchmark)
-							count : integer
-							v : pointer to array of integer
-						end
+    import B := Benchmark
+    
+    type 
+        Permute = pointer to record (B.Benchmark)
+                            count : integer
+                            v : pointer to array of integer
+                        end
 
-	proc create*(): Permute
-		var p : Permute
-	begin
-		new(p)
-		return p
-	end create
-	
-	proc (this: Permute) benchmark(): B.Result
-		var res : B.IntResult 
-	begin
-		this.count := 0
-		new(this.v,6)
-		this.permute(6)
-		new(res)
-		res.res := this.count
-		return res
-	end benchmark
-	
-	proc (this: Permute) permute(n: integer)
-		var n1, i : integer
-	begin
-		inc(this.count)
-	   if n # 0 then
+    proc create*(): Permute
+        var p : Permute
+    begin
+        new(p)
+        return p
+    end create
+    
+    proc (this: Permute) benchmark(): B.Result
+        var res : B.IntResult 
+    begin
+        this.count := 0
+        new(this.v,6)
+        this.permute(6)
+        new(res)
+        res.res := this.count
+        return res
+    end benchmark
+    
+    proc (this: Permute) permute(n: integer)
+        var n1, i : integer
+    begin
+        inc(this.count)
+       if n # 0 then
           n1 := n - 1
-	       this.permute(n1)
-	       i := n1
-	       while i >= 0 do
-	          this.swap(n1, i) // 150-550 us
-	          //swap(this.v[n1],this.v[i]) // 200-1900us, much slower
-	          this.permute(n1)
-	          this.swap(n1, i)
-	          //swap(this.v[n1],this.v[i])
-		       dec(i)
-		    end
+           this.permute(n1)
+           i := n1
+           while i >= 0 do
+              this.swap(n1, i) // 150-550 us
+              //swap(this.v[n1],this.v[i]) // 200-1900us, much slower
+              this.permute(n1)
+              this.swap(n1, i)
+              //swap(this.v[n1],this.v[i])
+               dec(i)
+            end
       end
    end permute
 
-	proc (this: Permute) swap( i,j: integer)
-		var tmp : integer
-	begin
-		tmp := this.v[i]
-		this.v[i] := this.v[j]
-		this.v[j] := tmp
-	end swap
-	
-	proc swap( var i,j: integer)
-		var tmp : integer
-	begin
-		tmp := i
-		i := j
-		j := tmp
-	end swap
-		
-	proc (this: Permute) verifyResult( result: B.Result ): boolean 
-	begin
-		return ( result(B.IntResult).res = 8660 )
-	end verifyResult
-	
+    proc (this: Permute) swap( i,j: integer)
+        var tmp : integer
+    begin
+        tmp := this.v[i]
+        this.v[i] := this.v[j]
+        this.v[j] := tmp
+    end swap
+    
+    proc swap( var i,j: integer)
+        var tmp : integer
+    begin
+        tmp := i
+        i := j
+        j := tmp
+    end swap
+        
+    proc (this: Permute) verifyResult( result: B.Result ): boolean 
+    begin
+        return ( result(B.IntResult).res = 8660 )
+    end verifyResult
+    
 end Permute

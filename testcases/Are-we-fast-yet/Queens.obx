@@ -23,53 +23,53 @@
  
 module Queens
 
-	import B := Benchmark
-	
-	type 
-		Queens = pointer to record (B.Benchmark)
-						freeRows : array 8 of boolean
-						freeMaxs, freeMins : array 16 of boolean
-						queenRows : array 8 of integer
-						end
+    import B := Benchmark
+    
+    type 
+        Queens = pointer to record (B.Benchmark)
+                        freeRows : array 8 of boolean
+                        freeMaxs, freeMins : array 16 of boolean
+                        queenRows : array 8 of integer
+                        end
 
-	proc create*(): Queens
-		var q : Queens
-	begin
-		new(q)
-		return q
-	end create
+    proc create*(): Queens
+        var q : Queens
+    begin
+        new(q)
+        return q
+    end create
 
-	proc (this: Queens) benchmark(): B.Result
-		var result: boolean
-			i: integer
-			res: B.BoolResult
-	begin
-		result := true
-	   for i := 0 to 10-1 do
-	      result := result & this.queens()
-	   end
-	   new(res)
-	   res.res := result
-	   return res	
-	end benchmark
-	
-	proc (this: Queens) queens(): boolean
-		var i: integer
-	begin
-		for i := 0 to len(this.freeRows)-1 do
-			this.freeRows[i] := true
-			this.queenRows[i] := -1
-		end
-		for i := 0 to len(this.freeMaxs)-1 do
-			this.freeMaxs[i] := true
-			this.freeMins[i] := true
-		end
-		return this.placeQueen(0)
-	end queens	
-	
-	proc (this: Queens) placeQueen(c: integer): boolean
-		var r: integer
-	begin
+    proc (this: Queens) benchmark(): B.Result
+        var result: boolean
+            i: integer
+            res: B.BoolResult
+    begin
+        result := true
+       for i := 0 to 10-1 do
+          result := result & this.queens()
+       end
+       new(res)
+       res.res := result
+       return res    
+    end benchmark
+    
+    proc (this: Queens) queens(): boolean
+        var i: integer
+    begin
+        for i := 0 to len(this.freeRows)-1 do
+            this.freeRows[i] := true
+            this.queenRows[i] := -1
+        end
+        for i := 0 to len(this.freeMaxs)-1 do
+            this.freeMaxs[i] := true
+            this.freeMins[i] := true
+        end
+        return this.placeQueen(0)
+    end queens    
+    
+    proc (this: Queens) placeQueen(c: integer): boolean
+        var r: integer
+    begin
     for r := 0 to 8-1 do
       if this.getRowColumn(r, c) then
         this.queenRows[r] := c
@@ -99,9 +99,9 @@ module Queens
     this.freeMins[c - r + 7] := v
   end setRowColumn
 
-	proc (this: Queens) verifyResult( result: B.Result ): boolean 
-	begin
-		return result(B.BoolResult).res
-	end verifyResult
+    proc (this: Queens) verifyResult( result: B.Result ): boolean 
+    begin
+        return result(B.BoolResult).res
+    end verifyResult
 
 end Queens

@@ -23,246 +23,246 @@
 module Tester
 
 import 
-	IV := som.Vector<integer>
-	I := som.Interfaces<integer>
-	H := Harness
-	R := som.Random
-	B := som.RedBlackTree<integer,String>
-	IB := som.Interfaces<B.Entry>
-	SV := som.Vector<String>
-	CD, CD2
-	RVV := som.RedBlackTree<CD.Vector2D,SV.Vector>
-	IVV := som.Interfaces<RVV.Entry>
-	Out
+    IV := som.Vector<integer>
+    I := som.Interfaces<integer>
+    H := Harness
+    R := som.Random
+    B := som.RedBlackTree<integer,String>
+    IB := som.Interfaces<B.Entry>
+    SV := som.Vector<String>
+    CD, CD2
+    RVV := som.RedBlackTree<CD.Vector2D,SV.Vector>
+    IVV := som.Interfaces<RVV.Entry>
+    Out
 
-	type
-		String = array 32 of char
-		
-	proc TestVector()
-		var
-			l : IV.Vector
-		type
-			Printer = record (I.ForEachInterface) end
-			Comparator = record (I.Comparator) end
-			
-		proc (var this:Printer) apply(in elem: integer)
-		begin
-			println(elem)
-		end apply
-		
-		proc (var this:Comparator) compare( in i j: integer ) : integer
-		begin
-			if i < j then
-				return -1
-			elsif i = j then
-				return 0
-			else
-				return 1
-			end
-		end compare
-		
-		var
-			p : Printer
-			c : Comparator
-	begin
-		l := IV.createWithElement(long(long(33)))
-		println("initial size:")
-		println(l.getSize())
-		
-		l.append(long(long(44)))
-		l.append(long(long(55)))
-		l.append(long(long(66)))
-		l.append(long(long(99)))
-		l.append(long(long(88)))
-	   l.append(long(long(77)))
+    type
+        String = array 32 of char
+        
+    proc TestVector()
+        var
+            l : IV.Vector
+        type
+            Printer = record (I.ForEachInterface) end
+            Comparator = record (I.Comparator) end
+            
+        proc (var this:Printer) apply(in elem: integer)
+        begin
+            println(elem)
+        end apply
+        
+        proc (var this:Comparator) compare( in i j: integer ) : integer
+        begin
+            if i < j then
+                return -1
+            elsif i = j then
+                return 0
+            else
+                return 1
+            end
+        end compare
+        
+        var
+            p : Printer
+            c : Comparator
+    begin
+        l := IV.createWithElement(long(long(33)))
+        println("initial size:")
+        println(l.getSize())
+        
+        l.append(long(long(44)))
+        l.append(long(long(55)))
+        l.append(long(long(66)))
+        l.append(long(long(99)))
+        l.append(long(long(88)))
+       l.append(long(long(77)))
 
-	   println("print each element:")
-	   l.forEach(p)
-	   
-	   println(l.removeFirst())
-	   l.atPut(2,long(long(22)))
-	   
-	   println("print each element after remove first:")
-	   l.forEach(p)
-	   
-	   l.sort(c)
-	   println("print each element after sort:")
-	   l.forEach(p)
-	   
-	end TestVector
-	
-	proc Test2()
-		var
-			args : pointer to H.Args
-	begin
-	   new(args, 1, 32)
-	   args[0] := "Permute"
-	   H.main(args)
-	end Test2
-	
-	proc Test3()
-	begin
-		R.reset() // e.g. Bounce assumes always the same random number sequence to succeed
-		assert(R.next() = 22896)
-		assert(R.next() = 34761)
-		assert(R.next() = 34014)
-		assert(R.next() = 39231)
-		assert(R.next() = 52540)
-		assert(R.next() = 41445)
-		assert(R.next() = 1546)
-		assert(R.next() = 5947)
-		assert(R.next() = 65224)
-		println("Test3 done")
-	end Test3
-	
-	proc Test4()
-		var t : B.RedBlackTree
-			s : String
-		proc intComp(in lhs,rhs: integer): integer
-		begin
-			if lhs < rhs then
-				return -1
-			elsif lhs > rhs then
-				return 1
-			else
-				return 0
-			end
-		end intComp
-		
-		type FI = record (IB.ForEachInterface) i: integer end
-		
-		proc (var this: FI) apply(in elem: B.Entry) 
-		begin
-			Out.Int(elem.key,0)
-			Out.String("=")
-			Out.String(elem.value) Out.Ln
-		end apply
-		
-		var it : FI
-	begin
-		t := B.create(intComp)
-		
-		s := t.put( long(long(10)), "Mandelbrot")
-		s := t.put( long(long(3)), "Nbody")	
-		s := t.put( long(long(6)), "Permute")	
-		s := t.put( long(long(2)), "Queens")	
-		s := t.put( long(long(4)), "Richards")	
-		s := t.put( long(long(8)), "Sieve")	
-		s := t.put( long(long(11)), "Storage")	
-		s := t.put( long(long(9)), "Tower")	
-		s := t.put( long(long(3)), "Json")	
-		s := t.remove(long(long(11)))
-		
-		trap()
-		it.i := 33
-		t.forEach(it)
-		
-		println("Done Test4")
-	end Test4
-	
-	proc Test5()
-		var t : RVV.RedBlackTree
-		
-		type FI = record (IVV.ForEachInterface) i: integer end
-		
-		proc (var this: FI) apply(in elem: RVV.Entry) 
-			var i: integer
-		begin
-			Out.String("Point ")
-			Out.Int(elem.key.x,0)
-			Out.String(":")
-			Out.Int(elem.key.y,0) Out.Ln
-			for i := 0 to elem.value.getSize()-1 do
-				Out.String(elem.value.at(i)) Out.Ln
-			end
-		end apply
-		
-		var it : FI
-			point: CD.Vector2D
-			vec: SV.Vector
-	begin
-		t := RVV.create(CD.compareVector2D)
-		
-		vec := SV.create()
-		vec.append("Mandelbrot")
-		vec.append("Nbody")
-		vec.append("Permute")
-		point.x := 10
-		point.y := 20
-		vec := t.put( point, vec)
+       println("print each element:")
+       l.forEach(p)
+       
+       println(l.removeFirst())
+       l.atPut(2,long(long(22)))
+       
+       println("print each element after remove first:")
+       l.forEach(p)
+       
+       l.sort(c)
+       println("print each element after sort:")
+       l.forEach(p)
+       
+    end TestVector
+    
+    proc Test2()
+        var
+            args : pointer to H.Args
+    begin
+       new(args, 1, 32)
+       args[0] := "Permute"
+       H.main(args)
+    end Test2
+    
+    proc Test3()
+    begin
+        R.reset() // e.g. Bounce assumes always the same random number sequence to succeed
+        assert(R.next() = 22896)
+        assert(R.next() = 34761)
+        assert(R.next() = 34014)
+        assert(R.next() = 39231)
+        assert(R.next() = 52540)
+        assert(R.next() = 41445)
+        assert(R.next() = 1546)
+        assert(R.next() = 5947)
+        assert(R.next() = 65224)
+        println("Test3 done")
+    end Test3
+    
+    proc Test4()
+        var t : B.RedBlackTree
+            s : String
+        proc intComp(in lhs,rhs: integer): integer
+        begin
+            if lhs < rhs then
+                return -1
+            elsif lhs > rhs then
+                return 1
+            else
+                return 0
+            end
+        end intComp
+        
+        type FI = record (IB.ForEachInterface) i: integer end
+        
+        proc (var this: FI) apply(in elem: B.Entry) 
+        begin
+            Out.Int(elem.key,0)
+            Out.String("=")
+            Out.String(elem.value) Out.Ln
+        end apply
+        
+        var it : FI
+    begin
+        t := B.create(intComp)
+        
+        s := t.put( long(long(10)), "Mandelbrot")
+        s := t.put( long(long(3)), "Nbody")    
+        s := t.put( long(long(6)), "Permute")    
+        s := t.put( long(long(2)), "Queens")    
+        s := t.put( long(long(4)), "Richards")    
+        s := t.put( long(long(8)), "Sieve")    
+        s := t.put( long(long(11)), "Storage")    
+        s := t.put( long(long(9)), "Tower")    
+        s := t.put( long(long(3)), "Json")    
+        s := t.remove(long(long(11)))
+        
+        trap()
+        it.i := 33
+        t.forEach(it)
+        
+        println("Done Test4")
+    end Test4
+    
+    proc Test5()
+        var t : RVV.RedBlackTree
+        
+        type FI = record (IVV.ForEachInterface) i: integer end
+        
+        proc (var this: FI) apply(in elem: RVV.Entry) 
+            var i: integer
+        begin
+            Out.String("Point ")
+            Out.Int(elem.key.x,0)
+            Out.String(":")
+            Out.Int(elem.key.y,0) Out.Ln
+            for i := 0 to elem.value.getSize()-1 do
+                Out.String(elem.value.at(i)) Out.Ln
+            end
+        end apply
+        
+        var it : FI
+            point: CD.Vector2D
+            vec: SV.Vector
+    begin
+        t := RVV.create(CD.compareVector2D)
+        
+        vec := SV.create()
+        vec.append("Mandelbrot")
+        vec.append("Nbody")
+        vec.append("Permute")
+        point.x := 10
+        point.y := 20
+        vec := t.put( point, vec)
 
-		vec := SV.create()
-		vec.append("Queens")
-		vec.append("Richards")
-		vec.append("Sieve")
-		point.x := 30
-		point.y := 40
-		vec := t.put( point, vec)
+        vec := SV.create()
+        vec.append("Queens")
+        vec.append("Richards")
+        vec.append("Sieve")
+        point.x := 30
+        point.y := 40
+        vec := t.put( point, vec)
 
-		vec := SV.create()
-		vec.append("Storage")
-		vec.append("Tower")
-		vec.append("Json")
-		point.x := 50
-		point.y := 60
-		vec := t.put( point, vec)
+        vec := SV.create()
+        vec.append("Storage")
+        vec.append("Tower")
+        vec.append("Json")
+        point.x := 50
+        point.y := 60
+        vec := t.put( point, vec)
 
-		it.i := 33
-		t.forEach(it)
-		
-		println("Done Test5")
-	end Test5
-	
-	proc Test6()
-		var vec1: CD2.Vector3D
-			vec2: CD2.Vector2D
-	begin
-	   trap()
-	   new(vec1)
-	   vec1.x := 1
-	   vec1.y := 2
-	   vec1.z := 3
-	   vec2 := CD2.voxelHash(vec1)		
-	   println(vec2.x)
-	end Test6
-	
-	proc RunAll()
-	begin
-		H.run("DeltaBlue", 12000, 1 )
-	   H.run("Richards", 100, 1)
-	   H.run("Json", 100, 1)
-	   H.run("Havlak", 10, 1 )
+        it.i := 33
+        t.forEach(it)
+        
+        println("Done Test5")
+    end Test5
+    
+    proc Test6()
+        var vec1: CD2.Vector3D
+            vec2: CD2.Vector2D
+    begin
+       trap()
+       new(vec1)
+       vec1.x := 1
+       vec1.y := 2
+       vec1.z := 3
+       vec2 := CD2.voxelHash(vec1)        
+       println(vec2.x)
+    end Test6
+    
+    proc RunAll()
+    begin
+        H.run("DeltaBlue", 12000, 1 )
+       H.run("Richards", 100, 1)
+       H.run("Json", 100, 1)
+       H.run("Havlak", 10, 1 )
       H.run("CD2", 250, 2)
-	   H.run("Bounce", 1500, 1)
-	   H.run("List", 1500, 1)
-	   H.run("Mandelbrot", 500, 1)
-	   H.run("NBody", 250000, 1)
-	   H.run("Permute", 1000, 1)
-	   H.run("Queens", 1000, 1)
-	   H.run("Sieve", 3000, 1)
-	   H.run("Storage", 1000, 1)
-	   H.run("Towers", 600, 1)
-	end RunAll
+       H.run("Bounce", 1500, 1)
+       H.run("List", 1500, 1)
+       H.run("Mandelbrot", 500, 1)
+       H.run("NBody", 250000, 1)
+       H.run("Permute", 1000, 1)
+       H.run("Queens", 1000, 1)
+       H.run("Sieve", 3000, 1)
+       H.run("Storage", 1000, 1)
+       H.run("Towers", 600, 1)
+    end RunAll
 
-	proc RunEachOnce()
-	begin
-		H.run("DeltaBlue", 1, 1 )
-	   H.run("Richards", 1, 1)
-	   H.run("Json", 1, 1)
-	   H.run("Havlak", 1, 1 )
+    proc RunEachOnce()
+    begin
+        H.run("DeltaBlue", 1, 1 )
+       H.run("Richards", 1, 1)
+       H.run("Json", 1, 1)
+       H.run("Havlak", 1, 1 )
       H.run("CD2", 1, 2)
-	   H.run("Bounce", 1, 1)
-	   H.run("List", 1, 1)
-	   H.run("Mandelbrot", 1, 1)
-	   H.run("NBody", 1, 1)
-	   H.run("Permute", 1, 1)
-	   H.run("Queens", 1, 1)
-	   H.run("Sieve", 1, 1)
-	   H.run("Storage", 1, 1)
-	   H.run("Towers", 1, 1)
-	end RunEachOnce
+       H.run("Bounce", 1, 1)
+       H.run("List", 1, 1)
+       H.run("Mandelbrot", 1, 1)
+       H.run("NBody", 1, 1)
+       H.run("Permute", 1, 1)
+       H.run("Queens", 1, 1)
+       H.run("Sieve", 1, 1)
+       H.run("Storage", 1, 1)
+       H.run("Towers", 1, 1)
+    end RunEachOnce
 
-	var str : pointer to array of char
+    var str : pointer to array of char
 begin
    // TestVector()
    // Test2()

@@ -11,140 +11,140 @@
 
 module DeltaBlue
 
-	import B := Benchmark
-	
-	type
-		DeltaBlue = pointer to record (B.Benchmark) end
+    import B := Benchmark
+    
+    type
+        DeltaBlue = pointer to record (B.Benchmark) end
 
-	proc create*(): DeltaBlue
-		var d : DeltaBlue
-	begin
-		new(d)
-		return d
-	end create
+    proc create*(): DeltaBlue
+        var d : DeltaBlue
+    begin
+        new(d)
+        return d
+    end create
 
-	proc (this: DeltaBlue) benchmark(): B.Result
-	begin
-	   assert(false) // Should never be reached
-		return nil
-	end benchmark
-	
-	proc (this: DeltaBlue) verifyResult( result: B.Result ): boolean 
-	begin
-		assert(false) // Should never be reached
-		return false
-	end verifyResult
-	
-	proc (this: DeltaBlue) innerBenchmarkLoop(innerIterations: integer): boolean
-	begin
-	    chainTest(innerIterations)
-	    projectionTest(innerIterations)
-	    return true
-	end innerBenchmarkLoop
-		
-	//////////// Sym ///////////////////////
-	type 
-		Sym = pointer to record hash: integer end // this could be a value type
-		
-	proc createSym(hash: integer): Sym
-		var s: Sym
-	begin
-		new(s)
-		s.hash := hash
-		return s
-	end createSym
-	
-	proc symHash(in k: Sym):integer
-		return k.hash end
-		
-	var
-		ABSOLUTE_STRONGEST,
-		REQUIRED,
-		STRONG_PREFERRED,
-		PREFERRED,
-		STRONG_DEFAULT,
-		DEFAULT,
-		WEAK_DEFAULT,
-		ABSOLUTE_WEAKEST: Sym
-		
-	/////////// Strength //////////////////
-	(*
-	 * Strengths are used to measure the relative importance of constraints. New
-	 * strengths may be inserted in the strength hierarchy without disrupting
-	 * current constraints. Strengths cannot be created outside this class, so
-	 * pointer comparison can be used for value comparison.
+    proc (this: DeltaBlue) benchmark(): B.Result
+    begin
+       assert(false) // Should never be reached
+        return nil
+    end benchmark
+    
+    proc (this: DeltaBlue) verifyResult( result: B.Result ): boolean 
+    begin
+        assert(false) // Should never be reached
+        return false
+    end verifyResult
+    
+    proc (this: DeltaBlue) innerBenchmarkLoop(innerIterations: integer): boolean
+    begin
+        chainTest(innerIterations)
+        projectionTest(innerIterations)
+        return true
+    end innerBenchmarkLoop
+        
+    //////////// Sym ///////////////////////
+    type 
+        Sym = pointer to record hash: integer end // this could be a value type
+        
+    proc createSym(hash: integer): Sym
+        var s: Sym
+    begin
+        new(s)
+        s.hash := hash
+        return s
+    end createSym
+    
+    proc symHash(in k: Sym):integer
+        return k.hash end
+        
+    var
+        ABSOLUTE_STRONGEST,
+        REQUIRED,
+        STRONG_PREFERRED,
+        PREFERRED,
+        STRONG_DEFAULT,
+        DEFAULT,
+        WEAK_DEFAULT,
+        ABSOLUTE_WEAKEST: Sym
+        
+    /////////// Strength //////////////////
+    (*
+     * Strengths are used to measure the relative importance of constraints. New
+     * strengths may be inserted in the strength hierarchy without disrupting
+     * current constraints. Strengths cannot be created outside this class, so
+     * pointer comparison can be used for value comparison.
    *)
-	import 
-		SID := som.IdentityDictionary<Sym,integer>
-		SSD := som.IdentityDictionary<Sym,Strength>
-	type
-		Strength = pointer to record
-							arithmeticValue: integer
-							symbolicValue: Sym
-						end
-	var
-		absoluteWeakest, required: Strength
-		strengthTable: SID.IdentityDictionary
-		strengthConstant: SSD.IdentityDictionary
-	
-	proc createStrength(symbolicValue: Sym): Strength		
-		var s: Strength
-	begin
-		new(s)
-		s.symbolicValue := symbolicValue
-		s.arithmeticValue := strengthTable.at(symbolicValue)
-		return s
-	end createStrength
-		
-	proc (this: Strength) sameAs(s: Strength): boolean
-	    return this.arithmeticValue = s.arithmeticValue end
+    import 
+        SID := som.IdentityDictionary<Sym,integer>
+        SSD := som.IdentityDictionary<Sym,Strength>
+    type
+        Strength = pointer to record
+                            arithmeticValue: integer
+                            symbolicValue: Sym
+                        end
+    var
+        absoluteWeakest, required: Strength
+        strengthTable: SID.IdentityDictionary
+        strengthConstant: SSD.IdentityDictionary
+    
+    proc createStrength(symbolicValue: Sym): Strength        
+        var s: Strength
+    begin
+        new(s)
+        s.symbolicValue := symbolicValue
+        s.arithmeticValue := strengthTable.at(symbolicValue)
+        return s
+    end createStrength
+        
+    proc (this: Strength) sameAs(s: Strength): boolean
+        return this.arithmeticValue = s.arithmeticValue end
 
-	proc (this: Strength) stronger(s: Strength): boolean
-	    return this.arithmeticValue < s.arithmeticValue end
+    proc (this: Strength) stronger(s: Strength): boolean
+        return this.arithmeticValue < s.arithmeticValue end
 
-	proc (this: Strength) weaker(s: Strength): boolean
-	    return this.arithmeticValue > s.arithmeticValue end
+    proc (this: Strength) weaker(s: Strength): boolean
+        return this.arithmeticValue > s.arithmeticValue end
 
-	proc (this: Strength) strongest(s: Strength): Strength
-	begin
-		if s.stronger(this) then
-			return s
-		else 
-			return this
-		end
-	end strongest
+    proc (this: Strength) strongest(s: Strength): Strength
+    begin
+        if s.stronger(this) then
+            return s
+        else 
+            return this
+        end
+    end strongest
 
-	proc (this: Strength) weakest(s: Strength): Strength
-	begin
-		if s.weaker(this) then
-			return s
-		else 
-			return this
-		end
-	end weakest
+    proc (this: Strength) weakest(s: Strength): Strength
+    begin
+        if s.weaker(this) then
+            return s
+        else 
+            return this
+        end
+    end weakest
 
-	////////////////////// AbstractConstraint //////////////////////
-	// I am an abstract class representing a system-maintainable
-	// relationship (or "constraint") between a set of variables. I supply
-	// a strength instance variable; concrete subclasses provide a means
-	// of storing the constrained variables and other information required
-	// to represent a constraint.
-	import
-		IV := som.Interfaces<Variable>
-		
-	type 
-		AbstractConstraint = pointer to record strength: Strength end
-		Direction = ( INVALID, FORWARD, BACKWARD )
-		
-	proc (this: AbstractConstraint) initAbstractConstraint(strength: Sym)
-	begin
-		this.strength := strengthConstant.at(strength)
-	end initAbstractConstraint
-	
-	proc equalConstraint(in lhs, rhs: AbstractConstraint): boolean
-		return lhs = rhs end
-		
-	// Normal constraints are not input constraints. An input constraint
+    ////////////////////// AbstractConstraint //////////////////////
+    // I am an abstract class representing a system-maintainable
+    // relationship (or "constraint") between a set of variables. I supply
+    // a strength instance variable; concrete subclasses provide a means
+    // of storing the constrained variables and other information required
+    // to represent a constraint.
+    import
+        IV := som.Interfaces<Variable>
+        
+    type 
+        AbstractConstraint = pointer to record strength: Strength end
+        Direction = ( INVALID, FORWARD, BACKWARD )
+        
+    proc (this: AbstractConstraint) initAbstractConstraint(strength: Sym)
+    begin
+        this.strength := strengthConstant.at(strength)
+    end initAbstractConstraint
+    
+    proc equalConstraint(in lhs, rhs: AbstractConstraint): boolean
+        return lhs = rhs end
+        
+    // Normal constraints are not input constraints. An input constraint
    // is one that depends on external state, such as the mouse, the
    // keyboard, a clock, or some arbitrary piece of imperative code.
    proc (this: AbstractConstraint) isInput(): boolean end
@@ -184,17 +184,17 @@ module DeltaBlue
    proc (this: AbstractConstraint) inputsDo(var fn: IV.ForEachInterfaceRW) end
    proc (this: AbstractConstraint) inputsHasOne(var fn: IV.TestInterface): boolean end
 
-	proc (this: AbstractConstraint) inputsKnown(mark: integer): boolean
-		type TI = record(IV.TestInterface) mark: integer end
-		proc (var this: TI) test(in v: Variable) : boolean 
-			return ~( (v.mark = this.mark) or v.stay or (v.determinedBy = nil) ) end
-		var i: TI
-	begin
-		i.mark := mark
-		return ~this.inputsHasOne(i)
-	end inputsKnown
-	
-	// Record the fact that I am unsatisfied.
+    proc (this: AbstractConstraint) inputsKnown(mark: integer): boolean
+        type TI = record(IV.TestInterface) mark: integer end
+        proc (var this: TI) test(in v: Variable) : boolean 
+            return ~( (v.mark = this.mark) or v.stay or (v.determinedBy = nil) ) end
+        var i: TI
+    begin
+        i.mark := mark
+        return ~this.inputsHasOne(i)
+    end inputsKnown
+    
+    // Record the fact that I am unsatisfied.
    proc (this: AbstractConstraint) markUnsatisfied() end
 
    // Answer my current output variable. Raise an error if I am not
@@ -213,15 +213,15 @@ module DeltaBlue
   // Assume: I am not already satisfied.
   //
   proc (this: AbstractConstraint) satisfy(mark: integer; planner: Planner): AbstractConstraint
-	 type FI = record(IV.ForEachInterfaceRW) mark: integer end
-	 proc (var this: FI) apply(var v: Variable) 
-	 begin
-		 v.mark := this.mark
-	 end apply
+     type FI = record(IV.ForEachInterfaceRW) mark: integer end
+     proc (var this: FI) apply(var v: Variable) 
+     begin
+         v.mark := this.mark
+     end apply
     var overridden: AbstractConstraint
-	    out: Variable 
-	    iter: FI
-	    dummy: Direction
+        out: Variable 
+        iter: FI
+        dummy: Direction
   begin
     dummy := this.chooseMethod(mark)
 
@@ -250,72 +250,72 @@ module DeltaBlue
     return overridden
   end satisfy
   
-	/////////////////// Variable ///////////////////////
-	import
-		ACV := som.Vector<AbstractConstraint>
-	type
-		Variable = pointer to record 
-						value: integer
-						constraints: ACV.Vector
-						determinedBy: AbstractConstraint
-						mark: integer 
-						walkStrength: Strength
-						stay: boolean
-					end
-	
-	proc value(aValue: integer):Variable
-		var v: Variable
-	begin
-		new(v)
-		v.value := aValue
-		v.constraints := ACV.create()
-		v.walkStrength := absoluteWeakest
-		v.stay := true
-		v.mark := 0
-		return v
-	end value
-	
-	proc (this: Variable) addConstraint(c: AbstractConstraint)
-	begin
+    /////////////////// Variable ///////////////////////
+    import
+        ACV := som.Vector<AbstractConstraint>
+    type
+        Variable = pointer to record 
+                        value: integer
+                        constraints: ACV.Vector
+                        determinedBy: AbstractConstraint
+                        mark: integer 
+                        walkStrength: Strength
+                        stay: boolean
+                    end
+    
+    proc value(aValue: integer):Variable
+        var v: Variable
+    begin
+        new(v)
+        v.value := aValue
+        v.constraints := ACV.create()
+        v.walkStrength := absoluteWeakest
+        v.stay := true
+        v.mark := 0
+        return v
+    end value
+    
+    proc (this: Variable) addConstraint(c: AbstractConstraint)
+    begin
     this.constraints.append(c)
-	end addConstraint
-	
-	proc (this: Variable) removeConstraint(c: AbstractConstraint)
-		var _: boolean
-	begin
+    end addConstraint
+    
+    proc (this: Variable) removeConstraint(c: AbstractConstraint)
+        var _: boolean
+    begin
     _ := this.constraints.remove(c,equalConstraint)
     if this.determinedBy = c then
       this.determinedBy := nil
     end
    end removeConstraint
 
-	//////////////////// Plan ////////////////////////
-	// A Plan is an ordered list of constraints to be executed in sequence
-	// to resatisfy all currently satisfiable constraints in the face of
-	// one or more changing inputs.
-	type 
-		Plan = pointer to record plan: ACV.Vector end
-		
-	proc (this: Plan) execute()
-		var i: integer
-	begin
-		for i := 0 to this.plan.getSize()-1 do
-			this.plan.at(i).execute()
-		end
-	end execute
-	
+    //////////////////// Plan ////////////////////////
+    // A Plan is an ordered list of constraints to be executed in sequence
+    // to resatisfy all currently satisfiable constraints in the face of
+    // one or more changing inputs.
+    type 
+        Plan = pointer to record plan: ACV.Vector end
+        
+    proc (this: Plan) execute()
+        var i: integer
+    begin
+        for i := 0 to this.plan.getSize()-1 do
+            this.plan.at(i).execute()
+        end
+    end execute
+    
    /////////////////// Planner ///////////////////////////
    type
-	   Planner = pointer to record currentMark: integer end
+       Planner = pointer to record currentMark: integer end
 
-	proc createPlanner(): Planner
-		var p: Planner
-	begin
-		new(p)
-		p.currentMark := 1
-		return p
-	end createPlanner
-	
+    proc createPlanner(): Planner
+        var p: Planner
+    begin
+        new(p)
+        p.currentMark := 1
+        return p
+    end createPlanner
+    
   // Attempt to satisfy the given constraint and, if successful,
   // incrementally update the dataflow graph. Details: If satifying
   // the constraint is successful, it may override a weaker constraint
@@ -330,8 +330,8 @@ module DeltaBlue
   // constraint graph has an inadvertent cycle.
   //
   proc (this: Planner) incrementalAdd(c: AbstractConstraint) 
-	  var mark: integer
-		  overridden: AbstractConstraint
+      var mark: integer
+          overridden: AbstractConstraint
   begin
     mark := this.newMark()
     overridden := c.satisfy(mark, this)
@@ -353,8 +353,8 @@ module DeltaBlue
   //
   proc (this: Planner) incrementalRemove(c: AbstractConstraint)
     var out: Variable 
-	    unsatisfied: ACV.Vector
-	    i: integer
+        unsatisfied: ACV.Vector
+        i: integer
   begin
     out := c.getOutput()
     c.markUnsatisfied()
@@ -362,22 +362,22 @@ module DeltaBlue
 
     unsatisfied := this.removePropagateFrom(out)
     for i := 0 to unsatisfied.getSize()-1 do
-	    this.incrementalAdd(unsatisfied.at(i))
-	 end
+        this.incrementalAdd(unsatisfied.at(i))
+     end
   end incrementalRemove
-		
+        
   // Extract a plan for resatisfaction starting from the outputs of
   // the given constraints, usually a set of input constraints.
   //
   proc (this: Planner) extractPlanFromConstraints(constraints: ACV.Vector): Plan
-	  var sources: ACV.Vector
-		  i: integer
-		  c: AbstractConstraint
+      var sources: ACV.Vector
+          i: integer
+          c: AbstractConstraint
   begin
     sources := ACV.create()
 
-	 for i := 0 to constraints.getSize()-1 do
-		 c := constraints.at(i)
+     for i := 0 to constraints.getSize()-1 do
+         c := constraints.at(i)
        if c.isInput() & c.isSatisfied() then
         sources.append(c)
        end
@@ -405,10 +405,10 @@ module DeltaBlue
   // Assume: sources are all satisfied.
   //
   proc (this: Planner) makePlan(sources: ACV.Vector): Plan
-	  var mark: integer
-		  plan: Plan
-		  todo: ACV.Vector
-		  c: AbstractConstraint
+      var mark: integer
+          plan: Plan
+          todo: ACV.Vector
+          c: AbstractConstraint
   begin
     mark := this.newMark()
     new(plan)
@@ -430,8 +430,8 @@ module DeltaBlue
   
   // The given variable has changed. Propagate new values downstream.
   proc (this: Planner) propagateFrom(v: Variable)
-	  var todo: ACV.Vector
-		  c: AbstractConstraint
+      var todo: ACV.Vector
+          c: AbstractConstraint
   begin
     todo := ACV.create()
     this.addConstraintsConsumingTo(v, todo)
@@ -444,14 +444,14 @@ module DeltaBlue
   end propagateFrom
   
   proc (this: Planner) addConstraintsConsumingTo(v: Variable; coll: ACV.Vector)
-	  var determiningC, c: AbstractConstraint
-		  i: integer
+      var determiningC, c: AbstractConstraint
+          i: integer
   begin
     determiningC := v.determinedBy
 
-	 for i := 0 to v.constraints.getSize()-1 do
-		 c := v.constraints.at(i)
-	    if (c # determiningC) & c.isSatisfied() then
+     for i := 0 to v.constraints.getSize()-1 do
+         c := v.constraints.at(i)
+        if (c # determiningC) & c.isSatisfied() then
         coll.append(c)
        end
     end
@@ -470,8 +470,8 @@ module DeltaBlue
   // constraint's output to one of its inputs.
   //
   proc (this: Planner) addPropagate(c: AbstractConstraint; mark: integer): boolean
-	  var todo: ACV.Vector
-		  d: AbstractConstraint
+      var todo: ACV.Vector
+          d: AbstractConstraint
   begin
     todo := ACV.createWithElement(c)
 
@@ -489,10 +489,10 @@ module DeltaBlue
   end addPropagate
 
   proc (this: Planner) change(v: Variable; newValue: integer)
-	  var editC: EditConstraint 
-		  editV: ACV.Vector
-		  plan: Plan
-		  i: integer
+      var editC: EditConstraint 
+          editV: ACV.Vector
+          plan: Plan
+          i: integer
   begin
     editC := createEditConstraint(v, PREFERRED, this)
 
@@ -506,15 +506,15 @@ module DeltaBlue
   end change
 
   import
-	  IAC := som.Interfaces<AbstractConstraint>
-	  
+      IAC := som.Interfaces<AbstractConstraint>
+      
   proc (this: Planner) constraintsConsuming(v: Variable; var fn: IAC.ForEachInterface)
-	  var determiningC, c: AbstractConstraint
-		  i: integer
+      var determiningC, c: AbstractConstraint
+          i: integer
   begin
     determiningC := v.determinedBy
     for i := 0 to v.constraints.getSize()-1 do
-	    c := v.constraints.at(i)
+        c := v.constraints.at(i)
        if (c # determiningC) & c.isSatisfied() then
         fn.apply(c)
        end
@@ -523,9 +523,9 @@ module DeltaBlue
 
   // Select a previously unused mark value.
   proc (this: Planner) newMark(): integer
-	  var cur: integer
+      var cur: integer
   begin
-	  cur := this.currentMark // like the Lua (not Java) implementation
+      cur := this.currentMark // like the Lua (not Java) implementation
     inc(this.currentMark)
     return cur
     (*
@@ -534,34 +534,34 @@ module DeltaBlue
   end newMark
 
   import
-	  VAV := som.Vector<Variable>
-	  
+      VAV := som.Vector<Variable>
+      
   // Update the walkabout strengths and stay flags of all variables
   // downstream of the given constraint. Answer a collection of
   // unsatisfied constraints sorted in order of decreasing strength.
   proc (this: Planner) removePropagateFrom(out: Variable): ACV.Vector
-	  type FI = record(IAC.ForEachInterface) todo: VAV.Vector end
-	  proc (var this: FI) apply(in c: AbstractConstraint) 
-	  begin
-		  c.recalculate()
+      type FI = record(IAC.ForEachInterface) todo: VAV.Vector end
+      proc (var this: FI) apply(in c: AbstractConstraint) 
+      begin
+          c.recalculate()
         this.todo.append(c.getOutput())
-	  end apply
-	  type IC = record(IAC.Comparator) end
-	  proc (var this: IC) compare( in c1,c2: AbstractConstraint ) : integer 
-	  begin
+      end apply
+      type IC = record(IAC.Comparator) end
+      proc (var this: IC) compare( in c1,c2: AbstractConstraint ) : integer 
+      begin
        if c1.strength.stronger(c2.strength) then
-	       return -1
-	     else
-	       return 1
-	     end
-	  end compare
-	  var unsatisfied: ACV.Vector
-		  todo: VAV.Vector
-		  v: Variable
-		  i: integer
-		  c: AbstractConstraint
-		  iter1: FI
-		  iter2: IC
+           return -1
+         else
+           return 1
+         end
+      end compare
+      var unsatisfied: ACV.Vector
+          todo: VAV.Vector
+          v: Variable
+          i: integer
+          c: AbstractConstraint
+          iter1: FI
+          iter2: IC
   begin
     unsatisfied := ACV.create()
 
@@ -574,14 +574,14 @@ module DeltaBlue
     while ~todo.isEmpty() do
       v := todo.removeFirst()
 
-		for i := 0 to v.constraints.getSize()-1 do
-			c := v.constraints.at(i)
+        for i := 0 to v.constraints.getSize()-1 do
+            c := v.constraints.at(i)
         if ~c.isSatisfied() then
-	        unsatisfied.append(c)
-	     end
-	   end
+            unsatisfied.append(c)
+         end
+       end
 
-		iter1.todo := todo
+        iter1.todo := todo
       this.constraintsConsuming(v, iter1)
     end
 
@@ -603,21 +603,21 @@ module DeltaBlue
   // extremes.
   //
   proc chainTest(n: integer)
-	  var planner: Planner 
-			  vars: pointer to array of Variable
-			  i: integer
-			  v1, v2: Variable
-			  dummy: EqualityConstraint
-			  editC: EditConstraint
-			  editV: ACV.Vector
-			  plan: Plan 
-			  dummy2: StayConstraint
+      var planner: Planner 
+              vars: pointer to array of Variable
+              i: integer
+              v1, v2: Variable
+              dummy: EqualityConstraint
+              editC: EditConstraint
+              editV: ACV.Vector
+              plan: Plan 
+              dummy2: StayConstraint
   begin
     planner := createPlanner()
     new(vars, n + 1)
     for i := 0 to n do
-	    vars[i] := value(0)
-	 end
+        vars[i] := value(0)
+     end
 
     // Build chain of n equality constraints
     for i := 0 to n-1 do
@@ -647,12 +647,12 @@ module DeltaBlue
   // mapping and to change the scale and offset factors.
   //
   proc projectionTest(n: integer)
-	  var planner: Planner
-		  dests: VAV.Vector
-		  scale, offset, src, dst: Variable
-		  i: integer
-		  dummy1: StayConstraint
-		  dummy2: ScaleConstraint
+      var planner: Planner
+          dests: VAV.Vector
+          scale, offset, src, dst: Variable
+          i: integer
+          dummy1: StayConstraint
+          dummy2: ScaleConstraint
   begin
     planner := createPlanner()
 
@@ -696,23 +696,23 @@ module DeltaBlue
   
   ////////////////// UnaryConstraint ///////////////////7
   type
-	  UnaryConstraint = pointer to record(AbstractConstraint) 
-									  output: Variable
-									  satisfied: boolean
-									  end
+      UnaryConstraint = pointer to record(AbstractConstraint) 
+                                      output: Variable
+                                      satisfied: boolean
+                                      end
   
   proc (this:UnaryConstraint) initUnaryConstraint(v: Variable; strength: Sym; planner: Planner)
   begin
-	  this.initAbstractConstraint(strength)
-	  this.output := v
-	  this.addConstraint(planner)
+      this.initAbstractConstraint(strength)
+      this.output := v
+      this.addConstraint(planner)
   end initUnaryConstraint
   
   proc (this: UnaryConstraint) isSatisfied(): boolean return this.satisfied end
   
   proc (this: UnaryConstraint) addToGraph() 
   begin
-	  this.output.addConstraint(this)
+      this.output.addConstraint(this)
      this.satisfied := false
   end addToGraph
 
@@ -733,7 +733,7 @@ module DeltaBlue
   
   proc (this: UnaryConstraint) markUnsatisfied()
   begin
-	  this.satisfied := false
+      this.satisfied := false
   end markUnsatisfied
   
   proc (this: UnaryConstraint) getOutput(): Variable return this.output end
@@ -751,14 +751,14 @@ module DeltaBlue
   // I am a unary input constraint used to mark a variable that the
   // client wishes to change.
   type
-	  EditConstraint = pointer to record(UnaryConstraint) end
-	  
+      EditConstraint = pointer to record(UnaryConstraint) end
+      
   proc createEditConstraint(v: Variable; strength: Sym; planner: Planner):EditConstraint
-	  var this: EditConstraint
+      var this: EditConstraint
   begin
-	  new(this)
-	  this.initUnaryConstraint(v,strength,planner)
-	  return this
+      new(this)
+      this.initUnaryConstraint(v,strength,planner)
+      return this
   end createEditConstraint
  
   proc (this: EditConstraint) isInput(): boolean return true end
@@ -767,32 +767,32 @@ module DeltaBlue
   
   ///////////// StayConstraint ////////////////////
   type
-	  StayConstraint = pointer to record(UnaryConstraint) end
+      StayConstraint = pointer to record(UnaryConstraint) end
   
   proc createStayConstraint(v: Variable; strength: Sym; planner: Planner):StayConstraint
-	  var this: StayConstraint
+      var this: StayConstraint
   begin
-	  new(this)
-	  this.initUnaryConstraint(v,strength,planner)
-	  return this
+      new(this)
+      this.initUnaryConstraint(v,strength,planner)
+      return this
   end createStayConstraint
   
   // execute() // Stay constraints do nothing.
   
   //////////////// BinaryConstraint /////////////////
   type
-	  BinaryConstraint = pointer to record(AbstractConstraint)
-									  v1,v2: Variable
-									  direction: Direction
-									end
-								
+      BinaryConstraint = pointer to record(AbstractConstraint)
+                                      v1,v2: Variable
+                                      direction: Direction
+                                    end
+                                
   proc (this: BinaryConstraint) initBinaryConstraint(var1, var2: Variable;
       strength: Sym; planner: Planner )
   begin
-	  this.initAbstractConstraint(strength)
-	  this.v1 := var1
-	  this.v2 := var2
-	  this.direction := INVALID
+      this.initAbstractConstraint(strength)
+      this.v1 := var1
+      this.v2 := var2
+      this.direction := INVALID
   end initBinaryConstraint
   
   proc (this: BinaryConstraint) isSatisfied(): boolean return this.direction # INVALID end
@@ -876,28 +876,28 @@ module DeltaBlue
       return fn.test(this.v1)
     else
       return fn.test(this.v2)
-    end	  
+    end      
   end inputsHasOne
 
   proc (this: BinaryConstraint) markUnsatisfied() 
   begin
-	  this.direction := INVALID
+      this.direction := INVALID
   end markUnsatisfied
 
   proc (this: BinaryConstraint) getOutput(): Variable 
   begin
-	  if this.direction = FORWARD then
-		  return this.v2
-	  else
-		  return this.v1
-	  end
+      if this.direction = FORWARD then
+          return this.v2
+      else
+          return this.v1
+      end
   end getOutput
   
   // Calculate the walkabout strength, the stay flag, and, if it is
   // 'stay', the value for the current output of this
   // constraint. Assume this constraint is satisfied.
   proc (this: BinaryConstraint) recalculate() 
-	  var in_,out_: Variable
+      var in_,out_: Variable
   begin
     if this.direction = FORWARD then
       in_ := this.v1; out_ := this.v2
@@ -915,15 +915,15 @@ module DeltaBlue
   ///////////////// EqualityConstraint //////////////////
   // I constrain two variables to have the same value: "v1 = v2".
   type
-	  EqualityConstraint = pointer to record(BinaryConstraint) end
-	 
+      EqualityConstraint = pointer to record(BinaryConstraint) end
+     
   proc createEqualityConstraint(var1, var2: Variable; strength: Sym; planner: Planner):EqualityConstraint
-	  var this: EqualityConstraint
+      var this: EqualityConstraint
   begin
-	  new(this)
-	  this.initBinaryConstraint(var1,var2,strength, planner)
-	  this.addConstraint(planner)
-	  return this
+      new(this)
+      this.initBinaryConstraint(var1,var2,strength, planner)
+      this.addConstraint(planner)
+      return this
   end createEqualityConstraint
   
   proc (this: EqualityConstraint) execute() 
@@ -936,24 +936,24 @@ module DeltaBlue
   end execute
 
   ///////////////// ScaleConstraint //////////////////
-	// I relate two variables by the linear scaling relationship: "v2 =
-	// (v1 * scale) + offset". Either v1 or v2 may be changed to maintain
-	// this relationship but the scale factor and offset are considered
-	// read-only.
+    // I relate two variables by the linear scaling relationship: "v2 =
+    // (v1 * scale) + offset". Either v1 or v2 may be changed to maintain
+    // this relationship but the scale factor and offset are considered
+    // read-only.
   type
-	  ScaleConstraint = pointer to record(BinaryConstraint) 
-										  scale, offset: Variable
-									  end
+      ScaleConstraint = pointer to record(BinaryConstraint) 
+                                          scale, offset: Variable
+                                      end
   proc createScaleConstraint(src,scale,offset,dest: Variable; 
-					  strength: Sym; planner: Planner ): ScaleConstraint
-	  var this: ScaleConstraint
+                      strength: Sym; planner: Planner ): ScaleConstraint
+      var this: ScaleConstraint
   begin
-	  new(this)
-	  this.initBinaryConstraint(src, dest, strength, planner)
+      new(this)
+      this.initBinaryConstraint(src, dest, strength, planner)
      this.scale := scale
      this.offset := offset
      this.addConstraint(planner)
-	  return this
+      return this
   end createScaleConstraint
   
   proc (this: ScaleConstraint) addToGraph() 
@@ -1000,7 +1000,7 @@ module DeltaBlue
   // 'stay', the value for the current output of this
   // constraint. Assume this constraint is satisfied.
   proc (this: ScaleConstraint) recalculate() 
-	  var in_, out: Variable
+      var in_, out: Variable
   begin
     if this.direction = FORWARD then
       in_  := this.v1; out := this.v2
@@ -1016,16 +1016,16 @@ module DeltaBlue
   end recalculate
 
 begin
-	ABSOLUTE_STRONGEST := createSym(0)
-	REQUIRED := createSym(1)
-	STRONG_PREFERRED := createSym(2)
-	PREFERRED := createSym(3)
-	STRONG_DEFAULT := createSym(4)
-	DEFAULT := createSym(5)
-	WEAK_DEFAULT := createSym(6)
-	ABSOLUTE_WEAKEST := createSym(7)
-	
-	 strengthTable := SID.create(symHash)
+    ABSOLUTE_STRONGEST := createSym(0)
+    REQUIRED := createSym(1)
+    STRONG_PREFERRED := createSym(2)
+    PREFERRED := createSym(3)
+    STRONG_DEFAULT := createSym(4)
+    DEFAULT := createSym(5)
+    WEAK_DEFAULT := createSym(6)
+    ABSOLUTE_WEAKEST := createSym(7)
+    
+     strengthTable := SID.create(symHash)
     strengthTable.atPut(ABSOLUTE_STRONGEST, long(-10000))
     strengthTable.atPut(REQUIRED,           long(-800))
     strengthTable.atPut(STRONG_PREFERRED,   long(-600))
@@ -1035,7 +1035,7 @@ begin
     strengthTable.atPut(WEAK_DEFAULT,       long(500))
     strengthTable.atPut(ABSOLUTE_WEAKEST,   long(10000))
 
-	 strengthConstant := SSD.create(symHash)
+     strengthConstant := SSD.create(symHash)
     strengthConstant.atPut(ABSOLUTE_STRONGEST, createStrength(ABSOLUTE_STRONGEST))
     required          := createStrength(REQUIRED)
     strengthConstant.atPut(REQUIRED,           required)
@@ -1044,7 +1044,7 @@ begin
     strengthConstant.atPut(STRONG_DEFAULT,     createStrength(STRONG_DEFAULT))
     strengthConstant.atPut(DEFAULT,            createStrength(DEFAULT))
     strengthConstant.atPut(WEAK_DEFAULT,       createStrength(WEAK_DEFAULT))
-	 absoluteWeakest   := createStrength(ABSOLUTE_WEAKEST)
+     absoluteWeakest   := createStrength(ABSOLUTE_WEAKEST)
     strengthConstant.atPut(ABSOLUTE_WEAKEST,   absoluteWeakest)
        
 end DeltaBlue

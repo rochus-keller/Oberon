@@ -23,18 +23,18 @@
 
 module IdentitySet<E>
 
-	import S := Set<E>
-	
-	type
-		IdentitySet* = S.Set
-		
-	// NOTE this is identical to Set; don't know why a separate module is implemented,
-	// overriding 'contains' makes no sense, Set.contains is identical
-	
-	proc create*(): IdentitySet
-		return S.create() end
-	
-	proc createWithSize*(size: integer): IdentitySet
-		return S.createWithSize(size) end
+    import S := Set<E>
+    
+    type
+        IdentitySet* = S.Set
+        
+    // NOTE this is identical to Set; don't know why a separate module is implemented,
+    // overriding 'contains' makes no sense, Set.contains is identical
+    
+    proc create*(): IdentitySet
+        return S.create() end
+    
+    proc createWithSize*(size: integer): IdentitySet
+        return S.createWithSize(size) end
 
 end IdentitySet

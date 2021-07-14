@@ -24,39 +24,39 @@
 // this version uses value records where possible
 module CD
 
-	import B := Benchmark, Out
+    import B := Benchmark, Out
 
-	type
-		CD = pointer to record (B.Benchmark) end
+    type
+        CD = pointer to record (B.Benchmark) end
 
-	proc create*(): CD
-		var c : CD
-	begin
-		new(c)
-		return c
-	end create
+    proc create*(): CD
+        var c : CD
+    begin
+        new(c)
+        return c
+    end create
 
-	proc (this: CD) benchmark(): B.Result
-	begin
-	   assert(false) // Should never be reached
-		return nil
-	end benchmark
-	
-	proc (this: CD) verifyResult( result: B.Result ): boolean 
-	begin
-		assert(false) // Should never be reached
-		return false
-	end verifyResult
+    proc (this: CD) benchmark(): B.Result
+    begin
+       assert(false) // Should never be reached
+        return nil
+    end benchmark
+    
+    proc (this: CD) verifyResult( result: B.Result ): boolean 
+    begin
+        assert(false) // Should never be reached
+        return false
+    end verifyResult
 
-	proc benchmark2(numAircrafts: integer ): integer
-		const numFrames = 200
-		var simulator: Simulator
-			detector: CollisionDetector
-			actualCollisions, i: integer
-			time: longreal
-			collisions: OV.Vector
-	begin
-	   simulator := createSimulator(numAircrafts)
+    proc benchmark2(numAircrafts: integer ): integer
+        const numFrames = 200
+        var simulator: Simulator
+            detector: CollisionDetector
+            actualCollisions, i: integer
+            time: longreal
+            collisions: OV.Vector
+    begin
+       simulator := createSimulator(numAircrafts)
       detector := createCD()
 
       actualCollisions := 0
@@ -69,11 +69,11 @@ module CD
       return actualCollisions
    end benchmark2
   
-	proc (this: CD) innerBenchmarkLoop*(innerIterations: integer): boolean
-	begin
-		if innerIterations < 2 then innerIterations := 2 end
-		return verifyResult2(benchmark2(innerIterations), innerIterations) 
-	end innerBenchmarkLoop
+    proc (this: CD) innerBenchmarkLoop*(innerIterations: integer): boolean
+    begin
+        if innerIterations < 2 then innerIterations := 2 end
+        return verifyResult2(benchmark2(innerIterations), innerIterations) 
+    end innerBenchmarkLoop
 
   proc verifyResult2(actualCollisions, numAircrafts: integer ): boolean
   begin
@@ -95,205 +95,205 @@ module CD
     return false
   end verifyResult2
 
-	/////////////////////////////////////////////////////////
-	
-	import Math
-		CV := som.Vector<CallSign>
-		AV := som.Vector<Aircraft>
-		MV := som.Vector<Motion>
-		OV := som.Vector<Collision>
-		VV := som.Vector<MV.Vector>
-		RCV := som.RedBlackTree<CallSign, Vector3D>
-		RVV := som.RedBlackTree<Vector2D,MV.Vector>
-		RVB := som.RedBlackTree<Vector2D, boolean>
-		RCB := som.RedBlackTree<CallSign, boolean>
+    /////////////////////////////////////////////////////////
+    
+    import Math
+        CV := som.Vector<CallSign>
+        AV := som.Vector<Aircraft>
+        MV := som.Vector<Motion>
+        OV := som.Vector<Collision>
+        VV := som.Vector<MV.Vector>
+        RCV := som.RedBlackTree<CallSign, Vector3D>
+        RVV := som.RedBlackTree<Vector2D,MV.Vector>
+        RVB := som.RedBlackTree<Vector2D, boolean>
+        RCB := som.RedBlackTree<CallSign, boolean>
 
-	const
-		MIN_X = 0.0
-		MIN_Y = 0.0
-		MAX_X = 1000.0
-		MAX_Y = 1000.0
-		MIN_Z = 0.0
-		MAX_Z = 10.0
-		PROXIMITY_RADIUS = 1.0
-		GOOD_VOXEL_SIZE  = PROXIMITY_RADIUS * 2.0
+    const
+        MIN_X = 0.0
+        MIN_Y = 0.0
+        MAX_X = 1000.0
+        MAX_Y = 1000.0
+        MIN_Z = 0.0
+        MAX_Z = 10.0
+        PROXIMITY_RADIUS = 1.0
+        GOOD_VOXEL_SIZE  = PROXIMITY_RADIUS * 2.0
 
-	/////// Vector2D ////////////////////////
-	type 
-		Vector2D* = record x*,y*: longreal end
-	
-	proc (in this: Vector2D) plus( in other: Vector2D ): Vector2D
-		var res: Vector2D
-	begin
-		res.x := this.x + other.x
-		res.y := this.y + other.y
-		return res
-	end plus
-	
-	proc (in this: Vector2D) minus( in other: Vector2D ): Vector2D
-		var res: Vector2D
-	begin
-		res.x := this.x - other.x
-		res.y := this.y - other.y
-		return res
-	end minus
-	
-	proc compareVector2D*( in lhs, rhs: Vector2D ): integer
-		var result: integer
-	begin
+    /////// Vector2D ////////////////////////
+    type 
+        Vector2D* = record x*,y*: longreal end
+    
+    proc (in this: Vector2D) plus( in other: Vector2D ): Vector2D
+        var res: Vector2D
+    begin
+        res.x := this.x + other.x
+        res.y := this.y + other.y
+        return res
+    end plus
+    
+    proc (in this: Vector2D) minus( in other: Vector2D ): Vector2D
+        var res: Vector2D
+    begin
+        res.x := this.x - other.x
+        res.y := this.y - other.y
+        return res
+    end minus
+    
+    proc compareVector2D*( in lhs, rhs: Vector2D ): integer
+        var result: integer
+    begin
     result := compareNumbers(lhs.x, rhs.x)
     if result # 0 then
       return result
     end
     return compareNumbers(lhs.y, rhs.y)
-	end compareVector2D 
-	
-	proc compareNumbers(a,b: longreal): integer
-	begin
-	    if a = b then
-	      return 0
-	    end
-	    if a < b then
-	      return -1
-	    end
-	    if a > b then
-	      return 1
-	    end
-	
-	    // We say that NaN is smaller than non-NaN.
-	    if a = a then
-	      return 1
-	    end
-	    return -1
+    end compareVector2D 
+    
+    proc compareNumbers(a,b: longreal): integer
+    begin
+        if a = b then
+          return 0
+        end
+        if a < b then
+          return -1
+        end
+        if a > b then
+          return 1
+        end
+    
+        // We say that NaN is smaller than non-NaN.
+        if a = a then
+          return 1
+        end
+        return -1
    end compareNumbers
-	
-	///////// Vector3D ////////
-	type
-		Vector3D = record x,y,z: longreal end
-		
-	proc (in this: Vector3D) plus( in other: Vector3D ): Vector3D
-		var res: Vector3D
-	begin
-		res.x := this.x + other.x
-		res.y := this.y + other.y
-		res.z := this.z + other.z
-		return res
-	end plus
-	
-	proc (in this: Vector3D) minus( in other: Vector3D ): Vector3D
-		var res: Vector3D
-	begin
-		res.x := this.x - other.x
-		res.y := this.y - other.y
-		res.z := this.z - other.z
-		return res
-	end minus
-	
-	proc (in this: Vector3D) times( amount: longreal ): Vector3D
-		var res: Vector3D
-	begin
-		res.x := this.x * amount
-		res.y := this.y * amount
-		res.z := this.z * amount
-		return res
-	end times
-	
-	proc (in this: Vector3D) dot(in other: Vector3D): longreal
-	    return this.x * other.x + this.y * other.y + this.z * other.z end
+    
+    ///////// Vector3D ////////
+    type
+        Vector3D = record x,y,z: longreal end
+        
+    proc (in this: Vector3D) plus( in other: Vector3D ): Vector3D
+        var res: Vector3D
+    begin
+        res.x := this.x + other.x
+        res.y := this.y + other.y
+        res.z := this.z + other.z
+        return res
+    end plus
+    
+    proc (in this: Vector3D) minus( in other: Vector3D ): Vector3D
+        var res: Vector3D
+    begin
+        res.x := this.x - other.x
+        res.y := this.y - other.y
+        res.z := this.z - other.z
+        return res
+    end minus
+    
+    proc (in this: Vector3D) times( amount: longreal ): Vector3D
+        var res: Vector3D
+    begin
+        res.x := this.x * amount
+        res.y := this.y * amount
+        res.z := this.z * amount
+        return res
+    end times
+    
+    proc (in this: Vector3D) dot(in other: Vector3D): longreal
+        return this.x * other.x + this.y * other.y + this.z * other.z end
 
-	proc (in this: Vector3D) squaredMagnitude(): longreal
-	    return this.dot(this) end
+    proc (in this: Vector3D) squaredMagnitude(): longreal
+        return this.dot(this) end
   
-	proc (in this: Vector3D) magnitude(): longreal
-	    return Math.sqrt(short(this.squaredMagnitude())) end
+    proc (in this: Vector3D) magnitude(): longreal
+        return Math.sqrt(short(this.squaredMagnitude())) end
   
    ///////// CallSign /////////////
    type 
-	   CallSign = record value: integer end
-	   
-	proc compareCallSign( in lhs, rhs: CallSign ): integer
-	begin
-		if lhs.value = rhs.value then
-			return 0
-		elsif lhs.value < rhs.value then
-			return -1
-		else
-			return 1
-		end
-	end compareCallSign
-	
-	///////// Aircraft ////////////
-	type
-		Aircraft = record callsign: CallSign; position: Vector3D end
-		
-	//////// Collision /////////////
-	type 
-		Collision = record 
-							aircraftA, aircraftB: CallSign
-							position: Vector3D
-						end
-	
-	//////// Simulator ////////////
-	type
-		Simulator = pointer to record aircraft: CV.Vector end					
-	
-	proc createSimulator(numAircraft: integer): Simulator
-		var sim: Simulator
-			i: integer
-			cs: CallSign
-	begin
-		new(sim)
-		sim.aircraft := CV.create()
-		for i := 0 to numAircraft-1 do
-			cs.value := i
-			sim.aircraft.append(cs)
-		end
-		return sim
-	end createSimulator
-	
-	proc (this: Simulator) simulate(time: longreal): AV.Vector
-		var frame: AV.Vector
-			i: integer
-			ac: Aircraft
-	begin
-		frame := AV.create()
-		for i := 0 to this.aircraft.getSize()-1 by 2 do
-			ac.callsign := this.aircraft.at(i)
-			ac.position.x := time
-			ac.position.y := Math.cos(short(time)) * 2.0 + flt(i) * 3.0
-			ac.position.z := 10
-	      frame.append(ac)
-			ac.callsign := this.aircraft.at(i+1)
-			ac.position.y := Math.sin(short(time)) * 2.0 + flt(i) * 3.0
-	      frame.append(ac)
+       CallSign = record value: integer end
+       
+    proc compareCallSign( in lhs, rhs: CallSign ): integer
+    begin
+        if lhs.value = rhs.value then
+            return 0
+        elsif lhs.value < rhs.value then
+            return -1
+        else
+            return 1
+        end
+    end compareCallSign
+    
+    ///////// Aircraft ////////////
+    type
+        Aircraft = record callsign: CallSign; position: Vector3D end
+        
+    //////// Collision /////////////
+    type 
+        Collision = record 
+                            aircraftA, aircraftB: CallSign
+                            position: Vector3D
+                        end
+    
+    //////// Simulator ////////////
+    type
+        Simulator = pointer to record aircraft: CV.Vector end                    
+    
+    proc createSimulator(numAircraft: integer): Simulator
+        var sim: Simulator
+            i: integer
+            cs: CallSign
+    begin
+        new(sim)
+        sim.aircraft := CV.create()
+        for i := 0 to numAircraft-1 do
+            cs.value := i
+            sim.aircraft.append(cs)
+        end
+        return sim
+    end createSimulator
+    
+    proc (this: Simulator) simulate(time: longreal): AV.Vector
+        var frame: AV.Vector
+            i: integer
+            ac: Aircraft
+    begin
+        frame := AV.create()
+        for i := 0 to this.aircraft.getSize()-1 by 2 do
+            ac.callsign := this.aircraft.at(i)
+            ac.position.x := time
+            ac.position.y := Math.cos(short(time)) * 2.0 + flt(i) * 3.0
+            ac.position.z := 10
+          frame.append(ac)
+            ac.callsign := this.aircraft.at(i+1)
+            ac.position.y := Math.sin(short(time)) * 2.0 + flt(i) * 3.0
+          frame.append(ac)
       end
-		return frame
-	end simulate
-	
-	/////////// Motion /////////////////
-	type
-		Motion = pointer to record
-						callsign: CallSign
-						posOne, posTwo: Vector3D
-					end
-					
-	proc createMotion( in callsign: CallSign; in posOne, posTwo: Vector3D ): Motion
-		var m: Motion
-	begin
-		new(m)
-		m.callsign := callsign
-		m.posOne := posOne
-		m.posTwo := posTwo
-		return m
-	end createMotion
-	
-	proc (this: Motion) delta(): Vector3D
+        return frame
+    end simulate
+    
+    /////////// Motion /////////////////
+    type
+        Motion = pointer to record
+                        callsign: CallSign
+                        posOne, posTwo: Vector3D
+                    end
+                    
+    proc createMotion( in callsign: CallSign; in posOne, posTwo: Vector3D ): Motion
+        var m: Motion
+    begin
+        new(m)
+        m.callsign := callsign
+        m.posOne := posOne
+        m.posTwo := posTwo
+        return m
+    end createMotion
+    
+    proc (this: Motion) delta(): Vector3D
     return this.posTwo.minus(this.posOne) end
 
-	proc (this: Motion) findIntersection(other: Motion; var result: Vector3D ): boolean
-		var init1, init2, vec1, vec2, result1, result2: Vector3D
-			radius, a, b, c, discr, v, v1, v2, dist: longreal
-	begin
+    proc (this: Motion) findIntersection(other: Motion; var result: Vector3D ): boolean
+        var init1, init2, vec1, vec2, result1, result2: Vector3D
+            radius, a, b, c, discr, v, v1, v2, dist: longreal
+    begin
     init1 := this.posOne
     init2 := other.posOne
     vec1 := this.delta()
@@ -389,64 +389,64 @@ module CD
 
     return false
   end findIntersection
-    	
+        
   //////////// CollisionDetector //////////////
   type
-	  CollisionDetector = pointer to record state: RCV.RedBlackTree end
-	  
+      CollisionDetector = pointer to record state: RCV.RedBlackTree end
+      
    proc createCD(): CollisionDetector
-	  var cd: CollisionDetector
-	begin
-		new(cd)
-		cd.state := RCV.create(compareCallSign)
-		return cd
-	end createCD
-	
-	var horizontal, vertical: Vector2D
-	
-	proc (this: CollisionDetector) handleNewFrame(frame: AV.Vector): OV.Vector
-	  type
-		  ForEachInterface = record (RCV.ForEachInterface) 
-									  toRemove: CV.Vector 
-									  seen: RCB.RedBlackTree
-									  end
-	  
-	  proc (var this: ForEachInterface) apply(in elem: RCV.Entry) 
-	  begin
-		  if ~this.seen.get(elem.key) then
-		     this.toRemove.append(elem.key)
-		  end      
-	  end apply
+      var cd: CollisionDetector
+    begin
+        new(cd)
+        cd.state := RCV.create(compareCallSign)
+        return cd
+    end createCD
+    
+    var horizontal, vertical: Vector2D
+    
+    proc (this: CollisionDetector) handleNewFrame(frame: AV.Vector): OV.Vector
+      type
+          ForEachInterface = record (RCV.ForEachInterface) 
+                                      toRemove: CV.Vector 
+                                      seen: RCB.RedBlackTree
+                                      end
+      
+      proc (var this: ForEachInterface) apply(in elem: RCV.Entry) 
+      begin
+          if ~this.seen.get(elem.key) then
+             this.toRemove.append(elem.key)
+          end      
+      end apply
 
-		var motions: MV.Vector
-			seen: RCB.RedBlackTree
-			i,j,k: integer
-			aircraft: Aircraft
-			oldPosition, newPosition: Vector3D
-			toRemove: CV.Vector
-			collisions: OV.Vector
-			dummy: boolean
-			dummy2: Vector3D
-			it: ForEachInterface
-			allReduced: VV.Vector
-			reduced: MV.Vector
-			motion1, motion2: Motion
-			collisionPos: Vector3D
-			collision: Collision
-			newEntry: boolean
-	begin
+        var motions: MV.Vector
+            seen: RCB.RedBlackTree
+            i,j,k: integer
+            aircraft: Aircraft
+            oldPosition, newPosition: Vector3D
+            toRemove: CV.Vector
+            collisions: OV.Vector
+            dummy: boolean
+            dummy2: Vector3D
+            it: ForEachInterface
+            allReduced: VV.Vector
+            reduced: MV.Vector
+            motion1, motion2: Motion
+            collisionPos: Vector3D
+            collision: Collision
+            newEntry: boolean
+    begin
     motions := MV.create()
     seen := RCB.create(compareCallSign)
 
-	 for i := 0 to frame.getSize()-1 do
-		 aircraft := frame.at(i)
+     for i := 0 to frame.getSize()-1 do
+         aircraft := frame.at(i)
        oldPosition := this.state.putChecked(aircraft.callsign, aircraft.position, newEntry)
        newPosition := aircraft.position;
        dummy := seen.put(aircraft.callsign, true)
 
-	    if newEntry then 
+        if newEntry then 
            // Treat newly introduced aircraft as if they were stationary.
-	        oldPosition := newPosition
+            oldPosition := newPosition
        end
        motions.append(createMotion(aircraft.callsign,oldPosition,newPosition))
     end
@@ -457,23 +457,23 @@ module CD
     it.seen := seen
     this.state.forEach(it)
     
-	 for i := 0 to toRemove.getSize()-1 do
-		 dummy2 := this.state.remove(toRemove.at(i))
-	 end
+     for i := 0 to toRemove.getSize()-1 do
+         dummy2 := this.state.remove(toRemove.at(i))
+     end
 
     allReduced := reduceCollisionSet(motions)
     collisions := OV.create()
     
     for k := 0 to allReduced.getSize()-1 do
-	   reduced := allReduced.at(k)
+       reduced := allReduced.at(k)
       for i := 0 to reduced.getSize()-1 do
         motion1 := reduced.at(i)
         for j := i + 1 to reduced.getSize()-1 do
           motion2 := reduced.at(j)
           if motion1.findIntersection(motion2,collisionPos) then
-	         collision.aircraftA := motion1.callsign
- 	         collision.aircraftB := motion2.callsign
- 	         collision.position := collisionPos
+             collision.aircraftA := motion1.callsign
+              collision.aircraftB := motion2.callsign
+              collision.position := collisionPos
             collisions.append(collision)
           end
         end
@@ -482,12 +482,12 @@ module CD
 
     return collisions
   end handleNewFrame
-	
-	proc isInVoxel(in voxel: Vector2D; motion: Motion ): boolean
-		var init, fin: Vector3D
-			v_s, r, v_x, x0, xv, v_y, y0, yv, low_x, high_x, tmp,
-				low_y, high_y: longreal
-	begin
+    
+    proc isInVoxel(in voxel: Vector2D; motion: Motion ): boolean
+        var init, fin: Vector3D
+            v_s, r, v_x, x0, xv, v_y, y0, yv, low_x, high_x, tmp,
+                low_y, high_y: longreal
+    begin
     if (voxel.x > MAX_X) or
         (voxel.x < MIN_X) or
         (voxel.y > MAX_Y) or
@@ -540,7 +540,7 @@ module CD
   end isInVoxel
 
   proc putIntoMap( voxelMap: RVV.RedBlackTree; in voxel: Vector2D; motion: Motion)
-	  var arr, dummy: MV.Vector
+      var arr, dummy: MV.Vector
   begin
     arr := voxelMap.get(voxel)
     if arr = nil then
@@ -551,25 +551,25 @@ module CD
   end putIntoMap
 
   proc reduceCollisionSet(motions: MV.Vector): VV.Vector
-	  type
-		  ForEachInterface = record (RVV.ForEachInterface) result: VV.Vector end
-	  
-	  proc (var this: ForEachInterface) apply(in elem: RVV.Entry) 
-	  begin
-		  if elem.value.getSize() > 1 then
-			  this.result.append(elem.value)
-		  end
-	  end apply
-	  
-	  var voxelMap: RVV.RedBlackTree
-		  result: VV.Vector
-		  i: integer
-		  it: ForEachInterface
+      type
+          ForEachInterface = record (RVV.ForEachInterface) result: VV.Vector end
+      
+      proc (var this: ForEachInterface) apply(in elem: RVV.Entry) 
+      begin
+          if elem.value.getSize() > 1 then
+              this.result.append(elem.value)
+          end
+      end apply
+      
+      var voxelMap: RVV.RedBlackTree
+          result: VV.Vector
+          i: integer
+          it: ForEachInterface
   begin
     voxelMap := RVV.create(compareVector2D)
     
     for i := 0 to motions.getSize()-1 do
-	    drawMotionOnVoxelMap(voxelMap, motions.at(i))
+        drawMotionOnVoxelMap(voxelMap, motions.at(i))
     end
     
     result := VV.create()
@@ -580,7 +580,7 @@ module CD
   end reduceCollisionSet
   
   proc recurse( voxelMap: RVV.RedBlackTree; seen: RVB.RedBlackTree; 
-				  in nextVoxel: Vector2D; motion: Motion )
+                  in nextVoxel: Vector2D; motion: Motion )
   begin
     if ~isInVoxel(nextVoxel, motion) then
       return
@@ -603,9 +603,9 @@ module CD
   end recurse
   
   proc voxelHash(in position: Vector3D ): Vector2D 
-	  var xDiv, yDiv: integer
-		  x,y: longreal
-		  res: Vector2D
+      var xDiv, yDiv: integer
+          x,y: longreal
+          res: Vector2D
   begin
     xDiv := floor(short(position.x / GOOD_VOXEL_SIZE))
     yDiv := floor(short(position.y / GOOD_VOXEL_SIZE))
@@ -620,22 +620,22 @@ module CD
       y := y - GOOD_VOXEL_SIZE
     end
 
-	 res.x := x
-	 res.y := y
-	 return res
+     res.x := x
+     res.y := y
+     return res
   end voxelHash
   
   proc drawMotionOnVoxelMap( voxelMap: RVV.RedBlackTree; motion: Motion )
-	  var seen: RVB.RedBlackTree
+      var seen: RVB.RedBlackTree
   begin
-	  seen := RVB.create(compareVector2D)
+      seen := RVB.create(compareVector2D)
      recurse(voxelMap, seen, voxelHash(motion.posOne), motion)
   end drawMotionOnVoxelMap
   
   
 begin
-	horizontal.x := GOOD_VOXEL_SIZE
-	horizontal.y := 0.0
-	vertical.x := 0.0
-	vertical.y := GOOD_VOXEL_SIZE	
+    horizontal.x := GOOD_VOXEL_SIZE
+    horizontal.y := 0.0
+    vertical.x := 0.0
+    vertical.y := GOOD_VOXEL_SIZE    
 end CD

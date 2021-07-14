@@ -1,56 +1,56 @@
 module Main
-	(* This is a suite of benchmarks that are relatively short, both in program
-	   size and execution time.  It requires no input, and prints the execution
-	   time for each program, using the system- dependent routine Getclock,
-	   below, to find out the current CPU time.  It does a rudimentary check to
-	   make sure each program gets the right output.  These programs were
-	   gathered by John Hennessy and modified by Peter Nye.
-	   
-	   Oberon: J.Templ 26.2.90
-	   native Oberon: pm 09.12.95
-	   native Oberon OP2: pm 12.02.96
-	   
-	   2019-10-06 Rochus: Oberon-07 and Oakwood compatibility 
-	   2021-03-10 Rochus: Oberon+ migration
-	   *)
-	   
-	import Util, Out,
-		Perm, Towers, Queens, Quick,
-		Intmm, Mm, Bubble, Trees, Oscar
-		
-	type Proc = proc 
+    (* This is a suite of benchmarks that are relatively short, both in program
+       size and execution time.  It requires no input, and prints the execution
+       time for each program, using the system- dependent routine Getclock,
+       below, to find out the current CPU time.  It does a rudimentary check to
+       make sure each program gets the right output.  These programs were
+       gathered by John Hennessy and modified by Peter Nye.
+       
+       Oberon: J.Templ 26.2.90
+       native Oberon: pm 09.12.95
+       native Oberon OP2: pm 12.02.96
+       
+       2019-10-06 Rochus: Oberon-07 and Oakwood compatibility 
+       2021-03-10 Rochus: Oberon+ migration
+       *)
+       
+    import Util, Out,
+        Perm, Towers, Queens, Quick,
+        Intmm, Mm, Bubble, Trees, Oscar
+        
+    type Proc = proc 
 
-	proc Time(s: array of char; p: Proc)
-		var 
-			timer: integer
-			i: integer
-	begin 
-		Util.Str(s)
-		i := 0
-		timer := Util.Getclock()
-		while i < 10 do  // TEST orig 10
-			p
-			inc(i) 
-		end 
-		timer := (Util.Getclock() - timer)
-		Out.Int(timer, 8)
-		Out.Ln
-	end Time
-	
+    proc Time(s: array of char; p: Proc)
+        var 
+            timer: integer
+            i: integer
+    begin 
+        Util.Str(s)
+        i := 0
+        timer := Util.Getclock()
+        while i < 10 do  // TEST orig 10
+            p
+            inc(i) 
+        end 
+        timer := (Util.Getclock() - timer)
+        Out.Int(timer, 8)
+        Out.Ln
+    end Time
+    
 begin
-	println("******** start")
-	// BEGIN Benchmarks
-	Time("Perm", Perm.Run) 
-	Time("Towers", Towers.Run)
-	Time("Queens", Queens.Run)
-	Time("Intmm", Intmm.Run)
-	Time("Mm", Mm.Run)
-	// TODO Puzzle missing
-	Time("Quick", Quick.Run)
-	Time("Bubble", Bubble.Run)
-	Time("Trees", Trees.Run)
-	Time("FFT", Oscar.Run)
-	
-	// END Benchmarks
-	println("******** done")
+    println("******** start")
+    // BEGIN Benchmarks
+    Time("Perm", Perm.Run) 
+    Time("Towers", Towers.Run)
+    Time("Queens", Queens.Run)
+    Time("Intmm", Intmm.Run)
+    Time("Mm", Mm.Run)
+    // TODO Puzzle missing
+    Time("Quick", Quick.Run)
+    Time("Bubble", Bubble.Run)
+    Time("Trees", Trees.Run)
+    Time("FFT", Oscar.Run)
+    
+    // END Benchmarks
+    println("******** done")
 end Main

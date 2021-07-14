@@ -23,92 +23,92 @@
  
 module List
 
-	import B := Benchmark
-	
-	type
-		List = pointer to record (B.Benchmark)
-						end
+    import B := Benchmark
+    
+    type
+        List = pointer to record (B.Benchmark)
+                        end
 
-		Element = pointer to record
-						val : integer
-						next : Element
-					end
-					
-	proc (this: Element) length(): integer
-	begin
-		if this.next = nil then
-			return 1
-		else
-			return 1 + this.next.length()
-		end
-	end length
-	
-	proc (this: List) makeList(length: integer): Element
-		var e: Element
-	begin
-		if length = 0 then
-			return nil
-		else 
-			e := createElem(length)
-			e.next := this.makeList(length-1)
-			return e
-		end
-	end makeList
-	
-	proc (this: List) isShorterThan( x y : Element ): boolean
-		var xTail yTail : Element
-	begin
-		xTail := x
-		yTail := y
-		while yTail # nil do
-			if xTail = nil then
-				return true
-			end
-			xTail := xTail.next
-			yTail := yTail.next
-		end
-		return false
-	end isShorterThan
-	
-	proc (this: List) tail( x y z : Element ): Element
-	begin
-		if this.isShorterThan(y,x) then
-			return this.tail( this.tail( x.next, y, z),
+        Element = pointer to record
+                        val : integer
+                        next : Element
+                    end
+                    
+    proc (this: Element) length(): integer
+    begin
+        if this.next = nil then
+            return 1
+        else
+            return 1 + this.next.length()
+        end
+    end length
+    
+    proc (this: List) makeList(length: integer): Element
+        var e: Element
+    begin
+        if length = 0 then
+            return nil
+        else 
+            e := createElem(length)
+            e.next := this.makeList(length-1)
+            return e
+        end
+    end makeList
+    
+    proc (this: List) isShorterThan( x y : Element ): boolean
+        var xTail yTail : Element
+    begin
+        xTail := x
+        yTail := y
+        while yTail # nil do
+            if xTail = nil then
+                return true
+            end
+            xTail := xTail.next
+            yTail := yTail.next
+        end
+        return false
+    end isShorterThan
+    
+    proc (this: List) tail( x y z : Element ): Element
+    begin
+        if this.isShorterThan(y,x) then
+            return this.tail( this.tail( x.next, y, z),
              this.tail( y.next, z, x),
              this.tail( z.next, x, y) )
-		else
-			return z
-		end
-	end tail
-	
-	proc createElem(val: integer): Element
-		var e: Element
-	begin
-		new(e)
-		e.val := val
-		return e
-	end createElem
-				
-	proc create*(): List
-		var b : List
-	begin
-		new(b)
-		return b
-	end create
-	
-	proc (this: List) benchmark(): B.Result
-		var result: Element
-			res : B.IntResult
-	begin
-	   result := this.tail(this.makeList(15), this.makeList(10), this.makeList(6))
-		new(res)
-		res.res := result.length()
-		return res
-	end benchmark
+        else
+            return z
+        end
+    end tail
+    
+    proc createElem(val: integer): Element
+        var e: Element
+    begin
+        new(e)
+        e.val := val
+        return e
+    end createElem
+                
+    proc create*(): List
+        var b : List
+    begin
+        new(b)
+        return b
+    end create
+    
+    proc (this: List) benchmark(): B.Result
+        var result: Element
+            res : B.IntResult
+    begin
+       result := this.tail(this.makeList(15), this.makeList(10), this.makeList(6))
+        new(res)
+        res.res := result.length()
+        return res
+    end benchmark
 
-	proc (this: List) verifyResult( result: B.Result ): boolean 
-	begin
-		return ( result(B.IntResult).res = 10 )
-	end verifyResult
+    proc (this: List) verifyResult( result: B.Result ): boolean 
+    begin
+        return ( result(B.IntResult).res = 10 )
+    end verifyResult
 
 end List

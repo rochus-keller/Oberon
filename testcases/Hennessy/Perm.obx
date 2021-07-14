@@ -1,68 +1,68 @@
 // see Main.obx
 module Perm
 
-	import Util
-	
-	const
-		permrange = (* 0 .. *)10
+    import Util
+    
+    const
+        permrange = (* 0 .. *)10
 
-	var
-		permarray: array permrange + 1 of integer
-		pctr: integer
+    var
+        permarray: array permrange + 1 of integer
+        pctr: integer
 
-	proc Swap(var a, b: integer)
-		var 
-			t: integer
-	begin 
-		t := a
-		a := b
-		b := t
-	end Swap
-	
-	proc Initialize()
-		var 
-			i: integer
-	begin 
-		i := 1
-		while i <= 7 do 
-			permarray[i] := i - 1
-			inc(i) 
-		end 
-	end Initialize
-	
-	// TODO: the performance varies by factor 20 in sequential runs
-	proc Permute(n: integer)
-		var 
-			k: integer
-	begin 
-		pctr := pctr + 1
-		if (n # 1) then
-			Permute(n - 1)
-			k := n - 1
-			while k >= 1 do 
-				Swap(permarray[n], permarray[k])
-				Permute(n - 1)
-				Swap(permarray[n], permarray[k])
-				dec(k) 
-			end  
-		end 
-	end Permute
-	
-	proc Run*()
-		var 
-			i: integer
-	begin 
-		pctr := 0
-		i := 1
-		while i <= 5 do 
-			Initialize()
-			Permute(7) 
-			inc(i) 
-		end 
-		if pctr # 43300 then
-			Util.Str(" Error in Perm.$") 
-		end 
-	end Run
-	
+    proc Swap(var a, b: integer)
+        var 
+            t: integer
+    begin 
+        t := a
+        a := b
+        b := t
+    end Swap
+    
+    proc Initialize()
+        var 
+            i: integer
+    begin 
+        i := 1
+        while i <= 7 do 
+            permarray[i] := i - 1
+            inc(i) 
+        end 
+    end Initialize
+    
+    // TODO: the performance varies by factor 20 in sequential runs
+    proc Permute(n: integer)
+        var 
+            k: integer
+    begin 
+        pctr := pctr + 1
+        if (n # 1) then
+            Permute(n - 1)
+            k := n - 1
+            while k >= 1 do 
+                Swap(permarray[n], permarray[k])
+                Permute(n - 1)
+                Swap(permarray[n], permarray[k])
+                dec(k) 
+            end  
+        end 
+    end Permute
+    
+    proc Run*()
+        var 
+            i: integer
+    begin 
+        pctr := 0
+        i := 1
+        while i <= 5 do 
+            Initialize()
+            Permute(7) 
+            inc(i) 
+        end 
+        if pctr # 43300 then
+            Util.Str(" Error in Perm.$") 
+        end 
+    end Run
+    
 end Perm
 

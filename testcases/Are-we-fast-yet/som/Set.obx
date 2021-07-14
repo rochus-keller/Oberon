@@ -24,80 +24,80 @@
 module Set<E>
 
 import 
-	V := Vector<E>, 
-	I := Interfaces<E>
+    V := Vector<E>, 
+    I := Interfaces<E>
 
 const
-	INITIAL_SIZE* = 10
-	
+    INITIAL_SIZE* = 10
+    
 type
-	Set* = pointer to record 
-			items : V.Vector
-		end
-	ForEachInterface* = I.ForEachInterface
-	TestInterface* = I.TestInterface
-	
-	proc createWithSize*(siz : integer) : Set
-		var s : Set
-	begin
-		new(s)
-		s.items := V.createWithSize(siz)
-		return s
-	end createWithSize
-	
-	proc create*() : Set
-	begin
-		return createWithSize(INITIAL_SIZE)
-	end create
+    Set* = pointer to record 
+            items : V.Vector
+        end
+    ForEachInterface* = I.ForEachInterface
+    TestInterface* = I.TestInterface
+    
+    proc createWithSize*(siz : integer) : Set
+        var s : Set
+    begin
+        new(s)
+        s.items := V.createWithSize(siz)
+        return s
+    end createWithSize
+    
+    proc create*() : Set
+    begin
+        return createWithSize(INITIAL_SIZE)
+    end create
 
-	proc (this: Set) getSize*() : integer
-	begin
-		return this.items.getSize()
-	end getSize
-	
-	proc (this: Set) forEach*(var fn: I.ForEachInterface)
-	begin
-		this.items.forEach(fn)
-	end forEach
+    proc (this: Set) getSize*() : integer
+    begin
+        return this.items.getSize()
+    end getSize
+    
+    proc (this: Set) forEach*(var fn: I.ForEachInterface)
+    begin
+        this.items.forEach(fn)
+    end forEach
 
-	proc (this: Set) hasSome*(var fn: I.TestInterface) : boolean
-	begin
-		return this.items.hasSome(fn)
-	end hasSome
-	
-	proc (this: Set) getOne*(var fn: I.TestInterface; var out: E) : boolean
-	begin
-		return this.items.getOne(fn, out)
-	end getOne
-	
-	proc (this: Set) removeAll*()
-	begin
-		this.items.removeAll()
-	end removeAll
-	
-	proc (this: Set) add*(in obj: E)
-	begin
-		if ~this.contains(obj) then
-			this.items.append(obj)
-		end
-	end add
-	
-	proc (this: Set) contains*(in obj: E) : boolean
-	
-		type TestInterface = record (I.TestInterface) obj : E end
-			
-		proc (var this:TestInterface) test(in elem: E) : boolean
-		begin
-			return elem = this.obj
-		end test
-		
-		var t : TestInterface
-		
-	begin
-		t.obj := obj
-		return this.hasSome(t)
-	end contains
-	
-	// collect doesn't seem to be used anywhere
-	
+    proc (this: Set) hasSome*(var fn: I.TestInterface) : boolean
+    begin
+        return this.items.hasSome(fn)
+    end hasSome
+    
+    proc (this: Set) getOne*(var fn: I.TestInterface; var out: E) : boolean
+    begin
+        return this.items.getOne(fn, out)
+    end getOne
+    
+    proc (this: Set) removeAll*()
+    begin
+        this.items.removeAll()
+    end removeAll
+    
+    proc (this: Set) add*(in obj: E)
+    begin
+        if ~this.contains(obj) then
+            this.items.append(obj)
+        end
+    end add
+    
+    proc (this: Set) contains*(in obj: E) : boolean
+    
+        type TestInterface = record (I.TestInterface) obj : E end
+            
+        proc (var this:TestInterface) test(in elem: E) : boolean
+        begin
+            return elem = this.obj
+        end test
+        
+        var t : TestInterface
+        
+    begin
+        t.obj := obj
+        return this.hasSome(t)
+    end contains
+    
+    // collect doesn't seem to be used anywhere
+    
 end Set

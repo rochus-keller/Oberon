@@ -22,61 +22,61 @@
  *)
 
 module Harness
-	import Out, Run
-	
-	type Args* = array of array of char
-	
-	proc processArguments(in args : Args) : Run.Run
-		var r : Run.Run
-	begin
-		r := Run.create(args[0])	
-		if len(args) > 1 then
-			// TODO atoi
-			// r.setNumIterations
-			if len(args) > 2 then
-				// r.setInnerIterations
-			end
-		end
-		return r
-	end processArguments
+    import Out, Run
+    
+    type Args* = array of array of char
+    
+    proc processArguments(in args : Args) : Run.Run
+        var r : Run.Run
+    begin
+        r := Run.create(args[0])    
+        if len(args) > 1 then
+            // TODO atoi
+            // r.setNumIterations
+            if len(args) > 2 then
+                // r.setInnerIterations
+            end
+        end
+        return r
+    end processArguments
 
-	proc printUsage()
-	begin
-		Out.String("Harness [benchmark] [num-iterations [inner-iter]]") Out.Ln Out.Ln
-		Out.String("  benchmark      - benchmark class name ") Out.Ln
-		Out.String("  num-iterations - number of times to execute benchmark, "
-			+ "default: 1") Out.Ln
-		Out.String("  inner-iter     - number of times the benchmark is "
-			+ "executed in an inner loop, ") Out.Ln
-		Out.String("                   which is measured in total, default: 1") Out.Ln
-	end printUsage
-	
-	proc main*( in args : Args )
-		var r: Run.Run
-	begin
-		if len(args) < 1 then
-			printUsage
-			return
-		end
-		r := processArguments(args)
-		r.runBenchmark
-		r.printTotal
-	end main
-	
-	proc run*( in what : array of char; numIterations, innerIterations: integer )
-		var r : Run.Run
-	begin
-		r := Run.create(what)
-		if r = nil then
-			Out.String("ERROR could not find benchmark ")
-			Out.String(what)
-			Out.Ln
-			return
-		end
-		r.setNumIterations(numIterations)
-		r.setInnerIterations(innerIterations)
-		r.runBenchmark
-		r.printTotal
-	end run
+    proc printUsage()
+    begin
+        Out.String("Harness [benchmark] [num-iterations [inner-iter]]") Out.Ln Out.Ln
+        Out.String("  benchmark      - benchmark class name ") Out.Ln
+        Out.String("  num-iterations - number of times to execute benchmark, "
+            + "default: 1") Out.Ln
+        Out.String("  inner-iter     - number of times the benchmark is "
+            + "executed in an inner loop, ") Out.Ln
+        Out.String("                   which is measured in total, default: 1") Out.Ln
+    end printUsage
+    
+    proc main*( in args : Args )
+        var r: Run.Run
+    begin
+        if len(args) < 1 then
+            printUsage
+            return
+        end
+        r := processArguments(args)
+        r.runBenchmark
+        r.printTotal
+    end main
+    
+    proc run*( in what : array of char; numIterations, innerIterations: integer )
+        var r : Run.Run
+    begin
+        r := Run.create(what)
+        if r = nil then
+            Out.String("ERROR could not find benchmark ")
+            Out.String(what)
+            Out.Ln
+            return
+        end
+        r.setNumIterations(numIterations)
+        r.setInnerIterations(innerIterations)
+        r.runBenchmark
+        r.printTotal
+    end run
 
 end Harness

@@ -23,44 +23,44 @@
 
 module RedBlackTree<K,V>
 
-	import I := Interfaces<Entry>
-	
-	////////// Node //////////////////
-	type
-		Color = ( RED, BLACK )
-		Node = pointer to record
-					key: K
-					value: V
-					left, right, parent: Node
-					color: Color
-				end
-				
-	proc createNode(in key: K; in value: V): Node
-		var n: Node
-	begin
-		new(n)
-		n.key := key
-		n.value := value
-		n.color := RED
-		return n
-	end createNode
-	
-	proc treeMinimum(x: Node): Node
-		var current: Node
-	begin
-	   current := x
+    import I := Interfaces<Entry>
+    
+    ////////// Node //////////////////
+    type
+        Color = ( RED, BLACK )
+        Node = pointer to record
+                    key: K
+                    value: V
+                    left, right, parent: Node
+                    color: Color
+                end
+                
+    proc createNode(in key: K; in value: V): Node
+        var n: Node
+    begin
+        new(n)
+        n.key := key
+        n.value := value
+        n.color := RED
+        return n
+    end createNode
+    
+    proc treeMinimum(x: Node): Node
+        var current: Node
+    begin
+       current := x
       while current.left # nil do
-	      current := current.left
+          current := current.left
       end
       return current
    end treeMinimum
    
    proc (this: Node) successor(): Node
-	   var x,y: Node
+       var x,y: Node
    begin
       x := this;
       if x.right # nil then
-	      return treeMinimum(x.right)
+          return treeMinimum(x.right)
       end
       y := x.parent
       while (y # nil) & (x = y.right) do
@@ -69,46 +69,46 @@ module RedBlackTree<K,V>
       end
       return y
    end successor
-		
-	////////// RedBlackTree /////////////////
-	type
-		CompareFunc = proc(in lhs, rhs: K): integer
-		
-		RedBlackTree* = pointer to record 
-								root: Node
-								compare: CompareFunc
-							end
-		ForEachInterface* = I.ForEachInterface
-							
-		InsertResult = record
-								isNewEntry: boolean
-								newNode: Node
-								oldValue: V
-							end	
-							
-		Entry* = record key*: K value*: V end
-							
-	proc create*(func: CompareFunc): RedBlackTree
-		var t: RedBlackTree
-	begin
-		new(t)
-		assert( func # nil )
-		t.compare := func			
-		return t	
-	end create
-	
-	proc (this: RedBlackTree) put*(in key: K; in value: V): V
-		var newEntry: boolean
-		return this.putChecked(key,value,newEntry) 
-	end put
-	
-	proc (this: RedBlackTree) putChecked*(in key: K; in value: V; var newEntry: boolean): V
-		var insertionResult: InsertResult
-			x,y: Node
-	begin
+        
+    ////////// RedBlackTree /////////////////
+    type
+        CompareFunc = proc(in lhs, rhs: K): integer
+        
+        RedBlackTree* = pointer to record 
+                                root: Node
+                                compare: CompareFunc
+                            end
+        ForEachInterface* = I.ForEachInterface
+                            
+        InsertResult = record
+                                isNewEntry: boolean
+                                newNode: Node
+                                oldValue: V
+                            end    
+                            
+        Entry* = record key*: K value*: V end
+                            
+    proc create*(func: CompareFunc): RedBlackTree
+        var t: RedBlackTree
+    begin
+        new(t)
+        assert( func # nil )
+        t.compare := func            
+        return t    
+    end create
+    
+    proc (this: RedBlackTree) put*(in key: K; in value: V): V
+        var newEntry: boolean
+        return this.putChecked(key,value,newEntry) 
+    end put
+    
+    proc (this: RedBlackTree) putChecked*(in key: K; in value: V; var newEntry: boolean): V
+        var insertionResult: InsertResult
+            x,y: Node
+    begin
     this.treeInsert(key, value,insertionResult)
     if ~insertionResult.isNewEntry then
-	    newEntry := false
+        newEntry := false
        return insertionResult.oldValue
     end
     x := insertionResult.newNode
@@ -162,7 +162,7 @@ module RedBlackTree<K,V>
   end putChecked
   
   proc (this: RedBlackTree) remove*(in key: K): V
-	  var x,y,z,xParent: Node
+      var x,y,z,xParent: Node
   begin
     z := this.findNode(key)
     if z = nil then
@@ -234,7 +234,7 @@ module RedBlackTree<K,V>
   end remove
 
   proc (this: RedBlackTree) get*(in key: K): V
-	  var node: Node
+      var node: Node
   begin
     node := this.findNode(key)
     if node = nil then
@@ -244,24 +244,24 @@ module RedBlackTree<K,V>
   end get
   
   proc (this: RedBlackTree) forEach*( var fn: I.ForEachInterface)
-	  var current: Node
-		  e: Entry
+      var current: Node
+          e: Entry
   begin
     if this.root = nil then
       return
     end
     current := treeMinimum(this.root)
     while current # nil do
-	    e.key := current.key
-	    e.value := current.value
+        e.key := current.key
+        e.value := current.value
        fn.apply(e)
        current := current.successor()
     end
   end forEach
   
   proc (this: RedBlackTree) findNode(in key: K): Node
-	  var current: Node
-		  comparisonResult: integer
+      var current: Node
+          comparisonResult: integer
   begin
     current := this.root
     while current # nil do
@@ -278,8 +278,8 @@ module RedBlackTree<K,V>
   end findNode
   
   proc (this: RedBlackTree) treeInsert(in key: K; in value: V; var res: InsertResult) 
-	  var x,y,z: Node
-		  comparisonResult: integer
+      var x,y,z: Node
+          comparisonResult: integer
   begin
     x := this.root
     while x # nil do
@@ -312,7 +312,7 @@ module RedBlackTree<K,V>
   end treeInsert
   
   proc (this: RedBlackTree) leftRotate(x: Node)
-	  var y: Node
+      var y: Node
   begin
     y := x.right
 
@@ -341,7 +341,7 @@ module RedBlackTree<K,V>
   end leftRotate
   
   proc (this: RedBlackTree) rightRotate(y: Node)
-	  var x: Node
+      var x: Node
   begin
     x := y.left
 
@@ -369,7 +369,7 @@ module RedBlackTree<K,V>
   end rightRotate
   
   proc (this: RedBlackTree) removeFixup(x, xParent: Node)
-	  var w: Node
+      var w: Node
   begin
     while (x # this.root) & ( (x = nil) or (x.color = BLACK) ) do
       if x = xParent.left then

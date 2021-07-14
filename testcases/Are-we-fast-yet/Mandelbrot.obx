@@ -43,35 +43,35 @@
 *)
  
 module Mandelbrot
-	import B := Benchmark, Out
-	
-	type
-		Mandelbrot = pointer to record (B.Benchmark)
-						end
+    import B := Benchmark, Out
+    
+    type
+        Mandelbrot = pointer to record (B.Benchmark)
+                        end
 
-	proc create*(): Mandelbrot
-		var b : Mandelbrot
-	begin
-		new(b)
-		return b
-	end create
+    proc create*(): Mandelbrot
+        var b : Mandelbrot
+    begin
+        new(b)
+        return b
+    end create
 
-	proc (this: Mandelbrot) benchmark(): B.Result
-	begin
-	   assert(false) // Should never be reached
-		return nil
-	end benchmark
-	
-	proc (this: Mandelbrot) verifyResult( result: B.Result ): boolean 
-	begin
-		assert(false) // Should never be reached
-		return false
-	end verifyResult
+    proc (this: Mandelbrot) benchmark(): B.Result
+    begin
+       assert(false) // Should never be reached
+        return nil
+    end benchmark
+    
+    proc (this: Mandelbrot) verifyResult( result: B.Result ): boolean 
+    begin
+        assert(false) // Should never be reached
+        return false
+    end verifyResult
 
-	proc (this: Mandelbrot) innerBenchmarkLoop*(innerIterations: integer): boolean
-	begin
-		return verifyResult2(mandelbrot(innerIterations), innerIterations) 
-	end innerBenchmarkLoop
+    proc (this: Mandelbrot) innerBenchmarkLoop*(innerIterations: integer): boolean
+    begin
+        return verifyResult2(mandelbrot(innerIterations), innerIterations) 
+    end innerBenchmarkLoop
 
   proc verifyResult2(result, innerIterations: integer ): boolean
   begin
@@ -97,13 +97,13 @@ module Mandelbrot
   
   proc mandelbrot(size: integer): integer
      var sum byteAcc bitNum y z x escape: integer
-	     ci zr zrzr zi zizi cr : longreal
-	     notDone : boolean
-	begin
-		sum := 0
-		byteAcc := 0
-		bitNum := 0
-		y := 0
+         ci zr zrzr zi zizi cr : longreal
+         notDone : boolean
+    begin
+        sum := 0
+        byteAcc := 0
+        bitNum := 0
+        y := 0
       while y < size do
        ci := (2.0 * flt( y DIV size )) - 1.0
        x := 0

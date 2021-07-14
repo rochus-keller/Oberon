@@ -23,40 +23,40 @@
  
 module Towers
 
-	import B := Benchmark, Out
+    import B := Benchmark, Out
 
-	type 
-		Towers = pointer to record (B.Benchmark)
-						movesDone : integer
-						piles : pointer to array of TowersDisk
-					end
-					
-		TowersDisk = pointer to record
-							size : integer
-							next : TowersDisk
-						end
+    type 
+        Towers = pointer to record (B.Benchmark)
+                        movesDone : integer
+                        piles : pointer to array of TowersDisk
+                    end
+                    
+        TowersDisk = pointer to record
+                            size : integer
+                            next : TowersDisk
+                        end
 
-	proc create*(): Towers
-		var t : Towers
-	begin
-		new(t)
-		return t
-	end create
-	
-	proc createDisk(s: integer):TowersDisk
-		var d : TowersDisk
-	begin
-		new(d)
-		d.size := s
-		return d
-	end createDisk
+    proc create*(): Towers
+        var t : Towers
+    begin
+        new(t)
+        return t
+    end create
+    
+    proc createDisk(s: integer):TowersDisk
+        var d : TowersDisk
+    begin
+        new(d)
+        d.size := s
+        return d
+    end createDisk
 
   proc (this: Towers) pushDisk(disk: TowersDisk; pile: integer )
-	  var top: TowersDisk
+      var top: TowersDisk
   begin
     top := this.piles[pile]
     if ( top # nil ) & (disk.size >= top.size) then
-	    trap()
+        trap()
       Out.String("Cannot put a big disk on a smaller one") Out.Ln
     end
     disk.next := top
@@ -64,7 +64,7 @@ module Towers
   end pushDisk
   
   proc (this: Towers) popDiskFrom(pile: integer):TowersDisk 
-	  var top: TowersDisk
+      var top: TowersDisk
   begin
     top := this.piles[pile]
     if top = nil then
@@ -76,14 +76,14 @@ module Towers
   end popDiskFrom
   
   proc (this: Towers) moveTopDisk(fromPile, toPile: integer) 
-	  var t: TowersDisk
+      var t: TowersDisk
   begin
     this.pushDisk( this.popDiskFrom(fromPile), toPile)
     inc(this.movesDone)
   end moveTopDisk
 
   proc (this: Towers) buildTowerAt(pile, disks: integer) 
-	  var i: integer
+      var i: integer
   begin
     for i := disks to 0 by -1 do    
       this.pushDisk( createDisk(i), pile )
@@ -91,7 +91,7 @@ module Towers
   end buildTowerAt
 
   proc (this: Towers) moveDisks(disks, fromPile, toPile: integer) 
-	  var otherPile: integer
+      var otherPile: integer
   begin
     if disks = 1 then
       this.moveTopDisk(fromPile, toPile)
@@ -103,21 +103,21 @@ module Towers
     end
   end moveDisks
     
-	proc (this: Towers) benchmark(): B.Result
-		var res : B.IntResult
-	begin
-		new(this.piles,3)
-		this.buildTowerAt(0, 13)
-		this.movesDone := 0
-		this.moveDisks(13, 0, 1)
-		new(res)
-		res.res := this.movesDone
-		return res
-	end benchmark	
+    proc (this: Towers) benchmark(): B.Result
+        var res : B.IntResult
+    begin
+        new(this.piles,3)
+        this.buildTowerAt(0, 13)
+        this.movesDone := 0
+        this.moveDisks(13, 0, 1)
+        new(res)
+        res.res := this.movesDone
+        return res
+    end benchmark    
 
-	proc (this: Towers) verifyResult( result: B.Result ): boolean 
-	begin
-		return ( result(B.IntResult).res = 8191 )
-	end verifyResult
+    proc (this: Towers) verifyResult( result: B.Result ): boolean 
+    begin
+        return ( result(B.IntResult).res = 8191 )
+    end verifyResult
 
 end Towers

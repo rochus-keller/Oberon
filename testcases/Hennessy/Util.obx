@@ -1,41 +1,41 @@
 // see Main.obx
 module Util
 
-	import	
-		Input, Out
+    import    
+        Input, Out
 
-	var 		
-		seed*: integer
+    var         
+        seed*: integer
 
-	proc Str*(s: array of char)
-		var 
-			i: integer
-	begin 
-		i := 0
-		while s[i] # 0x do 
-			if s[i] = "$" then
-				Out.Ln 
-			else 
-				Out.Char(s[i]) 
-			end 
-			inc(i) 
-		end 
-	end Str
-	
-	proc Getclock*(): integer
-	begin 
-		return Input.Time()
-	end Getclock
-	
-	proc Initrand*()
-	begin 
-		seed := 74755
-	end Initrand
-	
-	proc Rand*(): integer
-	begin 
-		seed := (seed * 1309 + 13849) mod 65535
-		return (seed)
-	end Rand
-	
+    proc Str*(s: array of char)
+        var 
+            i: integer
+    begin 
+        i := 0
+        while s[i] # 0x do 
+            if s[i] = "$" then
+                Out.Ln 
+            else 
+                Out.Char(s[i]) 
+            end 
+            inc(i) 
+        end 
+    end Str
+    
+    proc Getclock*(): integer
+    begin 
+        return Input.Time()
+    end Getclock
+    
+    proc Initrand*()
+    begin 
+        seed := 74755
+    end Initrand
+    
+    proc Rand*(): integer
+    begin 
+        seed := (seed * 1309 + 13849) mod 65535
+        return (seed)
+    end Rand
+    
 end Util

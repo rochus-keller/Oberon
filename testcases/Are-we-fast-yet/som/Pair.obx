@@ -24,37 +24,37 @@
 module Pair<K,V>
 
 type
-	Pair* = record
-			key : K
-			value : V
-		end
-	
-	proc MakePair*( in key: K; in value : V ) : Pair
-		var p : Pair;
-	begin
-		p.key := key
-		p.value := value
-		return p
-	end MakePair
-	
-	proc ( in this : Pair ) getKey*() : K
-	begin
-		return this.key
-	end getKey
-	
-	proc ( var this : Pair ) setKey*( in key : K )
-	begin
-		this.key := key;
-	end setKey
-	
-	proc ( in this : Pair ) getValue*() : V
-	begin
-		return this.value
-	end getValue
-	
-	proc ( var this : Pair ) setValue*( in value : V )
-	begin
-		this.value := value
-	end setValue
-	
+    Pair* = record
+            key : K
+            value : V
+        end
+    
+    proc MakePair*( in key: K; in value : V ) : Pair
+        var p : Pair;
+    begin
+        p.key := key
+        p.value := value
+        return p
+    end MakePair
+    
+    proc ( in this : Pair ) getKey*() : K
+    begin
+        return this.key
+    end getKey
+    
+    proc ( var this : Pair ) setKey*( in key : K )
+    begin
+        this.key := key;
+    end setKey
+    
+    proc ( in this : Pair ) getValue*() : V
+    begin
+        return this.value
+    end getValue
+    
+    proc ( var this : Pair ) setValue*( in value : V )
+    begin
+        this.value := value
+    end setValue
+    
 end Pair

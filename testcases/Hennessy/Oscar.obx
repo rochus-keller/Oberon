@@ -1,171 +1,171 @@
 // see Main.obx
 module Oscar
 
-	import Util
-	
-	const
-		fftsize = 256
-		fftsize2 = 129
+    import Util
+    
+    const
+        fftsize = 256
+        fftsize2 = 129
 
-	type
-		complex = record 
-				rp, ip: longreal 
-			end 
-		c1array = array fftsize + 1 of complex
-		c2array = array fftsize2 + 1 of complex
+    type
+        complex = record 
+                rp, ip: longreal 
+            end 
+        c1array = array fftsize + 1 of complex
+        c2array = array fftsize2 + 1 of complex
 
-	var
-		z, w: c1array
-		e: c2array
-		zr, zi: longreal
+    var
+        z, w: c1array
+        e: c2array
+        zr, zi: longreal
 
-	proc Cos(x: longreal): longreal
-		// computes cos of x (x in radians) by an expansion
-		var 
-			i, factor: integer
-			result, power: longreal
-	begin 
-		result := 1.0
-		factor := 1
-		power := x
-		i := 2
-		while i <= 10 do 
-			factor := factor * i
-			power := power * x
-			if i mod 2 = 0 then
-				if i mod 4 = 0 then
-					result := result + power / flt(factor) 
-				else 
-					result := result - power / flt(factor) 
-				end  
-			end 
-			inc(i) 
-		end 
-		return result
-	end Cos
-	
-	proc Min0(arg1, arg2: integer): integer
-		var 
-			res: integer
-	begin 
-		res := 0
-		if arg1 < arg2 then
-			res := arg1 
-		else 
-			res := arg2 
-		end 
-		return res
-	end Min0
-	
-	proc Uniform11(iy: integer; yfl: longreal)
-	begin 
-		iy := (4855 * iy + 1731) mod 8192
-		yfl := flt(iy) / 8192.0
-	end Uniform11
-	
-	proc Exptab(n: integer; var e: c2array)
-		var  // d1 by pm 12.02.96
-			theta, divisor, d3: longreal
-			h: array 26 of longreal
-			i, j, k, l, m, d1, d2: integer
-	begin 
-		theta := 3.1415926536
-		divisor := 4.0
-		i := 1
-		while i <= 25 do 
-			h[i] := 1.0 / (2.0 * Cos(theta / divisor))
-			divisor := divisor + divisor
-			inc(i) 
-		end 
-		m := n div 2
-		l := m div 2
-		j := 1
-		e[1].rp := 1.0
-		e[1].ip := 0.0
-		e[l + 1].rp := 0.0
-		e[l + 1].ip := 1.0
-		e[m + 1].rp := -1.0
-		e[m + 1].ip := 0.0
-		repeat 
-			i := l div 2
-			k := i
-			repeat 
-				d1 := k + i + 1
-				d2 := k - i + 1
-				d3 := e[d2].rp
-				e[k + 1].rp := h[j] * (e[d1].rp + d3)
-				d3 := e[d2].ip
-				e[k + 1].ip := h[j] * (e[d1].ip + d3)
-				k := k + l 
-			until (k > m) 
-			j := Min0(j + 1, 25)
-			l := i 
-		until (l <= 1) 
-	end Exptab
-	
-	proc Fft(n: integer; var z, w: c1array; var e: c2array; sqrinv: longreal)
-		var  // d1, d2 added pm 12.02.96
-			i, j, k, l, m, index: integer
-			h, d1, d2: longreal
-	begin 
-		m := n div 2
-		l := 1
-		repeat 
-			k := 0
-			j := l
-			i := 1
-			repeat 
-				repeat 
-					w[i + k].rp := z[i].rp + z[m + i].rp
-					w[i + k].ip := z[i].ip + z[m + i].ip
-					h := e[k + 1].rp * (z[i].rp - z[i + m].rp)
-					d1 := (z[i].ip - z[i + m].ip)
-					w[i + j].rp := h - e[k + 1].ip * d1
-					h := e[k + 1].rp * (z[i].ip - z[i + m].ip)
-					d1 := (z[i].rp - z[i + m].rp)
-					w[i + j].ip := h + e[k + 1].ip * d1
-					i := i + 1 
-				until (i > j) 
-				k := j
-				j := k + l 
-			until (j > m) (* z := w ; *)
-			index := 1
-			repeat 
-				z[index] := w[index]
-				index := index + 1 
-			until (index > n) 
-			l := l + l 
-		until (l > m) 
-		i := 1
-		while i <= n do 
-			z[i].rp := sqrinv * z[i].rp
-			z[i].ip := -sqrinv * z[i].ip
-			inc(i) 
-		end 
-	end Fft
-	
-	proc Run*()
-		var 
-			i: integer
-	begin 
-		Exptab(fftsize, e)
-		Util.seed := 5767
-		i := 1
-		while i <= fftsize do 
-			Uniform11(Util.seed, zr)
-			Uniform11(Util.seed, zi)
-			z[i].rp := 20.0 * zr - 10.0
-			z[i].ip := 20.0 * zi - 10.0
-			inc(i) 
-		end 
-		i := 1
-		while i <= 20 do 
-			Fft(fftsize, z, w, e, 0.0625)
-			inc(i) 
-		end 
-	end Run
-	
+    proc Cos(x: longreal): longreal
+        // computes cos of x (x in radians) by an expansion
+        var 
+            i, factor: integer
+            result, power: longreal
+    begin 
+        result := 1.0
+        factor := 1
+        power := x
+        i := 2
+        while i <= 10 do 
+            factor := factor * i
+            power := power * x
+            if i mod 2 = 0 then
+                if i mod 4 = 0 then
+                    result := result + power / flt(factor) 
+                else 
+                    result := result - power / flt(factor) 
+                end  
+            end 
+            inc(i) 
+        end 
+        return result
+    end Cos
+    
+    proc Min0(arg1, arg2: integer): integer
+        var 
+            res: integer
+    begin 
+        res := 0
+        if arg1 < arg2 then
+            res := arg1 
+        else 
+            res := arg2 
+        end 
+        return res
+    end Min0
+    
+    proc Uniform11(iy: integer; yfl: longreal)
+    begin 
+        iy := (4855 * iy + 1731) mod 8192
+        yfl := flt(iy) / 8192.0
+    end Uniform11
+    
+    proc Exptab(n: integer; var e: c2array)
+        var  // d1 by pm 12.02.96
+            theta, divisor, d3: longreal
+            h: array 26 of longreal
+            i, j, k, l, m, d1, d2: integer
+    begin 
+        theta := 3.1415926536
+        divisor := 4.0
+        i := 1
+        while i <= 25 do 
+            h[i] := 1.0 / (2.0 * Cos(theta / divisor))
+            divisor := divisor + divisor
+            inc(i) 
+        end 
+        m := n div 2
+        l := m div 2
+        j := 1
+        e[1].rp := 1.0
+        e[1].ip := 0.0
+        e[l + 1].rp := 0.0
+        e[l + 1].ip := 1.0
+        e[m + 1].rp := -1.0
+        e[m + 1].ip := 0.0
+        repeat 
+            i := l div 2
+            k := i
+            repeat 
+                d1 := k + i + 1
+                d2 := k - i + 1
+                d3 := e[d2].rp
+                e[k + 1].rp := h[j] * (e[d1].rp + d3)
+                d3 := e[d2].ip
+                e[k + 1].ip := h[j] * (e[d1].ip + d3)
+                k := k + l 
+            until (k > m) 
+            j := Min0(j + 1, 25)
+            l := i 
+        until (l <= 1) 
+    end Exptab
+    
+    proc Fft(n: integer; var z, w: c1array; var e: c2array; sqrinv: longreal)
+        var  // d1, d2 added pm 12.02.96
+            i, j, k, l, m, index: integer
+            h, d1, d2: longreal
+    begin 
+        m := n div 2
+        l := 1
+        repeat 
+            k := 0
+            j := l
+            i := 1
+            repeat 
+                repeat 
+                    w[i + k].rp := z[i].rp + z[m + i].rp
+                    w[i + k].ip := z[i].ip + z[m + i].ip
+                    h := e[k + 1].rp * (z[i].rp - z[i + m].rp)
+                    d1 := (z[i].ip - z[i + m].ip)
+                    w[i + j].rp := h - e[k + 1].ip * d1
+                    h := e[k + 1].rp * (z[i].ip - z[i + m].ip)
+                    d1 := (z[i].rp - z[i + m].rp)
+                    w[i + j].ip := h + e[k + 1].ip * d1
+                    i := i + 1 
+                until (i > j) 
+                k := j
+                j := k + l 
+            until (j > m) (* z := w ; *)
+            index := 1
+            repeat 
+                z[index] := w[index]
+                index := index + 1 
+            until (index > n) 
+            l := l + l 
+        until (l > m) 
+        i := 1
+        while i <= n do 
+            z[i].rp := sqrinv * z[i].rp
+            z[i].ip := -sqrinv * z[i].ip
+            inc(i) 
+        end 
+    end Fft
+    
+    proc Run*()
+        var 
+            i: integer
+    begin 
+        Exptab(fftsize, e)
+        Util.seed := 5767
+        i := 1
+        while i <= fftsize do 
+            Uniform11(Util.seed, zr)
+            Uniform11(Util.seed, zi)
+            z[i].rp := 20.0 * zr - 10.0
+            z[i].ip := 20.0 * zi - 10.0
+            inc(i) 
+        end 
+        i := 1
+        while i <= 20 do 
+            Fft(fftsize, z, w, e, 0.0625)
+            inc(i) 
+        end 
+    end Run
+    
 begin
-	zr := 0.0
-	zi := 0.0
+    zr := 0.0
+    zi := 0.0
 end Oscar

@@ -1,60 +1,60 @@
 // see Main.obx
 module Bubble
 
-	import Util
-	
-	// Sorts an array using bubblesort
-	
-	const
-		sortelements = 5000
-		srtelements = 500
+    import Util
+    
+    // Sorts an array using bubblesort
+    
+    const
+        sortelements = 5000
+        srtelements = 500
 
-	var
-		sortlist: array sortelements + 1 of integer
-		biggest, littlest, 
-		top: integer
+    var
+        sortlist: array sortelements + 1 of integer
+        biggest, littlest, 
+        top: integer
 
-	proc bInitarr()
-		var 
-			i, temp: integer
-	begin 
-		Util.Initrand()
-		biggest := 0
-		littlest := 0
-		i := 1
-		while i <= srtelements do 
-			temp := Util.Rand()
-			sortlist[i] := temp - (temp div 100000) * 100000 - 50000
-			if sortlist[i] > biggest then
-				biggest := sortlist[i] 
-			elsif sortlist[i] < littlest then 
-				littlest := sortlist[i] 
-			end 
-			inc(i) 
-		end 
-	end bInitarr
-	
-	proc Run*()
-		var 
-			i, j: integer
-	begin 
-		bInitarr()
-		top := srtelements
-		while top > 1 do 
-			i := 1
-			while i < top do 
-				if sortlist[i] > sortlist[i + 1] then
-					j := sortlist[i]
-					sortlist[i] := sortlist[i + 1]
-					sortlist[i + 1] := j 
-				end 
-				i := i + 1 
-			end 
-			top := top - 1 
-		end 
-		if (sortlist[1] # littlest) or (sortlist[srtelements] # biggest) then
-			Util.Str("Error3 in Bubble.$") 
-		end 
-	end Run
-	
+    proc bInitarr()
+        var 
+            i, temp: integer
+    begin 
+        Util.Initrand()
+        biggest := 0
+        littlest := 0
+        i := 1
+        while i <= srtelements do 
+            temp := Util.Rand()
+            sortlist[i] := temp - (temp div 100000) * 100000 - 50000
+            if sortlist[i] > biggest then
+                biggest := sortlist[i] 
+            elsif sortlist[i] < littlest then 
+                littlest := sortlist[i] 
+            end 
+            inc(i) 
+        end 
+    end bInitarr
+    
+    proc Run*()
+        var 
+            i, j: integer
+    begin 
+        bInitarr()
+        top := srtelements
+        while top > 1 do 
+            i := 1
+            while i < top do 
+                if sortlist[i] > sortlist[i + 1] then
+                    j := sortlist[i]
+                    sortlist[i] := sortlist[i + 1]
+                    sortlist[i + 1] := j 
+                end 
+                i := i + 1 
+            end 
+            top := top - 1 
+        end 
+        if (sortlist[1] # littlest) or (sortlist[srtelements] # biggest) then
+            Util.Str("Error3 in Bubble.$") 
+        end 
+    end Run
+    
 end Bubble

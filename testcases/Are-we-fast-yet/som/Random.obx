@@ -23,20 +23,20 @@
  
  module Random
 
-	var
-		seed : integer
+    var
+        seed : integer
 
-	proc next*() : integer
-	begin
-	    seed := bitand(((seed * 1309) + 13849), 65535)
-	    return seed;
-	end next
-	
-	proc reset*()
-	begin
-		seed := 74755
-	end reset
-	
+    proc next*() : integer
+    begin
+        seed := bitand(((seed * 1309) + 13849), 65535)
+        return seed;
+    end next
+    
+    proc reset*()
+    begin
+        seed := 74755
+    end reset
+    
 begin
-	reset()
+    reset()
 end Random
