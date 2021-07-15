@@ -1,0 +1,9 @@
+module Unicode
+  var
+    str: array 32 of char
+    ustr: array 32 of wchar
+begin
+  str := "Isto é português"
+  ustr := "美丽的世界，你好!" + " " + str
+  println(ustr) // prints "美丽的世界，你好! Isto é português"
+end Unicode

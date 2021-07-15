@@ -1,0 +1,40 @@
+module Drawing
+  import F := Fibonacci
+  type Figure* = pointer to record
+                   position: record x,y: integer end
+                end  
+  proc (this: Figure) draw*() end
+    
+  type
+     Circle* = pointer to record (Figure) diameter: integer end
+     Square* = pointer to record (Figure) width: integer end 
+  proc (this: Circle) draw*() end
+  proc (this: Square) draw*() end
+    
+  import C := Collections<Figure>
+    
+  var figures: C.Deque
+       circle: Circle
+       square: Square
+    
+  proc drawAll*()
+    type I = record(C.Iterator) count: integer end
+    proc (var this: I) apply( in figure: Figure ) 
+    begin figure.draw(); inc(this.count) end apply
+    var i: I // count is initialized to zero
+  begin
+    figures.forEach(i)
+    assert(i.count = 2)
+  end drawAll
+begin 
+  figures := C.createDeque()
+  new(circle)
+  circle.position.x := F.calc(3); circle.position.y := F.calc(4)
+  circle.diameter := 3
+  figures.append(circle)
+  new(square)
+  square.position.x := F.calc(5); square.position.y := F.calc(6)
+  square.width := 4
+  figures.append(square)
+  drawAll()
+end Drawing  

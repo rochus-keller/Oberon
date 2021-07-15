@@ -20,6 +20,7 @@
 #include "ObxLjRuntime.h"
 #include "ObxAst.h"
 #include "ObxProject.h"
+#include <LjTools/Engine2.h>
 #include <QDir>
 #include <QStringList>
 #include <QTextStream>
@@ -53,6 +54,27 @@ static QStringList collectFiles( const QDir& dir )
     return res;
 }
 
+static QtMessageHandler s_oldHandler = 0;
+void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString& message)
+{
+    switch(type)
+    {
+    case QtDebugMsg:
+    case QtWarningMsg:
+#ifdef _DEBUG_ // TODO
+        if( s_oldHandler )
+            s_oldHandler(type, ctx, message );
+#endif
+        break;
+    case QtCriticalMsg:
+    case QtFatalMsg:
+        {
+            QTextStream err(stderr);
+            err << message << endl;
+        }
+        break;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -62,12 +84,15 @@ int main(int argc, char *argv[])
     QCoreApplication a(argc, argv);
 #endif
 
+    s_oldHandler = qInstallMessageHandler(messageHander);
+
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXLJ");
-    a.setApplicationVersion("2021-07-13");
+    a.setApplicationVersion("2021-07-15");
 
     QTextStream out(stdout);
+    QTextStream err(stderr);
     out << "OBXLJ version: " << a.applicationVersion() <<
                  " author: me@rochus-keller.ch  license: GPL" << endl;
 
@@ -76,18 +101,33 @@ int main(int argc, char *argv[])
 
     QStringList dirOrFilePaths;
     QString outPath;
-    const QStringList args = QCoreApplication::arguments();
+    bool doRun = false;
+    bool fromBc = false;
+    QStringList args = QCoreApplication::arguments();
+    if( args.size() <= 1 )
+    {
+        // if there are no args look in the application directory for a file called obxljconfig which includes
+        // the command line ("" sections not supported); this is useful e.g. on macOS to include the bytecode in the bundle
+        QStringList newArgs;
+        newArgs.append( args.isEmpty() ? QString(): args.first() );
+        QFile config(QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("obxljconfig"));
+        if( config.open(QIODevice::ReadOnly) )
+            newArgs += QString::fromUtf8(
+                        config.readAll().simplified()).split(' '); // RISK: this also affects whitespace included in " "
+        args = newArgs;
+    }
     for( int i = 1; i < args.size(); i++ ) // arg 0 enthaelt Anwendungspfad
     {
         if(  args[i] == "-h" || args.size() == 1 )
         {
-            out << "usage: OBXLJ [options] source files or a project file" << endl;
+            out << "usage: OBXLJ [options] files or directory" << endl;
             out << "  reads Oberon+ source or project files and runs them." << endl;
             out << "options:" << endl;
             out << "  -out=path     path where to save generated files (default don't generate)" << endl;
             out << "  -run=A[.B]    run module A or procedure B in module A and quit" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -obs          use built-in Oberon System backend definitions" << endl;
+            out << "  -frombc       run from bytecode (expecting the bytecode directory)" << endl;
             out << "  -h            display this information" << endl;
             return 0;
         }else if( args[i] == "-oak" )
@@ -95,13 +135,17 @@ int main(int argc, char *argv[])
         else if( args[i] == "-obs" )
             rt.getPro()->setUseBuiltInObSysInner(true);
         else if( args[i].startsWith("-out=") )
+        {
             outPath = args[i].mid(5);
-        else if( args[i].startsWith("-run=") )
+            QFileInfo info(outPath);
+            if( info.isRelative() )
+                outPath = QDir::current().absoluteFilePath(outPath);
+        }else if( args[i].startsWith("-run=") )
         {
             QStringList run = args[i].mid(5).split('.');
             if( run.size() > 2 )
             {
-                out << "invalid -run option";
+                err << "invalid -run option" << endl;
                 return -1;
             }
             Obx::Project::ModProc modProc;
@@ -111,23 +155,27 @@ int main(int argc, char *argv[])
                 modProc.second = run[1].toUtf8();
             }else
                 modProc.first = run[0].toUtf8();
+            doRun = true;
             rt.getPro()->setMain(modProc);
         }else if( args[i] == "-run" )
         {
             Obx::Project::ModProc modProc;
             rt.getPro()->setMain(modProc);
-        }else if( !args[ i ].startsWith( '-' ) )
+            doRun = true;
+        }else if( args[i] == "-frombc" )
+            fromBc = true;
+        else if( !args[ i ].startsWith( '-' ) )
         {
             dirOrFilePaths += args[ i ];
         }else
         {
-            qCritical() << "error: invalid command line option " << args[i] << endl;
+            err << "error: invalid command line option " << args[i] << endl;
             return -1;
         }
     }
     if( dirOrFilePaths.isEmpty() )
     {
-        qWarning() << "no file or directory to process; quitting (use -h option for help)" << endl;
+        out << "no file or directory to process; quitting (use -h option for help)" << endl;
         return -1;
     }
 
@@ -154,11 +202,37 @@ int main(int argc, char *argv[])
     {
         if( !p.d_files.isEmpty() )
         {
-            qCritical() << "expecting either a project file or source files/directories, but not both";
+            err << "expecting either a project file or source files/directories, but not both" << endl;
             return -1;
         }
         qDebug() << "loading project" << pro;
-        rt.getPro()->loadFrom(pro);
+        if( !rt.getPro()->loadFrom(pro) )
+            return -1;
+        if( fromBc )
+        {
+            err << "-frombc is not allowed when a project file is loaded" << endl;
+            return -1;
+        }
+    }else if( fromBc )
+    {
+        if( dirOrFilePaths.size() != 1 || !QFileInfo(dirOrFilePaths.first()).isDir() )
+        {
+            err << "expecting the bytecode directory when -frombc is enabled" << endl;
+            return -1;
+        }
+        if( !outPath.isEmpty() )
+        {
+            err << "-out invalid when -frombc is enabled" << endl;
+            return -1;
+        }
+        if( !doRun || rt.getPro()->getMain().first.isEmpty() )
+        {
+            err << "-run with at least a module name required when -frombc is enabled" << endl;
+            return -1;
+        }
+        const char* loader = "for i=#package.loaders,2,-1 do package.loaders[i+1]=package.loaders[i] end\n"
+                "package.loaders[2] = function(name) return loadfile(name..'.lua') end";
+        rt.getLua()->executeCmd(loader);
     }else
     {
         qDebug() << "processing" << p.d_files.size() << "files...";
@@ -181,10 +255,31 @@ int main(int argc, char *argv[])
             qDebug() << Obx::Thing::s_tagName[i.key()] << i.value();
 #endif
 
-    if( rt.run() )
+    if( !fromBc && !rt.compile(!outPath.isEmpty()) )
+        return -1;
+
+    if( !outPath.isEmpty() )
     {
-        if( !outPath.isEmpty() )
-            rt.saveBytecode(outPath);
+        if( rt.saveBytecode(outPath) )
+            out << "generated bytecode files in " << outPath << endl;
+    }
+
+    if( doRun )
+    {
+        if( !rt.loadLibraries() )
+            return -1;
+        if( fromBc )
+        {
+            QDir::setCurrent(dirOrFilePaths.first());
+            out << "running bytecode from" << QDir::currentPath() << endl;
+        }
+        else if( !rt.loadBytecode() )
+            return -1;
+        if( !rt.executeMain() )
+        {
+            err << rt.getLua()->getLastError() << endl;
+            return -1;
+        }
 #ifdef QT_GUI_LIB
         if( Obs::Display::isOpen() )
             return a.exec();
@@ -194,5 +289,8 @@ int main(int argc, char *argv[])
         return 0;
 #endif
     }else
-        return -1;
+    {
+        out << "finished (didn't run nor generate bytecode)" << endl;
+        return 0;
+    }
 }

@@ -1,0 +1,27 @@
+module Collections<T>
+  type Deque* = pointer to record
+                      data: pointer to array of T
+                      size: integer end
+  proc createDeque*(): Deque 
+  const initial_len = 50
+  var this: Deque  // this is initialized to nil
+  begin 
+    new(this); new(this.data,initial_len) // semicolon is optional
+    return this 
+  end createDeque
+  
+  proc (this: Deque) append*(in element: T)
+  begin 
+    if this.size = len(this.data) then assert(false) end
+    this.data[this.size] := element inc(this.size) 
+  end append
+  
+  type Iterator* = record end
+  proc (var this: Iterator) apply*(in element: T) end
+  
+  proc (this: Deque) forEach*(var iter: Iterator)
+  var i: integer
+  begin 
+    for i := 0 to this.size-1 do iter.apply(this.data[i]) end
+  end forEach
+end Collections

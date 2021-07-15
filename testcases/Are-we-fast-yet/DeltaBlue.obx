@@ -496,7 +496,7 @@ module DeltaBlue
   begin
     editC := createEditConstraint(v, PREFERRED, this)
 
-    editV := ACV.createWithElement(editC(AbstractConstraint)) // TODO should work without guard!
+    editV := ACV.createWithElement(editC) 
     plan := this.extractPlanFromConstraints(editV)
     for i := 0 to 10-1 do
       v.value := newValue
@@ -629,7 +629,7 @@ module DeltaBlue
     dummy2 := createStayConstraint(vars[n], STRONG_DEFAULT, planner)
     editC := createEditConstraint(vars[0], PREFERRED, planner)
 
-    editV := ACV.createWithElement(editC(AbstractConstraint)) // TODO do without guard
+    editV := ACV.createWithElement(editC) 
     plan := planner.extractPlanFromConstraints(editV);
     for i := 0 to 100-1 do
       vars[0].value := i

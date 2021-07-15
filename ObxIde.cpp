@@ -429,29 +429,6 @@ static void log( const QString& msg )
         s_this->logMessage(msg);
 }
 
-static void loadLuaLib( Lua::Engine2* lua, const QByteArray& path, QByteArray name = QByteArray() )
-{
-    QFile lib( QString(":/scripts/%1.lua").arg(path.constData()) );
-    if( !lib.open(QIODevice::ReadOnly) )
-        qCritical() << "cannot find" << path;
-    if( name.isEmpty() )
-        name = path;
-    if( !lua->addSourceLib( lib.readAll(), name ) )
-        qCritical() << "compiling" << path << ":" << lua->getLastError();
-}
-
-static bool preloadLib( Project* pro, const QByteArray& name )
-{
-    QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
-    if( !f.open(QIODevice::ReadOnly) )
-    {
-        qCritical() << "unknown preload" << name;
-        return false;
-    }
-    pro->getFc()->addFile( name, f.readAll(), true );
-    return true;
-}
-
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
       d_lock2(false),d_lock3(false),d_lock4(false)
@@ -629,7 +606,7 @@ void Ide::createDumpView()
     addDebugMenu(pop);
     pop->addSeparator();
     pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
-    pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
     pop->addCommand( "Show bytecode file...", this, SLOT(onShowBcFile()) );
     addTopCommands(pop);
 }
@@ -838,7 +815,8 @@ void Ide::createMenuBar()
     pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
     pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
     pop->addSeparator();
-    pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export all bytecode...", this, SLOT(onExportAllBc()) );
     pop->addSeparator();
     pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addAutoCommand( "Export PDF...", SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
@@ -1109,13 +1087,25 @@ void Ide::onExportBc()
     LjRuntime::BytecodeList l = d_rt->findByteCode(curPath);
     for( int i = 0; i < l.size(); i++ )
     {
-        QString path = dir.absoluteFilePath(l[i].first->getName() + ".ljbc");
+        QString path = dir.absoluteFilePath(l[i].first->getName() + ".lua");
         QFile out(path);
         out.open(QIODevice::WriteOnly);
         out.write(l[i].second);
     }
     if( l.isEmpty() )
         QMessageBox::warning(this,tr("Export Bytecode"), tr("No bytecode was found for given module") );
+}
+
+void Ide::onExportAllBc()
+{
+    ENABLED_IF( d_rt->hasBytecode() && !d_rt->hasBuildErrors() );
+
+    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Bytecode") );
+
+    if (dirPath.isEmpty())
+        return;
+
+    d_rt->saveBytecode(dirPath,".lua");
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -1717,7 +1707,7 @@ void Ide::createMenu(Ide::Editor* edit)
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     pop->addSeparator();
-    pop->addCommand( "Export binary...", this, SLOT(onExportBc()) );
+    pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
     pop->addSeparator();
     pop->addCommand( "Undo", edit, SLOT(handleEditUndo()), tr("CTRL+Z"), true );
     pop->addCommand( "Redo", edit, SLOT(handleEditRedo()), tr("CTRL+Y"), true );
@@ -3079,7 +3069,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.8");
+    a.setApplicationVersion("0.8.1");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

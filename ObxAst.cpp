@@ -1138,7 +1138,13 @@ QByteArray Module::getName() const
     else
         return d_fullName.join('.') + "." + d_instSuffix;
 #else
-    QByteArray name = d_fullName.join('.');
+    return d_fullName.join('.') + formatMetaActuals();
+#endif
+}
+
+QByteArray Module::formatMetaActuals() const
+{
+    QByteArray name;
     if( !d_metaActuals.isEmpty() )
     {
         name += "("; // use () instead of <> so the name can be used in the file system too
@@ -1161,7 +1167,6 @@ QByteArray Module::getName() const
         name += ")";
     }
     return name;
-#endif
 }
 
 bool Module::isFullyInstantiated() const

@@ -46,10 +46,15 @@ namespace Obx
 
         bool compile(bool doGenerate );
         bool run();
+        bool loadLibraries();
+        bool loadBytecode();
+        bool executeMain();
 
         QByteArray findByteCode(Module*)const;
         BytecodeList findByteCode( const QString& filePath ) const;
-        void saveBytecode( const QString& outPath) const;
+        bool saveBytecode(const QString& outPath, const QString& suffix = ".lua") const;
+        bool hasBytecode() const { return !d_byteCode.isEmpty(); }
+        bool hasBuildErrors() const { return d_buildErrors; }
 
         void setJitEnabled(bool);
         bool jitEnabled() const { return d_jitEnabled; }
@@ -62,6 +67,7 @@ namespace Obx
         Lua::Engine2* d_lua;
         BytecodeList d_byteCode;
         bool d_jitEnabled;
+        bool d_buildErrors;
     };
 }
 

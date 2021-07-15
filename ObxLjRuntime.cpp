@@ -57,7 +57,7 @@ static bool preloadLib( Project* pro, const QByteArray& name )
     return true;
 }
 
-LjRuntime::LjRuntime(QObject*p):QObject(p), d_jitEnabled(true)
+LjRuntime::LjRuntime(QObject*p):QObject(p), d_jitEnabled(true),d_buildErrors(false)
 {
     d_pro = new Project(this);
 
@@ -76,8 +76,6 @@ LjRuntime::LjRuntime(QObject*p):QObject(p), d_jitEnabled(true)
     d_lua->addLibrary(Lua::Engine2::OS);
     // d_lua->setJit(false); // must be called after addLibrary! doesn't have any effect otherwise
     loadLuaLib( d_lua, "obxlj" );
-
-
 }
 
 bool LjRuntime::compile(bool doGenerate)
@@ -105,8 +103,22 @@ bool LjRuntime::compile(bool doGenerate)
 
 bool LjRuntime::run()
 {
-    QDir::setCurrent(d_pro->getWorkingDir(true));
+    // not needed, no bytecode files: QDir::setCurrent(d_pro->getWorkingDir(true));
 
+    if( !compile(true) )
+        return false;
+
+    if( !loadLibraries() )
+        return false;
+
+    if( !loadBytecode() )
+        return false;
+
+    return executeMain();
+}
+
+bool LjRuntime::loadLibraries()
+{
     if( d_pro->useBuiltInOakwood() )
     {
         loadLuaLib(d_lua,"In");
@@ -133,13 +145,14 @@ bool LjRuntime::run()
         return false;
 #endif
     }
+    return true;
+}
 
-    if( !compile(true) )
-        return false;
-
+bool LjRuntime::loadBytecode()
+{
     if( d_byteCode.isEmpty() )
     {
-        qWarning() << "nothing to run";
+        qWarning() << "nothing to load";
         return true;
     }
 
@@ -163,36 +176,26 @@ bool LjRuntime::run()
         qCritical() << "LuaJIT crashed"; // doesn't help if the JIT crashes!
     }
 
-    if( hasErrors )
-    {
-        return false;
-    }
+    return !hasErrors;
+}
 
+bool LjRuntime::executeMain()
+{
     Project::ModProc main = d_pro->getMain();
-    if( main.first.isNull() )
+    if( main.first.isEmpty() )
     {
-        Q_ASSERT( !d_byteCode.isEmpty() );
-        main.first = d_byteCode.back().first->getName();
+        Q_ASSERT( main.second.isEmpty() ); // we either need module or module.proc
+        return true; // nothing to do
     }
 
     QByteArray src;
     QTextStream out(&src);
 
-    //out << "jit.off()" << endl;
-    //out << "jit.opt.start(3)" << endl;
-    //out << "jit.opt.start(\"-abc\")" << endl;
-    //out << "jit.opt.start(\"-fuse\")" << endl;
-    //out << "jit.opt.start(\"hotloop=10\", \"hotexit=2\")" << endl;
-
+    out << "local " << main.first << " = require '" << main.first << "'" << endl;
     if( !main.second.isEmpty() )
-    {
-        out << "local " << main.first << " = require '" << main.first << "'" << endl;
         out << main.first << "." << main.second << "()" << endl;
-    }
     out.flush();
-    if( !src.isEmpty() )
-        d_lua->executeCmd(src,"terminal");
-    return true;
+    return d_lua->executeCmd(src,"terminal");
 }
 
 QByteArray LjRuntime::findByteCode(Module* m) const
@@ -216,16 +219,41 @@ LjRuntime::BytecodeList LjRuntime::findByteCode(const QString& filePath) const
     return res;
 }
 
-void LjRuntime::saveBytecode(const QString& outPath) const
+bool LjRuntime::saveBytecode(const QString& outPath, const QString& suffix) const
 {
     QDir dir(outPath);
+    if( !dir.exists() && !dir.mkpath(outPath) )
+    {
+        qCritical() << "cannot create directory for writing bytecode files" << outPath;
+        return false;
+    }
     for( int i = 0; i < d_byteCode.size(); i++ )
     {
-        QString path = dir.absoluteFilePath(d_byteCode[i].first->getName() + ".ljbc");
+#if 0
+        if( d_byteCode[i].first->d_fullName.size() > 1 )
+        {
+            // there is a virtual path
+            const QString subDir = d_byteCode[i].first->d_fullName.mid(0, d_byteCode[i].first->d_fullName.size() - 1 ).join('/');
+            if( !dir.mkpath( subDir ) )
+            {
+                qCritical() << "cannot create subdirectory for writing bytecode files" << dir.absoluteFilePath(subDir);
+                return false;
+            }
+        }
+        QString path = d_byteCode[i].first->d_fullName.join('/') + d_byteCode[i].first->formatMetaActuals();
+        path = dir.absoluteFilePath(path + suffix);
+#else
+        QString path = dir.absoluteFilePath(d_byteCode[i].first->getName() + suffix);
+#endif
         QFile out(path);
-        out.open(QIODevice::WriteOnly);
+        if( !out.open(QIODevice::WriteOnly) )
+        {
+            qCritical() << "cannot open file for writing bytecode" << path;
+            return false;
+        }
         out.write(d_byteCode[i].second);
     }
+    return true;
 }
 
 void LjRuntime::setJitEnabled(bool on)
@@ -238,7 +266,9 @@ void LjRuntime::generate()
 {
     QList<Module*> mods = d_pro->getModulesToGenerate();
     d_byteCode.clear();
+    d_buildErrors = false;
 
+    const quint32 errCount = d_pro->getErrs()->getErrCount();
     QSet<Module*> generated;
     foreach( Module* m, mods )
     {
@@ -247,6 +277,7 @@ void LjRuntime::generate()
         else if( m->d_hasErrors )
         {
             qDebug() << "terminating because of errors in" << m->d_name;
+            d_buildErrors = true;
             return;
         }else if( m->d_isDef )
         {
@@ -286,6 +317,7 @@ void LjRuntime::generate()
             }
         }
     }
+    d_buildErrors = d_pro->getErrs()->getErrCount() != errCount;
 }
 
 void LjRuntime::generate(Module* m)

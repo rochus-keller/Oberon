@@ -4,7 +4,7 @@ This project started out as an [Oberon-07](http://www.projectoberon.net/wirth/Ob
 
 Oberon turned out to be a language very well suited for compiler front and backend experiments because it is decently simple but still powerful enough to build real-world software, as it supports pointers, static and stack based data structures and call by reference, which are not usually available with scripting languages. In consequence, an other goal of this project is to study the feasibility of reusing [LuaJIT](http://luajit.org/) as a backend for statically typed programming languages like Oberon (see [this article](https://medium.com/@rochus.keller/implementing-call-by-reference-and-call-by-name-in-lua-47b9d1003cc2)). The current implementation of the compiler is able to map full Oberon+ to LuaJIT bytecode and run with decent performance (see [this report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results.pdf)) on LuaJIT. There is also a [compatible version of the Oberon System](https://github.com/rochus-keller/OberonSystem), as well as a powerful IDE with semantic navigation and source-level debugging (see below).
 
-During my work with Oberon and systems implemented in Oberon, I kept asking myself what properties the language would need to have so that I could use it for my own systems too, without giving up the goal of making it as simple as possible. From these considerations a new language emerged, which I call **Oberon+** (i.e. "Oberon with extensions", abbreviated OBX); it is a general-purpose, procedural and object-oriented programming language in the tradition of and based on Oberon-07, Oberon-2 and Oberon 90, with all the elements of these languages, plus generic modules, enumerations, and many additional simplifications such as support for lower case keywords, optional semicolons, and flexible declaration sequences. See [the language report](documentation/The_Programming_Language_Oberon+.adoc) for more information. The compiler supports both, Oberon+ as well as most of the syntax and semantics of the previous Oberon versions.
+During my work with Oberon and systems implemented in Oberon, I kept asking myself what properties the language would need to have so that I could use it for my own systems too, without giving up the goal of making it as simple as possible. From these considerations a new language emerged, which I call **Oberon+** (i.e. "Oberon with extensions", abbreviated OBX); it is a general-purpose, procedural and object-oriented programming language in the tradition of and based on Oberon-07, Oberon-2 and Oberon 90, with all the elements of these languages, plus generic modules, enumerations, and many additional simplifications such as support for lower case keywords, optional semicolons, and flexible declaration sequences. See [the language report](https://github.com/oberon-lang/specification/blob/master/The_Programming_Language_Oberon%2B.adoc) and the [dedicated language site](http://oberon-lang.ch) for more information. The compiler supports both, Oberon+ as well as most of the syntax and semantics of the previous Oberon versions.
 
 For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite migrated to Oberon+](https://github.com/rochus-keller/Oberon/tree/master/testcases/Are-we-fast-yet). It also demonstrates generic programming with collections and iterators.
 
@@ -12,9 +12,10 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 
 - The old Oberon-07 validating parser with code model, Lua source code transpiler, C++ transpiler and LuaJIT bytecode compiler (file prefix Ob)
 - The old OberonViewer, Oberon-07 IDE and OBNLC command line version of the compiler/transpiler
-- The Oberon+ programming language specification
+- The Oberon+ LL(1) EBNF grammar
 - The new Oberon+ validating parser, code model and LuaJIT bytecode compiler (file prefix Obx)
 - The new Oberon+ IDE and OBXLJ command line version of the compiler
+- The Oberon+ version of the "Are we fast yet" and "Hennessy" benchmark suites
 
 ### Planned or work-in-progress features
 

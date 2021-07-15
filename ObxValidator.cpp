@@ -335,7 +335,7 @@ struct ValidatorImp : public AstVisitor
                 Named* field = r->find(me->d_name, true);
                 if( field == 0 )
                 {
-                    field = r->find(me->d_name, true); // TEST
+                    //field = r->find(me->d_name, true); // TEST
                     error( me->d_loc, Validator::tr("record has no field or bound procedure named '%1'").arg(me->d_name.constData()) );
                     return;
                 }
@@ -786,10 +786,13 @@ struct ValidatorImp : public AstVisitor
 
             // Otherwise Ta must be parameter compatible to f
             if( !paramCompatible( formal, actual.data() ) )
+            {
+                // paramCompatible( formal, actual.data() ); // TEST
                 error( actual->d_loc,
                    Validator::tr("actual parameter type %1 not compatible with formal type %2%3 of '%4'")
                    .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
                    .arg(formal->d_name.constData()));
+            }
         }
     }
 
@@ -2328,16 +2331,26 @@ struct ValidatorImp : public AstVisitor
         return false;
     }
 
-    bool typeExtension( Type* super, Type* sub ) const
+    bool typeExtension( Type* super, Type* sub, bool checkKind = false ) const
     {
         if( super == 0 || sub == 0 )
             return false;
         if( super == sub )
             return true; // same type
+        bool superIsPointer = false;
         if( super->getTag() == Thing::T_Pointer )
+        {
+            superIsPointer = true;
             super = derefed( cast<Pointer*>(super)->d_to.data() );
+        }
+        bool subIsPointer = false;
         if( sub->getTag() == Thing::T_Pointer )
+        {
+            subIsPointer = true;
             sub = derefed( cast<Pointer*>(sub)->d_to.data() );
+        }
+        if( checkKind && subIsPointer != superIsPointer )
+            return false;
         if( super == sub )
             return true; // same type
         if( super->getTag() == Thing::T_Record && sub->getTag() == Thing::T_Record )
@@ -2404,15 +2417,23 @@ struct ValidatorImp : public AstVisitor
         // TODO: can we assign records with private fields? if yes, doesn't this undermine class integrity?
 
         // T~e~ and T~v~ are record types and T~e~ is a _type extension_ of T~v~ and the dynamic type of v is T~v~
-        if( typeExtension(lhsT,rhsT) )
+        if( typeExtension(lhsT,rhsT,true) )
             return true;
 
         const int ltag = lhsT->getTag();
         const int rtag = rhsT->getTag();
 
         // T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~ or the pointers have _equal_ base types
-        if( ltag == Thing::T_Pointer && rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
-            return true;
+        if( ltag == Thing::T_Pointer )
+        {
+            if( rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
+                return true;
+#ifdef OBX_BBOX
+            Pointer* lptr = cast<Pointer*>(lhsT);
+            if( lptr->d_unsafe && equalType( lptr->d_to.data(), rhsT ) )
+                return true; // BBOX supports taking the address of rhs
+#endif
+        }
 
         // T~v~ is a pointer or a procedure type and `e` is NIL
         if( ( ltag == Thing::T_Pointer || ltag == Thing::T_ProcType ) && rhsT == bt.d_nilType )
@@ -2485,13 +2506,11 @@ struct ValidatorImp : public AstVisitor
         if( lhs->d_var || lhs->d_const )
         {
             // `f` is an IN or VAR parameter
-            Record* rf = tftag == Thing::T_Record ? cast<Record*>(tf) : 0;
-            Record* ra = ta->getTag() == Thing::T_Record ? cast<Record*>(ta) : 0;
 
             // Oberon-2: Ta must be the same type as Tf, or Tf must be a record type and Ta an extension of Tf.
             // T~a~ must be the _same type_ as T~f~,
             // or T~f~ must be a record type and T~a~ an _extension_ of T~f~.
-            if( sameType( tf, ta ) || typeExtension(rf,ra) )
+            if( sameType( tf, ta ) || typeExtension(tf,ta,true) )
                 return true;
 
             // Oberon 90: If a formal variable parameter is of type ARRAY OF BYTE, then the corresponding
@@ -2512,6 +2531,7 @@ struct ValidatorImp : public AstVisitor
                       ) )
                 return true; // BBOX supports passing string literals to IN ARRAY TO CHAR/WCHAR
 
+            Record* rf = tf->toRecord();
             if( ta == bt.d_nilType && rf && rf->d_unsafe )
                 return true; // BBOX supports passing nil to VAR CSTRUCT, and actually also to VAR INTEGER, but OBX
                              // supports the latter by allowing UNSAFE POINTER TO INTEGER

@@ -271,8 +271,8 @@ begin
    // Test5()
    // Test6()
    
-   RunAll()
-   //RunEachOnce()
+   //RunAll()
+   RunEachOnce()
 
    //H.run("CD", 250, 2) 
 
