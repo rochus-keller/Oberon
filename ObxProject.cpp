@@ -987,7 +987,12 @@ ExpList Project::getUsage(Named* n) const
 QString Project::getWorkingDir(bool resolved) const
 {
     if( d_workingDir.isEmpty() )
-        return QFileInfo(d_filePath).dir().path();
+    {
+        if( !d_filePath.isEmpty() )
+            return QFileInfo(d_filePath).dir().path();
+        else
+            return QCoreApplication::applicationDirPath();
+    }
     else if( !resolved )
         return d_workingDir;
     // else

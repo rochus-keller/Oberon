@@ -78,7 +78,7 @@ CONFIG(debug, debug|release) {
 }
 
 win32 {
-    INCLUDEPATH += .. ../LjTools/luajit-2.0
+    INCLUDEPATH += .. ../LuaJIT/src
     LIBS += -L../LuaJIT/src -llua51
 }
 

@@ -17,6 +17,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#include "ObsDisplay.h"
 #include <QDir>
 #include <QDateTime>
 #include <QBuffer>
@@ -31,6 +32,11 @@
 
 static QFileInfoList s_files;
 static QString s_root;
+
+void Obs::Display::setFileSystemRoot(const QString& dirPath) // cheat so that ObsFiles need no header just for this
+{
+    s_root = dirPath;
+}
 
 struct FileBuffer
 {
@@ -90,10 +96,10 @@ DllExport uint32_t ObsFiles_fileTime( int i )
 DllExport int ObsFiles_openFile( CharArray filename, FileBuffer* fb )
 {
     QDir dir( getPath() );
-    const QString path = QString::fromLatin1((char*)filename);
+    const QString path = dir.absoluteFilePath( QString::fromLatin1((char*)filename) );
     if( !QFileInfo(path).isFile() )
         return false;
-    QFile f( dir.absoluteFilePath( path ) );
+    QFile f( path );
     if( f.exists() )
     {
         if( !f.open(QIODevice::ReadOnly) )

@@ -780,7 +780,7 @@ void Ide::createMenu()
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
     pop->addCommand( "Built-in Oberon Sys. Inner Mod.", this, SLOT(onObSysInner()) );
-    pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
+    pop->addCommand( "Oberon File System Root...", this, SLOT( onWorkingDir() ) );
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
@@ -849,7 +849,7 @@ void Ide::createMenuBar()
     pop->addSeparator();
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
     pop->addCommand( "Built-in Oberon System Inner Modules", this, SLOT(onObSysInner()) );
-    pop->addCommand( "Set Working Directory...", this, SLOT( onWorkingDir() ) );
+    pop->addCommand( "Oberon File System Root...", this, SLOT( onWorkingDir() ) );
 
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+T"), false );
@@ -2914,7 +2914,8 @@ void Ide::onWorkingDir()
     ENABLED_IF(true);
 
     bool ok;
-    const QString res = QInputDialog::getText(this,tr("Set Working Directory"), QString(), QLineEdit::Normal,
+    const QString res = QInputDialog::getText(this,tr("Oberon File System Root"),
+                                              tr("Enter Path (supports %PRODIR% and %APPDIR%):"), QLineEdit::Normal,
                                               d_rt->getPro()->getWorkingDir(), &ok );
     if( !ok )
         return;
@@ -3069,7 +3070,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.8.1");
+    a.setApplicationVersion("0.8.2");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

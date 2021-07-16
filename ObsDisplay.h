@@ -50,6 +50,7 @@ namespace Obs
         static Display* inst();
         static bool isOpen();
         static void install(lua_State *L);
+        static void setFileSystemRoot( const QString& dirPath );
 
         static int mapToQt(int yOb);
         static int mapToOb(int yQt);

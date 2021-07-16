@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXLJ");
-    a.setApplicationVersion("2021-07-15");
+    a.setApplicationVersion("2021-07-16");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
 
 
     Obx::LjRuntime rt;
+    rt.getLua()->setPrintToStdout(true);
 
     QStringList dirOrFilePaths;
     QString outPath;
@@ -127,6 +128,7 @@ int main(int argc, char *argv[])
             out << "  -run=A[.B]    run module A or procedure B in module A and quit" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -obs          use built-in Oberon System backend definitions" << endl;
+            out << "  -fsroot=path  Oberon file system root (supports %PRODIR% and %APPDIR%)" << endl;
             out << "  -frombc       run from bytecode (expecting the bytecode directory)" << endl;
             out << "  -h            display this information" << endl;
             return 0;
@@ -162,6 +164,9 @@ int main(int argc, char *argv[])
             Obx::Project::ModProc modProc;
             rt.getPro()->setMain(modProc);
             doRun = true;
+        }else if( args[i].startsWith("-fsroot=") )
+        {
+            rt.getPro()->setWorkingDir(args[i].mid(8));
         }else if( args[i] == "-frombc" )
             fromBc = true;
         else if( !args[ i ].startsWith( '-' ) )
@@ -255,7 +260,7 @@ int main(int argc, char *argv[])
             qDebug() << Obx::Thing::s_tagName[i.key()] << i.value();
 #endif
 
-    if( !fromBc && !rt.compile(!outPath.isEmpty()) )
+    if( !fromBc && !rt.compile(!outPath.isEmpty() || doRun) )
         return -1;
 
     if( !outPath.isEmpty() )
@@ -290,7 +295,8 @@ int main(int argc, char *argv[])
 #endif
     }else
     {
-        out << "finished (didn't run nor generate bytecode)" << endl;
+        if( outPath.isEmpty() )
+            out << "finished (didn't run nor generate bytecode)" << endl;
         return 0;
     }
 }

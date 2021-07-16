@@ -103,8 +103,6 @@ bool LjRuntime::compile(bool doGenerate)
 
 bool LjRuntime::run()
 {
-    // not needed, no bytecode files: QDir::setCurrent(d_pro->getWorkingDir(true));
-
     if( !compile(true) )
         return false;
 
@@ -140,6 +138,9 @@ bool LjRuntime::loadLibraries()
         loadLuaLib(d_lua,"Obs/Modules", "Modules");
         loadLuaLib(d_lua,"Obs/FileDir", "FileDir");
         loadLuaLib(d_lua,"Obs/Files", "Files");
+        const QString root = d_pro->getWorkingDir(true);
+        d_lua->print(QString("Oberon file system root: %1\n").arg(root).toUtf8().constData());
+        Obs::Display::setFileSystemRoot(root);
 #else
         qCritical() << "this version doesn't support the Oberon System backend modules";
         return false;
