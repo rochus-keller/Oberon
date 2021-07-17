@@ -1,0 +1,25 @@
+MODULE Lists;
+	IMPORT Out;
+    TYPE
+        List*    = POINTER TO ListNode;
+        ListNode = RECORD
+            value : INTEGER;
+            next  : List;
+        END;
+
+    PROCEDURE (l : List) Add* (v : INTEGER);
+    BEGIN
+        IF l = NIL THEN
+            NEW(l);           (* create record instance *)  
+            l.value := v
+        ELSE
+            l.next.Add(v)      
+        END
+    END Add;
+    
+    PROCEDURE (t: List) Write*;
+    BEGIN
+    	Out.Int(t.value,8); Out.Ln;
+    	IF t.next # NIL THEN t.next.Write END;
+    END Write;
+END Lists.

@@ -1,5 +1,5 @@
 [General]
-BuiltInOakwood=false
+BuiltInOakwood=true
 BuiltInObSysInner=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
@@ -18,7 +18,9 @@ size=0
 3\RelPath=Fibonacci.obx
 4\AbsPath=/home/me/Entwicklung/Modules/Oberon/examples/traditional_syntax/Unicode.obx
 4\RelPath=Unicode.obx
-size=4
+5\AbsPath=/home/me/Entwicklung/Modules/Oberon/examples/traditional_syntax/Lists.obx
+5\RelPath=Lists.obx
+size=5
 
 [Packages]
 1\Name=@ByteArray()

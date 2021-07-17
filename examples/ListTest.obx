@@ -1,0 +1,12 @@
+module ListTest
+	import
+		L := Lists<integer>
+	var
+		l : L.List
+	begin
+		new(l)
+		l.value := 123
+		l.Add(456)
+		l.Print()
+		l.next.Print()
+end ListTest

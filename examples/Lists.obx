@@ -1,0 +1,18 @@
+module Lists<T>
+    type
+        List*     = ^record
+            value* : T
+            next*  : List
+        end
+
+    proc (l : List) Add* (v : T)
+    begin
+    	new( l.next )
+    	l.next.value := v
+    end Add
+
+    proc (l : List) Print*()
+    begin
+    	println(l.value)
+    end Print
+end Lists
