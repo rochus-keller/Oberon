@@ -1,0 +1,9 @@
+MODULE Unicode;
+  VAR
+    str: ARRAY 32 OF CHAR;
+    ustr: ARRAY 32 OF WCHAR;
+BEGIN
+  str := "Isto é português";
+  ustr := "美丽的世界，你好!" + " " + str;
+  PRINTLN(ustr) // prints "美丽的世界，你好! Isto é português"
+END Unicode.

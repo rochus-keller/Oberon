@@ -1,0 +1,27 @@
+MODULE Collections<T>;
+  TYPE Deque* = POINTER TO RECORD
+                      data: POINTER TO ARRAY OF T;
+                      size: INTEGER END;
+  PROCEDURE createDeque*(): Deque;
+    CONST initial_len = 50;
+    VAR this: Deque;  // this is initialized to nil
+  BEGIN 
+    NEW(this); NEW(this.data,initial_len); // semicolon is optional
+    RETURN this 
+  END createDeque;
+  
+  PROCEDURE (this: Deque) append*(IN element: T);
+  BEGIN 
+    IF this.size = LEN(this.data) THEN ASSERT(FALSE) END;
+    this.data[this.size] := element INC(this.size);
+  END append;
+  
+  TYPE Iterator* = RECORD END;
+  PROCEDURE (VAR this: Iterator) apply*(IN element: T) END;
+  
+  PROCEDURE (this: Deque) forEach*(VAR iter: Iterator);
+    VAR i: INTEGER;
+  BEGIN 
+    FOR i := 0 TO this.size-1 DO iter.apply(this.data[i]) END;
+  END forEach
+END Collections.

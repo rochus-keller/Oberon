@@ -33,6 +33,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 
 This is a lean IDE with the following features:
 
+- Full support of the new [Oberon+](http://oberon-lang.ch) programming language
 - Syntax highlighting
 - Semantic code navigation; jump to the declaration of an ident (CTRL+click on the ident)
 - Mark all idents refering to the same declaration
