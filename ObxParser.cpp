@@ -591,6 +591,11 @@ Ref<Type> Parser::procedureType(Scope* scope, Named* id, Type* binding)
         MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
     }
     p->d_loc = d_cur.toRowCol();
+    if( d_la == Tok_Hat )
+    {
+        next();
+        p->d_typeBound = true;
+    }
     if( d_la == Tok_Lpar )
     {
         formalParameters(scope, p.data());
@@ -1661,6 +1666,8 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
 
     Ref<ProcType> t = new ProcType();
     t->d_decl = p;
+    if( !p->d_receiver.isNull() )
+        t->d_typeBound = true;
     p->d_type = t.data();
     if( d_la == Tok_Lpar )
     {

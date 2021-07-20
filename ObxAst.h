@@ -191,10 +191,11 @@ namespace Obx
         uint d_baseType : 4;    // used by BaseType
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
+        uint d_typeBound : 1; // used by ProcType
 
         Ref<Expression> d_flag; // optional system flag
 
-        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false) {}
+        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),d_typeBound(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured() const { return false; }
         virtual Type* derefed() { return this; }
@@ -287,7 +288,7 @@ namespace Obx
         Parameter* find( const QByteArray& ) const;
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
-        QString pretty() const { return "PROC"; }
+        QString pretty() const { return d_typeBound ? "PROC^" : "PROC"; }
     };
 
     struct QualiType : public Type

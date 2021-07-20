@@ -25,14 +25,14 @@ size=0
 size=6
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Havlak.obx
-1\RelPath=Havlak.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/OBX/Havlak.obx
-2\RelPath=Havlak.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ProcType3.obx
+1\RelPath=ProcType3.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ProcType2.obx
+2\RelPath=ProcType2.obx
 size=1
 
 [Packages]
 1\Name=@ByteArray()
 2\Name=@ByteArray()
 3\Name=@ByteArray(som)
-size=3
+size=2

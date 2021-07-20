@@ -309,7 +309,7 @@ module ::= MODULE ident  [ TypeParams ]
 ImportList ::= IMPORT import { [ ',' ] import } [';']
 
 import ::= [ \LL:2\ ident ':=' ] ident 
-	{ '/' ident } // NOTE: paths are not case sensitive 
+	{ '.' ident } // NOTE: paths are not case sensitive 
 	[ TypeActuals ] 
 
 /// 11.1 The Module SYSTEM

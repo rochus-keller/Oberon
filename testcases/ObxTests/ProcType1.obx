@@ -1,32 +1,38 @@
 module ProcType1
 
-	var p : proc(i: integer; in str: array of char)
-		// m : proc(^)(in str: array of char) // TODO
+	var p : proc (in str: array of char)
+		m, n : proc ^(in str: array of char) 
+
 	
 	proc outer()
-		proc inner(i: integer; in str: array of char)
+		proc inner(in str: array of char)
 		begin
 			println("hello from inner:")
-			println(i)
 			println(str)
 		end inner
 		type T = record end
 		proc (var this: T)sayHello(in str: array of char)
 		begin
-			println("hello from method")
+			println("hello from method:")
+			println(str)
 		end sayHello
 		var t1: T
 			t2: pointer to T
 	begin
 		p := inner
-		// m := t1.sayHello // TODO t1 can go out of scope, illegal
+		t1.sayHello("0000")
+		//m := t1.sayHello // t1 can go out of scope, illegal
 		new(t2)
-		// m := t2.sayHello // t2 remains valid even if outer ends, legal
+		m := t2.sayHello // t2 remains valid even if outer ends, legal
+		// m := inner // illegal
+		// p := t2.sayHello // illegal
 	end outer
 
 begin
 	outer()
-	p(22,"hello")
-	
+	p("1234")
+	m("5679")
+	n := m
+	n("abcd")
 
 end ProcType1

@@ -295,6 +295,7 @@ struct ValidatorImp : public AstVisitor
                       .arg(me->d_name.constData()).arg( imp->d_path.join('/').constData() ) );
                 return;
             }
+#if 0 // unnecessary, and since delegates counterproductive
             if( modVar->getTag() == Thing::T_Procedure )
             {
                 Procedure* p = cast<Procedure*>(modVar);
@@ -304,6 +305,7 @@ struct ValidatorImp : public AstVisitor
                           .arg(me->d_name.constData()) );
                 }
             }
+#endif
             me->d_ident = modVar;
             me->d_type = modVar->d_type.data();
         }else
@@ -606,7 +608,7 @@ struct ValidatorImp : public AstVisitor
             else
             {
                 if( toCharArray( args->d_args.last()->d_type.data(), false ) == 0 ||
-                    assignmentCompatible( args->d_args.last()->d_type.data(), args->d_args.first().data() ) )
+                    !assignmentCompatible( args->d_args.last()->d_type.data(), args->d_args.first().data() ) )
                     error( args->d_loc, Validator::tr("incompatible arguments"));
             }
             break;
@@ -758,6 +760,8 @@ struct ValidatorImp : public AstVisitor
 
         const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
 
+        checkValidRhs(actual.data());
+
         if( af && af->d_lenExpr.isNull() )
         {
             // If Tf is an open array, then a must be array compatible with f
@@ -769,21 +773,6 @@ struct ValidatorImp : public AstVisitor
         }
         else
         {
-            if( tatag == Thing::T_ProcType )
-            {
-                Named* n = actual->getIdent();
-                const int tag = n ? n->getTag() : 0;
-                if( tag == Thing::T_Procedure )
-                {
-                    Procedure* p = cast<Procedure*>(n);
-                    if( p->d_receiverRec )
-                        error( actual->d_loc, Validator::tr("a type-bound procedure cannot be passed to a procedure type parameter"));
-                    if( p->d_upvalIntermediate || p->d_upvalSink )
-                        error( actual->d_loc, Validator::tr("this procedure cannot be passed to a procedure type parameter"));
-                }else if( tag == Thing::T_BuiltIn )
-                    error( actual->d_loc, Validator::tr("a predeclared procedure cannot be passed to a procedure type parameter"));
-            }
-
             // Otherwise Ta must be parameter compatible to f
             if( !paramCompatible( formal, actual.data() ) )
             {
@@ -1156,8 +1145,10 @@ struct ValidatorImp : public AstVisitor
                     ( ltag == Thing::T_Enumeration && lhsT == rhsT ) ||
                     ( ( lhsT == bt.d_nilType || ltag == Thing::T_Pointer ) &&
                       ( rtag == Thing::T_Pointer || rhsT == bt.d_nilType ) ) ||
-                    ( ( lhsT == bt.d_nilType || ltag == Thing::T_ProcType ) &&
-                      ( rtag == Thing::T_ProcType || rhsT == bt.d_nilType ) ) ||
+                    ( lhsT == bt.d_nilType && rtag == Thing::T_ProcType ) ||
+                    ( ltag == Thing::T_ProcType && rhsT == bt.d_nilType ) ||
+                    ( ltag == Thing::T_ProcType && rtag == Thing::T_ProcType &&
+                      lhsT->d_typeBound == rhsT->d_typeBound ) ||
                     ( lhsT == bt.d_anyType && rhsT == bt.d_anyType ) ) // because of generics
                 me->d_type = bt.d_boolType;
             else
@@ -1713,6 +1704,7 @@ struct ValidatorImp : public AstVisitor
 
         if( !pt->d_return.isNull() && !me->d_what.isNull() )
         {
+            checkValidRhs(me->d_what.data());
             if( !assignmentCompatible(pt->d_return.data(), me->d_what.data() ) )
                 error( me->d_loc, Validator::tr("return expression is not assignment compatible with function return type"));
         }
@@ -1757,16 +1749,16 @@ struct ValidatorImp : public AstVisitor
             return; // error already reported
         me->d_lhs->accept(this);
         markIdent( true, me->d_lhs.data() );
-        me->d_rhs->accept(this);            // TODO: do we check readability of rhs idents?
+        me->d_rhs->accept(this);
         markIdent( false, me->d_rhs.data() );
         if( !checkValidLhs(me->d_lhs.data()) )
             return;
         Type* lhsT = derefed(me->d_lhs->d_type.data());
         Type* rhsT = derefed(me->d_rhs->d_type.data());
 
+        const int rhsTag = rhsT ? rhsT->getTag() : 0;
 #ifdef OBX_BBOX
         const int lhsTag = lhsT ? lhsT->getTag() : 0;
-        const int rhsTag = rhsT ? rhsT->getTag() : 0;
         if( ( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array ) && rhsTag == Thing::T_Pointer )
         {
             // BBOX does implicit deref of rhs pointer in assignment to lhs record or array
@@ -1803,6 +1795,7 @@ struct ValidatorImp : public AstVisitor
         Array* lstr = toCharArray(lhsT,false);
         if( lstr && me->d_rhs->getTag() == Thing::T_Literal )
         {
+            // Both Oberon-2 and 07 support this
             // TODO: check wchar vs char compat
             Literal* lit = cast<Literal*>( me->d_rhs.data() );
             if( lstr->d_len && lit->d_vtype == Literal::String && lit->d_strLen > lstr->d_len )
@@ -1813,20 +1806,7 @@ struct ValidatorImp : public AstVisitor
 
         }
 
-        if( rhsTag == Thing::T_ProcType )
-        {
-            Named* n = me->d_rhs->getIdent();
-            const int tag = n ? n->getTag() : 0;
-            if( tag == Thing::T_Procedure )
-            {
-                Procedure* p = cast<Procedure*>(n);
-                if( p->d_receiverRec )
-                    error( me->d_rhs->d_loc, Validator::tr("a type-bound procedure cannot be assigned to a procedure variable"));
-                if( p->d_upvalIntermediate || p->d_upvalSink )
-                    error( me->d_rhs->d_loc, Validator::tr("this procedure cannot be assigned to a procedure variable"));
-            }else if( tag == Thing::T_BuiltIn )
-                error( me->d_rhs->d_loc, Validator::tr("a predeclared procedure cannot be assigned to a procedure variable"));
-        }
+        checkValidRhs(me->d_rhs.data());
 
         // lhs and rhs might have no type which might be an already reported error or the attempt to assign no value
         if( !assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ) )
@@ -1837,6 +1817,41 @@ struct ValidatorImp : public AstVisitor
             error( me->d_rhs->d_loc, Validator::tr("right side %1 of assignment is not compatible with left side %2")
                    .arg(rhs).arg(lhs) );
             //assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
+        }
+    }
+
+    void checkValidRhs( Expression* rhs )
+    {
+        // TODO: do we check readability of rhs idents?
+        if( rhs == 0 )
+            return; // reported elsewhere
+        if( rhs->d_type->getTag() == Thing::T_ProcType )
+        {
+            Named* n = rhs->getIdent();
+            const int tag = n ? n->getTag() : 0;
+            if( tag == Thing::T_Procedure )
+            {
+                Procedure* p = cast<Procedure*>(n);
+                if( p->d_upvalIntermediate || p->d_upvalSink ) // only relevant if non-local access enabled
+                    error( rhs->d_loc, Validator::tr("this procedure depends on the environment and cannot be assigned"));
+                else if( rhs->d_type->d_typeBound )
+                {
+                    // rhs is a type bound procedure
+                    const int etag = rhs->getTag();
+                    if( etag == Thing::T_IdentLeaf )
+                        error( rhs->d_loc, Validator::tr("a designator is required to assign a type-bound procedure"));
+                    else
+                    {
+                        Q_ASSERT( etag == Thing::T_IdentSel );
+                        IdentSel* sel = cast<IdentSel*>(rhs);
+                        if( sel->d_sub.isNull() )
+                            return; // already reported
+                        if( sel->d_sub->getUnOp() != UnExpr::DEREF )
+                            error( rhs->d_loc, Validator::tr("only a type-bound procedure designated by a pointer can be assigned"));
+                    }
+                }
+            }else if( tag == Thing::T_BuiltIn )
+                error( rhs->d_loc, Validator::tr("a predeclared procedure cannot be assigned"));
         }
     }
 
@@ -2321,7 +2336,8 @@ struct ValidatorImp : public AstVisitor
                 return true; // because of ADDROF with unsafe pointers
         }
         if( lhstag == Thing::T_ProcType && rhstag == Thing::T_ProcType )
-            return matchingFormalParamLists( cast<ProcType*>(lhs), cast<ProcType*>(rhs) );
+            return matchingFormalParamLists( cast<ProcType*>(lhs), cast<ProcType*>(rhs) ) &&
+                    lhs->d_typeBound == rhs->d_typeBound;
         if( lhstag == Thing::T_Pointer && rhstag == Thing::T_Pointer )
         {
             Pointer* lhsP = cast<Pointer*>(lhs);
@@ -2440,9 +2456,12 @@ struct ValidatorImp : public AstVisitor
             return true;
 
         // T~v~ is a procedure type and `e` is the name of a procedure whose formal parameters _match_ those of T~v~
-        if( ltag == Thing::T_ProcType && rtag == Thing::T_ProcType &&
-                matchingFormalParamLists( cast<ProcType*>(lhsT), cast<ProcType*>(rhsT) ))
-            return true;
+        if( ltag == Thing::T_ProcType && rtag == Thing::T_ProcType )
+        {
+            ProcType* lp = cast<ProcType*>(lhsT);
+            ProcType* rp = cast<ProcType*>(rhsT);
+            return matchingFormalParamLists( lp, rp ) && lp->d_typeBound == rp->d_typeBound;
+        }
 
         if( ( lhsT == bt.d_charType && rhsT == bt.d_stringType ) ||
             ( lhsT == bt.d_wcharType && rhsT->isString() ) )

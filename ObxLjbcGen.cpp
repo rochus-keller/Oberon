@@ -547,8 +547,7 @@ struct ObxLjbcGenImp : public AstVisitor
         Q_ASSERT( !me->d_rhs->d_type.isNull() );
 
         Type* lhsT = derefed(me->d_lhs->d_type.data());
-        Type* rhsT = derefed(me->d_rhs->d_type.data());
-        Q_ASSERT( lhsT != 0 && rhsT != 0 );
+        Q_ASSERT( lhsT != 0 );
 
         if( lhsT->isStructured() )
         {
@@ -562,12 +561,7 @@ struct ObxLjbcGenImp : public AstVisitor
             releaseSlot(); // lhs
         }else
         {
-            if( lhsT->isChar() && !rhsT->isChar() )
-            {
-                // len-1-string to char
-                Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
-                bc.TGETi( slotStack.back(), slotStack.back(), 0, me->d_loc.packed() );
-            }
+            prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
             emitAssig( me->d_lhs.data(), slotStack.back(), me->d_loc );
         }
         releaseSlot(); // rhs
@@ -767,6 +761,7 @@ struct ObxLjbcGenImp : public AstVisitor
         case UnExpr::DEREF:
             if( prevT->getTag() == Thing::T_ProcType )
             {
+                // this is a super call: self.P^
                 Named* id = me->d_sub->getIdent();
                 if( id->getTag() == Thing::T_Procedure )
                 {
@@ -2298,7 +2293,8 @@ struct ObxLjbcGenImp : public AstVisitor
         }else
             func = me->d_sub->getIdent();
 
-        if( func && func->getTag() == Thing::T_BuiltIn )
+        const int funcTag = func ? func->getTag() : 0;
+        if( func && funcTag == Thing::T_BuiltIn )
         {
             releaseSlot(); // we dont use the procedure slot
             ctx.back().sellSlots(res);
@@ -2336,17 +2332,19 @@ struct ObxLjbcGenImp : public AstVisitor
         }
 
         bool isBound = false;
-        if( func && func->getTag() == Thing::T_Procedure )
+        bool isDelegate = false;
+        if( funcTag == Thing::T_Procedure )
         {
             Procedure* p = cast<Procedure*>(func);
             isBound = !p->d_receiver.isNull();
-        }
+        }else if( pt->d_typeBound )
+            isDelegate = true;
 
         const int funcCount = 1;
         // we always assume a return value if there are vars to be returned even if there isn't one
         const int retCount = pt->d_return.isNull() && varCount == 0 ? 0 : 1;
 
-        const int thisCount = ( isBound ? 1 : 0 );
+        const int thisCount = ( isBound || isDelegate ? 1 : 0 );
         const int argCount = me->d_args.size()
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
                 + ( passFrame ? 1 : 0 )
@@ -2358,7 +2356,12 @@ struct ObxLjbcGenImp : public AstVisitor
 
         if( slotStack.isEmpty() )
             return; // error already reported
-        bc.MOV( slot, slotStack.back(), me->d_loc.packed() );
+        if( isDelegate )
+        {
+            bc.TGETi( slot, slotStack.back(), 1, me->d_loc.packed() ); // method
+            bc.TGETi( slot+funcCount, slotStack.back(), 0, me->d_loc.packed() ); // this
+        }else
+            bc.MOV( slot, slotStack.back(), me->d_loc.packed() );
         releaseSlot();
 
         if( isBound )
@@ -2397,14 +2400,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 {
                     // a structured arg passed to IN, i.e. just pass the reference
                     // or a non-structured arg passed by IN or by val, just pass the value in both cases
-                    Type* rhsT = derefed(me->d_args[i]->d_type.data());
-                    Q_ASSERT( rhsT != 0 );
-                    // the same code here as in visit(Assign*) if one-char-string to char:
-                    if( lhsT->isChar() && !rhsT->isChar() )
-                    {
-                        Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
-                        bc.TGETi( slotStack.back(), slotStack.back(), 0, me->d_loc.packed() );
-                    }
+                    prepareRhs( lhsT, me->d_args[i].data(), me->d_args[i]->d_loc );
                     bc.MOV(slot+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
                 }
                 releaseSlot();
@@ -3152,11 +3148,11 @@ struct ObxLjbcGenImp : public AstVisitor
             const int tmp = ctx.back().buySlots( 1 + varcount );
             if( what )
             {
-                what->accept(this);
-                if( slotStack.isEmpty() )
-                    return; // error already reported
-                bc.MOV(tmp,slotStack.back(),loc.packed());
-                releaseSlot();
+                if( emitEvalRetValue(pt->d_return.data(), what, loc ) )
+                {
+                    bc.MOV(tmp,slotStack.back(),loc.packed());
+                    releaseSlot();
+                }
             }else if( !pt->d_return.isNull() )
             {
                 // a function with no body
@@ -3186,32 +3182,14 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             if( what )
             {
-                what->accept(this);
-                if( slotStack.isEmpty() )
-                    return; // error already reported
-
-                Type* lhsT = derefed(pt->d_return.data());
-                Type* rhsT = derefed(what->d_type.data());
-                if( lhsT && rhsT && lhsT->isChar() && !rhsT->isChar() )
+                if( emitEvalRetValue(pt->d_return.data(), what, loc) )
                 {
-                    // len-1-string to char
-                    Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
-                    bc.TGETi( slotStack.back(), slotStack.back(), 0, loc.packed() );
-                }
-                if( lhsT && lhsT->isStructured() )
-                {
-                    // TODO: do we really need to copy structures returned by value?
-                    const int tmp = ctx.back().buySlots(1);
-                    emitCopy( true, pt->d_return.data(), tmp, what->d_type.data(), slotStack.back(), loc );
-                    bc.MOV(slotStack.back(),tmp, loc.packed());
-                    ctx.back().sellSlots(tmp);
-                }
-
 #ifdef _INSERT_DGBTRACE
-                emitTraceEnd(loc);
+                    emitTraceEnd(loc);
 #endif
-                bc.RET(slotStack.back(),1,loc.packed());
-                releaseSlot();
+                    bc.RET(slotStack.back(),1,loc.packed());
+                    releaseSlot();
+                }
             }else if( !pt->d_return.isNull() )
             {
                 // a function with no body
@@ -3230,6 +3208,61 @@ struct ObxLjbcGenImp : public AstVisitor
                 bc.RET(loc.packed()); // if we combine this with the !pt->d_return.isNull() part and
                                         // always return an arg then OberonSystem crashes randomly
             }
+        }
+    }
+
+    bool emitEvalRetValue(Type* lt, Expression* what, const RowCol& loc)
+    {
+        what->accept(this);
+        if( slotStack.isEmpty() )
+            return false; // error already reported
+
+        Type* ltd = derefed(lt);
+        prepareRhs( ltd, what, loc );
+        if( ltd && ltd->isStructured() )
+        {
+            // TODO: do we really need to copy structures returned by value?
+            const int tmp = ctx.back().buySlots(1);
+            emitCopy( true, lt, tmp, what->d_type.data(), slotStack.back(), loc );
+            bc.MOV(slotStack.back(),tmp, loc.packed());
+            ctx.back().sellSlots(tmp);
+        }
+        // returns a slotStack entry
+        return true;
+    }
+
+    void inline prepareRhs(Type* lhsT, Expression* rhs, const RowCol& loc)
+    {
+        Q_ASSERT(rhs);
+        lhsT = derefed(lhsT);
+        Q_ASSERT( lhsT != 0 );
+        Type* rhsT = derefed(rhs->d_type.data());
+        if( rhsT == 0 )
+            return; // error already reported
+
+        if( lhsT->isChar() && !rhsT->isChar() )
+        {
+            // convert len-1-string to char
+            Q_ASSERT( rhsT->isString() || rhsT->isStructured() );
+            bc.TGETi( slotStack.back(), slotStack.back(), 0, loc.packed() );
+        }else if( rhsT->getTag() == Thing::T_ProcType && rhsT->d_typeBound )
+        {
+            Named* n = rhs->getIdent();
+            if( n && n->getTag() == Thing::T_Procedure )
+            {
+                // we assign a procedure to a type-bound proc type variable
+                Q_ASSERT( passingThis );
+                const int tmp = ctx.back().buySlots(1);
+                // create a new delegate; slot 0 is this, slot 1 is method
+                bc.TNEW(tmp,2,0,loc.packed());
+                bc.TSETi(slotStack[slotStack.size()-2],tmp,0,loc.packed());
+                bc.TSETi(slotStack.back(),tmp,1,loc.packed());
+                bc.MOV(slotStack.back(), tmp,loc.packed());
+                passingThis = false;
+                releaseSlot();
+                releaseSlot();
+                slotStack.push_back(tmp);
+            }//else: we copy a type-bound proc type variable
         }
     }
 

@@ -189,8 +189,9 @@ ProcedureType ::= ( PROCEDURE
 #endif 
 	) 
 #ifdef OBNX
-	[  '()'  ] // TODO type-bound procedure types; only for record pointers (records on stack go out of scope)
-	// alternatives: (:) (..) (^) () ( ) (nil) (?) [()]
+	[  '^'  ] // TODO type-bound procedure types; only for record pointers (records on stack go out of scope)
+	// alternatives: (:) (..) (^) () ( ) (nil) (?) [()] ^
+	// NOTE that only '()' gives an ambiguity with a missing empty formal parameter list; (^) is too long
 #endif 
 #ifdef BBOX
 	[ SysFlag ]
@@ -530,7 +531,7 @@ ImportList ::= IMPORT import { [ ',' ] import } [';']
 
 import ::= [ \LL:2\ ident ':=' ] ident 
 #ifdef OBNX
-	{ '/' ident } // NOTE: paths are not case sensitive 
+	{ '.' ident } // NOTE: paths are not case sensitive 
 	[ TypeActuals ] 
 #endif
 
