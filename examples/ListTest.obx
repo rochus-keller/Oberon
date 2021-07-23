@@ -1,6 +1,6 @@
 module ListTest
 	import
-		L := Lists<integer>
+		L := Lists(integer)
 	var
 		l : L.List
 	begin

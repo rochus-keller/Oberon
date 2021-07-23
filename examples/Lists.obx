@@ -1,4 +1,4 @@
-module Lists<T>
+module Lists(T)
     type
         List*     = ^record
             value* : T

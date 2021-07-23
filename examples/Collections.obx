@@ -1,4 +1,4 @@
-module Collections<T>
+module Collections(T)
   type Deque* = pointer to record
                       data: pointer to array of T
                       size: integer end

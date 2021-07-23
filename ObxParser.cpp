@@ -90,7 +90,7 @@ bool Parser::module(bool definition )
     m->d_loc = d_cur.toRowCol();
     m->d_file = d_cur.d_sourcePath;
 
-    if( d_la == Tok_Lt )
+    if( d_la == Tok_Lt || d_la == Tok_Lpar )
     {
         m->d_metaParams = typeParams();
         for( int i = 0; i < m->d_metaParams.size(); i++ )
@@ -292,7 +292,15 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
 
 MetaParams Parser::typeParams()
 {
-    MATCH( Tok_Lt, tr("expecting '<' to start type parameters") );
+    bool usesPar = false;
+    if( d_la == Tok_Lt )
+        next();
+    else if( d_la == Tok_Lpar )
+    {
+        next();
+        usesPar = true;
+    }else
+        syntaxError( tr("expecting '<' or '(' to start type parameters") );
 #ifndef _HAS_GENERICS
     syntaxError(tr("this version of the parser doesn't support generic types") );
 #endif
@@ -312,7 +320,13 @@ MetaParams Parser::typeParams()
         t->d_loc = d_cur.toRowCol();
         res << t;
     }
-    MATCH( Tok_Gt, tr("expecting '>' to end type parameters") );
+    if( usesPar )
+    {
+        MATCH( Tok_Rpar, tr("expecting ')' to end type parameters") );
+    }else
+    {
+        MATCH( Tok_Gt, tr("expecting '>' to end type parameters") );
+    }
     return res;
 }
 
@@ -356,7 +370,15 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
 
 MetaActuals Parser::typeActuals()
 {
-    MATCH( Tok_Lt, tr("expecting '<' to start type actuals") );
+    bool usesPar = false;
+    if( d_la == Tok_Lt )
+        next();
+    else if( d_la == Tok_Lpar )
+    {
+        next();
+        usesPar = true;
+    }else
+        syntaxError( tr("expecting '<' or '(' to start type actuals") );
 #ifndef _HAS_GENERICS
     syntaxError(tr("this version of the parser doesn't support generic types") );
 #endif
@@ -364,14 +386,21 @@ MetaActuals Parser::typeActuals()
     Ref<Type> t = typeActual();
     if( !t.isNull() )
         res << t;
-    while( d_la == Tok_Comma )
+    while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
-        next();
+        if( d_la == Tok_Comma )
+            next();
         t = typeActual();
         if( !t.isNull() )
             res << t;
     }
-    MATCH( Tok_Gt, tr("expecting '>' to end type actuals") );
+    if( usesPar )
+    {
+        MATCH( Tok_Rpar, tr("expecting ')' to end type actuals") );
+    }else
+    {
+        MATCH( Tok_Gt, tr("expecting '>' to end type actuals") );
+    }
     return res;
 }
 
@@ -1979,7 +2008,7 @@ void Parser::import()
         }else
             hasErr = true;
     }
-    if( d_la == Tok_Lt )
+    if( d_la == Tok_Lt || d_la == Tok_Lpar )
     {
         imp->d_metaActuals = typeActuals();
     }

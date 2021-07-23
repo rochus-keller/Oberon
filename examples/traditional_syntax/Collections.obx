@@ -1,7 +1,10 @@
-MODULE Collections<T>;
+MODULE Collections(T);
+
   TYPE Deque* = POINTER TO RECORD
                       data: POINTER TO ARRAY OF T;
                       size: INTEGER END;
+    Iterator* = RECORD END;
+       
   PROCEDURE createDeque*(): Deque;
     CONST initial_len = 50;
     VAR this: Deque;  // this is initialized to nil
@@ -16,7 +19,6 @@ MODULE Collections<T>;
     this.data[this.size] := element INC(this.size);
   END append;
   
-  TYPE Iterator* = RECORD END;
   PROCEDURE (VAR this: Iterator) apply*(IN element: T) END;
   
   PROCEDURE (this: Deque) forEach*(VAR iter: Iterator);

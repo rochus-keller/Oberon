@@ -1,14 +1,14 @@
 (* Example from https://en.wikipedia.org/wiki/Oberon-2,
     v3 + generics and left out unused ListNode type *)
     
-module Lists<T>
+module Lists(T)
 
     // declare global constants, types and variables:
     
     type
         List*    = ^record
             value : T
-            next  : List<T>
+            next  : List
         end
 
     // declare procedures:

@@ -11,7 +11,7 @@ module Drawing
   proc (this: Circle) draw*() end
   proc (this: Square) draw*() end
     
-  import C := Collections<Figure>
+  import C := Collections(Figure)
     
   var figures: C.Deque
        circle: Circle

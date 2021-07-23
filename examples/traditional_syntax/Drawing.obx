@@ -1,27 +1,27 @@
 MODULE Drawing;
   IMPORT F := Fibonacci;
+         C := Collections(Figure);
+         
   TYPE Figure* = POINTER TO RECORD
                    position: RECORD x,y: INTEGER END
                 END;  
-  PROCEDURE (this: Figure) draw*() END;
-    
-  TYPE
-     Circle* = POINTER TO RECORD (Figure) diameter: INTEGER END;
-     Square* = POINTER TO RECORD (Figure) width: INTEGER END; 
-  PROCEDURE (this: Circle) draw*() END;
-  PROCEDURE (this: Square) draw*() END;
-    
-  IMPORT C := Collections<Figure>;
-    
+       Circle* = POINTER TO RECORD (Figure) diameter: INTEGER END;
+       Square* = POINTER TO RECORD (Figure) width: INTEGER END; 
+       
   VAR figures: C.Deque;
        circle: Circle;
        square: Square;
     
+  PROCEDURE (this: Figure) draw*() END;
+  PROCEDURE (this: Circle) draw*() END;
+  PROCEDURE (this: Square) draw*() END; 
+    
   PROCEDURE drawAll*();
     TYPE I = RECORD(C.Iterator) count: INTEGER END;
-    PROCEDURE (VAR this: I) apply( IN figure: Figure );
-    BEGIN figure.draw(); INC(this.count) END apply;
     VAR i: I; // count is initialized to zero
+    PROCEDURE (VAR this: I) apply( IN figure: Figure );
+    BEGIN figure.draw(); INC(this.count) 
+    END apply;
   BEGIN
     figures.forEach(i);
     ASSERT(i.count = 2);

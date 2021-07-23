@@ -95,9 +95,9 @@ type ::= NamedType
 NamedType ::= qualident 
 
 #ifdef OBNX
-TypeParams ::= '<' ident { [','] ident } '>'
+TypeParams ::= '<' ident { [','] ident } '>' | '(' ident { [','] ident } ')'
 
-TypeActuals ::= '<' TypeActual { ',' TypeActual } '>' 
+TypeActuals ::= '<' TypeActual { [','] TypeActual } '>' | '(' TypeActual { [','] TypeActual } ')' 
 
 TypeActual ::= NamedType
 
