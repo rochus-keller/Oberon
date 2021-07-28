@@ -137,6 +137,7 @@ namespace Obx
     struct Enumeration;
     struct GenericName;
     struct Exit;
+    struct SysAttr;
 
     typedef QList< Ref<Statement> > StatSeq;
 
@@ -180,9 +181,11 @@ namespace Obx
                                             // for comparison and naming Type::derefed::findDecl is used
     typedef QList< Ref<GenericName> > MetaParams;
 
+    typedef QList< Ref<SysAttr> > SysAttrs;
+
     struct Type : public Thing
     {
-        enum { ANY, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
+        enum { ANY, CVOID, NIL, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET }; // BaseType
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
@@ -193,11 +196,11 @@ namespace Obx
         uint d_union : 1;   // used by Record (CUNION)
         uint d_typeBound : 1; // used by ProcType
 
-        Ref<Expression> d_flag; // optional system flag
+        // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
 
         Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),d_typeBound(false) {}
         typedef QList< Ref<Type> > List;
-        virtual bool isStructured() const { return false; }
+        virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
         virtual bool hasByteSize() const { return true; }
@@ -232,6 +235,7 @@ namespace Obx
     {
         Ref<Type> d_to; // only to Record or Array
         int getTag() const { return T_Pointer; }
+        bool isStructured(bool withPtrAndProcType = false) const { return withPtrAndProcType; }
         void accept(AstVisitor* v) { v->visit(this); }
         QString pretty() const;
     };
@@ -244,7 +248,7 @@ namespace Obx
         Array():d_len(0) {}
         int getTag() const { return T_Array; }
         void accept(AstVisitor* v) { v->visit(this); }
-        bool isStructured() const { return true; }
+        bool isStructured(bool withPtrAndProcType = false) const { return true; }
         bool hasByteSize() const;
         Type* getTypeDim(int& dims , bool openOnly = false) const;
         QString pretty() const;
@@ -266,7 +270,7 @@ namespace Obx
         Record():d_baseRec(0),d_fieldCount(0),d_methCount(0) {}
         int getTag() const { return T_Record; }
         void accept(AstVisitor* v) { v->visit(this); }
-        bool isStructured() const { return true; }
+        bool isStructured(bool withPtrAndProcType = false) const { return true; }
         Named* find(const QByteArray& name , bool recursive) const;
         QString pretty() const { return "RECORD"; }
         QList<Field*> getOrderedFields() const;
@@ -278,13 +282,14 @@ namespace Obx
         typedef QList< Ref<Parameter> > Formals;
         typedef QList<bool> Vars;
 
-        Ref<Type> d_return; // QualiType or pointer to QualiType actually
+        Ref<Type> d_return;
         Formals d_formals;
 
         ProcType(const Type::List& f, Type* r = 0);
         ProcType(const Type::List& f, const Vars& var, Type* r = 0);
         ProcType(){}
         int getTag() const { return T_ProcType; }
+        bool isStructured(bool withPtrAndProcType = false) const { return withPtrAndProcType; }
         Parameter* find( const QByteArray& ) const;
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
@@ -440,6 +445,7 @@ namespace Obx
         Names d_names;
         QList< Ref<Named> > d_order;
         QList< Ref<IdentLeaf> > d_helper; // filled with helper decls when fillXref
+        SysAttrs d_sysAttrs;
         StatSeq d_body;
         Ob::RowCol d_end;
         quint16 d_varCount; // Variable, LocalVar
@@ -459,7 +465,7 @@ namespace Obx
         Record* d_receiverRec; // the record to which this procedure is bound
         Procedure* d_super; // the procedure of the super class this procedure overrides, or zero
         QList<Procedure*> d_subs; // the procedures of the subclasses which override this procedure
-        Ref<Expression> d_imp; // the number or string after PROC+
+        // Ref<Expression> d_imp; // the number or string after PROC+, no longer supported, see d_sysAttrs
         Procedure():d_receiverRec(0),d_super(0) {}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Procedure; }
@@ -477,9 +483,10 @@ namespace Obx
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
         bool d_isExt;
+        bool d_externC;
         QList< Ref<Type> > d_helper2; // filled with pointers because of ADDROF
 
-        Module():d_isDef(false),d_isValidated(false),d_isExt(false) {}
+        Module():d_isDef(false),d_isValidated(false),d_isExt(false),d_externC(false) {}
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
         QByteArray getName() const;
@@ -681,6 +688,11 @@ namespace Obx
         int getTag() const { return T_BinExpr; }
         void accept(AstVisitor* v) { v->visit(this); }
         Module* getModule() const { return !d_lhs.isNull() ? d_lhs->getModule() : !d_rhs.isNull() ? d_rhs->getModule() : 0 ; }
+    };
+
+    struct SysAttr : public Named
+    {
+        ExpList d_values;
     };
 
     class Instantiator // interface

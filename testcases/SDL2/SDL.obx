@@ -1,0 +1,2258 @@
+definition SDL [pfx 'SDL_']
+
+    // from SDL.h
+    type
+        TLSID = integer
+
+    proc Init(flags: integer): integer
+    proc InitSubSystem(flags: integer): integer
+    proc QuitSubSystem(flags: integer)
+    proc WasInit(flags: integer): integer
+    proc Quit
+
+    // from SDL_assert.h
+    type
+        AssertState = (ASSERTION_RETRY, ASSERTION_BREAK, ASSERTION_ABORT, ASSERTION_IGNORE, ASSERTION_ALWAYS_IGNORE)
+        AssertData = cstruct
+                always_ignore: integer
+                trigger_count: integer
+                condition: *carray of char
+                filename: *carray of char
+                linenum: integer
+                function: *carray of char
+                next: *AssertData end
+        AssertionHandler = proc(data: *AssertData; userdata: *void): AssertState
+
+    proc ReportAssertion(_1: *AssertData; _2: *carray of char; _3: *carray of char; _4: integer): AssertState
+    proc SetAssertionHandler(handler: AssertionHandler; userdata: *void)
+    proc GetDefaultAssertionHandler(): AssertionHandler
+    proc GetAssertionHandler(puserdata: **void): AssertionHandler
+    proc GetAssertionReport(): *AssertData
+    proc ResetAssertionReport
+
+    // from SDL_atomic.h
+    type
+        atomic_t = cstruct
+                value: integer end
+
+    proc AtomicTryLock(lock: *integer): bool
+    proc AtomicLock(lock: *integer)
+    proc AtomicUnlock(lock: *integer)
+    proc MemoryBarrierReleaseFunction
+    proc MemoryBarrierAcquireFunction
+    proc AtomicCAS(a: *atomic_t; oldval: integer; newval: integer): bool
+    proc AtomicSet(a: *atomic_t; v: integer): integer
+    proc AtomicGet(a: *atomic_t): integer
+    proc AtomicAdd(a: *atomic_t; v: integer): integer
+    proc AtomicCASPtr(a: **void; oldval: *void; newval: *void): bool
+    proc AtomicSetPtr(a: **void; v: *void): *void
+    proc AtomicGetPtr(a: **void): *void
+
+    // from SDL_audio.h
+    type
+        AudioCallback = proc(userdata: *void; stream: *carray of byte; len: integer)
+        AudioSpec = cstruct
+                freq: integer
+                format: shortint
+                channels: byte
+                silence: byte
+                samples: shortint
+                padding: shortint
+                size: integer
+                callback: AudioCallback
+                userdata: *void end
+        AudioFilter = proc(cvt: *AudioCVT; format: shortint)
+        AudioCVT = cstruct
+                needed: integer
+                src_format: shortint
+                dst_format: shortint
+                rate_incr: longreal
+                buf: *carray of byte
+                len: integer
+                len_cvt: integer
+                len_mult: integer
+                len_ratio: longreal
+                filters: carray 10 of AudioFilter
+                filter_index: integer end
+        AudioStatus = (AUDIO_STOPPED, AUDIO_PLAYING, AUDIO_PAUSED)
+        _SDL_AudioStream = cstruct end
+
+    proc GetNumAudioDrivers(): integer
+    proc GetAudioDriver(index: integer): *carray of char
+    proc AudioInit(driver_name: *carray of char): integer
+    proc AudioQuit
+    proc GetCurrentAudioDriver(): *carray of char
+    proc OpenAudio(desired: *AudioSpec; obtained: *AudioSpec): integer
+    proc GetNumAudioDevices(iscapture: integer): integer
+    proc GetAudioDeviceName(index: integer; iscapture: integer): *carray of char
+    proc OpenAudioDevice(device: *carray of char; iscapture: integer; desired: *AudioSpec; obtained: *AudioSpec; allowed_changes: integer): integer
+    proc GetAudioStatus(): AudioStatus
+    proc GetAudioDeviceStatus(dev: integer): AudioStatus
+    proc PauseAudio(pause_on: integer)
+    proc PauseAudioDevice(dev: integer; pause_on: integer)
+    proc LoadWAV_RW(src: *RWops; freesrc: integer; spec: *AudioSpec; audio_buf: **carray of byte; audio_len: *integer): *AudioSpec
+    proc FreeWAV(audio_buf: *carray of byte)
+    proc BuildAudioCVT(cvt: *AudioCVT; src_format: shortint; src_channels: byte; src_rate: integer; dst_format: shortint; dst_channels: byte; dst_rate: integer): integer
+    proc ConvertAudio(cvt: *AudioCVT): integer
+    proc NewAudioStream(src_format: shortint; src_channels: byte; src_rate: integer; dst_format: shortint; dst_channels: byte; dst_rate: integer): *_SDL_AudioStream
+    proc AudioStreamPut(stream: *_SDL_AudioStream; buf: *void; len: integer): integer
+    proc AudioStreamGet(stream: *_SDL_AudioStream; buf: *void; len: integer): integer
+    proc AudioStreamAvailable(stream: *_SDL_AudioStream): integer
+    proc AudioStreamFlush(stream: *_SDL_AudioStream): integer
+    proc AudioStreamClear(stream: *_SDL_AudioStream)
+    proc FreeAudioStream(stream: *_SDL_AudioStream)
+    proc MixAudio(dst: *carray of byte; src: *carray of byte; len: integer; volume: integer)
+    proc MixAudioFormat(dst: *carray of byte; src: *carray of byte; format: shortint; len: integer; volume: integer)
+    proc QueueAudio(dev: integer; data: *void; len: integer): integer
+    proc DequeueAudio(dev: integer; data: *void; len: integer): integer
+    proc GetQueuedAudioSize(dev: integer): integer
+    proc ClearQueuedAudio(dev: integer)
+    proc LockAudio
+    proc LockAudioDevice(dev: integer)
+    proc UnlockAudio
+    proc UnlockAudioDevice(dev: integer)
+    proc CloseAudio
+    proc CloseAudioDevice(dev: integer)
+
+    // from SDL_blendmode.h
+    type
+        BlendFactor = integer
+    const
+        BLENDFACTOR_DST_ALPHA = 9
+        BLENDFACTOR_DST_COLOR = 7
+        BLENDFACTOR_ONE = 2
+        BLENDFACTOR_ONE_MINUS_DST_ALPHA = 10
+        BLENDFACTOR_ONE_MINUS_DST_COLOR = 8
+        BLENDFACTOR_ONE_MINUS_SRC_ALPHA = 6
+        BLENDFACTOR_ONE_MINUS_SRC_COLOR = 4
+        BLENDFACTOR_SRC_ALPHA = 5
+        BLENDFACTOR_SRC_COLOR = 3
+        BLENDFACTOR_ZERO = 1
+
+    type
+        BlendOperation = integer
+    const
+        BLENDOPERATION_ADD = 1
+        BLENDOPERATION_MAXIMUM = 5
+        BLENDOPERATION_MINIMUM = 4
+        BLENDOPERATION_REV_SUBTRACT = 3
+        BLENDOPERATION_SUBTRACT = 2
+
+    proc ComposeCustomBlendMode(srcColorFactor: BlendFactor; dstColorFactor: BlendFactor; colorOperation: BlendOperation; srcAlphaFactor: BlendFactor; dstAlphaFactor: BlendFactor; alphaOperation: BlendOperation): BlendMode
+
+    // from SDL_clipboard.h
+    proc SetClipboardText(text: *carray of char): integer
+    proc GetClipboardText(): *carray of char
+    proc HasClipboardText(): bool
+
+    // from SDL_cpuinfo.h
+    type
+        size_t = integer
+
+    proc GetCPUCount(): integer
+    proc GetCPUCacheLineSize(): integer
+    proc HasRDTSC(): bool
+    proc HasAltiVec(): bool
+    proc HasMMX(): bool
+    proc Has3DNow(): bool
+    proc HasSSE(): bool
+    proc HasSSE2(): bool
+    proc HasSSE3(): bool
+    proc HasSSE41(): bool
+    proc HasSSE42(): bool
+    proc HasAVX(): bool
+    proc HasAVX2(): bool
+    proc HasAVX512F(): bool
+    proc HasARMSIMD(): bool
+    proc HasNEON(): bool
+    proc GetSystemRAM(): integer
+    proc SIMDGetAlignment(): integer
+    proc SIMDAlloc(len: integer): *void
+    proc SIMDRealloc(mem: *void; len: integer): *void
+    proc SIMDFree(ptr: *void)
+
+    // from SDL_error.h
+    type
+        errorcode = (ENOMEM, EFREAD, EFWRITE, EFSEEK, UNSUPPORTED, LASTERROR)
+
+    proc SetError(fmt: *carray of char): integer
+    proc GetError(): *carray of char
+    proc GetErrorMsg(errstr: *carray of char; maxlen: integer): *carray of char
+    proc ClearError
+    proc Error(code: errorcode): integer
+
+    // from SDL_events.h
+    type
+        EventType = integer
+    const
+        APP_DIDENTERBACKGROUND = 260
+        APP_DIDENTERFOREGROUND = 262
+        APP_LOWMEMORY = 258
+        APP_TERMINATING = 257
+        APP_WILLENTERBACKGROUND = 259
+        APP_WILLENTERFOREGROUND = 261
+        AUDIODEVICEADDED = 4352
+        AUDIODEVICEREMOVED = 4353
+        CLIPBOARDUPDATE = 2304
+        CONTROLLERAXISMOTION = 1616
+        CONTROLLERBUTTONDOWN = 1617
+        CONTROLLERBUTTONUP = 1618
+        CONTROLLERDEVICEADDED = 1619
+        CONTROLLERDEVICEREMAPPED = 1621
+        CONTROLLERDEVICEREMOVED = 1620
+        CONTROLLERSENSORUPDATE = 1625
+        CONTROLLERTOUCHPADDOWN = 1622
+        CONTROLLERTOUCHPADMOTION = 1623
+        CONTROLLERTOUCHPADUP = 1624
+        DISPLAYEVENT = 336
+        DOLLARGESTURE = 2048
+        DOLLARRECORD = 2049
+        DROPBEGIN = 4098
+        DROPCOMPLETE = 4099
+        DROPFILE = 4096
+        DROPTEXT = 4097
+        FINGERDOWN = 1792
+        FINGERMOTION = 1794
+        FINGERUP = 1793
+        FIRSTEVENT = 0
+        JOYAXISMOTION = 1536
+        JOYBALLMOTION = 1537
+        JOYBUTTONDOWN = 1539
+        JOYBUTTONUP = 1540
+        JOYDEVICEADDED = 1541
+        JOYDEVICEREMOVED = 1542
+        JOYHATMOTION = 1538
+        KEYDOWN = 768
+        KEYMAPCHANGED = 772
+        KEYUP = 769
+        LASTEVENT = 65535
+        LOCALECHANGED = 263
+        MOUSEBUTTONDOWN = 1025
+        MOUSEBUTTONUP = 1026
+        MOUSEMOTION = 1024
+        MOUSEWHEEL = 1027
+        MULTIGESTURE = 2050
+        QUIT = 256
+        RENDER_DEVICE_RESET = 8193
+        RENDER_TARGETS_RESET = 8192
+        SENSORUPDATE = 4608
+        SYSWMEVENT = 513
+        TEXTEDITING = 770
+        TEXTINPUT = 771
+        USEREVENT = 32768
+        WINDOWEVENT = 512
+
+    type
+        Keysym = cstruct
+                scancode: Scancode
+                sym: integer
+                mod_: shortint
+                unused: integer end
+        int64_t = integer
+        OSEvent = cstruct
+                type_: integer
+                timestamp: integer end
+        SysWMmsg = cstruct end
+        CommonEvent = cstruct
+                type_: integer
+                timestamp: integer end
+        DisplayEvent = cstruct
+                type_: integer
+                timestamp: integer
+                display: integer
+                event: byte
+                padding1: byte
+                padding2: byte
+                padding3: byte
+                data1: integer end
+        WindowEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                event: byte
+                padding1: byte
+                padding2: byte
+                padding3: byte
+                data1: integer
+                data2: integer end
+        KeyboardEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                state: byte
+                repeat_: byte
+                padding2: byte
+                padding3: byte
+                keysym: Keysym end
+        TextEditingEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                text: carray 32 of char
+                start: integer
+                length: integer end
+        TextInputEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                text: carray 32 of char end
+        MouseMotionEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                which: integer
+                state: integer
+                x: integer
+                y: integer
+                xrel: integer
+                yrel: integer end
+        MouseButtonEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                which: integer
+                button: byte
+                state: byte
+                clicks: byte
+                padding1: byte
+                x: integer
+                y: integer end
+        MouseWheelEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                which: integer
+                x: integer
+                y: integer
+                direction: integer end
+        JoyAxisEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                axis: byte
+                padding1: byte
+                padding2: byte
+                padding3: byte
+                value: shortint
+                padding4: shortint end
+        JoyBallEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                ball: byte
+                padding1: byte
+                padding2: byte
+                padding3: byte
+                xrel: shortint
+                yrel: shortint end
+        JoyHatEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                hat: byte
+                value: byte
+                padding1: byte
+                padding2: byte end
+        JoyButtonEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                button: byte
+                state: byte
+                padding1: byte
+                padding2: byte end
+        JoyDeviceEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer end
+        ControllerAxisEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                axis: byte
+                padding1: byte
+                padding2: byte
+                padding3: byte
+                value: shortint
+                padding4: shortint end
+        ControllerButtonEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                button: byte
+                state: byte
+                padding1: byte
+                padding2: byte end
+        ControllerDeviceEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer end
+        ControllerTouchpadEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                touchpad: integer
+                finger: integer
+                x: real
+                y: real
+                pressure: real end
+        ControllerSensorEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                sensor: integer
+                data: carray 3 of real end
+        AudioDeviceEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                iscapture: byte
+                padding1: byte
+                padding2: byte
+                padding3: byte end
+        SensorEvent = cstruct
+                type_: integer
+                timestamp: integer
+                which: integer
+                data: carray 6 of real end
+        QuitEvent = cstruct
+                type_: integer
+                timestamp: integer end
+        UserEvent = cstruct
+                type_: integer
+                timestamp: integer
+                windowID: integer
+                code: integer
+                data1: *void
+                data2: *void end
+        SysWMEvent = cstruct
+                type_: integer
+                timestamp: integer
+                msg: *SysWMmsg end
+        TouchFingerEvent = cstruct
+                type_: integer
+                timestamp: integer
+                touchId: integer
+                fingerId: integer
+                x: real
+                y: real
+                dx: real
+                dy: real
+                pressure: real
+                windowID: integer end
+        MultiGestureEvent = cstruct
+                type_: integer
+                timestamp: integer
+                touchId: integer
+                dTheta: real
+                dDist: real
+                x: real
+                y: real
+                numFingers: shortint
+                padding: shortint end
+        DollarGestureEvent = cstruct
+                type_: integer
+                timestamp: integer
+                touchId: integer
+                gestureId: integer
+                numFingers: integer
+                error: real
+                x: real
+                y: real end
+        DropEvent = cstruct
+                type_: integer
+                timestamp: integer
+                file: *carray of char
+                windowID: integer end
+        Event = cunion
+                type_: integer
+                common: CommonEvent
+                display: DisplayEvent
+                window: WindowEvent
+                key: KeyboardEvent
+                edit: TextEditingEvent
+                text: TextInputEvent
+                motion: MouseMotionEvent
+                button: MouseButtonEvent
+                wheel: MouseWheelEvent
+                jaxis: JoyAxisEvent
+                jball: JoyBallEvent
+                jhat: JoyHatEvent
+                jbutton: JoyButtonEvent
+                jdevice: JoyDeviceEvent
+                caxis: ControllerAxisEvent
+                cbutton: ControllerButtonEvent
+                cdevice: ControllerDeviceEvent
+                ctouchpad: ControllerTouchpadEvent
+                csensor: ControllerSensorEvent
+                adevice: AudioDeviceEvent
+                sensor: SensorEvent
+                quit: QuitEvent
+                user: UserEvent
+                syswm: SysWMEvent
+                tfinger: TouchFingerEvent
+                mgesture: MultiGestureEvent
+                dgesture: DollarGestureEvent
+                drop: DropEvent
+                padding: carray 56 of byte end
+        eventaction = (ADDEVENT, PEEKEVENT, GETEVENT)
+        EventFilter = proc(userdata: *void; event: *Event): integer
+
+    proc PumpEvents
+    proc PeepEvents(events: *Event; numevents: integer; action: eventaction; minType: integer; maxType: integer): integer
+    proc HasEvent(type_: integer): bool
+    proc HasEvents(minType: integer; maxType: integer): bool
+    proc FlushEvent(type_: integer)
+    proc FlushEvents(minType: integer; maxType: integer)
+    proc PollEvent(event: *Event): integer
+    proc WaitEvent(event: *Event): integer
+    proc WaitEventTimeout(event: *Event; timeout: integer): integer
+    proc PushEvent(event: *Event): integer
+    proc SetEventFilter(filter: EventFilter; userdata: *void)
+    proc GetEventFilter(filter: *EventFilter; userdata: **void): bool
+    proc AddEventWatch(filter: EventFilter; userdata: *void)
+    proc DelEventWatch(filter: EventFilter; userdata: *void)
+    proc FilterEvents(filter: EventFilter; userdata: *void)
+    proc EventState(type_: integer; state: integer): byte
+    proc RegisterEvents(numevents: integer): integer
+
+    // from SDL_filesystem.h
+    proc GetBasePath(): *carray of char
+    proc GetPrefPath(org: *carray of char; app: *carray of char): *carray of char
+
+    // from SDL_gamecontroller.h
+    type
+        _SDL_GameController = cstruct end
+        GameControllerType = (CONTROLLER_TYPE_UNKNOWN, CONTROLLER_TYPE_XBOX360, CONTROLLER_TYPE_XBOXONE, CONTROLLER_TYPE_PS3, CONTROLLER_TYPE_PS4, CONTROLLER_TYPE_NINTENDO_SWITCH_PRO, CONTROLLER_TYPE_VIRTUAL, CONTROLLER_TYPE_PS5)
+        GameControllerBindType = (CONTROLLER_BINDTYPE_NONE, CONTROLLER_BINDTYPE_BUTTON, CONTROLLER_BINDTYPE_AXIS, CONTROLLER_BINDTYPE_HAT)
+        GameControllerButtonBind = cstruct
+                bindType: GameControllerBindType
+                value: cunion
+    button: integer
+    axis: integer
+    hat: cstruct
+    hat: integer
+    hat_mask: integer end end end
+        JoystickGUID = cstruct
+                data: carray 16 of byte end
+        GameControllerAxis = integer
+    const
+        CONTROLLER_AXIS_INVALID = -1
+        CONTROLLER_AXIS_LEFTX = 0
+        CONTROLLER_AXIS_LEFTY = 1
+        CONTROLLER_AXIS_MAX = 6
+        CONTROLLER_AXIS_RIGHTX = 2
+        CONTROLLER_AXIS_RIGHTY = 3
+        CONTROLLER_AXIS_TRIGGERLEFT = 4
+        CONTROLLER_AXIS_TRIGGERRIGHT = 5
+
+    type
+        GameControllerButton = integer
+    const
+        CONTROLLER_BUTTON_A = 0
+        CONTROLLER_BUTTON_B = 1
+        CONTROLLER_BUTTON_BACK = 4
+        CONTROLLER_BUTTON_DPAD_DOWN = 12
+        CONTROLLER_BUTTON_DPAD_LEFT = 13
+        CONTROLLER_BUTTON_DPAD_RIGHT = 14
+        CONTROLLER_BUTTON_DPAD_UP = 11
+        CONTROLLER_BUTTON_GUIDE = 5
+        CONTROLLER_BUTTON_INVALID = -1
+        CONTROLLER_BUTTON_LEFTSHOULDER = 9
+        CONTROLLER_BUTTON_LEFTSTICK = 7
+        CONTROLLER_BUTTON_MAX = 21
+        CONTROLLER_BUTTON_MISC1 = 15
+        CONTROLLER_BUTTON_PADDLE1 = 16
+        CONTROLLER_BUTTON_PADDLE2 = 17
+        CONTROLLER_BUTTON_PADDLE3 = 18
+        CONTROLLER_BUTTON_PADDLE4 = 19
+        CONTROLLER_BUTTON_RIGHTSHOULDER = 10
+        CONTROLLER_BUTTON_RIGHTSTICK = 8
+        CONTROLLER_BUTTON_START = 6
+        CONTROLLER_BUTTON_TOUCHPAD = 20
+        CONTROLLER_BUTTON_X = 2
+        CONTROLLER_BUTTON_Y = 3
+
+    type
+        SensorType = integer
+    const
+        SENSOR_ACCEL = 1
+        SENSOR_GYRO = 2
+        SENSOR_INVALID = -1
+        SENSOR_UNKNOWN = 0
+
+    proc GameControllerAddMappingsFromRW(rw: *RWops; freerw: integer): integer
+    proc GameControllerAddMapping(mappingString: *carray of char): integer
+    proc GameControllerNumMappings(): integer
+    proc GameControllerMappingForIndex(mapping_index: integer): *carray of char
+    proc GameControllerMappingForGUID(guid: JoystickGUID): *carray of char
+    proc GameControllerMapping(gamecontroller: *_SDL_GameController): *carray of char
+    proc IsGameController(joystick_index: integer): bool
+    proc GameControllerNameForIndex(joystick_index: integer): *carray of char
+    proc GameControllerTypeForIndex(joystick_index: integer): GameControllerType
+    proc GameControllerMappingForDeviceIndex(joystick_index: integer): *carray of char
+    proc GameControllerOpen(joystick_index: integer): *_SDL_GameController
+    proc GameControllerFromInstanceID(joyid: integer): *_SDL_GameController
+    proc GameControllerFromPlayerIndex(player_index: integer): *_SDL_GameController
+    proc GameControllerName(gamecontroller: *_SDL_GameController): *carray of char
+    proc GameControllerGetType(gamecontroller: *_SDL_GameController): GameControllerType
+    proc GameControllerGetPlayerIndex(gamecontroller: *_SDL_GameController): integer
+    proc GameControllerSetPlayerIndex(gamecontroller: *_SDL_GameController; player_index: integer)
+    proc GameControllerGetVendor(gamecontroller: *_SDL_GameController): shortint
+    proc GameControllerGetProduct(gamecontroller: *_SDL_GameController): shortint
+    proc GameControllerGetProductVersion(gamecontroller: *_SDL_GameController): shortint
+    proc GameControllerGetSerial(gamecontroller: *_SDL_GameController): *carray of char
+    proc GameControllerGetAttached(gamecontroller: *_SDL_GameController): bool
+    proc GameControllerGetJoystick(gamecontroller: *_SDL_GameController): *_SDL_Joystick
+    proc GameControllerEventState(state: integer): integer
+    proc GameControllerUpdate
+    proc GameControllerGetAxisFromString(pchString: *carray of char): GameControllerAxis
+    proc GameControllerGetStringForAxis(axis: GameControllerAxis): *carray of char
+    proc GameControllerGetBindForAxis(gamecontroller: *_SDL_GameController; axis: GameControllerAxis): GameControllerButtonBind
+    proc GameControllerHasAxis(gamecontroller: *_SDL_GameController; axis: GameControllerAxis): bool
+    proc GameControllerGetAxis(gamecontroller: *_SDL_GameController; axis: GameControllerAxis): shortint
+    proc GameControllerGetButtonFromString(pchString: *carray of char): GameControllerButton
+    proc GameControllerGetStringForButton(button: GameControllerButton): *carray of char
+    proc GameControllerGetBindForButton(gamecontroller: *_SDL_GameController; button: GameControllerButton): GameControllerButtonBind
+    proc GameControllerHasButton(gamecontroller: *_SDL_GameController; button: GameControllerButton): bool
+    proc GameControllerGetButton(gamecontroller: *_SDL_GameController; button: GameControllerButton): byte
+    proc GameControllerGetNumTouchpads(gamecontroller: *_SDL_GameController): integer
+    proc GameControllerGetNumTouchpadFingers(gamecontroller: *_SDL_GameController; touchpad: integer): integer
+    proc GameControllerGetTouchpadFinger(gamecontroller: *_SDL_GameController; touchpad: integer; finger: integer; state: *carray of byte; x: *real; y: *real; pressure: *real): integer
+    proc GameControllerHasSensor(gamecontroller: *_SDL_GameController; type_: SensorType): bool
+    proc GameControllerSetSensorEnabled(gamecontroller: *_SDL_GameController; type_: SensorType; enabled: bool): integer
+    proc GameControllerIsSensorEnabled(gamecontroller: *_SDL_GameController; type_: SensorType): bool
+    proc GameControllerGetSensorData(gamecontroller: *_SDL_GameController; type_: SensorType; data: *real; num_values: integer): integer
+    proc GameControllerRumble(gamecontroller: *_SDL_GameController; low_frequency_rumble: shortint; high_frequency_rumble: shortint; duration_ms: integer): integer
+    proc GameControllerRumbleTriggers(gamecontroller: *_SDL_GameController; left_rumble: shortint; right_rumble: shortint; duration_ms: integer): integer
+    proc GameControllerHasLED(gamecontroller: *_SDL_GameController): bool
+    proc GameControllerSetLED(gamecontroller: *_SDL_GameController; red: byte; green: byte; blue: byte): integer
+    proc GameControllerClose(gamecontroller: *_SDL_GameController)
+
+    // from SDL_gesture.h
+    proc RecordGesture(touchId: integer): integer
+    proc SaveAllDollarTemplates(dst: *RWops): integer
+    proc SaveDollarTemplate(gestureId: integer; dst: *RWops): integer
+    proc LoadDollarTemplates(touchId: integer; src: *RWops): integer
+
+    // from SDL_haptic.h
+    type
+        _SDL_Haptic = cstruct end
+        int16_t = shortint
+        HapticDirection = cstruct
+                type_: byte
+                dir: carray 3 of integer end
+        AudioFormat = shortint
+        HapticConstant = cstruct
+                type_: shortint
+                direction: HapticDirection
+                length: integer
+                delay: shortint
+                button: shortint
+                interval: shortint
+                level: shortint
+                attack_length: shortint
+                attack_level: shortint
+                fade_length: shortint
+                fade_level: shortint end
+        HapticPeriodic = cstruct
+                type_: shortint
+                direction: HapticDirection
+                length: integer
+                delay: shortint
+                button: shortint
+                interval: shortint
+                period: shortint
+                magnitude: shortint
+                offset: shortint
+                phase: shortint
+                attack_length: shortint
+                attack_level: shortint
+                fade_length: shortint
+                fade_level: shortint end
+        HapticCondition = cstruct
+                type_: shortint
+                direction: HapticDirection
+                length: integer
+                delay: shortint
+                button: shortint
+                interval: shortint
+                right_sat: carray 3 of shortint
+                left_sat: carray 3 of shortint
+                right_coeff: carray 3 of shortint
+                left_coeff: carray 3 of shortint
+                deadband: carray 3 of shortint
+                center: carray 3 of shortint end
+        HapticRamp = cstruct
+                type_: shortint
+                direction: HapticDirection
+                length: integer
+                delay: shortint
+                button: shortint
+                interval: shortint
+                start: shortint
+                end_: shortint
+                attack_length: shortint
+                attack_level: shortint
+                fade_length: shortint
+                fade_level: shortint end
+        HapticLeftRight = cstruct
+                type_: shortint
+                length: integer
+                large_magnitude: shortint
+                small_magnitude: shortint end
+        HapticCustom = cstruct
+                type_: shortint
+                direction: HapticDirection
+                length: integer
+                delay: shortint
+                button: shortint
+                interval: shortint
+                channels: byte
+                period: shortint
+                samples: shortint
+                data: *shortint
+                attack_length: shortint
+                attack_level: shortint
+                fade_length: shortint
+                fade_level: shortint end
+        HapticEffect = cunion
+                type_: shortint
+                constant: HapticConstant
+                periodic: HapticPeriodic
+                condition: HapticCondition
+                ramp: HapticRamp
+                leftright: HapticLeftRight
+                custom: HapticCustom end
+
+    proc NumHaptics(): integer
+    proc HapticName(device_index: integer): *carray of char
+    proc HapticOpen(device_index: integer): *_SDL_Haptic
+    proc HapticOpened(device_index: integer): integer
+    proc HapticIndex(haptic: *_SDL_Haptic): integer
+    proc MouseIsHaptic(): integer
+    proc HapticOpenFromMouse(): *_SDL_Haptic
+    proc JoystickIsHaptic(joystick: *_SDL_Joystick): integer
+    proc HapticOpenFromJoystick(joystick: *_SDL_Joystick): *_SDL_Haptic
+    proc HapticClose(haptic: *_SDL_Haptic)
+    proc HapticNumEffects(haptic: *_SDL_Haptic): integer
+    proc HapticNumEffectsPlaying(haptic: *_SDL_Haptic): integer
+    proc HapticQuery(haptic: *_SDL_Haptic): integer
+    proc HapticNumAxes(haptic: *_SDL_Haptic): integer
+    proc HapticEffectSupported(haptic: *_SDL_Haptic; effect: *HapticEffect): integer
+    proc HapticNewEffect(haptic: *_SDL_Haptic; effect: *HapticEffect): integer
+    proc HapticUpdateEffect(haptic: *_SDL_Haptic; effect: integer; data: *HapticEffect): integer
+    proc HapticRunEffect(haptic: *_SDL_Haptic; effect: integer; iterations: integer): integer
+    proc HapticStopEffect(haptic: *_SDL_Haptic; effect: integer): integer
+    proc HapticDestroyEffect(haptic: *_SDL_Haptic; effect: integer)
+    proc HapticGetEffectStatus(haptic: *_SDL_Haptic; effect: integer): integer
+    proc HapticSetGain(haptic: *_SDL_Haptic; gain: integer): integer
+    proc HapticSetAutocenter(haptic: *_SDL_Haptic; autocenter: integer): integer
+    proc HapticPause(haptic: *_SDL_Haptic): integer
+    proc HapticUnpause(haptic: *_SDL_Haptic): integer
+    proc HapticStopAll(haptic: *_SDL_Haptic): integer
+    proc HapticRumbleSupported(haptic: *_SDL_Haptic): integer
+    proc HapticRumbleInit(haptic: *_SDL_Haptic): integer
+    proc HapticRumblePlay(haptic: *_SDL_Haptic; strength: real; length: integer): integer
+    proc HapticRumbleStop(haptic: *_SDL_Haptic): integer
+
+    // from SDL_hints.h
+    type
+        HintPriority = (HINT_DEFAULT, HINT_NORMAL, HINT_OVERRIDE)
+        HintCallback = proc(userdata: *void; name: *carray of char; oldValue: *carray of char; newValue: *carray of char)
+
+    proc SetHintWithPriority(name: *carray of char; value: *carray of char; priority: HintPriority): bool
+    proc SetHint(name: *carray of char; value: *carray of char): bool
+    proc GetHint(name: *carray of char): *carray of char
+    proc GetHintBoolean(name: *carray of char; default_value: bool): bool
+    proc AddHintCallback(name: *carray of char; callback: HintCallback; userdata: *void)
+    proc DelHintCallback(name: *carray of char; callback: HintCallback; userdata: *void)
+    proc ClearHints
+
+    // from SDL_joystick.h
+    type
+        _SDL_Joystick = cstruct end
+        JoystickPowerLevel = integer
+    const
+        JOYSTICK_POWER_EMPTY = 0
+        JOYSTICK_POWER_FULL = 3
+        JOYSTICK_POWER_LOW = 1
+        JOYSTICK_POWER_MAX = 5
+        JOYSTICK_POWER_MEDIUM = 2
+        JOYSTICK_POWER_UNKNOWN = -1
+        JOYSTICK_POWER_WIRED = 4
+
+    type
+        JoystickType = (JOYSTICK_TYPE_UNKNOWN, JOYSTICK_TYPE_GAMECONTROLLER, JOYSTICK_TYPE_WHEEL, JOYSTICK_TYPE_ARCADE_STICK, JOYSTICK_TYPE_FLIGHT_STICK, JOYSTICK_TYPE_DANCE_PAD, JOYSTICK_TYPE_GUITAR, JOYSTICK_TYPE_DRUM_KIT, JOYSTICK_TYPE_ARCADE_PAD, JOYSTICK_TYPE_THROTTLE)
+
+    proc LockJoysticks
+    proc UnlockJoysticks
+    proc NumJoysticks(): integer
+    proc JoystickNameForIndex(device_index: integer): *carray of char
+    proc JoystickGetDevicePlayerIndex(device_index: integer): integer
+    proc JoystickGetDeviceGUID(device_index: integer): JoystickGUID
+    proc JoystickGetDeviceVendor(device_index: integer): shortint
+    proc JoystickGetDeviceProduct(device_index: integer): shortint
+    proc JoystickGetDeviceProductVersion(device_index: integer): shortint
+    proc JoystickGetDeviceType(device_index: integer): JoystickType
+    proc JoystickGetDeviceInstanceID(device_index: integer): integer
+    proc JoystickOpen(device_index: integer): *_SDL_Joystick
+    proc JoystickFromInstanceID(instance_id: integer): *_SDL_Joystick
+    proc JoystickFromPlayerIndex(player_index: integer): *_SDL_Joystick
+    proc JoystickAttachVirtual(type_: JoystickType; naxes: integer; nbuttons: integer; nhats: integer): integer
+    proc JoystickDetachVirtual(device_index: integer): integer
+    proc JoystickIsVirtual(device_index: integer): bool
+    proc JoystickSetVirtualAxis(joystick: *_SDL_Joystick; axis: integer; value: shortint): integer
+    proc JoystickSetVirtualButton(joystick: *_SDL_Joystick; button: integer; value: byte): integer
+    proc JoystickSetVirtualHat(joystick: *_SDL_Joystick; hat: integer; value: byte): integer
+    proc JoystickName(joystick: *_SDL_Joystick): *carray of char
+    proc JoystickGetPlayerIndex(joystick: *_SDL_Joystick): integer
+    proc JoystickSetPlayerIndex(joystick: *_SDL_Joystick; player_index: integer)
+    proc JoystickGetGUID(joystick: *_SDL_Joystick): JoystickGUID
+    proc JoystickGetVendor(joystick: *_SDL_Joystick): shortint
+    proc JoystickGetProduct(joystick: *_SDL_Joystick): shortint
+    proc JoystickGetProductVersion(joystick: *_SDL_Joystick): shortint
+    proc JoystickGetSerial(joystick: *_SDL_Joystick): *carray of char
+    proc JoystickGetType(joystick: *_SDL_Joystick): JoystickType
+    proc JoystickGetGUIDString(guid: JoystickGUID; pszGUID: *carray of char; cbGUID: integer)
+    proc JoystickGetGUIDFromString(pchGUID: *carray of char): JoystickGUID
+    proc JoystickGetAttached(joystick: *_SDL_Joystick): bool
+    proc JoystickInstanceID(joystick: *_SDL_Joystick): integer
+    proc JoystickNumAxes(joystick: *_SDL_Joystick): integer
+    proc JoystickNumBalls(joystick: *_SDL_Joystick): integer
+    proc JoystickNumHats(joystick: *_SDL_Joystick): integer
+    proc JoystickNumButtons(joystick: *_SDL_Joystick): integer
+    proc JoystickUpdate
+    proc JoystickEventState(state: integer): integer
+    proc JoystickGetAxis(joystick: *_SDL_Joystick; axis: integer): shortint
+    proc JoystickGetAxisInitialState(joystick: *_SDL_Joystick; axis: integer; state: *shortint): bool
+    proc JoystickGetHat(joystick: *_SDL_Joystick; hat: integer): byte
+    proc JoystickGetBall(joystick: *_SDL_Joystick; ball: integer; dx: *integer; dy: *integer): integer
+    proc JoystickGetButton(joystick: *_SDL_Joystick; button: integer): byte
+    proc JoystickRumble(joystick: *_SDL_Joystick; low_frequency_rumble: shortint; high_frequency_rumble: shortint; duration_ms: integer): integer
+    proc JoystickRumbleTriggers(joystick: *_SDL_Joystick; left_rumble: shortint; right_rumble: shortint; duration_ms: integer): integer
+    proc JoystickHasLED(joystick: *_SDL_Joystick): bool
+    proc JoystickSetLED(joystick: *_SDL_Joystick; red: byte; green: byte; blue: byte): integer
+    proc JoystickClose(joystick: *_SDL_Joystick)
+    proc JoystickCurrentPowerLevel(joystick: *_SDL_Joystick): JoystickPowerLevel
+
+    // from SDL_keyboard.h
+    type
+        Keymod = integer
+    const
+        KMOD_ALT = 768
+        KMOD_CAPS = 8192
+        KMOD_CTRL = 192
+        KMOD_GUI = 3072
+        KMOD_LALT = 256
+        KMOD_LCTRL = 64
+        KMOD_LGUI = 1024
+        KMOD_LSHIFT = 1
+        KMOD_MODE = 16384
+        KMOD_NONE = 0
+        KMOD_NUM = 4096
+        KMOD_RALT = 512
+        KMOD_RCTRL = 128
+        KMOD_RESERVED = 32768
+        KMOD_RGUI = 2048
+        KMOD_RSHIFT = 2
+        KMOD_SHIFT = 3
+
+    type
+        Scancode = integer
+    const
+        NUM_SCANCODES = 512
+        SCANCODE_0 = 39
+        SCANCODE_1 = 30
+        SCANCODE_2 = 31
+        SCANCODE_3 = 32
+        SCANCODE_4 = 33
+        SCANCODE_5 = 34
+        SCANCODE_6 = 35
+        SCANCODE_7 = 36
+        SCANCODE_8 = 37
+        SCANCODE_9 = 38
+        SCANCODE_A = 4
+        SCANCODE_AC_BACK = 270
+        SCANCODE_AC_BOOKMARKS = 274
+        SCANCODE_AC_FORWARD = 271
+        SCANCODE_AC_HOME = 269
+        SCANCODE_AC_REFRESH = 273
+        SCANCODE_AC_SEARCH = 268
+        SCANCODE_AC_STOP = 272
+        SCANCODE_AGAIN = 121
+        SCANCODE_ALTERASE = 153
+        SCANCODE_APOSTROPHE = 52
+        SCANCODE_APP1 = 283
+        SCANCODE_APP2 = 284
+        SCANCODE_APPLICATION = 101
+        SCANCODE_AUDIOFASTFORWARD = 286
+        SCANCODE_AUDIOMUTE = 262
+        SCANCODE_AUDIONEXT = 258
+        SCANCODE_AUDIOPLAY = 261
+        SCANCODE_AUDIOPREV = 259
+        SCANCODE_AUDIOREWIND = 285
+        SCANCODE_AUDIOSTOP = 260
+        SCANCODE_B = 5
+        SCANCODE_BACKSLASH = 49
+        SCANCODE_BACKSPACE = 42
+        SCANCODE_BRIGHTNESSDOWN = 275
+        SCANCODE_BRIGHTNESSUP = 276
+        SCANCODE_C = 6
+        SCANCODE_CALCULATOR = 266
+        SCANCODE_CANCEL = 155
+        SCANCODE_CAPSLOCK = 57
+        SCANCODE_CLEAR = 156
+        SCANCODE_CLEARAGAIN = 162
+        SCANCODE_COMMA = 54
+        SCANCODE_COMPUTER = 267
+        SCANCODE_COPY = 124
+        SCANCODE_CRSEL = 163
+        SCANCODE_CURRENCYSUBUNIT = 181
+        SCANCODE_CURRENCYUNIT = 180
+        SCANCODE_CUT = 123
+        SCANCODE_D = 7
+        SCANCODE_DECIMALSEPARATOR = 179
+        SCANCODE_DELETE = 76
+        SCANCODE_DISPLAYSWITCH = 277
+        SCANCODE_DOWN = 81
+        SCANCODE_E = 8
+        SCANCODE_EJECT = 281
+        SCANCODE_END = 77
+        SCANCODE_EQUALS = 46
+        SCANCODE_ESCAPE = 41
+        SCANCODE_EXECUTE = 116
+        SCANCODE_EXSEL = 164
+        SCANCODE_F = 9
+        SCANCODE_F1 = 58
+        SCANCODE_F10 = 67
+        SCANCODE_F11 = 68
+        SCANCODE_F12 = 69
+        SCANCODE_F13 = 104
+        SCANCODE_F14 = 105
+        SCANCODE_F15 = 106
+        SCANCODE_F16 = 107
+        SCANCODE_F17 = 108
+        SCANCODE_F18 = 109
+        SCANCODE_F19 = 110
+        SCANCODE_F2 = 59
+        SCANCODE_F20 = 111
+        SCANCODE_F21 = 112
+        SCANCODE_F22 = 113
+        SCANCODE_F23 = 114
+        SCANCODE_F24 = 115
+        SCANCODE_F3 = 60
+        SCANCODE_F4 = 61
+        SCANCODE_F5 = 62
+        SCANCODE_F6 = 63
+        SCANCODE_F7 = 64
+        SCANCODE_F8 = 65
+        SCANCODE_F9 = 66
+        SCANCODE_FIND = 126
+        SCANCODE_G = 10
+        SCANCODE_GRAVE = 53
+        SCANCODE_H = 11
+        SCANCODE_HELP = 117
+        SCANCODE_HOME = 74
+        SCANCODE_I = 12
+        SCANCODE_INSERT = 73
+        SCANCODE_INTERNATIONAL1 = 135
+        SCANCODE_INTERNATIONAL2 = 136
+        SCANCODE_INTERNATIONAL3 = 137
+        SCANCODE_INTERNATIONAL4 = 138
+        SCANCODE_INTERNATIONAL5 = 139
+        SCANCODE_INTERNATIONAL6 = 140
+        SCANCODE_INTERNATIONAL7 = 141
+        SCANCODE_INTERNATIONAL8 = 142
+        SCANCODE_INTERNATIONAL9 = 143
+        SCANCODE_J = 13
+        SCANCODE_K = 14
+        SCANCODE_KBDILLUMDOWN = 279
+        SCANCODE_KBDILLUMTOGGLE = 278
+        SCANCODE_KBDILLUMUP = 280
+        SCANCODE_KP_0 = 98
+        SCANCODE_KP_00 = 176
+        SCANCODE_KP_000 = 177
+        SCANCODE_KP_1 = 89
+        SCANCODE_KP_2 = 90
+        SCANCODE_KP_3 = 91
+        SCANCODE_KP_4 = 92
+        SCANCODE_KP_5 = 93
+        SCANCODE_KP_6 = 94
+        SCANCODE_KP_7 = 95
+        SCANCODE_KP_8 = 96
+        SCANCODE_KP_9 = 97
+        SCANCODE_KP_A = 188
+        SCANCODE_KP_AMPERSAND = 199
+        SCANCODE_KP_AT = 206
+        SCANCODE_KP_B = 189
+        SCANCODE_KP_BACKSPACE = 187
+        SCANCODE_KP_BINARY = 218
+        SCANCODE_KP_C = 190
+        SCANCODE_KP_CLEAR = 216
+        SCANCODE_KP_CLEARENTRY = 217
+        SCANCODE_KP_COLON = 203
+        SCANCODE_KP_COMMA = 133
+        SCANCODE_KP_D = 191
+        SCANCODE_KP_DBLAMPERSAND = 200
+        SCANCODE_KP_DBLVERTICALBAR = 202
+        SCANCODE_KP_DECIMAL = 220
+        SCANCODE_KP_DIVIDE = 84
+        SCANCODE_KP_E = 192
+        SCANCODE_KP_ENTER = 88
+        SCANCODE_KP_EQUALS = 103
+        SCANCODE_KP_EQUALSAS400 = 134
+        SCANCODE_KP_EXCLAM = 207
+        SCANCODE_KP_F = 193
+        SCANCODE_KP_GREATER = 198
+        SCANCODE_KP_HASH = 204
+        SCANCODE_KP_HEXADECIMAL = 221
+        SCANCODE_KP_LEFTBRACE = 184
+        SCANCODE_KP_LEFTPAREN = 182
+        SCANCODE_KP_LESS = 197
+        SCANCODE_KP_MEMADD = 211
+        SCANCODE_KP_MEMCLEAR = 210
+        SCANCODE_KP_MEMDIVIDE = 214
+        SCANCODE_KP_MEMMULTIPLY = 213
+        SCANCODE_KP_MEMRECALL = 209
+        SCANCODE_KP_MEMSTORE = 208
+        SCANCODE_KP_MEMSUBTRACT = 212
+        SCANCODE_KP_MINUS = 86
+        SCANCODE_KP_MULTIPLY = 85
+        SCANCODE_KP_OCTAL = 219
+        SCANCODE_KP_PERCENT = 196
+        SCANCODE_KP_PERIOD = 99
+        SCANCODE_KP_PLUS = 87
+        SCANCODE_KP_PLUSMINUS = 215
+        SCANCODE_KP_POWER = 195
+        SCANCODE_KP_RIGHTBRACE = 185
+        SCANCODE_KP_RIGHTPAREN = 183
+        SCANCODE_KP_SPACE = 205
+        SCANCODE_KP_TAB = 186
+        SCANCODE_KP_VERTICALBAR = 201
+        SCANCODE_KP_XOR = 194
+        SCANCODE_L = 15
+        SCANCODE_LALT = 226
+        SCANCODE_LANG1 = 144
+        SCANCODE_LANG2 = 145
+        SCANCODE_LANG3 = 146
+        SCANCODE_LANG4 = 147
+        SCANCODE_LANG5 = 148
+        SCANCODE_LANG6 = 149
+        SCANCODE_LANG7 = 150
+        SCANCODE_LANG8 = 151
+        SCANCODE_LANG9 = 152
+        SCANCODE_LCTRL = 224
+        SCANCODE_LEFT = 80
+        SCANCODE_LEFTBRACKET = 47
+        SCANCODE_LGUI = 227
+        SCANCODE_LSHIFT = 225
+        SCANCODE_M = 16
+        SCANCODE_MAIL = 265
+        SCANCODE_MEDIASELECT = 263
+        SCANCODE_MENU = 118
+        SCANCODE_MINUS = 45
+        SCANCODE_MODE = 257
+        SCANCODE_MUTE = 127
+        SCANCODE_N = 17
+        SCANCODE_NONUSBACKSLASH = 100
+        SCANCODE_NONUSHASH = 50
+        SCANCODE_NUMLOCKCLEAR = 83
+        SCANCODE_O = 18
+        SCANCODE_OPER = 161
+        SCANCODE_OUT = 160
+        SCANCODE_P = 19
+        SCANCODE_PAGEDOWN = 78
+        SCANCODE_PAGEUP = 75
+        SCANCODE_PASTE = 125
+        SCANCODE_PAUSE = 72
+        SCANCODE_PERIOD = 55
+        SCANCODE_POWER = 102
+        SCANCODE_PRINTSCREEN = 70
+        SCANCODE_PRIOR = 157
+        SCANCODE_Q = 20
+        SCANCODE_R = 21
+        SCANCODE_RALT = 230
+        SCANCODE_RCTRL = 228
+        SCANCODE_RETURN = 40
+        SCANCODE_RETURN2 = 158
+        SCANCODE_RGUI = 231
+        SCANCODE_RIGHT = 79
+        SCANCODE_RIGHTBRACKET = 48
+        SCANCODE_RSHIFT = 229
+        SCANCODE_S = 22
+        SCANCODE_SCROLLLOCK = 71
+        SCANCODE_SELECT = 119
+        SCANCODE_SEMICOLON = 51
+        SCANCODE_SEPARATOR = 159
+        SCANCODE_SLASH = 56
+        SCANCODE_SLEEP = 282
+        SCANCODE_SPACE = 44
+        SCANCODE_STOP = 120
+        SCANCODE_SYSREQ = 154
+        SCANCODE_T = 23
+        SCANCODE_TAB = 43
+        SCANCODE_THOUSANDSSEPARATOR = 178
+        SCANCODE_U = 24
+        SCANCODE_UNDO = 122
+        SCANCODE_UNKNOWN = 0
+        SCANCODE_UP = 82
+        SCANCODE_V = 25
+        SCANCODE_VOLUMEDOWN = 129
+        SCANCODE_VOLUMEUP = 128
+        SCANCODE_W = 26
+        SCANCODE_WWW = 264
+        SCANCODE_X = 27
+        SCANCODE_Y = 28
+        SCANCODE_Z = 29
+
+    proc GetKeyboardFocus(): *Window
+    proc GetKeyboardState(numkeys: *integer): *carray of byte
+    proc GetModState(): Keymod
+    proc SetModState(modstate: Keymod)
+    proc GetKeyFromScancode(scancode: Scancode): integer
+    proc GetScancodeFromKey(key: integer): Scancode
+    proc GetScancodeName(scancode: Scancode): *carray of char
+    proc GetScancodeFromName(name: *carray of char): Scancode
+    proc GetKeyName(key: integer): *carray of char
+    proc GetKeyFromName(name: *carray of char): integer
+    proc StartTextInput
+    proc IsTextInputActive(): bool
+    proc StopTextInput
+    proc SetTextInputRect(rect: *Rect)
+    proc HasScreenKeyboardSupport(): bool
+    proc IsScreenKeyboardShown(window: *Window): bool
+
+    // from SDL_keycode.h
+    type
+        KeyCode = integer
+    const
+        K_0 = 48
+        K_1 = 49
+        K_2 = 50
+        K_3 = 51
+        K_4 = 52
+        K_5 = 53
+        K_6 = 54
+        K_7 = 55
+        K_8 = 56
+        K_9 = 57
+        K_AC_BACK = 1073742094
+        K_AC_BOOKMARKS = 1073742098
+        K_AC_FORWARD = 1073742095
+        K_AC_HOME = 1073742093
+        K_AC_REFRESH = 1073742097
+        K_AC_SEARCH = 1073742092
+        K_AC_STOP = 1073742096
+        K_AGAIN = 1073741945
+        K_ALTERASE = 1073741977
+        K_AMPERSAND = 38
+        K_APP1 = 1073742107
+        K_APP2 = 1073742108
+        K_APPLICATION = 1073741925
+        K_ASTERISK = 42
+        K_AT = 64
+        K_AUDIOFASTFORWARD = 1073742110
+        K_AUDIOMUTE = 1073742086
+        K_AUDIONEXT = 1073742082
+        K_AUDIOPLAY = 1073742085
+        K_AUDIOPREV = 1073742083
+        K_AUDIOREWIND = 1073742109
+        K_AUDIOSTOP = 1073742084
+        K_BACKQUOTE = 96
+        K_BACKSLASH = 92
+        K_BACKSPACE = 8
+        K_BRIGHTNESSDOWN = 1073742099
+        K_BRIGHTNESSUP = 1073742100
+        K_CALCULATOR = 1073742090
+        K_CANCEL = 1073741979
+        K_CAPSLOCK = 1073741881
+        K_CARET = 94
+        K_CLEAR = 1073741980
+        K_CLEARAGAIN = 1073741986
+        K_COLON = 58
+        K_COMMA = 44
+        K_COMPUTER = 1073742091
+        K_COPY = 1073741948
+        K_CRSEL = 1073741987
+        K_CURRENCYSUBUNIT = 1073742005
+        K_CURRENCYUNIT = 1073742004
+        K_CUT = 1073741947
+        K_DECIMALSEPARATOR = 1073742003
+        K_DELETE = 127
+        K_DISPLAYSWITCH = 1073742101
+        K_DOLLAR = 36
+        K_DOWN = 1073741905
+        K_EJECT = 1073742105
+        K_END = 1073741901
+        K_EQUALS = 61
+        K_ESCAPE = 27
+        K_EXCLAIM = 33
+        K_EXECUTE = 1073741940
+        K_EXSEL = 1073741988
+        K_F1 = 1073741882
+        K_F10 = 1073741891
+        K_F11 = 1073741892
+        K_F12 = 1073741893
+        K_F13 = 1073741928
+        K_F14 = 1073741929
+        K_F15 = 1073741930
+        K_F16 = 1073741931
+        K_F17 = 1073741932
+        K_F18 = 1073741933
+        K_F19 = 1073741934
+        K_F2 = 1073741883
+        K_F20 = 1073741935
+        K_F21 = 1073741936
+        K_F22 = 1073741937
+        K_F23 = 1073741938
+        K_F24 = 1073741939
+        K_F3 = 1073741884
+        K_F4 = 1073741885
+        K_F5 = 1073741886
+        K_F6 = 1073741887
+        K_F7 = 1073741888
+        K_F8 = 1073741889
+        K_F9 = 1073741890
+        K_FIND = 1073741950
+        K_GREATER = 62
+        K_HASH = 35
+        K_HELP = 1073741941
+        K_HOME = 1073741898
+        K_INSERT = 1073741897
+        K_KBDILLUMDOWN = 1073742103
+        K_KBDILLUMTOGGLE = 1073742102
+        K_KBDILLUMUP = 1073742104
+        K_KP_0 = 1073741922
+        K_KP_00 = 1073742000
+        K_KP_000 = 1073742001
+        K_KP_1 = 1073741913
+        K_KP_2 = 1073741914
+        K_KP_3 = 1073741915
+        K_KP_4 = 1073741916
+        K_KP_5 = 1073741917
+        K_KP_6 = 1073741918
+        K_KP_7 = 1073741919
+        K_KP_8 = 1073741920
+        K_KP_9 = 1073741921
+        K_KP_A = 1073742012
+        K_KP_AMPERSAND = 1073742023
+        K_KP_AT = 1073742030
+        K_KP_B = 1073742013
+        K_KP_BACKSPACE = 1073742011
+        K_KP_BINARY = 1073742042
+        K_KP_C = 1073742014
+        K_KP_CLEAR = 1073742040
+        K_KP_CLEARENTRY = 1073742041
+        K_KP_COLON = 1073742027
+        K_KP_COMMA = 1073741957
+        K_KP_D = 1073742015
+        K_KP_DBLAMPERSAND = 1073742024
+        K_KP_DBLVERTICALBAR = 1073742026
+        K_KP_DECIMAL = 1073742044
+        K_KP_DIVIDE = 1073741908
+        K_KP_E = 1073742016
+        K_KP_ENTER = 1073741912
+        K_KP_EQUALS = 1073741927
+        K_KP_EQUALSAS400 = 1073741958
+        K_KP_EXCLAM = 1073742031
+        K_KP_F = 1073742017
+        K_KP_GREATER = 1073742022
+        K_KP_HASH = 1073742028
+        K_KP_HEXADECIMAL = 1073742045
+        K_KP_LEFTBRACE = 1073742008
+        K_KP_LEFTPAREN = 1073742006
+        K_KP_LESS = 1073742021
+        K_KP_MEMADD = 1073742035
+        K_KP_MEMCLEAR = 1073742034
+        K_KP_MEMDIVIDE = 1073742038
+        K_KP_MEMMULTIPLY = 1073742037
+        K_KP_MEMRECALL = 1073742033
+        K_KP_MEMSTORE = 1073742032
+        K_KP_MEMSUBTRACT = 1073742036
+        K_KP_MINUS = 1073741910
+        K_KP_MULTIPLY = 1073741909
+        K_KP_OCTAL = 1073742043
+        K_KP_PERCENT = 1073742020
+        K_KP_PERIOD = 1073741923
+        K_KP_PLUS = 1073741911
+        K_KP_PLUSMINUS = 1073742039
+        K_KP_POWER = 1073742019
+        K_KP_RIGHTBRACE = 1073742009
+        K_KP_RIGHTPAREN = 1073742007
+        K_KP_SPACE = 1073742029
+        K_KP_TAB = 1073742010
+        K_KP_VERTICALBAR = 1073742025
+        K_KP_XOR = 1073742018
+        K_LALT = 1073742050
+        K_LCTRL = 1073742048
+        K_LEFT = 1073741904
+        K_LEFTBRACKET = 91
+        K_LEFTPAREN = 40
+        K_LESS = 60
+        K_LGUI = 1073742051
+        K_LSHIFT = 1073742049
+        K_MAIL = 1073742089
+        K_MEDIASELECT = 1073742087
+        K_MENU = 1073741942
+        K_MINUS = 45
+        K_MODE = 1073742081
+        K_MUTE = 1073741951
+        K_NUMLOCKCLEAR = 1073741907
+        K_OPER = 1073741985
+        K_OUT = 1073741984
+        K_PAGEDOWN = 1073741902
+        K_PAGEUP = 1073741899
+        K_PASTE = 1073741949
+        K_PAUSE = 1073741896
+        K_PERCENT = 37
+        K_PERIOD = 46
+        K_PLUS = 43
+        K_POWER = 1073741926
+        K_PRINTSCREEN = 1073741894
+        K_PRIOR = 1073741981
+        K_QUESTION = 63
+        K_QUOTE = 39
+        K_QUOTEDBL = 34
+        K_RALT = 1073742054
+        K_RCTRL = 1073742052
+        K_RETURN = 13
+        K_RETURN2 = 1073741982
+        K_RGUI = 1073742055
+        K_RIGHT = 1073741903
+        K_RIGHTBRACKET = 93
+        K_RIGHTPAREN = 41
+        K_RSHIFT = 1073742053
+        K_SCROLLLOCK = 1073741895
+        K_SELECT = 1073741943
+        K_SEMICOLON = 59
+        K_SEPARATOR = 1073741983
+        K_SLASH = 47
+        K_SLEEP = 1073742106
+        K_SPACE = 32
+        K_STOP = 1073741944
+        K_SYSREQ = 1073741978
+        K_TAB = 9
+        K_THOUSANDSSEPARATOR = 1073742002
+        K_UNDERSCORE = 95
+        K_UNDO = 1073741946
+        K_UNKNOWN = 0
+        K_UP = 1073741906
+        K_VOLUMEDOWN = 1073741953
+        K_VOLUMEUP = 1073741952
+        K_WWW = 1073742088
+        K_a = 97
+        K_b = 98
+        K_c = 99
+        K_d = 100
+        K_e = 101
+        K_f = 102
+        K_g = 103
+        K_h = 104
+        K_i = 105
+        K_j = 106
+        K_k = 107
+        K_l = 108
+        K_m = 109
+        K_n = 110
+        K_o = 111
+        K_p = 112
+        K_q = 113
+        K_r = 114
+        K_s = 115
+        K_t = 116
+        K_u = 117
+        K_v = 118
+        K_w = 119
+        K_x = 120
+        K_y = 121
+        K_z = 122
+
+
+    // from SDL_loadso.h
+    proc LoadObject(sofile: *carray of char): *void
+    proc LoadFunction(handle: *void; name: *carray of char): *void
+    proc UnloadObject(handle: *void)
+
+    // from SDL_locale.h
+    type
+        Locale = cstruct
+                language: *carray of char
+                country: *carray of char end
+
+    proc GetPreferredLocales(): *Locale
+
+    // from SDL_log.h
+    type
+        LogCategory = (LOG_CATEGORY_APPLICATION, LOG_CATEGORY_ERROR, LOG_CATEGORY_ASSERT, LOG_CATEGORY_SYSTEM, LOG_CATEGORY_AUDIO, LOG_CATEGORY_VIDEO, LOG_CATEGORY_RENDER, LOG_CATEGORY_INPUT, LOG_CATEGORY_TEST, LOG_CATEGORY_RESERVED1, LOG_CATEGORY_RESERVED2, LOG_CATEGORY_RESERVED3, LOG_CATEGORY_RESERVED4, LOG_CATEGORY_RESERVED5, LOG_CATEGORY_RESERVED6, LOG_CATEGORY_RESERVED7, LOG_CATEGORY_RESERVED8, LOG_CATEGORY_RESERVED9, LOG_CATEGORY_RESERVED10, LOG_CATEGORY_CUSTOM)
+        __gnuc_va_list = carray 1 of __va_elem
+        LogPriority = integer
+    const
+        LOG_PRIORITY_CRITICAL = 6
+        LOG_PRIORITY_DEBUG = 2
+        LOG_PRIORITY_ERROR = 5
+        LOG_PRIORITY_INFO = 3
+        LOG_PRIORITY_VERBOSE = 1
+        LOG_PRIORITY_WARN = 4
+        NUM_LOG_PRIORITIES = 7
+
+    type
+        LogOutputFunction = proc(userdata: *void; category: integer; priority: LogPriority; message: *carray of char)
+
+    proc LogSetAllPriority(priority: LogPriority)
+    proc LogSetPriority(category: integer; priority: LogPriority)
+    proc LogGetPriority(category: integer): LogPriority
+    proc LogResetPriorities
+    proc Log(fmt: *carray of char)
+    proc LogVerbose(category: integer; fmt: *carray of char)
+    proc LogDebug(category: integer; fmt: *carray of char)
+    proc LogInfo(category: integer; fmt: *carray of char)
+    proc LogWarn(category: integer; fmt: *carray of char)
+    proc LogError(category: integer; fmt: *carray of char)
+    proc LogCritical(category: integer; fmt: *carray of char)
+    proc LogMessage(category: integer; priority: LogPriority; fmt: *carray of char)
+    proc LogMessageV(category: integer; priority: LogPriority; fmt: *carray of char; _4: *__va_elem)
+    proc LogGetOutputFunction(callback: *LogOutputFunction; userdata: **void)
+    proc LogSetOutputFunction(callback: LogOutputFunction; userdata: *void)
+
+    // from SDL_main.h
+    type
+        main_func = proc(argc: integer; _2: **carray of char): integer
+
+    proc main(argc: integer; _2: **carray of char): integer
+    proc SetMainReady
+
+    // from SDL_messagebox.h
+    type
+        MessageBoxFlags = integer
+    const
+        MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT = 128
+        MESSAGEBOX_BUTTONS_RIGHT_TO_LEFT = 256
+        MESSAGEBOX_ERROR = 16
+        MESSAGEBOX_INFORMATION = 64
+        MESSAGEBOX_WARNING = 32
+
+    type
+        MessageBoxButtonFlags = integer
+    const
+        MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT = 2
+        MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT = 1
+
+    type
+        MessageBoxButtonData = cstruct
+                flags: integer
+                buttonid: integer
+                text: *carray of char end
+        MessageBoxColor = cstruct
+                r: byte
+                g: byte
+                b: byte end
+        MessageBoxColorType = (MESSAGEBOX_COLOR_BACKGROUND, MESSAGEBOX_COLOR_TEXT, MESSAGEBOX_COLOR_BUTTON_BORDER, MESSAGEBOX_COLOR_BUTTON_BACKGROUND, MESSAGEBOX_COLOR_BUTTON_SELECTED, MESSAGEBOX_COLOR_MAX)
+        MessageBoxColorScheme = cstruct
+                colors: carray 5 of MessageBoxColor end
+        MessageBoxData = cstruct
+                flags: integer
+                window: *Window
+                title: *carray of char
+                message: *carray of char
+                numbuttons: integer
+                buttons: *MessageBoxButtonData
+                colorScheme: *MessageBoxColorScheme end
+
+    proc ShowMessageBox(messageboxdata: *MessageBoxData; buttonid: *integer): integer
+    proc ShowSimpleMessageBox(flags: integer; title: *carray of char; message: *carray of char; window: *Window): integer
+
+    // from SDL_metal.h
+    type
+        MetalView = *void
+
+    proc Metal_CreateView(window: *Window): MetalView
+    proc Metal_DestroyView(view: MetalView)
+    proc Metal_GetLayer(view: MetalView): *void
+    proc Metal_GetDrawableSize(window: *Window; w: *integer; h: *integer)
+
+    // from SDL_misc.h
+    proc OpenURL(url: *carray of char): integer
+
+    // from SDL_mouse.h
+    type
+        Cursor = cstruct end
+        MouseWheelDirection = (MOUSEWHEEL_NORMAL, MOUSEWHEEL_FLIPPED)
+        SystemCursor = (SYSTEM_CURSOR_ARROW, SYSTEM_CURSOR_IBEAM, SYSTEM_CURSOR_WAIT, SYSTEM_CURSOR_CROSSHAIR, SYSTEM_CURSOR_WAITARROW, SYSTEM_CURSOR_SIZENWSE, SYSTEM_CURSOR_SIZENESW, SYSTEM_CURSOR_SIZEWE, SYSTEM_CURSOR_SIZENS, SYSTEM_CURSOR_SIZEALL, SYSTEM_CURSOR_NO, SYSTEM_CURSOR_HAND, NUM_SYSTEM_CURSORS)
+
+    proc GetMouseFocus(): *Window
+    proc GetMouseState(x: *integer; y: *integer): integer
+    proc GetGlobalMouseState(x: *integer; y: *integer): integer
+    proc GetRelativeMouseState(x: *integer; y: *integer): integer
+    proc WarpMouseInWindow(window: *Window; x: integer; y: integer)
+    proc WarpMouseGlobal(x: integer; y: integer): integer
+    proc SetRelativeMouseMode(enabled: bool): integer
+    proc CaptureMouse(enabled: bool): integer
+    proc GetRelativeMouseMode(): bool
+    proc CreateCursor(data: *carray of byte; mask: *carray of byte; w: integer; h: integer; hot_x: integer; hot_y: integer): *Cursor
+    proc CreateColorCursor(surface: *Surface; hot_x: integer; hot_y: integer): *Cursor
+    proc CreateSystemCursor(id: SystemCursor): *Cursor
+    proc SetCursor(cursor: *Cursor)
+    proc GetCursor(): *Cursor
+    proc GetDefaultCursor(): *Cursor
+    proc FreeCursor(cursor: *Cursor)
+    proc ShowCursor(toggle: integer): integer
+
+    // from SDL_mutex.h
+    type
+        mutex = cstruct end
+        semaphore = cstruct end
+        cond = cstruct end
+
+    proc CreateMutex(): *mutex
+    proc LockMutex(mutex: *mutex): integer
+    proc TryLockMutex(mutex: *mutex): integer
+    proc UnlockMutex(mutex: *mutex): integer
+    proc DestroyMutex(mutex: *mutex)
+    proc CreateSemaphore(initial_value: integer): *semaphore
+    proc DestroySemaphore(sem: *semaphore)
+    proc SemWait(sem: *semaphore): integer
+    proc SemTryWait(sem: *semaphore): integer
+    proc SemWaitTimeout(sem: *semaphore; ms: integer): integer
+    proc SemPost(sem: *semaphore): integer
+    proc SemValue(sem: *semaphore): integer
+    proc CreateCond(): *cond
+    proc DestroyCond(cond: *cond)
+    proc CondSignal(cond: *cond): integer
+    proc CondBroadcast(cond: *cond): integer
+    proc CondWait(cond: *cond; mutex: *mutex): integer
+    proc CondWaitTimeout(cond: *cond; mutex: *mutex; ms: integer): integer
+
+    // from SDL_pixels.h
+    type
+        PixelType = (PIXELTYPE_UNKNOWN, PIXELTYPE_INDEX1, PIXELTYPE_INDEX4, PIXELTYPE_INDEX8, PIXELTYPE_PACKED8, PIXELTYPE_PACKED16, PIXELTYPE_PACKED32, PIXELTYPE_ARRAYU8, PIXELTYPE_ARRAYU16, PIXELTYPE_ARRAYU32, PIXELTYPE_ARRAYF16, PIXELTYPE_ARRAYF32)
+        BitmapOrder = (BITMAPORDER_NONE, BITMAPORDER_4321, BITMAPORDER_1234)
+        PackedOrder = (PACKEDORDER_NONE, PACKEDORDER_XRGB, PACKEDORDER_RGBX, PACKEDORDER_ARGB, PACKEDORDER_RGBA, PACKEDORDER_XBGR, PACKEDORDER_BGRX, PACKEDORDER_ABGR, PACKEDORDER_BGRA)
+        ArrayOrder = (ARRAYORDER_NONE, ARRAYORDER_RGB, ARRAYORDER_RGBA, ARRAYORDER_ARGB, ARRAYORDER_BGR, ARRAYORDER_BGRA, ARRAYORDER_ABGR)
+        PackedLayout = (PACKEDLAYOUT_NONE, PACKEDLAYOUT_332, PACKEDLAYOUT_4444, PACKEDLAYOUT_1555, PACKEDLAYOUT_5551, PACKEDLAYOUT_565, PACKEDLAYOUT_8888, PACKEDLAYOUT_2101010, PACKEDLAYOUT_1010102)
+        PixelFormatEnum = integer
+    const
+        PIXELFORMAT_ABGR1555 = 359862274
+        PIXELFORMAT_ABGR32 = 373694468
+        PIXELFORMAT_ABGR4444 = 359796738
+        PIXELFORMAT_ABGR8888 = 376840196
+        PIXELFORMAT_ARGB1555 = 355667970
+        PIXELFORMAT_ARGB2101010 = 372711428
+        PIXELFORMAT_ARGB32 = 377888772
+        PIXELFORMAT_ARGB4444 = 355602434
+        PIXELFORMAT_ARGB8888 = 372645892
+        PIXELFORMAT_BGR24 = 390076419
+        PIXELFORMAT_BGR444 = 357698562
+        PIXELFORMAT_BGR555 = 357764866
+        PIXELFORMAT_BGR565 = 357896194
+        PIXELFORMAT_BGR888 = 374740996
+        PIXELFORMAT_BGRA32 = 372645892
+        PIXELFORMAT_BGRA4444 = 360845314
+        PIXELFORMAT_BGRA5551 = 360976386
+        PIXELFORMAT_BGRA8888 = 377888772
+        PIXELFORMAT_BGRX8888 = 375789572
+        PIXELFORMAT_EXTERNAL_OES = 542328143
+        PIXELFORMAT_INDEX1LSB = 286261504
+        PIXELFORMAT_INDEX1MSB = 287310080
+        PIXELFORMAT_INDEX4LSB = 303039488
+        PIXELFORMAT_INDEX4MSB = 304088064
+        PIXELFORMAT_INDEX8 = 318769153
+        PIXELFORMAT_IYUV = 1448433993
+        PIXELFORMAT_NV12 = 842094158
+        PIXELFORMAT_NV21 = 825382478
+        PIXELFORMAT_RGB24 = 386930691
+        PIXELFORMAT_RGB332 = 336660481
+        PIXELFORMAT_RGB444 = 353504258
+        PIXELFORMAT_RGB555 = 353570562
+        PIXELFORMAT_RGB565 = 353701890
+        PIXELFORMAT_RGB888 = 370546692
+        PIXELFORMAT_RGBA32 = 376840196
+        PIXELFORMAT_RGBA4444 = 356651010
+        PIXELFORMAT_RGBA5551 = 356782082
+        PIXELFORMAT_RGBA8888 = 373694468
+        PIXELFORMAT_RGBX8888 = 371595268
+        PIXELFORMAT_UNKNOWN = 0
+        PIXELFORMAT_UYVY = 1498831189
+        PIXELFORMAT_XBGR1555 = 357764866
+        PIXELFORMAT_XBGR4444 = 357698562
+        PIXELFORMAT_XBGR8888 = 374740996
+        PIXELFORMAT_XRGB1555 = 353570562
+        PIXELFORMAT_XRGB4444 = 353504258
+        PIXELFORMAT_XRGB8888 = 370546692
+        PIXELFORMAT_YUY2 = 844715353
+        PIXELFORMAT_YV12 = 842094169
+        PIXELFORMAT_YVYU = 1431918169
+
+    type
+        Palette = cstruct
+                ncolors: integer
+                colors: *Color
+                version: integer
+                refcount: integer end
+        PixelFormat = cstruct
+                format: integer
+                palette: *Palette
+                BitsPerPixel: byte
+                BytesPerPixel: byte
+                padding: carray 2 of byte
+                Rmask: integer
+                Gmask: integer
+                Bmask: integer
+                Amask: integer
+                Rloss: byte
+                Gloss: byte
+                Bloss: byte
+                Aloss: byte
+                Rshift: byte
+                Gshift: byte
+                Bshift: byte
+                Ashift: byte
+                refcount: integer
+                next: *PixelFormat end
+
+    proc GetPixelFormatName(format: integer): *carray of char
+    proc PixelFormatEnumToMasks(format: integer; bpp: *integer; Rmask: *integer; Gmask: *integer; Bmask: *integer; Amask: *integer): bool
+    proc MasksToPixelFormatEnum(bpp: integer; Rmask: integer; Gmask: integer; Bmask: integer; Amask: integer): integer
+    proc AllocFormat(pixel_format: integer): *PixelFormat
+    proc FreeFormat(format: *PixelFormat)
+    proc AllocPalette(ncolors: integer): *Palette
+    proc SetPixelFormatPalette(format: *PixelFormat; palette: *Palette): integer
+    proc SetPaletteColors(palette: *Palette; colors: *Color; firstcolor: integer; ncolors: integer): integer
+    proc FreePalette(palette: *Palette)
+    proc MapRGB(format: *PixelFormat; r: byte; g: byte; b: byte): integer
+    proc MapRGBA(format: *PixelFormat; r: byte; g: byte; b: byte; a: byte): integer
+    proc GetRGB(pixel: integer; format: *PixelFormat; r: *carray of byte; g: *carray of byte; b: *carray of byte)
+    proc GetRGBA(pixel: integer; format: *PixelFormat; r: *carray of byte; g: *carray of byte; b: *carray of byte; a: *carray of byte)
+    proc CalculateGammaRamp(gamma: real; ramp: *shortint)
+
+    // from SDL_platform.h
+    proc GetPlatform(): *carray of char
+
+    // from SDL_power.h
+    type
+        PowerState = (POWERSTATE_UNKNOWN, POWERSTATE_ON_BATTERY, POWERSTATE_NO_BATTERY, POWERSTATE_CHARGING, POWERSTATE_CHARGED)
+
+    proc GetPowerInfo(secs: *integer; pct: *integer): PowerState
+
+    // from SDL_rect.h
+    type
+        Point = cstruct
+                x: integer
+                y: integer end
+        FPoint = cstruct
+                x: real
+                y: real end
+        FRect = cstruct
+                x: real
+                y: real
+                w: real
+                h: real end
+
+    proc HasIntersection(A: *Rect; B: *Rect): bool
+    proc IntersectRect(A: *Rect; B: *Rect; result: *Rect): bool
+    proc UnionRect(A: *Rect; B: *Rect; result: *Rect)
+    proc EnclosePoints(points: *Point; count: integer; clip: *Rect; result: *Rect): bool
+    proc IntersectRectAndLine(rect: *Rect; X1: *integer; Y1: *integer; X2: *integer; Y2: *integer): bool
+
+    // from SDL_render.h
+    type
+        RendererFlags = integer
+    const
+        RENDERER_ACCELERATED = 2
+        RENDERER_PRESENTVSYNC = 4
+        RENDERER_SOFTWARE = 1
+        RENDERER_TARGETTEXTURE = 8
+
+    type
+        RendererInfo = cstruct
+                name: *carray of char
+                flags: integer
+                num_texture_formats: integer
+                texture_formats: carray 16 of integer
+                max_texture_width: integer
+                max_texture_height: integer end
+        TextureAccess = (TEXTUREACCESS_STATIC, TEXTUREACCESS_STREAMING, TEXTUREACCESS_TARGET)
+        TextureModulate = (TEXTUREMODULATE_NONE, TEXTUREMODULATE_COLOR, TEXTUREMODULATE_ALPHA)
+        Renderer = cstruct end
+        Texture = cstruct end
+        ScaleMode = (ScaleModeNearest, ScaleModeLinear, ScaleModeBest)
+        bool = (FALSE_, TRUE_)
+        BlendMode = integer
+    const
+        BLENDMODE_ADD = 2
+        BLENDMODE_BLEND = 1
+        BLENDMODE_INVALID = 2147483647
+        BLENDMODE_MOD = 4
+        BLENDMODE_MUL = 8
+        BLENDMODE_NONE = 0
+
+    type
+        RendererFlip = (FLIP_NONE, FLIP_HORIZONTAL, FLIP_VERTICAL)
+
+    proc GetNumRenderDrivers(): integer
+    proc GetRenderDriverInfo(index: integer; info: *RendererInfo): integer
+    proc CreateWindowAndRenderer(width: integer; height: integer; window_flags: integer; window: **Window; renderer: **Renderer): integer
+    proc CreateRenderer(window: *Window; index: integer; flags: integer): *Renderer
+    proc CreateSoftwareRenderer(surface: *Surface): *Renderer
+    proc GetRenderer(window: *Window): *Renderer
+    proc GetRendererInfo(renderer: *Renderer; info: *RendererInfo): integer
+    proc GetRendererOutputSize(renderer: *Renderer; w: *integer; h: *integer): integer
+    proc CreateTexture(renderer: *Renderer; format: integer; access: integer; w: integer; h: integer): *Texture
+    proc CreateTextureFromSurface(renderer: *Renderer; surface: *Surface): *Texture
+    proc QueryTexture(texture: *Texture; format: *integer; access: *integer; w: *integer; h: *integer): integer
+    proc SetTextureColorMod(texture: *Texture; r: byte; g: byte; b: byte): integer
+    proc GetTextureColorMod(texture: *Texture; r: *carray of byte; g: *carray of byte; b: *carray of byte): integer
+    proc SetTextureAlphaMod(texture: *Texture; alpha: byte): integer
+    proc GetTextureAlphaMod(texture: *Texture; alpha: *carray of byte): integer
+    proc SetTextureBlendMode(texture: *Texture; blendMode: BlendMode): integer
+    proc GetTextureBlendMode(texture: *Texture; blendMode: *BlendMode): integer
+    proc SetTextureScaleMode(texture: *Texture; scaleMode: ScaleMode): integer
+    proc GetTextureScaleMode(texture: *Texture; scaleMode: *ScaleMode): integer
+    proc UpdateTexture(texture: *Texture; rect: *Rect; pixels: *void; pitch: integer): integer
+    proc UpdateYUVTexture(texture: *Texture; rect: *Rect; Yplane: *carray of byte; Ypitch: integer; Uplane: *carray of byte; Upitch: integer; Vplane: *carray of byte; Vpitch: integer): integer
+    proc LockTexture(texture: *Texture; rect: *Rect; pixels: **void; pitch: *integer): integer
+    proc LockTextureToSurface(texture: *Texture; rect: *Rect; surface: **Surface): integer
+    proc UnlockTexture(texture: *Texture)
+    proc RenderTargetSupported(renderer: *Renderer): bool
+    proc SetRenderTarget(renderer: *Renderer; texture: *Texture): integer
+    proc GetRenderTarget(renderer: *Renderer): *Texture
+    proc RenderSetLogicalSize(renderer: *Renderer; w: integer; h: integer): integer
+    proc RenderGetLogicalSize(renderer: *Renderer; w: *integer; h: *integer)
+    proc RenderSetIntegerScale(renderer: *Renderer; enable: bool): integer
+    proc RenderGetIntegerScale(renderer: *Renderer): bool
+    proc RenderSetViewport(renderer: *Renderer; rect: *Rect): integer
+    proc RenderGetViewport(renderer: *Renderer; rect: *Rect)
+    proc RenderSetClipRect(renderer: *Renderer; rect: *Rect): integer
+    proc RenderGetClipRect(renderer: *Renderer; rect: *Rect)
+    proc RenderIsClipEnabled(renderer: *Renderer): bool
+    proc RenderSetScale(renderer: *Renderer; scaleX: real; scaleY: real): integer
+    proc RenderGetScale(renderer: *Renderer; scaleX: *real; scaleY: *real)
+    proc SetRenderDrawColor(renderer: *Renderer; r: byte; g: byte; b: byte; a: byte): integer
+    proc GetRenderDrawColor(renderer: *Renderer; r: *carray of byte; g: *carray of byte; b: *carray of byte; a: *carray of byte): integer
+    proc SetRenderDrawBlendMode(renderer: *Renderer; blendMode: BlendMode): integer
+    proc GetRenderDrawBlendMode(renderer: *Renderer; blendMode: *BlendMode): integer
+    proc RenderClear(renderer: *Renderer): integer
+    proc RenderDrawPoint(renderer: *Renderer; x: integer; y: integer): integer
+    proc RenderDrawPoints(renderer: *Renderer; points: *Point; count: integer): integer
+    proc RenderDrawLine(renderer: *Renderer; x1: integer; y1: integer; x2: integer; y2: integer): integer
+    proc RenderDrawLines(renderer: *Renderer; points: *Point; count: integer): integer
+    proc RenderDrawRect(renderer: *Renderer; rect: *Rect): integer
+    proc RenderDrawRects(renderer: *Renderer; rects: *Rect; count: integer): integer
+    proc RenderFillRect(renderer: *Renderer; rect: *Rect): integer
+    proc RenderFillRects(renderer: *Renderer; rects: *Rect; count: integer): integer
+    proc RenderCopy(renderer: *Renderer; texture: *Texture; srcrect: *Rect; dstrect: *Rect): integer
+    proc RenderCopyEx(renderer: *Renderer; texture: *Texture; srcrect: *Rect; dstrect: *Rect; angle: longreal; center: *Point; flip: RendererFlip): integer
+    proc RenderDrawPointF(renderer: *Renderer; x: real; y: real): integer
+    proc RenderDrawPointsF(renderer: *Renderer; points: *FPoint; count: integer): integer
+    proc RenderDrawLineF(renderer: *Renderer; x1: real; y1: real; x2: real; y2: real): integer
+    proc RenderDrawLinesF(renderer: *Renderer; points: *FPoint; count: integer): integer
+    proc RenderDrawRectF(renderer: *Renderer; rect: *FRect): integer
+    proc RenderDrawRectsF(renderer: *Renderer; rects: *FRect; count: integer): integer
+    proc RenderFillRectF(renderer: *Renderer; rect: *FRect): integer
+    proc RenderFillRectsF(renderer: *Renderer; rects: *FRect; count: integer): integer
+    proc RenderCopyF(renderer: *Renderer; texture: *Texture; srcrect: *Rect; dstrect: *FRect): integer
+    proc RenderCopyExF(renderer: *Renderer; texture: *Texture; srcrect: *Rect; dstrect: *FRect; angle: longreal; center: *FPoint; flip: RendererFlip): integer
+    proc RenderReadPixels(renderer: *Renderer; rect: *Rect; format: integer; pixels: *void; pitch: integer): integer
+    proc RenderPresent(renderer: *Renderer)
+    proc DestroyTexture(texture: *Texture)
+    proc DestroyRenderer(renderer: *Renderer)
+    proc RenderFlush(renderer: *Renderer): integer
+    proc GL_BindTexture(texture: *Texture; texw: *real; texh: *real): integer
+    proc GL_UnbindTexture(texture: *Texture): integer
+    proc RenderGetMetalLayer(renderer: *Renderer): *void
+    proc RenderGetMetalCommandEncoder(renderer: *Renderer): *void
+
+    // from SDL_rwops.h
+    type
+        RWops = cstruct
+                size: proc(context: *RWops): integer
+                seek: proc(context: *RWops; offset: integer; whence: integer): integer
+                read: proc(context: *RWops; ptr: *void; size: integer; maxnum: integer): integer
+                write: proc(context: *RWops; ptr: *void; size: integer; num: integer): integer
+                close_: proc(context: *RWops): integer
+                type_: integer
+                hidden: cunion
+    mem: cstruct
+    base: *carray of byte
+    here: *carray of byte
+    stop: *carray of byte end
+    unknown: cstruct
+    data1: *void
+    data2: *void end end end
+
+    proc RWFromFile(file: *carray of char; mode: *carray of char): *RWops
+    proc RWFromFP(fp: *void; autoclose: bool): *RWops
+    proc RWFromMem(mem: *void; size: integer): *RWops
+    proc RWFromConstMem(mem: *void; size: integer): *RWops
+    proc AllocRW(): *RWops
+    proc FreeRW(area: *RWops)
+    proc RWsize(context: *RWops): integer
+    proc RWseek(context: *RWops; offset: integer; whence: integer): integer
+    proc RWtell(context: *RWops): integer
+    proc RWread(context: *RWops; ptr: *void; size: integer; maxnum: integer): integer
+    proc RWwrite(context: *RWops; ptr: *void; size: integer; num: integer): integer
+    proc RWclose(context: *RWops): integer
+    proc LoadFile_RW(src: *RWops; datasize: *integer; freesrc: integer): *void
+    proc LoadFile(file: *carray of char; datasize: *integer): *void
+    proc ReadU8(src: *RWops): byte
+    proc ReadLE16(src: *RWops): shortint
+    proc ReadBE16(src: *RWops): shortint
+    proc ReadLE32(src: *RWops): integer
+    proc ReadBE32(src: *RWops): integer
+    proc ReadLE64(src: *RWops): integer
+    proc ReadBE64(src: *RWops): integer
+    proc WriteU8(dst: *RWops; value: byte): integer
+    proc WriteLE16(dst: *RWops; value: shortint): integer
+    proc WriteBE16(dst: *RWops; value: shortint): integer
+    proc WriteLE32(dst: *RWops; value: integer): integer
+    proc WriteBE32(dst: *RWops; value: integer): integer
+    proc WriteLE64(dst: *RWops; value: integer): integer
+    proc WriteBE64(dst: *RWops; value: integer): integer
+
+    // from SDL_sensor.h
+    type
+        _SDL_Sensor = cstruct end
+
+    proc LockSensors
+    proc UnlockSensors
+    proc NumSensors(): integer
+    proc SensorGetDeviceName(device_index: integer): *carray of char
+    proc SensorGetDeviceType(device_index: integer): SensorType
+    proc SensorGetDeviceNonPortableType(device_index: integer): integer
+    proc SensorGetDeviceInstanceID(device_index: integer): integer
+    proc SensorOpen(device_index: integer): *_SDL_Sensor
+    proc SensorFromInstanceID(instance_id: integer): *_SDL_Sensor
+    proc SensorGetName(sensor: *_SDL_Sensor): *carray of char
+    proc SensorGetType(sensor: *_SDL_Sensor): SensorType
+    proc SensorGetNonPortableType(sensor: *_SDL_Sensor): integer
+    proc SensorGetInstanceID(sensor: *_SDL_Sensor): integer
+    proc SensorGetData(sensor: *_SDL_Sensor; data: *real; num_values: integer): integer
+    proc SensorClose(sensor: *_SDL_Sensor)
+    proc SensorUpdate
+
+    // from SDL_shape.h
+    type
+        Color = cstruct
+                r: byte
+                g: byte
+                b: byte
+                a: byte end
+        ShapeMode = (ShapeModeDefault, ShapeModeBinarizeAlpha, ShapeModeReverseBinarizeAlpha, ShapeModeColorKey)
+        WindowShapeParams = cunion
+                binarizationCutoff: byte
+                colorKey: Color end
+        WindowShapeMode = cstruct
+                mode: ShapeMode
+                parameters: WindowShapeParams end
+
+    proc CreateShapedWindow(title: *carray of char; x: integer; y: integer; w: integer; h: integer; flags: integer): *Window
+    proc IsShapedWindow(window: *Window): bool
+    proc SetWindowShape(window: *Window; shape: *Surface; shape_mode: *WindowShapeMode): integer
+    proc GetShapedWindowMode(window: *Window; shape_mode: *WindowShapeMode): integer
+
+    // from SDL_stdinc.h
+    type
+        compile_time_assert_sint64 = carray 1 of integer
+        Sint8 = char
+        DUMMY_ENUM = (DUMMY_ENUM_VALUE)
+        malloc_func = proc(size: integer): *void
+        calloc_func = proc(nmemb: integer; size: integer): *void
+        realloc_func = proc(mem: *void; size: integer): *void
+        free_func = proc(mem: *void)
+        iconv_t = *void
+
+    proc malloc(size: integer): *void
+    proc calloc(nmemb: integer; size: integer): *void
+    proc realloc(mem: *void; size: integer): *void
+    proc free(mem: *void)
+    proc GetMemoryFunctions(malloc_func: *malloc_func; calloc_func: *calloc_func; realloc_func: *realloc_func; free_func: *free_func)
+    proc SetMemoryFunctions(malloc_func: malloc_func; calloc_func: calloc_func; realloc_func: realloc_func; free_func: free_func): integer
+    proc GetNumAllocations(): integer
+    proc getenv(name: *carray of char): *carray of char
+    proc setenv(name: *carray of char; value: *carray of char; overwrite: integer): integer
+    proc qsort(base: *void; nmemb: integer; size: integer; compare: proc(_1: *void; _2: *void): integer)
+    proc abs(x: integer): integer
+    proc isdigit(x: integer): integer
+    proc isspace(x: integer): integer
+    proc isupper(x: integer): integer
+    proc islower(x: integer): integer
+    proc toupper(x: integer): integer
+    proc tolower(x: integer): integer
+    proc crc32(crc: integer; data: *void; len: integer): integer
+    proc memset(dst: *void; c: integer; len: integer): *void
+    proc memcpy(dst: *void; src: *void; len: integer): *void
+    proc memmove(dst: *void; src: *void; len: integer): *void
+    proc memcmp(s1: *void; s2: *void; len: integer): integer
+    proc wcslen(wstr: *integer): integer
+    proc wcslcpy(dst: *integer; src: *integer; maxlen: integer): integer
+    proc wcslcat(dst: *integer; src: *integer; maxlen: integer): integer
+    proc wcsdup(wstr: *integer): *integer
+    proc wcsstr(haystack: *integer; needle: *integer): *integer
+    proc wcscmp(str1: *integer; str2: *integer): integer
+    proc wcsncmp(str1: *integer; str2: *integer; maxlen: integer): integer
+    proc wcscasecmp(str1: *integer; str2: *integer): integer
+    proc wcsncasecmp(str1: *integer; str2: *integer; len: integer): integer
+    proc strlen(str: *carray of char): integer
+    proc strlcpy(dst: *carray of char; src: *carray of char; maxlen: integer): integer
+    proc utf8strlcpy(dst: *carray of char; src: *carray of char; dst_bytes: integer): integer
+    proc strlcat(dst: *carray of char; src: *carray of char; maxlen: integer): integer
+    proc strdup(str: *carray of char): *carray of char
+    proc strrev(str: *carray of char): *carray of char
+    proc strupr(str: *carray of char): *carray of char
+    proc strlwr(str: *carray of char): *carray of char
+    proc strchr(str: *carray of char; c: integer): *carray of char
+    proc strrchr(str: *carray of char; c: integer): *carray of char
+    proc strstr(haystack: *carray of char; needle: *carray of char): *carray of char
+    proc strtokr(s1: *carray of char; s2: *carray of char; saveptr: **carray of char): *carray of char
+    proc utf8strlen(str: *carray of char): integer
+    proc itoa(value: integer; str: *carray of char; radix: integer): *carray of char
+    proc uitoa(value: integer; str: *carray of char; radix: integer): *carray of char
+    proc ltoa(value: integer; str: *carray of char; radix: integer): *carray of char
+    proc ultoa(value: integer; str: *carray of char; radix: integer): *carray of char
+    proc lltoa(value: integer; str: *carray of char; radix: integer): *carray of char
+    proc ulltoa(value: integer; str: *carray of char; radix: integer): *carray of char
+    proc atoi(str: *carray of char): integer
+    proc atof(str: *carray of char): longreal
+    proc strtol(str: *carray of char; endp: **carray of char; base: integer): integer
+    proc strtoul(str: *carray of char; endp: **carray of char; base: integer): integer
+    proc strtoll(str: *carray of char; endp: **carray of char; base: integer): integer
+    proc strtoull(str: *carray of char; endp: **carray of char; base: integer): integer
+    proc strtod(str: *carray of char; endp: **carray of char): longreal
+    proc strcmp(str1: *carray of char; str2: *carray of char): integer
+    proc strncmp(str1: *carray of char; str2: *carray of char; maxlen: integer): integer
+    proc strcasecmp(str1: *carray of char; str2: *carray of char): integer
+    proc strncasecmp(str1: *carray of char; str2: *carray of char; len: integer): integer
+    proc sscanf(text: *carray of char; fmt: *carray of char): integer
+    proc vsscanf(text: *carray of char; fmt: *carray of char; _3: *__va_elem): integer
+    proc snprintf(text: *carray of char; maxlen: integer; fmt: *carray of char): integer
+    proc vsnprintf(text: *carray of char; maxlen: integer; fmt: *carray of char; _4: *__va_elem): integer
+    proc acos(x: longreal): longreal
+    proc acosf(x: real): real
+    proc asin(x: longreal): longreal
+    proc asinf(x: real): real
+    proc atan(x: longreal): longreal
+    proc atanf(x: real): real
+    proc atan2(x: longreal; y: longreal): longreal
+    proc atan2f(x: real; y: real): real
+    proc ceil(x: longreal): longreal
+    proc ceilf(x: real): real
+    proc copysign(x: longreal; y: longreal): longreal
+    proc copysignf(x: real; y: real): real
+    proc cos(x: longreal): longreal
+    proc cosf(x: real): real
+    proc exp(x: longreal): longreal
+    proc expf(x: real): real
+    proc fabs(x: longreal): longreal
+    proc fabsf(x: real): real
+    proc floor(x: longreal): longreal
+    proc floorf(x: real): real
+    proc trunc(x: longreal): longreal
+    proc truncf(x: real): real
+    proc fmod(x: longreal; y: longreal): longreal
+    proc fmodf(x: real; y: real): real
+    proc log(x: longreal): longreal
+    proc logf(x: real): real
+    proc log10(x: longreal): longreal
+    proc log10f(x: real): real
+    proc pow(x: longreal; y: longreal): longreal
+    proc powf(x: real; y: real): real
+    proc scalbn(x: longreal; n: integer): longreal
+    proc scalbnf(x: real; n: integer): real
+    proc sin(x: longreal): longreal
+    proc sinf(x: real): real
+    proc sqrt(x: longreal): longreal
+    proc sqrtf(x: real): real
+    proc tan(x: longreal): longreal
+    proc tanf(x: real): real
+    proc iconv_open(tocode: *carray of char; fromcode: *carray of char): iconv_t
+    proc iconv_close(cd: iconv_t): integer
+    proc iconv(cd: iconv_t; inbuf: **carray of char; inbytesleft: *integer; outbuf: **carray of char; outbytesleft: *integer): integer
+    proc iconv_string(tocode: *carray of char; fromcode: *carray of char; inbuf: *carray of char; inbytesleft: integer): *carray of char
+
+    // from SDL_surface.h
+    type
+        Rect = cstruct
+                x: integer
+                y: integer
+                w: integer
+                h: integer end
+        Surface = cstruct
+                flags: integer
+                format: *PixelFormat
+                w: integer
+                h: integer
+                pitch: integer
+                pixels: *void
+                userdata: *void
+                locked: integer
+                list_blitmap: *void
+                clip_rect: Rect
+                map: *void
+                refcount: integer end
+        blit = proc(src: *Surface; srcrect: *Rect; dst: *Surface; dstrect: *Rect): integer
+        YUV_CONVERSION_MODE = (YUV_CONVERSION_JPEG, YUV_CONVERSION_BT601, YUV_CONVERSION_BT709, YUV_CONVERSION_AUTOMATIC)
+
+    proc CreateRGBSurface(flags: integer; width: integer; height: integer; depth: integer; Rmask: integer; Gmask: integer; Bmask: integer; Amask: integer): *Surface
+    proc CreateRGBSurfaceWithFormat(flags: integer; width: integer; height: integer; depth: integer; format: integer): *Surface
+    proc CreateRGBSurfaceFrom(pixels: *void; width: integer; height: integer; depth: integer; pitch: integer; Rmask: integer; Gmask: integer; Bmask: integer; Amask: integer): *Surface
+    proc CreateRGBSurfaceWithFormatFrom(pixels: *void; width: integer; height: integer; depth: integer; pitch: integer; format: integer): *Surface
+    proc FreeSurface(surface: *Surface)
+    proc SetSurfacePalette(surface: *Surface; palette: *Palette): integer
+    proc LockSurface(surface: *Surface): integer
+    proc UnlockSurface(surface: *Surface)
+    proc LoadBMP_RW(src: *RWops; freesrc: integer): *Surface
+    proc SaveBMP_RW(surface: *Surface; dst: *RWops; freedst: integer): integer
+    proc SetSurfaceRLE(surface: *Surface; flag: integer): integer
+    proc HasSurfaceRLE(surface: *Surface): bool
+    proc SetColorKey(surface: *Surface; flag: integer; key: integer): integer
+    proc HasColorKey(surface: *Surface): bool
+    proc GetColorKey(surface: *Surface; key: *integer): integer
+    proc SetSurfaceColorMod(surface: *Surface; r: byte; g: byte; b: byte): integer
+    proc GetSurfaceColorMod(surface: *Surface; r: *carray of byte; g: *carray of byte; b: *carray of byte): integer
+    proc SetSurfaceAlphaMod(surface: *Surface; alpha: byte): integer
+    proc GetSurfaceAlphaMod(surface: *Surface; alpha: *carray of byte): integer
+    proc SetSurfaceBlendMode(surface: *Surface; blendMode: BlendMode): integer
+    proc GetSurfaceBlendMode(surface: *Surface; blendMode: *BlendMode): integer
+    proc SetClipRect(surface: *Surface; rect: *Rect): bool
+    proc GetClipRect(surface: *Surface; rect: *Rect)
+    proc DuplicateSurface(surface: *Surface): *Surface
+    proc ConvertSurface(src: *Surface; fmt: *PixelFormat; flags: integer): *Surface
+    proc ConvertSurfaceFormat(src: *Surface; pixel_format: integer; flags: integer): *Surface
+    proc ConvertPixels(width: integer; height: integer; src_format: integer; src: *void; src_pitch: integer; dst_format: integer; dst: *void; dst_pitch: integer): integer
+    proc FillRect(dst: *Surface; rect: *Rect; color: integer): integer
+    proc FillRects(dst: *Surface; rects: *Rect; count: integer; color: integer): integer
+    proc UpperBlit(src: *Surface; srcrect: *Rect; dst: *Surface; dstrect: *Rect): integer
+    proc LowerBlit(src: *Surface; srcrect: *Rect; dst: *Surface; dstrect: *Rect): integer
+    proc SoftStretch(src: *Surface; srcrect: *Rect; dst: *Surface; dstrect: *Rect): integer
+    proc UpperBlitScaled(src: *Surface; srcrect: *Rect; dst: *Surface; dstrect: *Rect): integer
+    proc LowerBlitScaled(src: *Surface; srcrect: *Rect; dst: *Surface; dstrect: *Rect): integer
+    proc SetYUVConversionMode(mode: YUV_CONVERSION_MODE)
+    proc GetYUVConversionMode(): YUV_CONVERSION_MODE
+    proc GetYUVConversionModeForResolution(width: integer; height: integer): YUV_CONVERSION_MODE
+
+    // from SDL_system.h
+    proc IsTablet(): bool
+    proc OnApplicationWillTerminate
+    proc OnApplicationDidReceiveMemoryWarning
+    proc OnApplicationWillResignActive
+    proc OnApplicationDidEnterBackground
+    proc OnApplicationWillEnterForeground
+    proc OnApplicationDidBecomeActive
+
+    // from SDL_thread.h
+    type
+        Thread = cstruct end
+        ThreadFunction = proc(data: *void): integer
+        ThreadPriority = (THREAD_PRIORITY_LOW, THREAD_PRIORITY_NORMAL, THREAD_PRIORITY_HIGH, THREAD_PRIORITY_TIME_CRITICAL)
+
+    proc CreateThread(fn: ThreadFunction; name: *carray of char; data: *void): *Thread
+    proc CreateThreadWithStackSize(fn: ThreadFunction; name: *carray of char; stacksize: integer; data: *void): *Thread
+    proc GetThreadName(thread: *Thread): *carray of char
+    proc ThreadID(): integer
+    proc GetThreadID(thread: *Thread): integer
+    proc SetThreadPriority(priority: ThreadPriority): integer
+    proc WaitThread(thread: *Thread; status: *integer)
+    proc DetachThread(thread: *Thread)
+    proc TLSCreate(): integer
+    proc TLSGet(id: integer): *void
+    proc TLSSet(id: integer; value: *void; destructor: proc(_1: *void)): integer
+
+    // from SDL_timer.h
+    type
+        TimerCallback = proc(interval: integer; param: *void): integer
+        SensorID = integer
+
+    proc GetTicks(): integer
+    proc GetPerformanceCounter(): integer
+    proc GetPerformanceFrequency(): integer
+    proc Delay(ms: integer)
+    proc AddTimer(interval: integer; callback: TimerCallback; param: *void): integer
+    proc RemoveTimer(id: integer): bool
+
+    // from SDL_touch.h
+    type
+        TouchDeviceType = integer
+    const
+        TOUCH_DEVICE_DIRECT = 0
+        TOUCH_DEVICE_INDIRECT_ABSOLUTE = 1
+        TOUCH_DEVICE_INDIRECT_RELATIVE = 2
+        TOUCH_DEVICE_INVALID = -1
+
+    type
+        Finger = cstruct
+                id: integer
+                x: real
+                y: real
+                pressure: real end
+
+    proc GetNumTouchDevices(): integer
+    proc GetTouchDevice(index: integer): integer
+    proc GetTouchDeviceType(touchID: integer): TouchDeviceType
+    proc GetNumTouchFingers(touchID: integer): integer
+    proc GetTouchFinger(touchID: integer; index: integer): *Finger
+
+    // from SDL_version.h
+    type
+        uint8_t = byte
+        version = cstruct
+                major: byte
+                minor: byte
+                patch: byte end
+
+    proc GetVersion(ver: *version)
+    proc GetRevision(): *carray of char
+    proc GetRevisionNumber(): integer
+
+    // from SDL_video.h
+    type
+        DisplayMode = cstruct
+                format: integer
+                w: integer
+                h: integer
+                refresh_rate: integer
+                driverdata: *void end
+        Window = cstruct end
+        WindowFlags = integer
+    const
+        WINDOW_ALLOW_HIGHDPI = 8192
+        WINDOW_ALWAYS_ON_TOP = 32768
+        WINDOW_BORDERLESS = 16
+        WINDOW_FOREIGN = 2048
+        WINDOW_FULLSCREEN = 1
+        WINDOW_FULLSCREEN_DESKTOP = 4097
+        WINDOW_HIDDEN = 8
+        WINDOW_INPUT_FOCUS = 512
+        WINDOW_INPUT_GRABBED = 256
+        WINDOW_MAXIMIZED = 128
+        WINDOW_METAL = 536870912
+        WINDOW_MINIMIZED = 64
+        WINDOW_MOUSE_CAPTURE = 16384
+        WINDOW_MOUSE_FOCUS = 1024
+        WINDOW_OPENGL = 2
+        WINDOW_POPUP_MENU = 524288
+        WINDOW_RESIZABLE = 32
+        WINDOW_SHOWN = 4
+        WINDOW_SKIP_TASKBAR = 65536
+        WINDOW_TOOLTIP = 262144
+        WINDOW_UTILITY = 131072
+        WINDOW_VULKAN = 268435456
+
+    type
+        WindowEventID = (WINDOWEVENT_NONE, WINDOWEVENT_SHOWN, WINDOWEVENT_HIDDEN, WINDOWEVENT_EXPOSED, WINDOWEVENT_MOVED, WINDOWEVENT_RESIZED, WINDOWEVENT_SIZE_CHANGED, WINDOWEVENT_MINIMIZED, WINDOWEVENT_MAXIMIZED, WINDOWEVENT_RESTORED, WINDOWEVENT_ENTER, WINDOWEVENT_LEAVE, WINDOWEVENT_FOCUS_GAINED, WINDOWEVENT_FOCUS_LOST, WINDOWEVENT_CLOSE, WINDOWEVENT_TAKE_FOCUS, WINDOWEVENT_HIT_TEST)
+        DisplayEventID = (DISPLAYEVENT_NONE, DISPLAYEVENT_ORIENTATION, DISPLAYEVENT_CONNECTED, DISPLAYEVENT_DISCONNECTED)
+        DisplayOrientation = (ORIENTATION_UNKNOWN, ORIENTATION_LANDSCAPE, ORIENTATION_LANDSCAPE_FLIPPED, ORIENTATION_PORTRAIT, ORIENTATION_PORTRAIT_FLIPPED)
+        GLprofile = integer
+    const
+        GL_CONTEXT_PROFILE_COMPATIBILITY = 2
+        GL_CONTEXT_PROFILE_CORE = 1
+        GL_CONTEXT_PROFILE_ES = 4
+
+    type
+        GLcontextFlag = integer
+    const
+        GL_CONTEXT_DEBUG_FLAG = 1
+        GL_CONTEXT_FORWARD_COMPATIBLE_FLAG = 2
+        GL_CONTEXT_RESET_ISOLATION_FLAG = 8
+        GL_CONTEXT_ROBUST_ACCESS_FLAG = 4
+
+    type
+        GLcontextReleaseFlag = (GL_CONTEXT_RELEASE_BEHAVIOR_NONE, GL_CONTEXT_RELEASE_BEHAVIOR_FLUSH)
+        GLContextResetNotification = (GL_CONTEXT_RESET_NO_NOTIFICATION, GL_CONTEXT_RESET_LOSE_CONTEXT)
+        HitTestResult = (HITTEST_NORMAL, HITTEST_DRAGGABLE, HITTEST_RESIZE_TOPLEFT, HITTEST_RESIZE_TOP, HITTEST_RESIZE_TOPRIGHT, HITTEST_RESIZE_RIGHT, HITTEST_RESIZE_BOTTOMRIGHT, HITTEST_RESIZE_BOTTOM, HITTEST_RESIZE_BOTTOMLEFT, HITTEST_RESIZE_LEFT)
+        HitTest = proc(win: *Window; area: *Point; data: *void): HitTestResult
+        GLattr = (GL_RED_SIZE, GL_GREEN_SIZE, GL_BLUE_SIZE, GL_ALPHA_SIZE, GL_BUFFER_SIZE, GL_DOUBLEBUFFER, GL_DEPTH_SIZE, GL_STENCIL_SIZE, GL_ACCUM_RED_SIZE, GL_ACCUM_GREEN_SIZE, GL_ACCUM_BLUE_SIZE, GL_ACCUM_ALPHA_SIZE, GL_STEREO, GL_MULTISAMPLEBUFFERS, GL_MULTISAMPLESAMPLES, GL_ACCELERATED_VISUAL, GL_RETAINED_BACKING, GL_CONTEXT_MAJOR_VERSION, GL_CONTEXT_MINOR_VERSION, GL_CONTEXT_EGL, GL_CONTEXT_FLAGS, GL_CONTEXT_PROFILE_MASK, GL_SHARE_WITH_CURRENT_CONTEXT, GL_FRAMEBUFFER_SRGB_CAPABLE, GL_CONTEXT_RELEASE_BEHAVIOR, GL_CONTEXT_RESET_NOTIFICATION, GL_CONTEXT_NO_ERROR)
+        GLContext = *void
+
+    proc GetNumVideoDrivers(): integer
+    proc GetVideoDriver(index: integer): *carray of char
+    proc VideoInit(driver_name: *carray of char): integer
+    proc VideoQuit
+    proc GetCurrentVideoDriver(): *carray of char
+    proc GetNumVideoDisplays(): integer
+    proc GetDisplayName(displayIndex: integer): *carray of char
+    proc GetDisplayBounds(displayIndex: integer; rect: *Rect): integer
+    proc GetDisplayUsableBounds(displayIndex: integer; rect: *Rect): integer
+    proc GetDisplayDPI(displayIndex: integer; ddpi: *real; hdpi: *real; vdpi: *real): integer
+    proc GetDisplayOrientation(displayIndex: integer): DisplayOrientation
+    proc GetNumDisplayModes(displayIndex: integer): integer
+    proc GetDisplayMode(displayIndex: integer; modeIndex: integer; mode: *DisplayMode): integer
+    proc GetDesktopDisplayMode(displayIndex: integer; mode: *DisplayMode): integer
+    proc GetCurrentDisplayMode(displayIndex: integer; mode: *DisplayMode): integer
+    proc GetClosestDisplayMode(displayIndex: integer; mode: *DisplayMode; closest: *DisplayMode): *DisplayMode
+    proc GetWindowDisplayIndex(window: *Window): integer
+    proc SetWindowDisplayMode(window: *Window; mode: *DisplayMode): integer
+    proc GetWindowDisplayMode(window: *Window; mode: *DisplayMode): integer
+    proc GetWindowPixelFormat(window: *Window): integer
+    proc CreateWindow(title: *carray of char; x: integer; y: integer; w: integer; h: integer; flags: integer): *Window
+    proc CreateWindowFrom(data: *void): *Window
+    proc GetWindowID(window: *Window): integer
+    proc GetWindowFromID(id: integer): *Window
+    proc GetWindowFlags(window: *Window): integer
+    proc SetWindowTitle(window: *Window; title: *carray of char)
+    proc GetWindowTitle(window: *Window): *carray of char
+    proc SetWindowIcon(window: *Window; icon: *Surface)
+    proc SetWindowData(window: *Window; name: *carray of char; userdata: *void): *void
+    proc GetWindowData(window: *Window; name: *carray of char): *void
+    proc SetWindowPosition(window: *Window; x: integer; y: integer)
+    proc GetWindowPosition(window: *Window; x: *integer; y: *integer)
+    proc SetWindowSize(window: *Window; w: integer; h: integer)
+    proc GetWindowSize(window: *Window; w: *integer; h: *integer)
+    proc GetWindowBordersSize(window: *Window; top: *integer; left: *integer; bottom: *integer; right: *integer): integer
+    proc SetWindowMinimumSize(window: *Window; min_w: integer; min_h: integer)
+    proc GetWindowMinimumSize(window: *Window; w: *integer; h: *integer)
+    proc SetWindowMaximumSize(window: *Window; max_w: integer; max_h: integer)
+    proc GetWindowMaximumSize(window: *Window; w: *integer; h: *integer)
+    proc SetWindowBordered(window: *Window; bordered: bool)
+    proc SetWindowResizable(window: *Window; resizable: bool)
+    proc ShowWindow(window: *Window)
+    proc HideWindow(window: *Window)
+    proc RaiseWindow(window: *Window)
+    proc MaximizeWindow(window: *Window)
+    proc MinimizeWindow(window: *Window)
+    proc RestoreWindow(window: *Window)
+    proc SetWindowFullscreen(window: *Window; flags: integer): integer
+    proc GetWindowSurface(window: *Window): *Surface
+    proc UpdateWindowSurface(window: *Window): integer
+    proc UpdateWindowSurfaceRects(window: *Window; rects: *Rect; numrects: integer): integer
+    proc SetWindowGrab(window: *Window; grabbed: bool)
+    proc GetWindowGrab(window: *Window): bool
+    proc GetGrabbedWindow(): *Window
+    proc SetWindowBrightness(window: *Window; brightness: real): integer
+    proc GetWindowBrightness(window: *Window): real
+    proc SetWindowOpacity(window: *Window; opacity: real): integer
+    proc GetWindowOpacity(window: *Window; out_opacity: *real): integer
+    proc SetWindowModalFor(modal_window: *Window; parent_window: *Window): integer
+    proc SetWindowInputFocus(window: *Window): integer
+    proc SetWindowGammaRamp(window: *Window; red: *shortint; green: *shortint; blue: *shortint): integer
+    proc GetWindowGammaRamp(window: *Window; red: *shortint; green: *shortint; blue: *shortint): integer
+    proc SetWindowHitTest(window: *Window; callback: HitTest; callback_data: *void): integer
+    proc DestroyWindow(window: *Window)
+    proc IsScreenSaverEnabled(): bool
+    proc EnableScreenSaver
+    proc DisableScreenSaver
+    proc GL_LoadLibrary(path: *carray of char): integer
+    proc GL_GetProcAddress(proc_: *carray of char): *void
+    proc GL_UnloadLibrary
+    proc GL_ExtensionSupported(extension: *carray of char): bool
+    proc GL_ResetAttributes
+    proc GL_SetAttribute(attr: GLattr; value: integer): integer
+    proc GL_GetAttribute(attr: GLattr; value: *integer): integer
+    proc GL_CreateContext(window: *Window): GLContext
+    proc GL_MakeCurrent(window: *Window; context: GLContext): integer
+    proc GL_GetCurrentWindow(): *Window
+    proc GL_GetCurrentContext(): GLContext
+    proc GL_GetDrawableSize(window: *Window; w: *integer; h: *integer)
+    proc GL_SetSwapInterval(interval: integer): integer
+    proc GL_GetSwapInterval(): integer
+    proc GL_SwapWindow(window: *Window)
+    proc GL_DeleteContext(context: GLContext)
+
+    // from stdarg.h
+    type
+        __va_elem = cstruct
+                gp_offset: integer
+                fp_offset: integer
+                overflow_arg_area: *void
+                reg_save_area: *void end
+
+end SDL

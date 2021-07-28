@@ -50,7 +50,7 @@ namespace Obx
         MetaActuals typeActuals();
         Ref<Type> enumeration(Scope* scope, Named* id, Type* binding);
         Ref<QualiType> namedType(Named* id, Type* binding);
-        Ref<Type> returnType(Type* binding);
+        Ref<Type> returnType(Scope* scope,Type* binding);
         Ref<Type> arrayType(Scope* scope, Named* id, Type* binding);
         Ref<Type> recordType(Scope* scope, Named* id, Type* binding);
         Ref<Type> pointerType(Scope* scope, Named* id, Type* binding);
@@ -103,6 +103,7 @@ namespace Obx
         void importList();
         void import();
         Ref<Expression> systemFlag();
+        SysAttrs systemAttrs();
 
         void next();
 

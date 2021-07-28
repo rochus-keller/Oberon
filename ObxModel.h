@@ -83,6 +83,7 @@ namespace Obx
         Ref<BaseType> d_wstringType; // BMP string literal
         Ref<BaseType> d_nilType;
         Ref<BaseType> d_anyType;
+        Ref<BaseType> d_voidType;
         Ref<Record> d_anyRec;
         Ref<Module> d_systemModule;
         QList<Module*> d_depOrder; // most (0) to least (n-1) dependent

@@ -51,8 +51,10 @@ struct ObxHitTest : public AstVisitor
     void visit( Pointer* p )
     {
         //if( p->d_to->d_ident == 0 )
+#if 0
         if( p->d_flag )
             p->d_flag->accept(this);
+#endif
         if( p->d_to )
             p->d_to->accept(this); // look for qualis
     }
@@ -60,8 +62,10 @@ struct ObxHitTest : public AstVisitor
     void visit( Array* a )
     {
         //if( a->d_type->d_ident == 0 )
+#if 0
         if( a->d_flag )
             a->d_flag->accept(this);
+#endif
         if( a->d_type )
             a->d_type->accept(this); // look for qualis
         if( a->d_lenExpr )
@@ -70,8 +74,10 @@ struct ObxHitTest : public AstVisitor
 
     void visit( Record* r )
     {
+#if 0
         if( r->d_flag )
             r->d_flag->accept(this);
+#endif
         if( !r->d_base.isNull() )
             r->d_base->accept(this); // look for qualis
         for( int i = 0; i < r->d_fields.size(); i++ )

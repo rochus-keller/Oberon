@@ -47,6 +47,7 @@ namespace Ob {
 		Tok_CARRAY,
 		Tok_CASE,
 		Tok_CONST,
+		Tok_CPOINTER,
 		Tok_CSTRUCT,
 		Tok_CUNION,
 		Tok_DEFINITION,

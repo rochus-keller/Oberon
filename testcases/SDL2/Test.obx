@@ -1,0 +1,33 @@
+module Test
+
+	import SDL
+	
+	var
+		window: *SDL.Window
+		surface: *SDL.Surface
+		res: integer
+		running: boolean
+		event: SDL.Event
+begin
+
+	window := SDL.CreateWindow("Hello SDL!", 20, 20, 512, 512, SDL.WINDOW_SHOWN )
+	surface := SDL.GetWindowSurface(window)
+
+	// image = sdl.loadBMP("lena.bmp")
+	// SDL.UpperBlit(image, nil, surface, nil)
+	
+	res := SDL.UpdateWindowSurface(window)
+   // SDL.freeSurface(image)
+   
+   running := true
+   while running do
+	   while SDL.PollEvent(event) # 0 do
+	      if event.type_ = SDL.QUIT then
+	         running := false
+	      end
+	   end
+   end
+
+	SDL.DestroyWindow(window)
+	SDL.Quit()
+end Test

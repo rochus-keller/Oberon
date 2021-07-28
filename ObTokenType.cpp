@@ -40,6 +40,7 @@ namespace Ob {
 			case Tok_CARRAY: return "CARRAY";
 			case Tok_CASE: return "CASE";
 			case Tok_CONST: return "CONST";
+			case Tok_CPOINTER: return "CPOINTER";
 			case Tok_CSTRUCT: return "CSTRUCT";
 			case Tok_CUNION: return "CUNION";
 			case Tok_DEFINITION: return "DEFINITION";
@@ -125,6 +126,7 @@ namespace Ob {
 			case Tok_CARRAY: return "Tok_CARRAY";
 			case Tok_CASE: return "Tok_CASE";
 			case Tok_CONST: return "Tok_CONST";
+			case Tok_CPOINTER: return "Tok_CPOINTER";
 			case Tok_CSTRUCT: return "Tok_CSTRUCT";
 			case Tok_CUNION: return "Tok_CUNION";
 			case Tok_DEFINITION: return "Tok_DEFINITION";
@@ -313,6 +315,21 @@ namespace Ob {
 					if( at(str,i+3) == 'S' ){
 						if( at(str,i+4) == 'T' ){
 							res = Tok_CONST; i += 5;
+						}
+					}
+				}
+				break;
+			case 'P':
+				if( at(str,i+2) == 'O' ){
+					if( at(str,i+3) == 'I' ){
+						if( at(str,i+4) == 'N' ){
+							if( at(str,i+5) == 'T' ){
+								if( at(str,i+6) == 'E' ){
+									if( at(str,i+7) == 'R' ){
+										res = Tok_CPOINTER; i += 8;
+									}
+								}
+							}
 						}
 					}
 				}

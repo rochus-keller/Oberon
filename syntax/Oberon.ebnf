@@ -32,10 +32,12 @@
 // - switched to generic modules (instead of generic types, similar to a subset of Ada) to avoid semantic complexities
 // - allow import lists to occur several times interleaved with declaration sequence; optional commas between imports
 // - optional commas in FPSection, IdentList, enumeration and TypeParams
+// - UNSAFE POINTER TO deprecated by CPOINTER TO and '*'; VOID is a predeclared identifier which can be used as *VOID
+// - SystemAttrs
 
-#define OBN2
+//#define OBN2
 // combine OBN2 with either OBNX or BBOX
-#define OBNX
+//#define OBNX
 //#define BBOX
 
 /// Top
@@ -177,7 +179,9 @@ PointerType ::= (
 #endif
 	TO
 #ifdef OBNX
-	| '^' 
+	| '^'  // abbreviation for POINTER TO
+	| CPOINTER TO
+	| '*'  // abbreviation for CPOINTER TO/UNSAFE POINTER TO
 #endif
 	 ) type
 
@@ -471,7 +475,7 @@ FormalParameters ::= '(' [ FPSection {
 #endif
 
 #ifdef OBNX
-ReturnType ::= NamedType | ( POINTER TO | '^') NamedType
+ReturnType ::= type // too complicated: NamedType | ( POINTER TO | '^'|'*'| CPOINTER TO) NamedType
 #endif
 
 FPSection ::= [ VAR 
@@ -539,12 +543,21 @@ import ::= [ \LL:2\ ident ':=' ] ident
 
 /// Definitions
 
-definition ::= DEFINITION ident [';']  [ ImportList ] DeclarationSequence2 END ident ['.']
+definition ::= DEFINITION ident 
+#ifdef OBNX
+	[ SystemAttrs ] 
+#endif 
+	[';']  [ ImportList ] DeclarationSequence2 END ident ['.']
+
+#ifdef OBNX
+SystemAttrs ::= '[' [ SysAttr { ',' SysAttr } ] ']'
+SysAttr ::= ident { ConstExpression }
+#endif 
 
 /// Helper Tokens
 Comment ::=
 #ifndef OBNX
-obnx- ::= PROC UNSAFE CSTRUCT CUNION CARRAY
+obnx- ::= PROC UNSAFE CSTRUCT CUNION CARRAY CPOINTER
 #endif
 #ifndef OBN2
 obn2- ::= WITH LOOP EXIT

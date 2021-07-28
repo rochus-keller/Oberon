@@ -52,11 +52,24 @@ struct ValidatorImp : public AstVisitor
             if( n->getTag() == Thing::T_Const )
                 n->accept(this);
         }
+#if 0
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_NamedType )
                 n->accept(this);
         }
+#else
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_NamedType && n->d_type && !n->d_type->isStructured(true) )
+                n->accept(this);
+        }
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_NamedType && n->d_type && n->d_type->isStructured(true) )
+                n->accept(this);
+        }
+#endif
         foreach( const Ref<Named>& n, me->d_order )
         {
             const int tag = n->getTag();
@@ -174,8 +187,8 @@ struct ValidatorImp : public AstVisitor
 
     void visitHeader( Procedure* me )
     {
-        levels.push_back(me);
-
+        // don't push/pop levels here because qualis have to be resolved in environment of me
+        // (otherwise collision with params of same name as type)
         ProcType* pt = me->getProcType();
         pt->accept(this);
 
@@ -189,8 +202,6 @@ struct ValidatorImp : public AstVisitor
             // receiver was already accepted in visitScope
             visitBoundProc(me);
         }
-
-        levels.pop_back();
     }
 
     void visitBody( Procedure* me )
@@ -494,7 +505,13 @@ struct ValidatorImp : public AstVisitor
                 const int ltag = lhs->getTag();
                 if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
-                else if( args->d_args.size() == 2 )
+                if( ltag == Thing::T_Array )
+                {
+                    Array* a = cast<Array*>(lhs);
+                    if( a->d_unsafe && a->d_lenExpr.isNull() )
+                        error( args->d_args.first()->d_loc, Validator::tr("not supported for open carrays"));
+                }
+                if( args->d_args.size() == 2 )
                 {
                     if( ltag != Thing::T_Array )
                         error( args->d_args.first()->d_loc, Validator::tr("expecting array argument"));
@@ -572,7 +589,13 @@ struct ValidatorImp : public AstVisitor
                     error( args->d_args.first()->d_loc, Validator::tr("expecting a pointer"));
                     break;
                 } // else
-                Type* to = derefed(cast<Pointer*>(lhs)->d_to.data());
+                Pointer* ptr = cast<Pointer*>(lhs);
+                if( ptr->d_unsafe )
+                {
+                    error( args->d_args.first()->d_loc, Validator::tr("not supported for c pointers"));
+                    break;
+                }
+                Type* to = derefed(ptr->d_to.data());
                 const int tag = to->getTag();
                 if( tag == Thing::T_Array )
                 {
@@ -631,6 +654,7 @@ struct ValidatorImp : public AstVisitor
                 const int ltag = lhs->getTag();
                 if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
+                // TODO: can we support carray of char/wchar here?
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
@@ -1318,12 +1342,14 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
+#if 0
         if( !me->d_flag.isNull() )
         {
             me->d_flag->accept(this);
             // only one in Kernel line 268
             // qDebug() << "flagged pointer" << me->d_flag->getIdent()->d_name << "in module" << mod->d_name << me->d_loc.d_row;
         }
+#endif
 
         if( !me->d_to.isNull() )
         {
@@ -1335,7 +1361,7 @@ struct ValidatorImp : public AstVisitor
                 // NOP
                 break;
             default:
-                if( !me->d_unsafe )
+                if( !me->d_unsafe ) // unsafe pointers may point to whatever is required
                     error( me->d_loc, Validator::tr("pointer must point to a RECORD or an ARRAY") );
                 break;
             }
@@ -1348,8 +1374,10 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
+#if 0
         if( !me->d_flag.isNull() )
             me->d_flag->accept(this);
+#endif
 
         if( !me->d_lenExpr.isNull() )
         {
@@ -1432,8 +1460,10 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
+#if 0
         if( !me->d_flag.isNull() )
             me->d_flag->accept(this);
+#endif
 
 #if 0
         if( !me->d_base.isNull() && me->d_unsafe )
@@ -1823,7 +1853,7 @@ struct ValidatorImp : public AstVisitor
     void checkValidRhs( Expression* rhs )
     {
         // TODO: do we check readability of rhs idents?
-        if( rhs == 0 )
+        if( rhs == 0 || rhs->d_type.isNull() )
             return; // reported elsewhere
         if( rhs->d_type->getTag() == Thing::T_ProcType )
         {
@@ -2123,7 +2153,7 @@ struct ValidatorImp : public AstVisitor
     inline void checkNoAnyRecType( Type* t )
     {
         Type* td = derefed(t);
-        if( td == bt.d_anyRec )
+        if( td == bt.d_anyRec || td == bt.d_voidType )
             error(t->d_loc, Validator::tr("this type cannot be used here") );
     }
 
@@ -2489,6 +2519,7 @@ struct ValidatorImp : public AstVisitor
                 if( lt == bt.d_wcharType && rt->isChar() )
                     // TODO: does assig automatic long(char array)?
                     return true;
+                // TODO: open carrays cannot be rhs because len is unknown at runtime
             }else if( lt == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
                 // Array := string
                 return true;
@@ -2773,5 +2804,5 @@ void Validator::BaseTypes::assert() const
 {
     Q_ASSERT( d_boolType && d_charType && d_byteType && d_intType && d_realType && d_setType &&
               d_stringType && d_nilType && d_anyType && d_shortType && d_longType && d_longrealType &&
-              d_anyRec && d_wcharType && d_wstringType );
+              d_anyRec && d_wcharType && d_wstringType && d_voidType );
 }

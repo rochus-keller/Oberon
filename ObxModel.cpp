@@ -140,16 +140,20 @@ struct Model::CrossReferencer : public AstVisitor
 
     void visit( Pointer* me)
     {
+#if 0
         if( me->d_flag )
             me->d_flag->accept(this);
+#endif
         if( me->d_to )
             me->d_to->accept(this);
     }
 
     void visit( Array* me )
     {
+#if 0
         if( me->d_flag )
             me->d_flag->accept(this);
+#endif
         if( me->d_type )
             me->d_type->accept(this);
         if( me->d_lenExpr )
@@ -160,8 +164,10 @@ struct Model::CrossReferencer : public AstVisitor
     {
         if( me->d_base )
             me->d_base->accept(this);
+#if 0
         if( me->d_flag )
             me->d_flag->accept(this);
+#endif
         foreach( const Ref<Field>& f, me->d_fields )
             f->accept(this);
         // d_methods is handled from Procedure
@@ -430,6 +436,7 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_wstringType = new BaseType(BaseType::WSTRING);
     d_nilType = new BaseType(BaseType::NIL);
     d_anyType = new BaseType(BaseType::ANY);
+    d_voidType = new BaseType(BaseType::CVOID);
     d_anyRec = new Record();
 
     fillGlobals();
@@ -508,6 +515,7 @@ bool Model::parseFiles(const PackageList& files)
     bt.d_setType = d_setType.data();
     bt.d_stringType = d_stringType.data();
     bt.d_nilType = d_nilType.data();
+    bt.d_voidType = d_voidType.data();
     bt.d_anyType = d_anyType.data();
     bt.d_anyRec = d_anyRec.data();
     bt.d_wcharType = d_wcharType.data();
@@ -1007,24 +1015,29 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::BITXOR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
     d_globals->add( anyrec.data() );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_voidType->d_baseType]),d_voidType.data() ) );
     d_globals->add( new BuiltIn(BuiltIn::BITS, new ProcType( Type::List() << d_intType.data(), d_setType.data() ) ) );
 
     // Blackbox
 #ifdef OBX_BBOX
     d_globals->add( new Const( Lexer::getSymbol("INF"),
                                new Literal( Literal::Real, RowCol(), INFINITY, d_realType.data() ) ) );
+#if 0 // no longer used; use ^ANYREC instead
     Ref<Pointer> anyptr = new Pointer();
     anyptr->d_to = anyrec->d_type.data();
     d_globals->add( new NamedType(Lexer::getSymbol("ANYPTR"), anyptr.data() ) );
+#endif
 
     sys->add( new BuiltIn(BuiltIn::SYS_TYP, new ProcType( Type::List() << d_anyRec.data(), d_intType.data() ) ) );
     sys->add( new BuiltIn(BuiltIn::SYS_GETREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),
                                               ProcType::Vars() << false << true   ) ) );
     sys->add( new BuiltIn(BuiltIn::SYS_PUTREG, new ProcType( Type::List() << d_intType.data() << d_anyType.data() ) ) );
 
+#if 0 // no longer used; use *void instead
     Ref<Pointer> ptr = new Pointer();
     ptr->d_to = d_anyType.data();
     sys->add( new NamedType(Lexer::getSymbol("PTR"), ptr.data() ) );
+#endif
 
 #if 0
     d_globals->add( new Const( Lexer::getSymbol("untagged"), 0 ) );

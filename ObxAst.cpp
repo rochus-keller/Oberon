@@ -35,7 +35,7 @@ const char* Thing::s_tagName[] =
 
 const char* BaseType::s_typeName[] =
 {
-    "ANY", "NIL", "STRING", "WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
+    "ANY", "VOID", "NIL", "STRING", "WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
     "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET"
 };
 
