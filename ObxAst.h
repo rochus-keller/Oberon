@@ -272,7 +272,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured(bool withPtrAndProcType = false) const { return true; }
         Named* find(const QByteArray& name , bool recursive) const;
-        QString pretty() const { return "RECORD"; }
+        QString pretty() const { return d_unsafe ? ( d_union ? "CUNION" : "CSTRUCT" ) : "RECORD"; }
         QList<Field*> getOrderedFields() const;
         Record* findBySlot(int) const;
     };
@@ -430,7 +430,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR
+               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR, ADDROF, MAXBUILTIN
              };
         static const char* s_typeName[];
         quint8 d_func;
@@ -628,13 +628,14 @@ namespace Obx
         Module* getModule() const { return d_mod; }
         int getTag() const { return T_IdentLeaf; }
         void accept(AstVisitor* v) { v->visit(this); }
+        quint8 getUnOp() const;
         quint8 visibilityFor(Module*) const;
         IdentRole getIdentRole() const { return d_role; }
     };
 
     struct UnExpr : public Expression
     {
-        enum Op { Invalid, NEG, NOT, DEREF, ADDROF, // implemented in UnExpr
+        enum Op { Invalid, Leaf, NEG, NOT, DEREF, ADDROF, // implemented in UnExpr
                   CAST, SEL, CALL, IDX // implemented in subclasses
                 };
         static const char* s_opName[];

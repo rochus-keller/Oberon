@@ -1013,6 +1013,7 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::BITNOT, new ProcType( Type::List() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITOR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITXOR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::ADDROF, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
     d_globals->add( anyrec.data() );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_voidType->d_baseType]),d_voidType.data() ) );

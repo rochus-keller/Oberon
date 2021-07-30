@@ -1,4 +1,4 @@
-definition SDL [pfx 'SDL_']
+definition SDL [lib 'SDL2', pfx 'SDL_']
 
     // from SDL.h
     type
@@ -16,17 +16,17 @@ definition SDL [pfx 'SDL_']
         AssertData = cstruct
                 always_ignore: integer
                 trigger_count: integer
-                condition: *carray of char
-                filename: *carray of char
+                condition: *[]char
+                filename: *[]char
                 linenum: integer
-                function: *carray of char
+                function: *[]char
                 next: *AssertData end
         AssertionHandler = proc(data: *AssertData; userdata: *void): AssertState
 
-    proc ReportAssertion(_1: *AssertData; _2: *carray of char; _3: *carray of char; _4: integer): AssertState
+    proc ReportAssertion(_1: *AssertData; _2: *[]char; _3: *[]char; _4: integer): AssertState
     proc SetAssertionHandler(handler: AssertionHandler; userdata: *void)
     proc GetDefaultAssertionHandler(): AssertionHandler
-    proc GetAssertionHandler(puserdata: **void): AssertionHandler
+    proc GetAssertionHandler(puserdata: *[]*void): AssertionHandler
     proc GetAssertionReport(): *AssertData
     proc ResetAssertionReport
 
@@ -35,22 +35,22 @@ definition SDL [pfx 'SDL_']
         atomic_t = cstruct
                 value: integer end
 
-    proc AtomicTryLock(lock: *integer): bool
-    proc AtomicLock(lock: *integer)
-    proc AtomicUnlock(lock: *integer)
+    proc AtomicTryLock(lock: *[]integer): bool
+    proc AtomicLock(lock: *[]integer)
+    proc AtomicUnlock(lock: *[]integer)
     proc MemoryBarrierReleaseFunction
     proc MemoryBarrierAcquireFunction
     proc AtomicCAS(a: *atomic_t; oldval: integer; newval: integer): bool
     proc AtomicSet(a: *atomic_t; v: integer): integer
     proc AtomicGet(a: *atomic_t): integer
     proc AtomicAdd(a: *atomic_t; v: integer): integer
-    proc AtomicCASPtr(a: **void; oldval: *void; newval: *void): bool
-    proc AtomicSetPtr(a: **void; v: *void): *void
-    proc AtomicGetPtr(a: **void): *void
+    proc AtomicCASPtr(a: *[]*void; oldval: *void; newval: *void): bool
+    proc AtomicSetPtr(a: *[]*void; v: *void): *void
+    proc AtomicGetPtr(a: *[]*void): *void
 
     // from SDL_audio.h
     type
-        AudioCallback = proc(userdata: *void; stream: *carray of byte; len: integer)
+        AudioCallback = proc(userdata: *void; stream: *[]byte; len: integer)
         AudioSpec = cstruct
                 freq: integer
                 format: shortint
@@ -67,7 +67,7 @@ definition SDL [pfx 'SDL_']
                 src_format: shortint
                 dst_format: shortint
                 rate_incr: longreal
-                buf: *carray of byte
+                buf: *[]byte
                 len: integer
                 len_cvt: integer
                 len_mult: integer
@@ -75,34 +75,35 @@ definition SDL [pfx 'SDL_']
                 filters: carray 10 of AudioFilter
                 filter_index: integer end
         AudioStatus = (AUDIO_STOPPED, AUDIO_PLAYING, AUDIO_PAUSED)
-        _SDL_AudioStream = cstruct end
+        AudioStream = cstruct end
 
     proc GetNumAudioDrivers(): integer
-    proc GetAudioDriver(index: integer): *carray of char
-    proc AudioInit(driver_name: *carray of char): integer
+    proc GetAudioDriver(index: integer): *[]char
+    proc AudioInit(driver_name: *[]char): integer
     proc AudioQuit
-    proc GetCurrentAudioDriver(): *carray of char
+    proc GetCurrentAudioDriver(): *[]char
     proc OpenAudio(desired: *AudioSpec; obtained: *AudioSpec): integer
     proc GetNumAudioDevices(iscapture: integer): integer
-    proc GetAudioDeviceName(index: integer; iscapture: integer): *carray of char
-    proc OpenAudioDevice(device: *carray of char; iscapture: integer; desired: *AudioSpec; obtained: *AudioSpec; allowed_changes: integer): integer
+    proc GetAudioDeviceName(index: integer; iscapture: integer): *[]char
+    proc OpenAudioDevice(device: *[]char; iscapture: integer; desired: *AudioSpec; obtained: *AudioSpec; allowed_changes: integer): integer
     proc GetAudioStatus(): AudioStatus
     proc GetAudioDeviceStatus(dev: integer): AudioStatus
     proc PauseAudio(pause_on: integer)
     proc PauseAudioDevice(dev: integer; pause_on: integer)
-    proc LoadWAV_RW(src: *RWops; freesrc: integer; spec: *AudioSpec; audio_buf: **carray of byte; audio_len: *integer): *AudioSpec
-    proc FreeWAV(audio_buf: *carray of byte)
+    proc LoadWAV_RW(src: *RWops; freesrc: integer; spec: *AudioSpec; 
+		    audio_buf: *[][]byte; audio_len: *[]integer): *AudioSpec
+    proc FreeWAV(audio_buf: *[]byte)
     proc BuildAudioCVT(cvt: *AudioCVT; src_format: shortint; src_channels: byte; src_rate: integer; dst_format: shortint; dst_channels: byte; dst_rate: integer): integer
     proc ConvertAudio(cvt: *AudioCVT): integer
-    proc NewAudioStream(src_format: shortint; src_channels: byte; src_rate: integer; dst_format: shortint; dst_channels: byte; dst_rate: integer): *_SDL_AudioStream
-    proc AudioStreamPut(stream: *_SDL_AudioStream; buf: *void; len: integer): integer
-    proc AudioStreamGet(stream: *_SDL_AudioStream; buf: *void; len: integer): integer
-    proc AudioStreamAvailable(stream: *_SDL_AudioStream): integer
-    proc AudioStreamFlush(stream: *_SDL_AudioStream): integer
-    proc AudioStreamClear(stream: *_SDL_AudioStream)
-    proc FreeAudioStream(stream: *_SDL_AudioStream)
-    proc MixAudio(dst: *carray of byte; src: *carray of byte; len: integer; volume: integer)
-    proc MixAudioFormat(dst: *carray of byte; src: *carray of byte; format: shortint; len: integer; volume: integer)
+    proc NewAudioStream(src_format: shortint; src_channels: byte; src_rate: integer; dst_format: shortint; dst_channels: byte; dst_rate: integer): *AudioStream
+    proc AudioStreamPut(stream: *AudioStream; buf: *void; len: integer): integer
+    proc AudioStreamGet(stream: *AudioStream; buf: *void; len: integer): integer
+    proc AudioStreamAvailable(stream: *AudioStream): integer
+    proc AudioStreamFlush(stream: *AudioStream): integer
+    proc AudioStreamClear(stream: *AudioStream)
+    proc FreeAudioStream(stream: *AudioStream)
+    proc MixAudio(dst: *[]byte; src: *[]byte; len: integer; volume: integer)
+    proc MixAudioFormat(dst: *[]byte; src: *[]byte; format: shortint; len: integer; volume: integer)
     proc QueueAudio(dev: integer; data: *void; len: integer): integer
     proc DequeueAudio(dev: integer; data: *void; len: integer): integer
     proc GetQueuedAudioSize(dev: integer): integer
@@ -141,8 +142,8 @@ definition SDL [pfx 'SDL_']
     proc ComposeCustomBlendMode(srcColorFactor: BlendFactor; dstColorFactor: BlendFactor; colorOperation: BlendOperation; srcAlphaFactor: BlendFactor; dstAlphaFactor: BlendFactor; alphaOperation: BlendOperation): BlendMode
 
     // from SDL_clipboard.h
-    proc SetClipboardText(text: *carray of char): integer
-    proc GetClipboardText(): *carray of char
+    proc SetClipboardText(text: *[]char): integer
+    proc GetClipboardText(): *[]char
     proc HasClipboardText(): bool
 
     // from SDL_cpuinfo.h
@@ -175,9 +176,9 @@ definition SDL [pfx 'SDL_']
     type
         errorcode = (ENOMEM, EFREAD, EFWRITE, EFSEEK, UNSUPPORTED, LASTERROR)
 
-    proc SetError(fmt: *carray of char): integer
-    proc GetError(): *carray of char
-    proc GetErrorMsg(errstr: *carray of char; maxlen: integer): *carray of char
+    proc SetError(fmt: *[]char): integer
+    proc GetError(): *[]char
+    proc GetErrorMsg(errstr: *[]char; maxlen: integer): *[]char
     proc ClearError
     proc Error(code: errorcode): integer
 
@@ -462,7 +463,7 @@ definition SDL [pfx 'SDL_']
         DropEvent = cstruct
                 type_: integer
                 timestamp: integer
-                file: *carray of char
+                file: *[]char
                 windowID: integer end
         Event = cunion
                 type_: integer
@@ -509,7 +510,7 @@ definition SDL [pfx 'SDL_']
     proc WaitEventTimeout(event: *Event; timeout: integer): integer
     proc PushEvent(event: *Event): integer
     proc SetEventFilter(filter: EventFilter; userdata: *void)
-    proc GetEventFilter(filter: *EventFilter; userdata: **void): bool
+    proc GetEventFilter(filter: *[]proc(userdata: *void; event: *Event): integer; userdata: *[]*void): bool
     proc AddEventWatch(filter: EventFilter; userdata: *void)
     proc DelEventWatch(filter: EventFilter; userdata: *void)
     proc FilterEvents(filter: EventFilter; userdata: *void)
@@ -517,12 +518,12 @@ definition SDL [pfx 'SDL_']
     proc RegisterEvents(numevents: integer): integer
 
     // from SDL_filesystem.h
-    proc GetBasePath(): *carray of char
-    proc GetPrefPath(org: *carray of char; app: *carray of char): *carray of char
+    proc GetBasePath(): *[]char
+    proc GetPrefPath(org: *[]char; app: *[]char): *[]char
 
     // from SDL_gamecontroller.h
     type
-        _SDL_GameController = cstruct end
+        GameController = cstruct end
         GameControllerType = (CONTROLLER_TYPE_UNKNOWN, CONTROLLER_TYPE_XBOX360, CONTROLLER_TYPE_XBOXONE, CONTROLLER_TYPE_PS3, CONTROLLER_TYPE_PS4, CONTROLLER_TYPE_NINTENDO_SWITCH_PRO, CONTROLLER_TYPE_VIRTUAL, CONTROLLER_TYPE_PS5)
         GameControllerBindType = (CONTROLLER_BINDTYPE_NONE, CONTROLLER_BINDTYPE_BUTTON, CONTROLLER_BINDTYPE_AXIS, CONTROLLER_BINDTYPE_HAT)
         GameControllerButtonBind = cstruct
@@ -582,52 +583,52 @@ definition SDL [pfx 'SDL_']
         SENSOR_UNKNOWN = 0
 
     proc GameControllerAddMappingsFromRW(rw: *RWops; freerw: integer): integer
-    proc GameControllerAddMapping(mappingString: *carray of char): integer
+    proc GameControllerAddMapping(mappingString: *[]char): integer
     proc GameControllerNumMappings(): integer
-    proc GameControllerMappingForIndex(mapping_index: integer): *carray of char
-    proc GameControllerMappingForGUID(guid: JoystickGUID): *carray of char
-    proc GameControllerMapping(gamecontroller: *_SDL_GameController): *carray of char
+    proc GameControllerMappingForIndex(mapping_index: integer): *[]char
+    proc GameControllerMappingForGUID(guid: JoystickGUID): *[]char
+    proc GameControllerMapping(gamecontroller: *GameController): *[]char
     proc IsGameController(joystick_index: integer): bool
-    proc GameControllerNameForIndex(joystick_index: integer): *carray of char
+    proc GameControllerNameForIndex(joystick_index: integer): *[]char
     proc GameControllerTypeForIndex(joystick_index: integer): GameControllerType
-    proc GameControllerMappingForDeviceIndex(joystick_index: integer): *carray of char
-    proc GameControllerOpen(joystick_index: integer): *_SDL_GameController
-    proc GameControllerFromInstanceID(joyid: integer): *_SDL_GameController
-    proc GameControllerFromPlayerIndex(player_index: integer): *_SDL_GameController
-    proc GameControllerName(gamecontroller: *_SDL_GameController): *carray of char
-    proc GameControllerGetType(gamecontroller: *_SDL_GameController): GameControllerType
-    proc GameControllerGetPlayerIndex(gamecontroller: *_SDL_GameController): integer
-    proc GameControllerSetPlayerIndex(gamecontroller: *_SDL_GameController; player_index: integer)
-    proc GameControllerGetVendor(gamecontroller: *_SDL_GameController): shortint
-    proc GameControllerGetProduct(gamecontroller: *_SDL_GameController): shortint
-    proc GameControllerGetProductVersion(gamecontroller: *_SDL_GameController): shortint
-    proc GameControllerGetSerial(gamecontroller: *_SDL_GameController): *carray of char
-    proc GameControllerGetAttached(gamecontroller: *_SDL_GameController): bool
-    proc GameControllerGetJoystick(gamecontroller: *_SDL_GameController): *_SDL_Joystick
+    proc GameControllerMappingForDeviceIndex(joystick_index: integer): *[]char
+    proc GameControllerOpen(joystick_index: integer): *GameController
+    proc GameControllerFromInstanceID(joyid: integer): *GameController
+    proc GameControllerFromPlayerIndex(player_index: integer): *GameController
+    proc GameControllerName(gamecontroller: *GameController): *[]char
+    proc GameControllerGetType(gamecontroller: *GameController): GameControllerType
+    proc GameControllerGetPlayerIndex(gamecontroller: *GameController): integer
+    proc GameControllerSetPlayerIndex(gamecontroller: *GameController; player_index: integer)
+    proc GameControllerGetVendor(gamecontroller: *GameController): shortint
+    proc GameControllerGetProduct(gamecontroller: *GameController): shortint
+    proc GameControllerGetProductVersion(gamecontroller: *GameController): shortint
+    proc GameControllerGetSerial(gamecontroller: *GameController): *[]char
+    proc GameControllerGetAttached(gamecontroller: *GameController): bool
+    proc GameControllerGetJoystick(gamecontroller: *GameController): *Joystick
     proc GameControllerEventState(state: integer): integer
     proc GameControllerUpdate
-    proc GameControllerGetAxisFromString(pchString: *carray of char): GameControllerAxis
-    proc GameControllerGetStringForAxis(axis: GameControllerAxis): *carray of char
-    proc GameControllerGetBindForAxis(gamecontroller: *_SDL_GameController; axis: GameControllerAxis): GameControllerButtonBind
-    proc GameControllerHasAxis(gamecontroller: *_SDL_GameController; axis: GameControllerAxis): bool
-    proc GameControllerGetAxis(gamecontroller: *_SDL_GameController; axis: GameControllerAxis): shortint
-    proc GameControllerGetButtonFromString(pchString: *carray of char): GameControllerButton
-    proc GameControllerGetStringForButton(button: GameControllerButton): *carray of char
-    proc GameControllerGetBindForButton(gamecontroller: *_SDL_GameController; button: GameControllerButton): GameControllerButtonBind
-    proc GameControllerHasButton(gamecontroller: *_SDL_GameController; button: GameControllerButton): bool
-    proc GameControllerGetButton(gamecontroller: *_SDL_GameController; button: GameControllerButton): byte
-    proc GameControllerGetNumTouchpads(gamecontroller: *_SDL_GameController): integer
-    proc GameControllerGetNumTouchpadFingers(gamecontroller: *_SDL_GameController; touchpad: integer): integer
-    proc GameControllerGetTouchpadFinger(gamecontroller: *_SDL_GameController; touchpad: integer; finger: integer; state: *carray of byte; x: *real; y: *real; pressure: *real): integer
-    proc GameControllerHasSensor(gamecontroller: *_SDL_GameController; type_: SensorType): bool
-    proc GameControllerSetSensorEnabled(gamecontroller: *_SDL_GameController; type_: SensorType; enabled: bool): integer
-    proc GameControllerIsSensorEnabled(gamecontroller: *_SDL_GameController; type_: SensorType): bool
-    proc GameControllerGetSensorData(gamecontroller: *_SDL_GameController; type_: SensorType; data: *real; num_values: integer): integer
-    proc GameControllerRumble(gamecontroller: *_SDL_GameController; low_frequency_rumble: shortint; high_frequency_rumble: shortint; duration_ms: integer): integer
-    proc GameControllerRumbleTriggers(gamecontroller: *_SDL_GameController; left_rumble: shortint; right_rumble: shortint; duration_ms: integer): integer
-    proc GameControllerHasLED(gamecontroller: *_SDL_GameController): bool
-    proc GameControllerSetLED(gamecontroller: *_SDL_GameController; red: byte; green: byte; blue: byte): integer
-    proc GameControllerClose(gamecontroller: *_SDL_GameController)
+    proc GameControllerGetAxisFromString(pchString: *[]char): GameControllerAxis
+    proc GameControllerGetStringForAxis(axis: GameControllerAxis): *[]char
+    proc GameControllerGetBindForAxis(gamecontroller: *GameController; axis: GameControllerAxis): GameControllerButtonBind
+    proc GameControllerHasAxis(gamecontroller: *GameController; axis: GameControllerAxis): bool
+    proc GameControllerGetAxis(gamecontroller: *GameController; axis: GameControllerAxis): shortint
+    proc GameControllerGetButtonFromString(pchString: *[]char): GameControllerButton
+    proc GameControllerGetStringForButton(button: GameControllerButton): *[]char
+    proc GameControllerGetBindForButton(gamecontroller: *GameController; button: GameControllerButton): GameControllerButtonBind
+    proc GameControllerHasButton(gamecontroller: *GameController; button: GameControllerButton): bool
+    proc GameControllerGetButton(gamecontroller: *GameController; button: GameControllerButton): byte
+    proc GameControllerGetNumTouchpads(gamecontroller: *GameController): integer
+    proc GameControllerGetNumTouchpadFingers(gamecontroller: *GameController; touchpad: integer): integer
+    proc GameControllerGetTouchpadFinger(gamecontroller: *GameController; touchpad: integer; finger: integer; state: *[]byte; x: *[]real; y: *[]real; pressure: *[]real): integer
+    proc GameControllerHasSensor(gamecontroller: *GameController; type_: SensorType): bool
+    proc GameControllerSetSensorEnabled(gamecontroller: *GameController; type_: SensorType; enabled: bool): integer
+    proc GameControllerIsSensorEnabled(gamecontroller: *GameController; type_: SensorType): bool
+    proc GameControllerGetSensorData(gamecontroller: *GameController; type_: SensorType; data: *[]real; num_values: integer): integer
+    proc GameControllerRumble(gamecontroller: *GameController; low_frequency_rumble: shortint; high_frequency_rumble: shortint; duration_ms: integer): integer
+    proc GameControllerRumbleTriggers(gamecontroller: *GameController; left_rumble: shortint; right_rumble: shortint; duration_ms: integer): integer
+    proc GameControllerHasLED(gamecontroller: *GameController): bool
+    proc GameControllerSetLED(gamecontroller: *GameController; red: byte; green: byte; blue: byte): integer
+    proc GameControllerClose(gamecontroller: *GameController)
 
     // from SDL_gesture.h
     proc RecordGesture(touchId: integer): integer
@@ -637,7 +638,7 @@ definition SDL [pfx 'SDL_']
 
     // from SDL_haptic.h
     type
-        _SDL_Haptic = cstruct end
+        Haptic = cstruct end
         int16_t = shortint
         HapticDirection = cstruct
                 type_: byte
@@ -711,7 +712,7 @@ definition SDL [pfx 'SDL_']
                 channels: byte
                 period: shortint
                 samples: shortint
-                data: *shortint
+                data: *[]shortint
                 attack_length: shortint
                 attack_level: shortint
                 fade_length: shortint
@@ -726,52 +727,52 @@ definition SDL [pfx 'SDL_']
                 custom: HapticCustom end
 
     proc NumHaptics(): integer
-    proc HapticName(device_index: integer): *carray of char
-    proc HapticOpen(device_index: integer): *_SDL_Haptic
+    proc HapticName(device_index: integer): *[]char
+    proc HapticOpen(device_index: integer): *Haptic
     proc HapticOpened(device_index: integer): integer
-    proc HapticIndex(haptic: *_SDL_Haptic): integer
+    proc HapticIndex(haptic: *Haptic): integer
     proc MouseIsHaptic(): integer
-    proc HapticOpenFromMouse(): *_SDL_Haptic
-    proc JoystickIsHaptic(joystick: *_SDL_Joystick): integer
-    proc HapticOpenFromJoystick(joystick: *_SDL_Joystick): *_SDL_Haptic
-    proc HapticClose(haptic: *_SDL_Haptic)
-    proc HapticNumEffects(haptic: *_SDL_Haptic): integer
-    proc HapticNumEffectsPlaying(haptic: *_SDL_Haptic): integer
-    proc HapticQuery(haptic: *_SDL_Haptic): integer
-    proc HapticNumAxes(haptic: *_SDL_Haptic): integer
-    proc HapticEffectSupported(haptic: *_SDL_Haptic; effect: *HapticEffect): integer
-    proc HapticNewEffect(haptic: *_SDL_Haptic; effect: *HapticEffect): integer
-    proc HapticUpdateEffect(haptic: *_SDL_Haptic; effect: integer; data: *HapticEffect): integer
-    proc HapticRunEffect(haptic: *_SDL_Haptic; effect: integer; iterations: integer): integer
-    proc HapticStopEffect(haptic: *_SDL_Haptic; effect: integer): integer
-    proc HapticDestroyEffect(haptic: *_SDL_Haptic; effect: integer)
-    proc HapticGetEffectStatus(haptic: *_SDL_Haptic; effect: integer): integer
-    proc HapticSetGain(haptic: *_SDL_Haptic; gain: integer): integer
-    proc HapticSetAutocenter(haptic: *_SDL_Haptic; autocenter: integer): integer
-    proc HapticPause(haptic: *_SDL_Haptic): integer
-    proc HapticUnpause(haptic: *_SDL_Haptic): integer
-    proc HapticStopAll(haptic: *_SDL_Haptic): integer
-    proc HapticRumbleSupported(haptic: *_SDL_Haptic): integer
-    proc HapticRumbleInit(haptic: *_SDL_Haptic): integer
-    proc HapticRumblePlay(haptic: *_SDL_Haptic; strength: real; length: integer): integer
-    proc HapticRumbleStop(haptic: *_SDL_Haptic): integer
+    proc HapticOpenFromMouse(): *Haptic
+    proc JoystickIsHaptic(joystick: *Joystick): integer
+    proc HapticOpenFromJoystick(joystick: *Joystick): *Haptic
+    proc HapticClose(haptic: *Haptic)
+    proc HapticNumEffects(haptic: *Haptic): integer
+    proc HapticNumEffectsPlaying(haptic: *Haptic): integer
+    proc HapticQuery(haptic: *Haptic): integer
+    proc HapticNumAxes(haptic: *Haptic): integer
+    proc HapticEffectSupported(haptic: *Haptic; effect: *HapticEffect): integer
+    proc HapticNewEffect(haptic: *Haptic; effect: *HapticEffect): integer
+    proc HapticUpdateEffect(haptic: *Haptic; effect: integer; data: *HapticEffect): integer
+    proc HapticRunEffect(haptic: *Haptic; effect: integer; iterations: integer): integer
+    proc HapticStopEffect(haptic: *Haptic; effect: integer): integer
+    proc HapticDestroyEffect(haptic: *Haptic; effect: integer)
+    proc HapticGetEffectStatus(haptic: *Haptic; effect: integer): integer
+    proc HapticSetGain(haptic: *Haptic; gain: integer): integer
+    proc HapticSetAutocenter(haptic: *Haptic; autocenter: integer): integer
+    proc HapticPause(haptic: *Haptic): integer
+    proc HapticUnpause(haptic: *Haptic): integer
+    proc HapticStopAll(haptic: *Haptic): integer
+    proc HapticRumbleSupported(haptic: *Haptic): integer
+    proc HapticRumbleInit(haptic: *Haptic): integer
+    proc HapticRumblePlay(haptic: *Haptic; strength: real; length: integer): integer
+    proc HapticRumbleStop(haptic: *Haptic): integer
 
     // from SDL_hints.h
     type
         HintPriority = (HINT_DEFAULT, HINT_NORMAL, HINT_OVERRIDE)
-        HintCallback = proc(userdata: *void; name: *carray of char; oldValue: *carray of char; newValue: *carray of char)
+        HintCallback = proc(userdata: *void; name: *[]char; oldValue: *[]char; newValue: *[]char)
 
-    proc SetHintWithPriority(name: *carray of char; value: *carray of char; priority: HintPriority): bool
-    proc SetHint(name: *carray of char; value: *carray of char): bool
-    proc GetHint(name: *carray of char): *carray of char
-    proc GetHintBoolean(name: *carray of char; default_value: bool): bool
-    proc AddHintCallback(name: *carray of char; callback: HintCallback; userdata: *void)
-    proc DelHintCallback(name: *carray of char; callback: HintCallback; userdata: *void)
+    proc SetHintWithPriority(name: *[]char; value: *[]char; priority: HintPriority): bool
+    proc SetHint(name: *[]char; value: *[]char): bool
+    proc GetHint(name: *[]char): *[]char
+    proc GetHintBoolean(name: *[]char; default_value: bool): bool
+    proc AddHintCallback(name: *[]char; callback: HintCallback; userdata: *void)
+    proc DelHintCallback(name: *[]char; callback: HintCallback; userdata: *void)
     proc ClearHints
 
     // from SDL_joystick.h
     type
-        _SDL_Joystick = cstruct end
+        Joystick = cstruct end
         JoystickPowerLevel = integer
     const
         JOYSTICK_POWER_EMPTY = 0
@@ -788,7 +789,7 @@ definition SDL [pfx 'SDL_']
     proc LockJoysticks
     proc UnlockJoysticks
     proc NumJoysticks(): integer
-    proc JoystickNameForIndex(device_index: integer): *carray of char
+    proc JoystickNameForIndex(device_index: integer): *[]char
     proc JoystickGetDevicePlayerIndex(device_index: integer): integer
     proc JoystickGetDeviceGUID(device_index: integer): JoystickGUID
     proc JoystickGetDeviceVendor(device_index: integer): shortint
@@ -796,45 +797,45 @@ definition SDL [pfx 'SDL_']
     proc JoystickGetDeviceProductVersion(device_index: integer): shortint
     proc JoystickGetDeviceType(device_index: integer): JoystickType
     proc JoystickGetDeviceInstanceID(device_index: integer): integer
-    proc JoystickOpen(device_index: integer): *_SDL_Joystick
-    proc JoystickFromInstanceID(instance_id: integer): *_SDL_Joystick
-    proc JoystickFromPlayerIndex(player_index: integer): *_SDL_Joystick
+    proc JoystickOpen(device_index: integer): *Joystick
+    proc JoystickFromInstanceID(instance_id: integer): *Joystick
+    proc JoystickFromPlayerIndex(player_index: integer): *Joystick
     proc JoystickAttachVirtual(type_: JoystickType; naxes: integer; nbuttons: integer; nhats: integer): integer
     proc JoystickDetachVirtual(device_index: integer): integer
     proc JoystickIsVirtual(device_index: integer): bool
-    proc JoystickSetVirtualAxis(joystick: *_SDL_Joystick; axis: integer; value: shortint): integer
-    proc JoystickSetVirtualButton(joystick: *_SDL_Joystick; button: integer; value: byte): integer
-    proc JoystickSetVirtualHat(joystick: *_SDL_Joystick; hat: integer; value: byte): integer
-    proc JoystickName(joystick: *_SDL_Joystick): *carray of char
-    proc JoystickGetPlayerIndex(joystick: *_SDL_Joystick): integer
-    proc JoystickSetPlayerIndex(joystick: *_SDL_Joystick; player_index: integer)
-    proc JoystickGetGUID(joystick: *_SDL_Joystick): JoystickGUID
-    proc JoystickGetVendor(joystick: *_SDL_Joystick): shortint
-    proc JoystickGetProduct(joystick: *_SDL_Joystick): shortint
-    proc JoystickGetProductVersion(joystick: *_SDL_Joystick): shortint
-    proc JoystickGetSerial(joystick: *_SDL_Joystick): *carray of char
-    proc JoystickGetType(joystick: *_SDL_Joystick): JoystickType
-    proc JoystickGetGUIDString(guid: JoystickGUID; pszGUID: *carray of char; cbGUID: integer)
-    proc JoystickGetGUIDFromString(pchGUID: *carray of char): JoystickGUID
-    proc JoystickGetAttached(joystick: *_SDL_Joystick): bool
-    proc JoystickInstanceID(joystick: *_SDL_Joystick): integer
-    proc JoystickNumAxes(joystick: *_SDL_Joystick): integer
-    proc JoystickNumBalls(joystick: *_SDL_Joystick): integer
-    proc JoystickNumHats(joystick: *_SDL_Joystick): integer
-    proc JoystickNumButtons(joystick: *_SDL_Joystick): integer
+    proc JoystickSetVirtualAxis(joystick: *Joystick; axis: integer; value: shortint): integer
+    proc JoystickSetVirtualButton(joystick: *Joystick; button: integer; value: byte): integer
+    proc JoystickSetVirtualHat(joystick: *Joystick; hat: integer; value: byte): integer
+    proc JoystickName(joystick: *Joystick): *[]char
+    proc JoystickGetPlayerIndex(joystick: *Joystick): integer
+    proc JoystickSetPlayerIndex(joystick: *Joystick; player_index: integer)
+    proc JoystickGetGUID(joystick: *Joystick): JoystickGUID
+    proc JoystickGetVendor(joystick: *Joystick): shortint
+    proc JoystickGetProduct(joystick: *Joystick): shortint
+    proc JoystickGetProductVersion(joystick: *Joystick): shortint
+    proc JoystickGetSerial(joystick: *Joystick): *[]char
+    proc JoystickGetType(joystick: *Joystick): JoystickType
+    proc JoystickGetGUIDString(guid: JoystickGUID; pszGUID: *[]char; cbGUID: integer)
+    proc JoystickGetGUIDFromString(pchGUID: *[]char): JoystickGUID
+    proc JoystickGetAttached(joystick: *Joystick): bool
+    proc JoystickInstanceID(joystick: *Joystick): integer
+    proc JoystickNumAxes(joystick: *Joystick): integer
+    proc JoystickNumBalls(joystick: *Joystick): integer
+    proc JoystickNumHats(joystick: *Joystick): integer
+    proc JoystickNumButtons(joystick: *Joystick): integer
     proc JoystickUpdate
     proc JoystickEventState(state: integer): integer
-    proc JoystickGetAxis(joystick: *_SDL_Joystick; axis: integer): shortint
-    proc JoystickGetAxisInitialState(joystick: *_SDL_Joystick; axis: integer; state: *shortint): bool
-    proc JoystickGetHat(joystick: *_SDL_Joystick; hat: integer): byte
-    proc JoystickGetBall(joystick: *_SDL_Joystick; ball: integer; dx: *integer; dy: *integer): integer
-    proc JoystickGetButton(joystick: *_SDL_Joystick; button: integer): byte
-    proc JoystickRumble(joystick: *_SDL_Joystick; low_frequency_rumble: shortint; high_frequency_rumble: shortint; duration_ms: integer): integer
-    proc JoystickRumbleTriggers(joystick: *_SDL_Joystick; left_rumble: shortint; right_rumble: shortint; duration_ms: integer): integer
-    proc JoystickHasLED(joystick: *_SDL_Joystick): bool
-    proc JoystickSetLED(joystick: *_SDL_Joystick; red: byte; green: byte; blue: byte): integer
-    proc JoystickClose(joystick: *_SDL_Joystick)
-    proc JoystickCurrentPowerLevel(joystick: *_SDL_Joystick): JoystickPowerLevel
+    proc JoystickGetAxis(joystick: *Joystick; axis: integer): shortint
+    proc JoystickGetAxisInitialState(joystick: *Joystick; axis: integer; state: *[]shortint): bool
+    proc JoystickGetHat(joystick: *Joystick; hat: integer): byte
+    proc JoystickGetBall(joystick: *Joystick; ball: integer; dx: *[]integer; dy: *[]integer): integer
+    proc JoystickGetButton(joystick: *Joystick; button: integer): byte
+    proc JoystickRumble(joystick: *Joystick; low_frequency_rumble: shortint; high_frequency_rumble: shortint; duration_ms: integer): integer
+    proc JoystickRumbleTriggers(joystick: *Joystick; left_rumble: shortint; right_rumble: shortint; duration_ms: integer): integer
+    proc JoystickHasLED(joystick: *Joystick): bool
+    proc JoystickSetLED(joystick: *Joystick; red: byte; green: byte; blue: byte): integer
+    proc JoystickClose(joystick: *Joystick)
+    proc JoystickCurrentPowerLevel(joystick: *Joystick): JoystickPowerLevel
 
     // from SDL_keyboard.h
     type
@@ -1107,15 +1108,15 @@ definition SDL [pfx 'SDL_']
         SCANCODE_Z = 29
 
     proc GetKeyboardFocus(): *Window
-    proc GetKeyboardState(numkeys: *integer): *carray of byte
+    proc GetKeyboardState(numkeys: *[]integer): *[]byte
     proc GetModState(): Keymod
     proc SetModState(modstate: Keymod)
     proc GetKeyFromScancode(scancode: Scancode): integer
     proc GetScancodeFromKey(key: integer): Scancode
-    proc GetScancodeName(scancode: Scancode): *carray of char
-    proc GetScancodeFromName(name: *carray of char): Scancode
-    proc GetKeyName(key: integer): *carray of char
-    proc GetKeyFromName(name: *carray of char): integer
+    proc GetScancodeName(scancode: Scancode): *[]char
+    proc GetScancodeFromName(name: *[]char): Scancode
+    proc GetKeyName(key: integer): *[]char
+    proc GetKeyFromName(name: *[]char): integer
     proc StartTextInput
     proc IsTextInputActive(): bool
     proc StopTextInput
@@ -1370,15 +1371,15 @@ definition SDL [pfx 'SDL_']
 
 
     // from SDL_loadso.h
-    proc LoadObject(sofile: *carray of char): *void
-    proc LoadFunction(handle: *void; name: *carray of char): *void
+    proc LoadObject(sofile: *[]char): *void
+    proc LoadFunction(handle: *void; name: *[]char): *void
     proc UnloadObject(handle: *void)
 
     // from SDL_locale.h
     type
         Locale = cstruct
-                language: *carray of char
-                country: *carray of char end
+                language: *[]char
+                country: *[]char end
 
     proc GetPreferredLocales(): *Locale
 
@@ -1397,29 +1398,29 @@ definition SDL [pfx 'SDL_']
         NUM_LOG_PRIORITIES = 7
 
     type
-        LogOutputFunction = proc(userdata: *void; category: integer; priority: LogPriority; message: *carray of char)
+        LogOutputFunction = proc(userdata: *void; category: integer; priority: LogPriority; message: *[]char)
 
     proc LogSetAllPriority(priority: LogPriority)
     proc LogSetPriority(category: integer; priority: LogPriority)
     proc LogGetPriority(category: integer): LogPriority
     proc LogResetPriorities
-    proc Log(fmt: *carray of char)
-    proc LogVerbose(category: integer; fmt: *carray of char)
-    proc LogDebug(category: integer; fmt: *carray of char)
-    proc LogInfo(category: integer; fmt: *carray of char)
-    proc LogWarn(category: integer; fmt: *carray of char)
-    proc LogError(category: integer; fmt: *carray of char)
-    proc LogCritical(category: integer; fmt: *carray of char)
-    proc LogMessage(category: integer; priority: LogPriority; fmt: *carray of char)
-    proc LogMessageV(category: integer; priority: LogPriority; fmt: *carray of char; _4: *__va_elem)
-    proc LogGetOutputFunction(callback: *LogOutputFunction; userdata: **void)
+    proc Log(fmt: *[]char)
+    proc LogVerbose(category: integer; fmt: *[]char)
+    proc LogDebug(category: integer; fmt: *[]char)
+    proc LogInfo(category: integer; fmt: *[]char)
+    proc LogWarn(category: integer; fmt: *[]char)
+    proc LogError(category: integer; fmt: *[]char)
+    proc LogCritical(category: integer; fmt: *[]char)
+    proc LogMessage(category: integer; priority: LogPriority; fmt: *[]char)
+    proc LogMessageV(category: integer; priority: LogPriority; fmt: *[]char; _4: *__va_elem)
+    proc LogGetOutputFunction(callback: *[]proc(userdata: *void; category: integer; priority: LogPriority; message: *[]char); userdata: *[]*void)
     proc LogSetOutputFunction(callback: LogOutputFunction; userdata: *void)
 
     // from SDL_main.h
     type
-        main_func = proc(argc: integer; _2: **carray of char): integer
+        main_func = proc(argc: integer; _2: *[][]char): integer
 
-    proc main(argc: integer; _2: **carray of char): integer
+    proc main(argc: integer; _2: *[][]char): integer
     proc SetMainReady
 
     // from SDL_messagebox.h
@@ -1442,7 +1443,7 @@ definition SDL [pfx 'SDL_']
         MessageBoxButtonData = cstruct
                 flags: integer
                 buttonid: integer
-                text: *carray of char end
+                text: *[]char end
         MessageBoxColor = cstruct
                 r: byte
                 g: byte
@@ -1453,14 +1454,14 @@ definition SDL [pfx 'SDL_']
         MessageBoxData = cstruct
                 flags: integer
                 window: *Window
-                title: *carray of char
-                message: *carray of char
+                title: *[]char
+                message: *[]char
                 numbuttons: integer
                 buttons: *MessageBoxButtonData
                 colorScheme: *MessageBoxColorScheme end
 
-    proc ShowMessageBox(messageboxdata: *MessageBoxData; buttonid: *integer): integer
-    proc ShowSimpleMessageBox(flags: integer; title: *carray of char; message: *carray of char; window: *Window): integer
+    proc ShowMessageBox(messageboxdata: *MessageBoxData; buttonid: *[]integer): integer
+    proc ShowSimpleMessageBox(flags: integer; title: *[]char; message: *[]char; window: *Window): integer
 
     // from SDL_metal.h
     type
@@ -1469,10 +1470,10 @@ definition SDL [pfx 'SDL_']
     proc Metal_CreateView(window: *Window): MetalView
     proc Metal_DestroyView(view: MetalView)
     proc Metal_GetLayer(view: MetalView): *void
-    proc Metal_GetDrawableSize(window: *Window; w: *integer; h: *integer)
+    proc Metal_GetDrawableSize(window: *Window; w: *[]integer; h: *[]integer)
 
     // from SDL_misc.h
-    proc OpenURL(url: *carray of char): integer
+    proc OpenURL(url: *[]char): integer
 
     // from SDL_mouse.h
     type
@@ -1481,15 +1482,15 @@ definition SDL [pfx 'SDL_']
         SystemCursor = (SYSTEM_CURSOR_ARROW, SYSTEM_CURSOR_IBEAM, SYSTEM_CURSOR_WAIT, SYSTEM_CURSOR_CROSSHAIR, SYSTEM_CURSOR_WAITARROW, SYSTEM_CURSOR_SIZENWSE, SYSTEM_CURSOR_SIZENESW, SYSTEM_CURSOR_SIZEWE, SYSTEM_CURSOR_SIZENS, SYSTEM_CURSOR_SIZEALL, SYSTEM_CURSOR_NO, SYSTEM_CURSOR_HAND, NUM_SYSTEM_CURSORS)
 
     proc GetMouseFocus(): *Window
-    proc GetMouseState(x: *integer; y: *integer): integer
-    proc GetGlobalMouseState(x: *integer; y: *integer): integer
-    proc GetRelativeMouseState(x: *integer; y: *integer): integer
+    proc GetMouseState(x: *[]integer; y: *[]integer): integer
+    proc GetGlobalMouseState(x: *[]integer; y: *[]integer): integer
+    proc GetRelativeMouseState(x: *[]integer; y: *[]integer): integer
     proc WarpMouseInWindow(window: *Window; x: integer; y: integer)
     proc WarpMouseGlobal(x: integer; y: integer): integer
     proc SetRelativeMouseMode(enabled: bool): integer
     proc CaptureMouse(enabled: bool): integer
     proc GetRelativeMouseMode(): bool
-    proc CreateCursor(data: *carray of byte; mask: *carray of byte; w: integer; h: integer; hot_x: integer; hot_y: integer): *Cursor
+    proc CreateCursor(data: *[]byte; mask: *[]byte; w: integer; h: integer; hot_x: integer; hot_y: integer): *Cursor
     proc CreateColorCursor(surface: *Surface; hot_x: integer; hot_y: integer): *Cursor
     proc CreateSystemCursor(id: SystemCursor): *Cursor
     proc SetCursor(cursor: *Cursor)
@@ -1610,8 +1611,8 @@ definition SDL [pfx 'SDL_']
                 refcount: integer
                 next: *PixelFormat end
 
-    proc GetPixelFormatName(format: integer): *carray of char
-    proc PixelFormatEnumToMasks(format: integer; bpp: *integer; Rmask: *integer; Gmask: *integer; Bmask: *integer; Amask: *integer): bool
+    proc GetPixelFormatName(format: integer): *[]char
+    proc PixelFormatEnumToMasks(format: integer; bpp: *[]integer; Rmask: *[]integer; Gmask: *[]integer; Bmask: *[]integer; Amask: *[]integer): bool
     proc MasksToPixelFormatEnum(bpp: integer; Rmask: integer; Gmask: integer; Bmask: integer; Amask: integer): integer
     proc AllocFormat(pixel_format: integer): *PixelFormat
     proc FreeFormat(format: *PixelFormat)
@@ -1621,18 +1622,18 @@ definition SDL [pfx 'SDL_']
     proc FreePalette(palette: *Palette)
     proc MapRGB(format: *PixelFormat; r: byte; g: byte; b: byte): integer
     proc MapRGBA(format: *PixelFormat; r: byte; g: byte; b: byte; a: byte): integer
-    proc GetRGB(pixel: integer; format: *PixelFormat; r: *carray of byte; g: *carray of byte; b: *carray of byte)
-    proc GetRGBA(pixel: integer; format: *PixelFormat; r: *carray of byte; g: *carray of byte; b: *carray of byte; a: *carray of byte)
-    proc CalculateGammaRamp(gamma: real; ramp: *shortint)
+    proc GetRGB(pixel: integer; format: *PixelFormat; r: *[]byte; g: *[]byte; b: *[]byte)
+    proc GetRGBA(pixel: integer; format: *PixelFormat; r: *[]byte; g: *[]byte; b: *[]byte; a: *[]byte)
+    proc CalculateGammaRamp(gamma: real; ramp: *[]shortint)
 
     // from SDL_platform.h
-    proc GetPlatform(): *carray of char
+    proc GetPlatform(): *[]char
 
     // from SDL_power.h
     type
         PowerState = (POWERSTATE_UNKNOWN, POWERSTATE_ON_BATTERY, POWERSTATE_NO_BATTERY, POWERSTATE_CHARGING, POWERSTATE_CHARGED)
 
-    proc GetPowerInfo(secs: *integer; pct: *integer): PowerState
+    proc GetPowerInfo(secs: *[]integer; pct: *[]integer): PowerState
 
     // from SDL_rect.h
     type
@@ -1652,7 +1653,7 @@ definition SDL [pfx 'SDL_']
     proc IntersectRect(A: *Rect; B: *Rect; result: *Rect): bool
     proc UnionRect(A: *Rect; B: *Rect; result: *Rect)
     proc EnclosePoints(points: *Point; count: integer; clip: *Rect; result: *Rect): bool
-    proc IntersectRectAndLine(rect: *Rect; X1: *integer; Y1: *integer; X2: *integer; Y2: *integer): bool
+    proc IntersectRectAndLine(rect: *Rect; X1: *[]integer; Y1: *[]integer; X2: *[]integer; Y2: *[]integer): bool
 
     // from SDL_render.h
     type
@@ -1665,7 +1666,7 @@ definition SDL [pfx 'SDL_']
 
     type
         RendererInfo = cstruct
-                name: *carray of char
+                name: *[]char
                 flags: integer
                 num_texture_formats: integer
                 texture_formats: carray 16 of integer
@@ -1691,33 +1692,33 @@ definition SDL [pfx 'SDL_']
 
     proc GetNumRenderDrivers(): integer
     proc GetRenderDriverInfo(index: integer; info: *RendererInfo): integer
-    proc CreateWindowAndRenderer(width: integer; height: integer; window_flags: integer; window: **Window; renderer: **Renderer): integer
+    proc CreateWindowAndRenderer(width: integer; height: integer; window_flags: integer; window: *[]*Window; renderer: *[]*Renderer): integer
     proc CreateRenderer(window: *Window; index: integer; flags: integer): *Renderer
     proc CreateSoftwareRenderer(surface: *Surface): *Renderer
     proc GetRenderer(window: *Window): *Renderer
     proc GetRendererInfo(renderer: *Renderer; info: *RendererInfo): integer
-    proc GetRendererOutputSize(renderer: *Renderer; w: *integer; h: *integer): integer
+    proc GetRendererOutputSize(renderer: *Renderer; w: *[]integer; h: *[]integer): integer
     proc CreateTexture(renderer: *Renderer; format: integer; access: integer; w: integer; h: integer): *Texture
     proc CreateTextureFromSurface(renderer: *Renderer; surface: *Surface): *Texture
-    proc QueryTexture(texture: *Texture; format: *integer; access: *integer; w: *integer; h: *integer): integer
+    proc QueryTexture(texture: *Texture; format: *[]integer; access: *[]integer; w: *[]integer; h: *[]integer): integer
     proc SetTextureColorMod(texture: *Texture; r: byte; g: byte; b: byte): integer
-    proc GetTextureColorMod(texture: *Texture; r: *carray of byte; g: *carray of byte; b: *carray of byte): integer
+    proc GetTextureColorMod(texture: *Texture; r: *[]byte; g: *[]byte; b: *[]byte): integer
     proc SetTextureAlphaMod(texture: *Texture; alpha: byte): integer
-    proc GetTextureAlphaMod(texture: *Texture; alpha: *carray of byte): integer
+    proc GetTextureAlphaMod(texture: *Texture; alpha: *[]byte): integer
     proc SetTextureBlendMode(texture: *Texture; blendMode: BlendMode): integer
-    proc GetTextureBlendMode(texture: *Texture; blendMode: *BlendMode): integer
+    proc GetTextureBlendMode(texture: *Texture; blendMode: *[]BlendMode): integer
     proc SetTextureScaleMode(texture: *Texture; scaleMode: ScaleMode): integer
-    proc GetTextureScaleMode(texture: *Texture; scaleMode: *ScaleMode): integer
+    proc GetTextureScaleMode(texture: *Texture; scaleMode: *[]ScaleMode): integer
     proc UpdateTexture(texture: *Texture; rect: *Rect; pixels: *void; pitch: integer): integer
-    proc UpdateYUVTexture(texture: *Texture; rect: *Rect; Yplane: *carray of byte; Ypitch: integer; Uplane: *carray of byte; Upitch: integer; Vplane: *carray of byte; Vpitch: integer): integer
-    proc LockTexture(texture: *Texture; rect: *Rect; pixels: **void; pitch: *integer): integer
-    proc LockTextureToSurface(texture: *Texture; rect: *Rect; surface: **Surface): integer
+    proc UpdateYUVTexture(texture: *Texture; rect: *Rect; Yplane: *[]byte; Ypitch: integer; Uplane: *[]byte; Upitch: integer; Vplane: *[]byte; Vpitch: integer): integer
+    proc LockTexture(texture: *Texture; rect: *Rect; pixels: *[]*void; pitch: *[]integer): integer
+    proc LockTextureToSurface(texture: *Texture; rect: *Rect; surface: *[]*Surface): integer
     proc UnlockTexture(texture: *Texture)
     proc RenderTargetSupported(renderer: *Renderer): bool
     proc SetRenderTarget(renderer: *Renderer; texture: *Texture): integer
     proc GetRenderTarget(renderer: *Renderer): *Texture
     proc RenderSetLogicalSize(renderer: *Renderer; w: integer; h: integer): integer
-    proc RenderGetLogicalSize(renderer: *Renderer; w: *integer; h: *integer)
+    proc RenderGetLogicalSize(renderer: *Renderer; w: *[]integer; h: *[]integer)
     proc RenderSetIntegerScale(renderer: *Renderer; enable: bool): integer
     proc RenderGetIntegerScale(renderer: *Renderer): bool
     proc RenderSetViewport(renderer: *Renderer; rect: *Rect): integer
@@ -1726,11 +1727,11 @@ definition SDL [pfx 'SDL_']
     proc RenderGetClipRect(renderer: *Renderer; rect: *Rect)
     proc RenderIsClipEnabled(renderer: *Renderer): bool
     proc RenderSetScale(renderer: *Renderer; scaleX: real; scaleY: real): integer
-    proc RenderGetScale(renderer: *Renderer; scaleX: *real; scaleY: *real)
+    proc RenderGetScale(renderer: *Renderer; scaleX: *[]real; scaleY: *[]real)
     proc SetRenderDrawColor(renderer: *Renderer; r: byte; g: byte; b: byte; a: byte): integer
-    proc GetRenderDrawColor(renderer: *Renderer; r: *carray of byte; g: *carray of byte; b: *carray of byte; a: *carray of byte): integer
+    proc GetRenderDrawColor(renderer: *Renderer; r: *[]byte; g: *[]byte; b: *[]byte; a: *[]byte): integer
     proc SetRenderDrawBlendMode(renderer: *Renderer; blendMode: BlendMode): integer
-    proc GetRenderDrawBlendMode(renderer: *Renderer; blendMode: *BlendMode): integer
+    proc GetRenderDrawBlendMode(renderer: *Renderer; blendMode: *[]BlendMode): integer
     proc RenderClear(renderer: *Renderer): integer
     proc RenderDrawPoint(renderer: *Renderer; x: integer; y: integer): integer
     proc RenderDrawPoints(renderer: *Renderer; points: *Point; count: integer): integer
@@ -1757,7 +1758,7 @@ definition SDL [pfx 'SDL_']
     proc DestroyTexture(texture: *Texture)
     proc DestroyRenderer(renderer: *Renderer)
     proc RenderFlush(renderer: *Renderer): integer
-    proc GL_BindTexture(texture: *Texture; texw: *real; texh: *real): integer
+    proc GL_BindTexture(texture: *Texture; texw: *[]real; texh: *[]real): integer
     proc GL_UnbindTexture(texture: *Texture): integer
     proc RenderGetMetalLayer(renderer: *Renderer): *void
     proc RenderGetMetalCommandEncoder(renderer: *Renderer): *void
@@ -1773,14 +1774,14 @@ definition SDL [pfx 'SDL_']
                 type_: integer
                 hidden: cunion
     mem: cstruct
-    base: *carray of byte
-    here: *carray of byte
-    stop: *carray of byte end
+    base: *[]byte
+    here: *[]byte
+    stop: *[]byte end
     unknown: cstruct
     data1: *void
     data2: *void end end end
 
-    proc RWFromFile(file: *carray of char; mode: *carray of char): *RWops
+    proc RWFromFile(file: *[]char; mode: *[]char): *RWops
     proc RWFromFP(fp: *void; autoclose: bool): *RWops
     proc RWFromMem(mem: *void; size: integer): *RWops
     proc RWFromConstMem(mem: *void; size: integer): *RWops
@@ -1792,8 +1793,8 @@ definition SDL [pfx 'SDL_']
     proc RWread(context: *RWops; ptr: *void; size: integer; maxnum: integer): integer
     proc RWwrite(context: *RWops; ptr: *void; size: integer; num: integer): integer
     proc RWclose(context: *RWops): integer
-    proc LoadFile_RW(src: *RWops; datasize: *integer; freesrc: integer): *void
-    proc LoadFile(file: *carray of char; datasize: *integer): *void
+    proc LoadFile_RW(src: *RWops; datasize: *[]integer; freesrc: integer): *void
+    proc LoadFile(file: *[]char; datasize: *[]integer): *void
     proc ReadU8(src: *RWops): byte
     proc ReadLE16(src: *RWops): shortint
     proc ReadBE16(src: *RWops): shortint
@@ -1811,23 +1812,23 @@ definition SDL [pfx 'SDL_']
 
     // from SDL_sensor.h
     type
-        _SDL_Sensor = cstruct end
+        Sensor = cstruct end
 
     proc LockSensors
     proc UnlockSensors
     proc NumSensors(): integer
-    proc SensorGetDeviceName(device_index: integer): *carray of char
+    proc SensorGetDeviceName(device_index: integer): *[]char
     proc SensorGetDeviceType(device_index: integer): SensorType
     proc SensorGetDeviceNonPortableType(device_index: integer): integer
     proc SensorGetDeviceInstanceID(device_index: integer): integer
-    proc SensorOpen(device_index: integer): *_SDL_Sensor
-    proc SensorFromInstanceID(instance_id: integer): *_SDL_Sensor
-    proc SensorGetName(sensor: *_SDL_Sensor): *carray of char
-    proc SensorGetType(sensor: *_SDL_Sensor): SensorType
-    proc SensorGetNonPortableType(sensor: *_SDL_Sensor): integer
-    proc SensorGetInstanceID(sensor: *_SDL_Sensor): integer
-    proc SensorGetData(sensor: *_SDL_Sensor; data: *real; num_values: integer): integer
-    proc SensorClose(sensor: *_SDL_Sensor)
+    proc SensorOpen(device_index: integer): *Sensor
+    proc SensorFromInstanceID(instance_id: integer): *Sensor
+    proc SensorGetName(sensor: *Sensor): *[]char
+    proc SensorGetType(sensor: *Sensor): SensorType
+    proc SensorGetNonPortableType(sensor: *Sensor): integer
+    proc SensorGetInstanceID(sensor: *Sensor): integer
+    proc SensorGetData(sensor: *Sensor; data: *[]real; num_values: integer): integer
+    proc SensorClose(sensor: *Sensor)
     proc SensorUpdate
 
     // from SDL_shape.h
@@ -1845,7 +1846,7 @@ definition SDL [pfx 'SDL_']
                 mode: ShapeMode
                 parameters: WindowShapeParams end
 
-    proc CreateShapedWindow(title: *carray of char; x: integer; y: integer; w: integer; h: integer; flags: integer): *Window
+    proc CreateShapedWindow(title: *[]char; x: integer; y: integer; w: integer; h: integer; flags: integer): *Window
     proc IsShapedWindow(window: *Window): bool
     proc SetWindowShape(window: *Window; shape: *Surface; shape_mode: *WindowShapeMode): integer
     proc GetShapedWindowMode(window: *Window; shape_mode: *WindowShapeMode): integer
@@ -1865,11 +1866,11 @@ definition SDL [pfx 'SDL_']
     proc calloc(nmemb: integer; size: integer): *void
     proc realloc(mem: *void; size: integer): *void
     proc free(mem: *void)
-    proc GetMemoryFunctions(malloc_func: *malloc_func; calloc_func: *calloc_func; realloc_func: *realloc_func; free_func: *free_func)
+    proc GetMemoryFunctions(malloc_func: *[]proc(size: integer): *void; calloc_func: *[]proc(nmemb: integer; size: integer): *void; realloc_func: *[]proc(mem: *void; size: integer): *void; free_func: *[]proc(mem: *void))
     proc SetMemoryFunctions(malloc_func: malloc_func; calloc_func: calloc_func; realloc_func: realloc_func; free_func: free_func): integer
     proc GetNumAllocations(): integer
-    proc getenv(name: *carray of char): *carray of char
-    proc setenv(name: *carray of char; value: *carray of char; overwrite: integer): integer
+    proc getenv(name: *[]char): *[]char
+    proc setenv(name: *[]char; value: *[]char; overwrite: integer): integer
     proc qsort(base: *void; nmemb: integer; size: integer; compare: proc(_1: *void; _2: *void): integer)
     proc abs(x: integer): integer
     proc isdigit(x: integer): integer
@@ -1883,49 +1884,49 @@ definition SDL [pfx 'SDL_']
     proc memcpy(dst: *void; src: *void; len: integer): *void
     proc memmove(dst: *void; src: *void; len: integer): *void
     proc memcmp(s1: *void; s2: *void; len: integer): integer
-    proc wcslen(wstr: *integer): integer
-    proc wcslcpy(dst: *integer; src: *integer; maxlen: integer): integer
-    proc wcslcat(dst: *integer; src: *integer; maxlen: integer): integer
-    proc wcsdup(wstr: *integer): *integer
-    proc wcsstr(haystack: *integer; needle: *integer): *integer
-    proc wcscmp(str1: *integer; str2: *integer): integer
-    proc wcsncmp(str1: *integer; str2: *integer; maxlen: integer): integer
-    proc wcscasecmp(str1: *integer; str2: *integer): integer
-    proc wcsncasecmp(str1: *integer; str2: *integer; len: integer): integer
-    proc strlen(str: *carray of char): integer
-    proc strlcpy(dst: *carray of char; src: *carray of char; maxlen: integer): integer
-    proc utf8strlcpy(dst: *carray of char; src: *carray of char; dst_bytes: integer): integer
-    proc strlcat(dst: *carray of char; src: *carray of char; maxlen: integer): integer
-    proc strdup(str: *carray of char): *carray of char
-    proc strrev(str: *carray of char): *carray of char
-    proc strupr(str: *carray of char): *carray of char
-    proc strlwr(str: *carray of char): *carray of char
-    proc strchr(str: *carray of char; c: integer): *carray of char
-    proc strrchr(str: *carray of char; c: integer): *carray of char
-    proc strstr(haystack: *carray of char; needle: *carray of char): *carray of char
-    proc strtokr(s1: *carray of char; s2: *carray of char; saveptr: **carray of char): *carray of char
-    proc utf8strlen(str: *carray of char): integer
-    proc itoa(value: integer; str: *carray of char; radix: integer): *carray of char
-    proc uitoa(value: integer; str: *carray of char; radix: integer): *carray of char
-    proc ltoa(value: integer; str: *carray of char; radix: integer): *carray of char
-    proc ultoa(value: integer; str: *carray of char; radix: integer): *carray of char
-    proc lltoa(value: integer; str: *carray of char; radix: integer): *carray of char
-    proc ulltoa(value: integer; str: *carray of char; radix: integer): *carray of char
-    proc atoi(str: *carray of char): integer
-    proc atof(str: *carray of char): longreal
-    proc strtol(str: *carray of char; endp: **carray of char; base: integer): integer
-    proc strtoul(str: *carray of char; endp: **carray of char; base: integer): integer
-    proc strtoll(str: *carray of char; endp: **carray of char; base: integer): integer
-    proc strtoull(str: *carray of char; endp: **carray of char; base: integer): integer
-    proc strtod(str: *carray of char; endp: **carray of char): longreal
-    proc strcmp(str1: *carray of char; str2: *carray of char): integer
-    proc strncmp(str1: *carray of char; str2: *carray of char; maxlen: integer): integer
-    proc strcasecmp(str1: *carray of char; str2: *carray of char): integer
-    proc strncasecmp(str1: *carray of char; str2: *carray of char; len: integer): integer
-    proc sscanf(text: *carray of char; fmt: *carray of char): integer
-    proc vsscanf(text: *carray of char; fmt: *carray of char; _3: *__va_elem): integer
-    proc snprintf(text: *carray of char; maxlen: integer; fmt: *carray of char): integer
-    proc vsnprintf(text: *carray of char; maxlen: integer; fmt: *carray of char; _4: *__va_elem): integer
+    proc wcslen(wstr: *[]integer): integer
+    proc wcslcpy(dst: *[]integer; src: *[]integer; maxlen: integer): integer
+    proc wcslcat(dst: *[]integer; src: *[]integer; maxlen: integer): integer
+    proc wcsdup(wstr: *[]integer): *[]integer
+    proc wcsstr(haystack: *[]integer; needle: *[]integer): *[]integer
+    proc wcscmp(str1: *[]integer; str2: *[]integer): integer
+    proc wcsncmp(str1: *[]integer; str2: *[]integer; maxlen: integer): integer
+    proc wcscasecmp(str1: *[]integer; str2: *[]integer): integer
+    proc wcsncasecmp(str1: *[]integer; str2: *[]integer; len: integer): integer
+    proc strlen(str: *[]char): integer
+    proc strlcpy(dst: *[]char; src: *[]char; maxlen: integer): integer
+    proc utf8strlcpy(dst: *[]char; src: *[]char; dst_bytes: integer): integer
+    proc strlcat(dst: *[]char; src: *[]char; maxlen: integer): integer
+    proc strdup(str: *[]char): *[]char
+    proc strrev(str: *[]char): *[]char
+    proc strupr(str: *[]char): *[]char
+    proc strlwr(str: *[]char): *[]char
+    proc strchr(str: *[]char; c: integer): *[]char
+    proc strrchr(str: *[]char; c: integer): *[]char
+    proc strstr(haystack: *[]char; needle: *[]char): *[]char
+    proc strtokr(s1: *[]char; s2: *[]char; saveptr: *[][]char): *[]char
+    proc utf8strlen(str: *[]char): integer
+    proc itoa(value: integer; str: *[]char; radix: integer): *[]char
+    proc uitoa(value: integer; str: *[]char; radix: integer): *[]char
+    proc ltoa(value: integer; str: *[]char; radix: integer): *[]char
+    proc ultoa(value: integer; str: *[]char; radix: integer): *[]char
+    proc lltoa(value: integer; str: *[]char; radix: integer): *[]char
+    proc ulltoa(value: integer; str: *[]char; radix: integer): *[]char
+    proc atoi(str: *[]char): integer
+    proc atof(str: *[]char): longreal
+    proc strtol(str: *[]char; endp: *[][]char; base: integer): integer
+    proc strtoul(str: *[]char; endp: *[][]char; base: integer): integer
+    proc strtoll(str: *[]char; endp: *[][]char; base: integer): integer
+    proc strtoull(str: *[]char; endp: *[][]char; base: integer): integer
+    proc strtod(str: *[]char; endp: *[][]char): longreal
+    proc strcmp(str1: *[]char; str2: *[]char): integer
+    proc strncmp(str1: *[]char; str2: *[]char; maxlen: integer): integer
+    proc strcasecmp(str1: *[]char; str2: *[]char): integer
+    proc strncasecmp(str1: *[]char; str2: *[]char; len: integer): integer
+    proc sscanf(text: *[]char; fmt: *[]char): integer
+    proc vsscanf(text: *[]char; fmt: *[]char; _3: *__va_elem): integer
+    proc snprintf(text: *[]char; maxlen: integer; fmt: *[]char): integer
+    proc vsnprintf(text: *[]char; maxlen: integer; fmt: *[]char; _4: *__va_elem): integer
     proc acos(x: longreal): longreal
     proc acosf(x: real): real
     proc asin(x: longreal): longreal
@@ -1964,10 +1965,10 @@ definition SDL [pfx 'SDL_']
     proc sqrtf(x: real): real
     proc tan(x: longreal): longreal
     proc tanf(x: real): real
-    proc iconv_open(tocode: *carray of char; fromcode: *carray of char): iconv_t
+    proc iconv_open(tocode: *[]char; fromcode: *[]char): iconv_t
     proc iconv_close(cd: iconv_t): integer
-    proc iconv(cd: iconv_t; inbuf: **carray of char; inbytesleft: *integer; outbuf: **carray of char; outbytesleft: *integer): integer
-    proc iconv_string(tocode: *carray of char; fromcode: *carray of char; inbuf: *carray of char; inbytesleft: integer): *carray of char
+    proc iconv(cd: iconv_t; inbuf: *[][]char; inbytesleft: *[]integer; outbuf: *[][]char; outbytesleft: *[]integer): integer
+    proc iconv_string(tocode: *[]char; fromcode: *[]char; inbuf: *[]char; inbytesleft: integer): *[]char
 
     // from SDL_surface.h
     type
@@ -2006,13 +2007,13 @@ definition SDL [pfx 'SDL_']
     proc HasSurfaceRLE(surface: *Surface): bool
     proc SetColorKey(surface: *Surface; flag: integer; key: integer): integer
     proc HasColorKey(surface: *Surface): bool
-    proc GetColorKey(surface: *Surface; key: *integer): integer
+    proc GetColorKey(surface: *Surface; key: *[]integer): integer
     proc SetSurfaceColorMod(surface: *Surface; r: byte; g: byte; b: byte): integer
-    proc GetSurfaceColorMod(surface: *Surface; r: *carray of byte; g: *carray of byte; b: *carray of byte): integer
+    proc GetSurfaceColorMod(surface: *Surface; r: *[]byte; g: *[]byte; b: *[]byte): integer
     proc SetSurfaceAlphaMod(surface: *Surface; alpha: byte): integer
-    proc GetSurfaceAlphaMod(surface: *Surface; alpha: *carray of byte): integer
+    proc GetSurfaceAlphaMod(surface: *Surface; alpha: *[]byte): integer
     proc SetSurfaceBlendMode(surface: *Surface; blendMode: BlendMode): integer
-    proc GetSurfaceBlendMode(surface: *Surface; blendMode: *BlendMode): integer
+    proc GetSurfaceBlendMode(surface: *Surface; blendMode: *[]BlendMode): integer
     proc SetClipRect(surface: *Surface; rect: *Rect): bool
     proc GetClipRect(surface: *Surface; rect: *Rect)
     proc DuplicateSurface(surface: *Surface): *Surface
@@ -2045,13 +2046,13 @@ definition SDL [pfx 'SDL_']
         ThreadFunction = proc(data: *void): integer
         ThreadPriority = (THREAD_PRIORITY_LOW, THREAD_PRIORITY_NORMAL, THREAD_PRIORITY_HIGH, THREAD_PRIORITY_TIME_CRITICAL)
 
-    proc CreateThread(fn: ThreadFunction; name: *carray of char; data: *void): *Thread
-    proc CreateThreadWithStackSize(fn: ThreadFunction; name: *carray of char; stacksize: integer; data: *void): *Thread
-    proc GetThreadName(thread: *Thread): *carray of char
+    proc CreateThread(fn: ThreadFunction; name: *[]char; data: *void): *Thread
+    proc CreateThreadWithStackSize(fn: ThreadFunction; name: *[]char; stacksize: integer; data: *void): *Thread
+    proc GetThreadName(thread: *Thread): *[]char
     proc ThreadID(): integer
     proc GetThreadID(thread: *Thread): integer
     proc SetThreadPriority(priority: ThreadPriority): integer
-    proc WaitThread(thread: *Thread; status: *integer)
+    proc WaitThread(thread: *Thread; status: *[]integer)
     proc DetachThread(thread: *Thread)
     proc TLSCreate(): integer
     proc TLSGet(id: integer): *void
@@ -2100,7 +2101,7 @@ definition SDL [pfx 'SDL_']
                 patch: byte end
 
     proc GetVersion(ver: *version)
-    proc GetRevision(): *carray of char
+    proc GetRevision(): *[]char
     proc GetRevisionNumber(): integer
 
     // from SDL_video.h
@@ -2164,15 +2165,15 @@ definition SDL [pfx 'SDL_']
         GLContext = *void
 
     proc GetNumVideoDrivers(): integer
-    proc GetVideoDriver(index: integer): *carray of char
-    proc VideoInit(driver_name: *carray of char): integer
+    proc GetVideoDriver(index: integer): *[]char
+    proc VideoInit(driver_name: *[]char): integer
     proc VideoQuit
-    proc GetCurrentVideoDriver(): *carray of char
+    proc GetCurrentVideoDriver(): *[]char
     proc GetNumVideoDisplays(): integer
-    proc GetDisplayName(displayIndex: integer): *carray of char
+    proc GetDisplayName(displayIndex: integer): *[]char
     proc GetDisplayBounds(displayIndex: integer; rect: *Rect): integer
     proc GetDisplayUsableBounds(displayIndex: integer; rect: *Rect): integer
-    proc GetDisplayDPI(displayIndex: integer; ddpi: *real; hdpi: *real; vdpi: *real): integer
+    proc GetDisplayDPI(displayIndex: integer; ddpi: *[]real; hdpi: *[]real; vdpi: *[]real): integer
     proc GetDisplayOrientation(displayIndex: integer): DisplayOrientation
     proc GetNumDisplayModes(displayIndex: integer): integer
     proc GetDisplayMode(displayIndex: integer; modeIndex: integer; mode: *DisplayMode): integer
@@ -2183,25 +2184,25 @@ definition SDL [pfx 'SDL_']
     proc SetWindowDisplayMode(window: *Window; mode: *DisplayMode): integer
     proc GetWindowDisplayMode(window: *Window; mode: *DisplayMode): integer
     proc GetWindowPixelFormat(window: *Window): integer
-    proc CreateWindow(title: *carray of char; x: integer; y: integer; w: integer; h: integer; flags: integer): *Window
+    proc CreateWindow(title: *[]char; x: integer; y: integer; w: integer; h: integer; flags: integer): *Window
     proc CreateWindowFrom(data: *void): *Window
     proc GetWindowID(window: *Window): integer
     proc GetWindowFromID(id: integer): *Window
     proc GetWindowFlags(window: *Window): integer
-    proc SetWindowTitle(window: *Window; title: *carray of char)
-    proc GetWindowTitle(window: *Window): *carray of char
+    proc SetWindowTitle(window: *Window; title: *[]char)
+    proc GetWindowTitle(window: *Window): *[]char
     proc SetWindowIcon(window: *Window; icon: *Surface)
-    proc SetWindowData(window: *Window; name: *carray of char; userdata: *void): *void
-    proc GetWindowData(window: *Window; name: *carray of char): *void
+    proc SetWindowData(window: *Window; name: *[]char; userdata: *void): *void
+    proc GetWindowData(window: *Window; name: *[]char): *void
     proc SetWindowPosition(window: *Window; x: integer; y: integer)
-    proc GetWindowPosition(window: *Window; x: *integer; y: *integer)
+    proc GetWindowPosition(window: *Window; x: *[]integer; y: *[]integer)
     proc SetWindowSize(window: *Window; w: integer; h: integer)
-    proc GetWindowSize(window: *Window; w: *integer; h: *integer)
-    proc GetWindowBordersSize(window: *Window; top: *integer; left: *integer; bottom: *integer; right: *integer): integer
+    proc GetWindowSize(window: *Window; w: *[]integer; h: *[]integer)
+    proc GetWindowBordersSize(window: *Window; top: *[]integer; left: *[]integer; bottom: *[]integer; right: *[]integer): integer
     proc SetWindowMinimumSize(window: *Window; min_w: integer; min_h: integer)
-    proc GetWindowMinimumSize(window: *Window; w: *integer; h: *integer)
+    proc GetWindowMinimumSize(window: *Window; w: *[]integer; h: *[]integer)
     proc SetWindowMaximumSize(window: *Window; max_w: integer; max_h: integer)
-    proc GetWindowMaximumSize(window: *Window; w: *integer; h: *integer)
+    proc GetWindowMaximumSize(window: *Window; w: *[]integer; h: *[]integer)
     proc SetWindowBordered(window: *Window; bordered: bool)
     proc SetWindowResizable(window: *Window; resizable: bool)
     proc ShowWindow(window: *Window)
@@ -2220,28 +2221,28 @@ definition SDL [pfx 'SDL_']
     proc SetWindowBrightness(window: *Window; brightness: real): integer
     proc GetWindowBrightness(window: *Window): real
     proc SetWindowOpacity(window: *Window; opacity: real): integer
-    proc GetWindowOpacity(window: *Window; out_opacity: *real): integer
+    proc GetWindowOpacity(window: *Window; out_opacity: *[]real): integer
     proc SetWindowModalFor(modal_window: *Window; parent_window: *Window): integer
     proc SetWindowInputFocus(window: *Window): integer
-    proc SetWindowGammaRamp(window: *Window; red: *shortint; green: *shortint; blue: *shortint): integer
-    proc GetWindowGammaRamp(window: *Window; red: *shortint; green: *shortint; blue: *shortint): integer
+    proc SetWindowGammaRamp(window: *Window; red: *[]shortint; green: *[]shortint; blue: *[]shortint): integer
+    proc GetWindowGammaRamp(window: *Window; red: *[]shortint; green: *[]shortint; blue: *[]shortint): integer
     proc SetWindowHitTest(window: *Window; callback: HitTest; callback_data: *void): integer
     proc DestroyWindow(window: *Window)
     proc IsScreenSaverEnabled(): bool
     proc EnableScreenSaver
     proc DisableScreenSaver
-    proc GL_LoadLibrary(path: *carray of char): integer
-    proc GL_GetProcAddress(proc_: *carray of char): *void
+    proc GL_LoadLibrary(path: *[]char): integer
+    proc GL_GetProcAddress(proc_: *[]char): *void
     proc GL_UnloadLibrary
-    proc GL_ExtensionSupported(extension: *carray of char): bool
+    proc GL_ExtensionSupported(extension: *[]char): bool
     proc GL_ResetAttributes
     proc GL_SetAttribute(attr: GLattr; value: integer): integer
-    proc GL_GetAttribute(attr: GLattr; value: *integer): integer
+    proc GL_GetAttribute(attr: GLattr; value: *[]integer): integer
     proc GL_CreateContext(window: *Window): GLContext
     proc GL_MakeCurrent(window: *Window; context: GLContext): integer
     proc GL_GetCurrentWindow(): *Window
     proc GL_GetCurrentContext(): GLContext
-    proc GL_GetDrawableSize(window: *Window; w: *integer; h: *integer)
+    proc GL_GetDrawableSize(window: *Window; w: *[]integer; h: *[]integer)
     proc GL_SetSwapInterval(interval: integer): integer
     proc GL_GetSwapInterval(): integer
     proc GL_SwapWindow(window: *Window)

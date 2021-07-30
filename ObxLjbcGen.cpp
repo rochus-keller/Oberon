@@ -21,6 +21,7 @@
 #include "ObRowCol.h"
 #include "ObErrors.h"
 #include "ObxModel.h"
+#include "ObxEvaluator.h"
 #include <LjTools/LuaJitComposer.h>
 #include <QDir>
 #include <QtDebug>
@@ -3650,6 +3651,70 @@ bool LjbcGen::translate(Module* m, QIODevice* out, bool strip, Ob::Errors* errs)
     if( imp.ownsErr )
         delete imp.err;
     return hasErrs;
+}
+
+static inline SysAttr* findAttr(Module* m, const QByteArray& name)
+{
+    for( int i = 0; i < m->d_sysAttrs.size(); i++ )
+    {
+        if( m->d_sysAttrs[i]->d_name == name )
+            return m->d_sysAttrs[i].data();
+    }
+    return 0;
+}
+
+bool LjbcGen::generateFfiBinding(Module* m, QIODevice* d, Errors* err)
+{
+    QByteArray lib, pfx;
+    SysAttr* a = findAttr(m,"lib");
+    if( a )
+    {
+        if( a->d_values.isEmpty() )
+            lib = m->d_name;
+        else if( a->d_values.size() == 1 )
+            lib = Evaluator::eval(a->d_values.first().data(),m,err).d_value.toByteArray();
+        else
+            return err->error(Errors::Generator,m->d_file,a->d_loc.d_row,a->d_loc.d_col,
+                       "lib attribute requires zero or one value");
+    }
+    a = findAttr(m,"pfx");
+    if( a )
+    {
+        if( a->d_values.isEmpty() )
+            pfx = m->d_name;
+        else if( a->d_values.size() == 1 )
+            pfx = Evaluator::eval(a->d_values.first().data(),m,err).d_value.toByteArray();
+        else
+            return err->error(Errors::Generator,m->d_file,a->d_loc.d_row,a->d_loc.d_col,
+                       "pfx attribute requires zero or one value");
+    }
+
+    QTextStream hout(d);
+    QByteArray str;
+    QTextStream bout(&str);
+
+    bout << "local module = {}" << endl;
+
+    hout << "local ffi = require 'ffi'" << endl;
+    hout << "ffi.cdef[[" << endl;
+
+    foreach( const Ref<Named>& n, m->d_order )
+    {
+    }
+
+    hout << "]]" << endl;
+    if( lib.isEmpty() )
+        hout << "local C = ffi.C" << endl;
+    else
+        hout << "local C = ffi.load('" << lib << "')" << endl;
+
+    bout << "return module" << endl;
+    bout.flush();
+    hout.flush();
+
+    d->write(str);
+
+    return true;
 }
 
 bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)

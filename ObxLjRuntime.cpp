@@ -283,16 +283,28 @@ void LjRuntime::generate()
         }else if( m->d_isDef )
         {
             qDebug() << "allocating" << m->d_name;
+            if( m->d_externC )
+            {
+                LjbcGen::allocateSlots(m);
+                qDebug() << "generating binding for" << m->getName();
+                QBuffer buf;
+                buf.open(QIODevice::WriteOnly);
+                LjbcGen::generateFfiBinding(m, &buf, d_pro->getErrs() );
+                buf.close();
+                d_byteCode << qMakePair(m,buf.buffer());
+            }else
+            {
 #ifdef _DEBUG
-            QBuffer buf;
-            buf.open(QIODevice::WriteOnly);
-            LjbcGen::allocateDef(m, &buf, d_pro->getErrs());
-            buf.close();
-            qDebug() << "********** Definition of" << m->d_name;
-            qDebug() << buf.buffer();
+                QBuffer buf;
+                buf.open(QIODevice::WriteOnly);
+                LjbcGen::allocateDef(m, &buf, d_pro->getErrs());
+                buf.close();
+                qDebug() << "********** Definition of" << m->d_name;
+                qDebug() << buf.buffer();
 #else
-            LjbcGen::allocateDef(m, 0, d_pro->getErrs());
+                LjbcGen::allocateDef(m, 0, d_pro->getErrs());
 #endif
+            }
         }else
         {
             if( m->d_metaParams.isEmpty() )

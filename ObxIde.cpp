@@ -140,7 +140,7 @@ public:
     void setExt( bool on )
     {
         d_hl->setEnableExt(on);
-        for( int i = BuiltIn::ABS; i < BuiltIn::BITXOR; i++ )
+        for( int i = BuiltIn::ABS; i < BuiltIn::MAXBUILTIN; i++ )
             d_hl->addBuiltIn(BuiltIn::s_typeName[i]);
         for( int i = Type::ANY; i < Type::SET; i++ )
             d_hl->addBuiltIn(BaseType::s_typeName[i]);
@@ -2319,6 +2319,9 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
     {
         switch( type->getBaseType() )
         {
+        case Type::CVOID:
+            item->setText(1,QString("0x%1").arg((ptrdiff_t)lua_topointer(L,-1),0,16));
+            return;
         case Type::BOOLEAN:
             if( lua_toboolean(L, -1) )
                 item->setText(1,"true");
@@ -3070,7 +3073,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.8.5");
+    a.setApplicationVersion("0.8.6");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

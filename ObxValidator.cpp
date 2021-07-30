@@ -150,6 +150,14 @@ struct ValidatorImp : public AstVisitor
             error( me->d_receiver->d_loc, Validator::tr("the receiver must be of record or pointer to record type") );
             return;
         }
+#if 0
+        // yes, they can, but there is no virtual method table and no type pointer for such in Oberon+ (but it can be in C)
+        if( t->d_unsafe )
+        {
+            error( me->d_receiver->d_loc, Validator::tr("CSTRUCT and CUNION cannot have type-bound procedures") );
+            return;
+        }
+#endif
         Record* r = cast<Record*>(t);
         if( r->find( me->d_name, false ) )
             error( me->d_loc, Validator::tr("name is not unique in record"));
@@ -342,14 +350,14 @@ struct ValidatorImp : public AstVisitor
                     return;
             }
 
+            // TODO: do we allow a selector from an unsafe pointer to a safe record?
             if( prevT->getTag() == Thing::T_Record )
             {
                 Record* r = cast<Record*>(prevT);
                 Named* field = r->find(me->d_name, true);
                 if( field == 0 )
                 {
-                    //field = r->find(me->d_name, true); // TEST
-                    error( me->d_loc, Validator::tr("record has no field or bound procedure named '%1'").arg(me->d_name.constData()) );
+                    error( me->d_loc, Validator::tr("there is no member named '%1'").arg(me->d_name.constData()) );
                     return;
                 }
                 Module* sourceMod = field->getModule();
@@ -369,6 +377,75 @@ struct ValidatorImp : public AstVisitor
         return lhs == bt.d_boolType || lhs == bt.d_charType || lhs == bt.d_wcharType ||
                 lhs == bt.d_byteType || lhs == bt.d_intType || lhs == bt.d_shortType || lhs == bt.d_longType ||
                 lhs == bt.d_realType || lhs == bt.d_longrealType || lhs == bt.d_setType;
+    }
+
+    bool isMemoryLocation( Expression* e )
+    {
+        Named* n = e->getIdent();
+        if( n == 0 )
+        {
+            // + a pointer points to a memory location; from this memory location an address can be taken (which
+            //   trivially corresponds to the pointer
+            // + an index is an offset from the start of the memory location of the array
+            // + a guard is just another type for the same memory location
+            // + a function returning a pointer to something corresponds to the first case (even if there is no direct ident)
+            // - the value result (basic or structured) of a function is only transient (unless assigned to something)
+            while( e )
+            {
+                switch( e->getUnOp() )
+                {
+                case UnExpr::Leaf:
+                    n = e->getIdent();
+                    e = 0;
+                    break;
+                case UnExpr::SEL:
+                    n = e->getIdent();
+                    e = 0;
+                    break;
+                case UnExpr::CAST:
+                case UnExpr::DEREF:
+                case UnExpr::IDX:
+                    e = cast<UnExpr*>(e)->d_sub.data();
+                    break;
+                case UnExpr::CALL:
+                    if( derefed(e->d_type.data())->getTag() == Thing::T_Pointer )
+                        return true;
+                    else
+                    {
+                        ArgExpr* args = cast<ArgExpr*>(e);
+                        if( args->d_sub && args->d_sub->getIdent() )
+                        {
+                            if( args->d_sub->getIdent()->getTag() == Thing::T_BuiltIn )
+                            {
+                                BuiltIn* bi = cast<BuiltIn*>(args->d_sub->getIdent());
+                                if( bi->d_func == BuiltIn::SYS_VAL && args->d_args.size() == 2 )
+                                {
+                                    // VAL does not actually return something but is just a cast for the second argument
+                                    e = args->d_args.last().data();
+                                    break;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                    break;
+                }
+            }
+        }
+        if( n != 0 )
+        {
+            switch( n->getTag() )
+            {
+            case Thing::T_Field:
+            case Thing::T_LocalVar:
+            case Thing::T_Parameter:
+            case Thing::T_Variable:
+                return true;
+            default:
+                return false;
+            }
+        }else
+            return false;
     }
 
     bool checkBuiltInArgs( ProcType* p, ArgExpr* args )
@@ -408,6 +485,34 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::BITXOR:
             return false; // these can be handled by ordinary arg checker
 
+        case BuiltIn::ADDROF:
+            if( args->d_args.size() == 1 )
+            {
+                if( !isMemoryLocation(args->d_args.first().data()) )
+                {
+                    error( args->d_args.first()->d_loc, Validator::tr("cannot take address of expression"));
+                    break;
+                }
+                if( args->d_args.first()->visibilityFor(mod) == Named::Private )
+                {
+                    error( args->d_args.first()->d_loc, Validator::tr("cannot take address of private designator"));
+                    break;
+                }
+
+                Type* rhsT = derefed(args->d_args.first()->d_type.data());
+                if( rhsT && ( rhsT->d_unsafe || !rhsT->isStructured(true) || isArrayOfUnstructuredType(rhsT) ) )
+                {
+                    Ref<Pointer> ptr = new Pointer();
+                    ptr->d_loc = args->d_loc;
+                    ptr->d_unsafe = true;
+                    ptr->d_to = args->d_args.first()->d_type.data();
+                    args->d_type = ptr.data();
+                    mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
+                }else
+                    error( args->d_loc, Validator::tr("taking the address of objects of given type is not supported"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+           break;
 
         case BuiltIn::INC:
         case BuiltIn::DEC:
@@ -681,6 +786,19 @@ struct ValidatorImp : public AstVisitor
         return true;
     }
 
+    bool isArrayOfUnstructuredType( Type* t )
+    {
+        t = derefed(t);
+        if( t && t->getTag() == Thing::T_Array )
+        {
+            Array* a = cast<Array*>(t);
+            t = derefed(a->d_type.data());
+            if( t && !t->isStructured(true) )
+                return true;
+        }
+        return false;
+    }
+
     void checkCallArg( Parameter* formal, Ref<Expression>& actual )
     {
         Type* tf = derefed(formal->d_type.data());
@@ -713,12 +831,16 @@ struct ValidatorImp : public AstVisitor
             actual = arg.data();
         }
 
+#if 0
+        // no longer supported in Oberon+; use explicit addrof operator instead of this implicit operation
         // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters, implicit address of operation
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
                                            || ta == bt.d_stringType || ta == bt.d_wstringType  ) )
         {
             Pointer* p = cast<Pointer*>(tf);
-            if( p->d_unsafe )
+            if( p->d_unsafe &&
+                    ( ta->d_unsafe || !ta->isStructured(true) || isArrayOfUnstructuredType(ta) ) ) // TODO
+                // don't allow taking the address of safe unstructured types or safe arrays of unstructured types
             {
                 Ref<UnExpr> ue = new UnExpr();
                 ue->d_loc = actual->d_loc;
@@ -735,11 +857,13 @@ struct ValidatorImp : public AstVisitor
             }
         }
 #endif
+#endif
 
         if( formal->d_var && !formal->d_const )
         {
             // check if VAR really gets a physical location
             bool ok = false;
+#if 0
             switch( actual->getTag() )
             {
             case Thing::T_UnExpr:
@@ -772,9 +896,15 @@ struct ValidatorImp : public AstVisitor
             default:
                 break;
             }
+#else
+            ok = isMemoryLocation(actual.data());
+#endif
 #ifdef OBX_BBOX
             if( ta == bt.d_nilType )
+            {
+                Q_ASSERT( tftag == Thing::T_Pointer );
                 ok = true;
+            }
 #endif
             if( !ok )
                 error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR parameter") );
@@ -827,6 +957,7 @@ struct ValidatorImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::ADDROF:
         case BuiltIn::SYS_VAL:
         case BuiltIn::SYS_ROT:
         case BuiltIn::SYS_LSH:
@@ -964,7 +1095,8 @@ struct ValidatorImp : public AstVisitor
                 if( isBuiltIn )
                 {
                     // for some built-in procs the return type is dependent on proc arguments
-                    me->d_type = calcBuiltInReturnType( cast<BuiltIn*>(p->d_decl), me->d_args );
+                    if( me->d_type.isNull() )
+                        me->d_type = calcBuiltInReturnType( cast<BuiltIn*>(p->d_decl), me->d_args );
                 }else
                     me->d_type = p->d_return.data();
             }else if( decl && decl->getTag() == Thing::T_NamedType )
@@ -972,6 +1104,8 @@ struct ValidatorImp : public AstVisitor
                 // this is a type guard
                 me->d_op = UnExpr::CAST;
                 me->d_type = decl->d_type.data();
+                // TODO: in case of unsafe: let the user dedicate a procedure which is called with the guard argument (e.g. as string)
+                // An unsafe module could have a typeguard override, and maybe also an IS operator override.
             }else
                 error( me->d_loc, Validator::tr("this expression cannot be called") );
         }else if( me->d_op == UnExpr::IDX )
@@ -1077,6 +1211,8 @@ struct ValidatorImp : public AstVisitor
                 {
                     Pointer* p = cast<Pointer*>(prevT);
                     me->d_type = p->d_to.data();
+                    if( derefed(me->d_type.data()) == bt.d_voidType )
+                        error( me->d_loc, Validator::tr("*void cannot be dereferenced") );
                 }
                 break;
             case Thing::T_ProcType:
@@ -1342,28 +1478,26 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
-#if 0
-        if( !me->d_flag.isNull() )
-        {
-            me->d_flag->accept(this);
-            // only one in Kernel line 268
-            // qDebug() << "flagged pointer" << me->d_flag->getIdent()->d_name << "in module" << mod->d_name << me->d_loc.d_row;
-        }
+        if( mod->d_externC && !me->d_unsafe )
+            error(me->d_loc, Validator::tr("POINTER not supported in external library modules; use CPOINTER or *") );
+#if 0   // maybe too strong, but we still can import named types
+        // it's definitely too strong; would force us to declare all pointer types in external library module
+        if( !mod->d_externC && me->d_unsafe )
+            error(me->d_loc, Validator::tr("CPOINTER only supported in external library modules; use POINTER or ^") );
 #endif
 
         if( !me->d_to.isNull() )
         {
             me->d_to->accept(this);
-            switch( derefed(me->d_to.data())->getTag() )
+            Type* t = derefed(me->d_to.data());
+            if( me->d_unsafe )
             {
-            case Thing::T_Record:
-            case Thing::T_Array:
-                // NOP
-                break;
-            default:
-                if( !me->d_unsafe ) // unsafe pointers may point to whatever is required
-                    error( me->d_loc, Validator::tr("pointer must point to a RECORD or an ARRAY") );
-                break;
+                if( t && !( ( t->isStructured() && t->d_unsafe ) || t->getBaseType() == Type::CVOID ) )
+                    error( me->d_loc, Validator::tr("CPOINTER must point to a CARRAY, CSTRUCT or CUNION") );
+            }else
+            {
+                if( t && ( !t->isStructured() || t->d_unsafe ) )
+                    error( me->d_loc, Validator::tr("POINTER must point to a RECORD or ARRAY") );
             }
         }
     }
@@ -1402,35 +1536,22 @@ struct ValidatorImp : public AstVisitor
 #ifdef OBX_BBOX
         if( me->d_unsafe )
         {
+#if 0
+            // maybe too strong; we need to be able to allocate carray e.g. on the stack; we still can do it using imported named types
+            // but actually it doesn't harm; otherwise we would have to declare carray in library module for all required lengths
+            if( !mod->d_externC )
+                error(me->d_loc, Validator::tr("CARRAY only supported in external library modules; use ARRAY or [] instead") );
+#endif
             Type* t = derefed(me->d_type.data());
-            const int tag = t ? t->getTag() : 0;
-            switch( tag )
-            {
-            case Thing::T_Pointer:
-                {
-                    Pointer* p = cast<Pointer*>(t);
-                    if( !p->d_unsafe )
-                        error( me->d_loc, Validator::tr("carray cannot have safe pointers as element types") );
-                }
-                break;
-            case Thing::T_Record:
-                {
-                    Record* r = cast<Record*>(t);
-                    if( !r->d_unsafe )
-                        error( me->d_loc, Validator::tr("carray cannot have records as element types") );
-                        // this was already the case in BBOX 1.7.2
-                }
-                break;
-            case Thing::T_Array:
-                {
-                    Array* a = cast<Array*>(t);
-                    if( !a->d_unsafe )
-                        error( me->d_loc, Validator::tr("carray cannot have arrays as element types") );
-                        // this was already the case in BBOX 1.7.2
-                }
-                break;
-            }
-        }
+            if( t && t->isStructured(true) && !t->d_unsafe )
+                error( me->d_loc, Validator::tr("CARRAY cannot have safe non-basic element types") );
+#if 0 // not useful
+            if( t && t->getTag() == Thing::T_Array )
+                error( me->d_loc, Validator::tr("CARRAY can only have one dimension") );
+#endif
+
+        }else if( mod->d_externC )
+            error(me->d_loc, Validator::tr("ARRAY not supported in external library modules; use CARRAY instead") );
 #endif
     }
 
@@ -1466,6 +1587,21 @@ struct ValidatorImp : public AstVisitor
 #endif
 
 #if 0
+        // maybe too strong; we need to be able to allocate cstruct e.g. on the stack; we still can import named types
+        // but it doesn't harm; we can only use them by value, and we can take their address by passing/assigning to a *type
+        if( !mod->d_externC && me->d_unsafe )
+        {
+            if( me->d_union )
+                error(me->d_loc, Validator::tr("CUNION only supported in external library modules") );
+            else
+                error(me->d_loc, Validator::tr("CSTRUCT only supported in external library modules; use RECORD instead") );
+        }else
+#endif
+        if( mod->d_externC && !me->d_unsafe )
+            error(me->d_loc, Validator::tr("RECORD not supported in external library modules; use CSTRUCT instead") );
+
+
+#if 0
         if( !me->d_base.isNull() && me->d_unsafe )
             error( me->d_base->d_loc, Validator::tr("A cstruct cannot have a base type") );
             // not true; many cstruct in BBOX inherit from COM.IUnknown etc.
@@ -1484,6 +1620,16 @@ struct ValidatorImp : public AstVisitor
                 me->d_baseRec->d_subRecs.append(me);
             }else
                 error( me->d_base->d_loc, Validator::tr("base type must be a record") );
+
+            if( me->d_baseRec )
+            {
+                if( me->d_unsafe && me->d_union )
+                    error( me->d_base->d_loc, Validator::tr("A CUNION cannot have a base type") );
+                else if( me->d_baseRec->d_unsafe && !me->d_unsafe )
+                    error( me->d_base->d_loc, Validator::tr("CSTRUCT or CUNION cannot be the base type of a RECORD") );
+                else if( !me->d_baseRec->d_unsafe && me->d_unsafe )
+                    error( me->d_base->d_loc, Validator::tr("RECORD cannot be the base type of a CSTRUCT") );
+            }
 
             Record* baseRec = me->d_baseRec;
             while(baseRec)
@@ -1515,33 +1661,8 @@ struct ValidatorImp : public AstVisitor
             if( me->d_unsafe )
             {
                 Type* t = derefed(f->d_type.data());
-                const int tag = t ? t->getTag() : 0;
-                switch( tag )
-                {
-                case Thing::T_Pointer:
-                    {
-                        Pointer* p = cast<Pointer*>(t);
-                        if( !p->d_unsafe )
-                            error( me->d_loc, Validator::tr("cstruct cannot have safe pointers as field types") );
-                    }
-                    break;
-                case Thing::T_Record:
-                    {
-                        Record* r = cast<Record*>(t);
-                        if( !r->d_unsafe )
-                            error( me->d_loc, Validator::tr("cstruct cannot have records as field types") );
-                            // this was already the case in BBOX 1.7.2
-                    }
-                    break;
-                case Thing::T_Array:
-                    {
-                        Array* a = cast<Array*>(t);
-                        if( !a->d_unsafe )
-                            error( me->d_loc, Validator::tr("cstruct cannot have arrays as field types") );
-                            // this needed a dozen of fixes in BBOX 1.7.2
-                    }
-                    break;
-                }
+                if( t && t->isStructured(true) && !t->d_unsafe )
+                    error( f->d_loc, Validator::tr("CSTRUCT or CUNION cannot have safe non-basic field types") );
             }
 #endif
 
@@ -1580,7 +1701,13 @@ struct ValidatorImp : public AstVisitor
         me->d_visited = true;
 
         if( !me->d_return.isNull() )
+        {
             me->d_return->accept(this); // OBX has no restrictions on return types
+#if 0 // TEST
+            checkUnsafePointer(me->d_return.data(), true, me->d_loc);
+#endif
+
+        }
         checkNoAnyRecType(me->d_return.data());
         foreach( const Ref<Parameter>& p, me->d_formals )
             p->accept(this);
@@ -1618,6 +1745,8 @@ struct ValidatorImp : public AstVisitor
     void visit( Variable* me )
     {
         checkVarType(me);
+        if( mod->d_externC )
+            error(me->d_loc, Validator::tr("variables not supported in external library modules") );
     }
 
     void visit( LocalVar* me )
@@ -1631,6 +1760,24 @@ struct ValidatorImp : public AstVisitor
             me->d_type->accept(this);
         if( !me->d_var )
             checkNoAnyRecType(me->d_type.data());
+
+        if( mod->d_externC && me->d_var )
+        {
+#if 1
+            error(me->d_loc, Validator::tr("VAR not supported in external library modules") );
+#else
+            if( me->d_const )
+                error(me->d_loc, Validator::tr("IN not supported in external library modules") );
+            Type* t = derefed(me->d_type.data());
+            const int tag = t ? t->getTag() : 0;
+            if( tag != Thing::T_Pointer && tag != Thing::T_ProcType )
+                error(me->d_loc, Validator::tr("VAR only supported for pointer and procedure type parameters in external library modules") );
+#endif
+        }
+
+#if 0 // TEST
+        checkUnsafePointer(me->d_type.data(),false,me->d_loc);
+#endif
 #if 0
         // not true; open array value parameter are supported as well, in all old Oberon/-2, Oberon-07 and BBOX
         Type* t = derefed(me->d_type.data());
@@ -1800,12 +1947,15 @@ struct ValidatorImp : public AstVisitor
             me->d_rhs->d_type = p->d_to.data();
         }
 
+#if 0
+        // no longer supported in Oberon+; use explicit addrof operator instead of this implicit operation
         if( lhsTag == Thing::T_Pointer && ( rhsTag == Thing::T_Record || rhsTag == Thing::T_Array
                                             || rhsT == bt.d_stringType || rhsT == bt.d_wstringType ) )
         {
             // in BBOX the assignment of a structured value to an unsafe pointer is an "address of" operation
             Pointer* p = cast<Pointer*>(lhsT);
-            if( p->d_unsafe )
+            if( p->d_unsafe && ( rhsT->d_unsafe || !rhsT->isStructured(true) || rhsT->isText() ) )
+                // don't allow taking the address of safe structured types besides text arrays
             {
                 Ref<UnExpr> ue = new UnExpr();
                 ue->d_loc = me->d_rhs->d_loc;
@@ -1821,6 +1971,7 @@ struct ValidatorImp : public AstVisitor
                 mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
             }
         }
+#endif
 #endif
         Array* lstr = toCharArray(lhsT,false);
         if( lstr && me->d_rhs->getTag() == Thing::T_Literal )
@@ -2341,7 +2492,7 @@ struct ValidatorImp : public AstVisitor
 
     bool equalType( Type* lhs, Type* rhs, bool ptrref = false ) const
     {
-        // ptrref requred because of ADDROF
+        // ptrref required because of ADDROF
         if( sameType(lhs,rhs) )
             return true;
         if( lhs == 0 || rhs == 0 )
@@ -2581,6 +2732,8 @@ struct ValidatorImp : public AstVisitor
                       ) )
                 return true; // BBOX supports passing string literals to IN ARRAY TO CHAR/WCHAR
 
+#if 0
+            // no longer necessary since library modules may no longer have VAR/IN parameters; use *type instead
             Record* rf = tf->toRecord();
             if( ta == bt.d_nilType && rf && rf->d_unsafe )
                 return true; // BBOX supports passing nil to VAR CSTRUCT, and actually also to VAR INTEGER, but OBX
@@ -2588,18 +2741,11 @@ struct ValidatorImp : public AstVisitor
                              // All these calls go to WinApi and WinNet; the original Win32 signatures are pointers,
                              // not var. So we could well remove this rule and fix the BBOX code, but too many places.
 #endif
+#endif
 
             return false;
         }else
         {
-#if 0 // ifdef OBX_BBOX, not needed
-            Type* tf = derefed(lhs->d_type.data());
-            Type* ta = derefed(rhs->d_type.data());
-            if( tf == 0 || ta == 0 )
-                return false; // error already handled
-            if( toCharArray( tf, true ) && toCharArray(ta, false) )
-                return true;
-#endif
             // `f` is a value parameter and T~a~ is _assignment compatible_ with T~f~
             const bool res = assignmentCompatible( lhs->d_type.data(), rhs );
             if( res && tftag != Thing::T_Pointer && typeExtension(tf, ta ) &&
@@ -2719,6 +2865,24 @@ struct ValidatorImp : public AstVisitor
         }
         return true;
     }
+
+#if 0
+    void checkUnsafePointer( Type* t, bool isReturn, const RowCol& r )
+    {
+        // TEST code
+        t = derefed(t);
+        if( t && t->getTag() == Thing::T_Pointer )
+        {
+            Pointer* p = cast<Pointer*>(t);
+            t = derefed(p->d_to.data());
+            if( p->d_unsafe && t && ( t->getBaseType() >= Type::BOOLEAN  ||
+                                      t->getTag() == Thing::T_Pointer
+                                      || t->getTag() == Thing::T_Enumeration || t->getTag() == Thing::T_ProcType ) )
+                qDebug() << (isReturn ? "return" : "param" ) << "pointer to"
+                         << t->getTagName() << "in" << mod->d_name << r.d_row << r.d_col;
+        }
+    }
+#endif
 
     void checkSelfRef( Type* t )
     {

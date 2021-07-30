@@ -52,12 +52,12 @@ const char* BuiltIn::s_typeName[] =
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR"
+    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR", "ADDROF"
 };
 
 const char* UnExpr::s_opName[] =
 {
-    "???",
+    "???", "Leaf",
     "NEG", "NOT", "DEREF", "ADDROF", "CAST", "SEL", "CALL", "IDX"
 };
 
@@ -794,6 +794,11 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
     d_mod = mod;
 }
 
+quint8 IdentLeaf::getUnOp() const
+{
+    return UnExpr::Leaf;
+}
+
 quint8 IdentLeaf::visibilityFor(Module*) const
 {
     if( d_ident.isNull() )
@@ -918,7 +923,10 @@ QString Array::pretty() const
 {
     if( d_type.isNull() )
         return "ARRAY OF ?";
-    return QString("ARRAY OF %1").arg(d_type->pretty());
+    if( d_unsafe )
+        return QString("CARRAY OF %1").arg(d_type->pretty());
+    else
+        return QString("ARRAY OF %1").arg(d_type->pretty());
 }
 
 QList<Array*> Array::getDims()
@@ -995,7 +1003,10 @@ QString Pointer::pretty() const
 {
     if( d_to.isNull() )
         return "POINTER TO ?";
-    return QString("POINTER TO %1").arg(d_to->pretty());
+    if( d_unsafe )
+        return QString("UNSAFE POINTER TO %1").arg(d_to->pretty());
+    else
+        return QString("POINTER TO %1").arg(d_to->pretty());
 }
 
 QList<Expression*> Expression::getSubList() const

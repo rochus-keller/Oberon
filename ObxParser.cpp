@@ -525,12 +525,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
     if( d_la == Tok_ARRAY || d_la == Tok_CARRAY )
     {
         if( d_la == Tok_CARRAY )
-        {
             arr->d_unsafe = true;
-            if( !d_mod->d_externC )
-                semanticError(d_next.toRowCol(), tr("CARRAY only supported in external library modules; use ARRAY or []") );
-        }else if( d_mod->d_externC )
-            semanticError(d_next.toRowCol(), tr("ARRAY not supported in external library modules; use CARRAY") );
 
         next();
         arr->d_loc = d_cur.toRowCol();
@@ -544,8 +539,6 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
     {
         MATCH( Tok_Lbrack, tr("expecting '['") );
         arr->d_loc = d_cur.toRowCol();
-        if( d_mod->d_externC )
-            semanticError(d_next.toRowCol(), tr("[] not supported in external library modules; use CARRAY") );
         if( d_la != Tok_Rbrack )
         {
             dims = lengthList();
@@ -568,8 +561,6 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
             last->d_type = cur.data();
             last = cur;
         }
-        if( arr->d_unsafe && dims.size() > 1 )
-            semanticError( arr->d_loc, tr("carray can only be declared with one dimension") );
     }
 
     return arr.data();
@@ -584,21 +575,15 @@ Ref<Type> Parser::recordType(Scope* scope, Named* id, Type* binding)
     {
     case Tok_RECORD:
         MATCH( Tok_RECORD, tr("expecting the RECORD keyword") );
-        if( d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("RECORD not supported in external library modules; use CSTRUCT or CUNION") );
         break;
     case Tok_CSTRUCT:
         next();
         res->d_unsafe = true;
-        if( !d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("CSTRUCT only supported in external library modules; use RECORD") );
         break;
     case Tok_CUNION:
         next();
         res->d_unsafe = true;
         res->d_union = true;
-        if( !d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("CUNION only supported in external library modules") );
         break;
     default:
         break;
@@ -623,30 +608,23 @@ Ref<Type> Parser::pointerType(Scope* scope, Named* id, Type* binding)
     Ref<Pointer> p = new Pointer();
     p->d_decl = id;
     p->d_binding = binding;
+    bool forceUnsafeType = false;
     if( d_la == Tok_Hat )
     {
         next();
         p->d_loc = d_cur.toRowCol();
-        if( d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("^ not supported in external library modules; use CPOINTER or *") );
     }else if( d_la == Tok_Star )
     {
         next();
         p->d_loc = d_cur.toRowCol();
         p->d_unsafe = true;
-#if 0   // no, we need local cpointers in normal modules
-        if( !d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("* only supported in external library modules; use POINTER or ^") );
-#endif
+        if( d_la == Tok_Lbrack )
+            forceUnsafeType = true;
     }else if( d_la == Tok_CPOINTER )
     {
         next();
         p->d_loc = d_cur.toRowCol();
         p->d_unsafe = true;
-#if 0   // no, we need local cpointers in normal modules
-        if( !d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("CPOINTER only supported in external library modules; use POINTER or ^") );
-#endif
         MATCH( Tok_TO, tr("expecting the TO keyword after the CPOINTER keyword") );
     }else
     {
@@ -657,17 +635,21 @@ Ref<Type> Parser::pointerType(Scope* scope, Named* id, Type* binding)
         }
         MATCH( Tok_POINTER, tr("expecting the POINTER keyword") );
         p->d_loc = d_cur.toRowCol();
-        if( d_mod->d_externC && !p->d_unsafe )
-            semanticError(d_cur.toRowCol(), tr("POINTER not supported in external library modules; use CPOINTER or *") );
-#if 0   // no, we need local cpointers in normal modules
-        if( !d_mod->d_externC && p->d_unsafe )
-            semanticError(d_cur.toRowCol(), tr("CPOINTER only supported in external library modules; use POINTER or ^") );
-#endif
 
         /* p->d_flag = */ systemFlag(); // backward compatibility
         MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
     }
     p->d_to = type(scope, 0, p.data() );
+    if( p->d_to && forceUnsafeType )
+    {
+        Type* t = p->d_to.data();
+        while( t && t->getTag() == Thing::T_Array)
+        {
+            Array* a = cast<Array*>(t);
+            a->d_unsafe = true;
+            t = a->d_type.data();
+        }
+    }
     return p.data();
 }
 
@@ -676,6 +658,8 @@ Ref<Type> Parser::procedureType(Scope* scope, Named* id, Type* binding)
     Ref<ProcType> p = new ProcType();
     p->d_decl = id;
     p->d_binding = binding;
+    if( d_mod->d_externC )
+        p->d_unsafe = true;
     if( d_la == Tok_PROC )
     {
         MATCH( Tok_PROC, tr("expecting the PROCEDURE keyword") );
@@ -1762,6 +1746,9 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
     if( !p->d_receiver.isNull() )
         t->d_typeBound = true;
     p->d_type = t.data();
+    t->d_loc = p->d_loc;
+    if(d_mod->d_externC )
+        t->d_unsafe = true;
     if( d_la == Tok_Lpar )
     {
         formalParameters(p, t.data());
@@ -1944,8 +1931,6 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
         next();
         var = true;
         in = d_cur.d_type == Tok_IN;
-        if( d_mod->d_externC )
-            semanticError(d_cur.toRowCol(), tr("VAR or IN not supported in external library modules") );
     }
     QList<Token> names;
     MATCH( Tok_ident, tr("expecting formal parameter name") );
