@@ -161,6 +161,7 @@ namespace Obx
         void onRowColMode();
         void onShowBcFile();
         void onJitEnabled();
+        void onRestartLua();
     private:
         class DocTab;
         class Debugger;

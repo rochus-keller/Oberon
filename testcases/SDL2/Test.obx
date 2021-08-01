@@ -1,23 +1,31 @@
 module Test
 
-	import SDL
+	import SDL, Out
 	
 	var
 		window: *SDL.Window
-		surface: *SDL.Surface
+		surface, image: *SDL.Surface
 		res: integer
 		running: boolean
 		event: SDL.Event
+		v: SDL.version
+		x,y: [1]integer
 begin
+
+	SDL.GetVersion(v)
+	Out.String("Loaded SDL version: ")
+	Out.Int(v.major,0) Out.String(".") Out.Int(v.minor,0) 
+	Out.String(".") Out.Int(v.patch,0) Out.Ln
+
 
 	window := SDL.CreateWindow("Hello SDL!", 20, 20, 512, 512, SDL.WINDOW_SHOWN )
 	surface := SDL.GetWindowSurface(window)
 
-	// image = sdl.loadBMP("lena.bmp")
-	// SDL.UpperBlit(image, nil, surface, nil)
+	image := SDL.LoadBMP_RW(SDL.RWFromFile("lena.bmp", "rb"), 1)
+	res := SDL.UpperBlit(image, nil, surface, nil)
 	
 	res := SDL.UpdateWindowSurface(window)
-   // SDL.freeSurface(image)
+   SDL.FreeSurface(image)
    
    running := true
    while running do
@@ -25,9 +33,12 @@ begin
 	      if event.type_ = SDL.QUIT then
 	         running := false
 	      end
+	      res := SDL.GetMouseState(x,y)
+	      Out.String("mouse x=") Out.Int(x[0],0) Out.String(" y=") Out.Int(y[0],0) Out.Ln
 	   end
    end
 
 	SDL.DestroyWindow(window)
 	SDL.Quit()
+	println("Done")
 end Test

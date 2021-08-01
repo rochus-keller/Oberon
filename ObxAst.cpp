@@ -52,12 +52,12 @@ const char* BuiltIn::s_typeName[] =
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR", "ADDROF"
+    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR", "ADR"
 };
 
 const char* UnExpr::s_opName[] =
 {
-    "???", "Leaf",
+    "???",
     "NEG", "NOT", "DEREF", "ADDROF", "CAST", "SEL", "CALL", "IDX"
 };
 
@@ -792,11 +792,6 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
     d_loc = loc;
     d_type = t;
     d_mod = mod;
-}
-
-quint8 IdentLeaf::getUnOp() const
-{
-    return UnExpr::Leaf;
 }
 
 quint8 IdentLeaf::visibilityFor(Module*) const

@@ -49,6 +49,7 @@ namespace Obx
         bool loadLibraries();
         bool loadBytecode();
         bool executeMain();
+        bool restartEngine();
 
         QByteArray findByteCode(Module*)const;
         BytecodeList findByteCode( const QString& filePath ) const;
@@ -61,6 +62,7 @@ namespace Obx
     protected:
         void generate();
         void generate(Module* m);
+        void prepareEngine();
 
     private:
         Project* d_pro;

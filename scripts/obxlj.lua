@@ -259,6 +259,15 @@ function module.UNPACK(value)
 	n = n - 1
 	return x, n
 end
+function module.min_size(lhs,rhs)
+	local l = bytesize(lhs)
+	local r = bytesize(rhs)
+	if l <= r then
+		return l
+	else
+		return r
+	end
+end
 
 -- Magic mumbers used by the compiler
 module[1] = module.charToStringArray
@@ -286,7 +295,7 @@ module[22] = setmetatable
 module[23] = module.is_a
 module[24] = module.createSetArray
 module[25] = module.println
-module[26] = bytesize
+module[26] = ffi.sizeof -- bytesize
 module[27] = module.strcpy
 module[28] = TRAP
 module[29] = ASSERT
@@ -309,6 +318,9 @@ module[45] = C.ObxFfi_DBGTRACE -- or DBGTRACE
 module[46] = C.ObxFfi_CRASH
 module[47] = C.ObxFfi_TRACE -- or TRACE
 module[48] = C.ObxFfi_NOP
+module[49] = ffi.new
+module[50] = ffi.copy
+module[51] = module.min_size
 
 return module
 

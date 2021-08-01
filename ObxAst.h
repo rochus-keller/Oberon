@@ -181,7 +181,7 @@ namespace Obx
                                             // for comparison and naming Type::derefed::findDecl is used
     typedef QList< Ref<GenericName> > MetaParams;
 
-    typedef QList< Ref<SysAttr> > SysAttrs;
+    typedef QHash<QByteArray, Ref<SysAttr> > SysAttrs;
 
     struct Type : public Thing
     {
@@ -329,11 +329,12 @@ namespace Obx
         uint d_hasErrors : 1;
         uint d_liveTo : 20;
         uint d_noBody : 1; // Procedure
+        uint d_unsafe : 1; // e.g. fields of cstruct/cunion
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
             d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
             d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
-            d_hasErrors(0),d_noBody(0) {}
+            d_hasErrors(0),d_noBody(0),d_unsafe(0) {}
         virtual QByteArray getName() const { return d_name; }
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
@@ -430,7 +431,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR, ADDROF, MAXBUILTIN
+               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR, ADR, MAXBUILTIN
              };
         static const char* s_typeName[];
         quint8 d_func;
@@ -446,6 +447,7 @@ namespace Obx
         QList< Ref<Named> > d_order;
         QList< Ref<IdentLeaf> > d_helper; // filled with helper decls when fillXref
         SysAttrs d_sysAttrs;
+
         StatSeq d_body;
         Ob::RowCol d_end;
         quint16 d_varCount; // Variable, LocalVar
@@ -595,7 +597,7 @@ namespace Obx
         enum { SET_BIT_LEN = 32 };
         typedef std::bitset<SET_BIT_LEN> SET;
 
-        enum ValueType { Invalid, Integer, Real, Boolean, String /* QBA utf8 */, Bytes /* QBA */,
+        enum ValueType { Invalid, Integer, Real, Boolean, String /* bytearray utf8 */, Bytes /* bytearray */,
                          Char /* quint16 */, Nil, Set, Enum };
         QVariant d_val;
         uint d_vtype : 8;
@@ -628,14 +630,14 @@ namespace Obx
         Module* getModule() const { return d_mod; }
         int getTag() const { return T_IdentLeaf; }
         void accept(AstVisitor* v) { v->visit(this); }
-        quint8 getUnOp() const;
         quint8 visibilityFor(Module*) const;
         IdentRole getIdentRole() const { return d_role; }
     };
 
     struct UnExpr : public Expression
     {
-        enum Op { Invalid, Leaf, NEG, NOT, DEREF, ADDROF, // implemented in UnExpr
+        enum Op { Invalid,
+                  NEG, NOT, DEREF, ADDROF, // implemented in UnExpr
                   CAST, SEL, CALL, IDX // implemented in subclasses
                 };
         static const char* s_opName[];
@@ -693,7 +695,8 @@ namespace Obx
 
     struct SysAttr : public Named
     {
-        ExpList d_values;
+        ExpList d_valExpr;
+        QVariantList d_values;
     };
 
     class Instantiator // interface

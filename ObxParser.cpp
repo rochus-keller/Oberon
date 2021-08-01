@@ -818,6 +818,7 @@ void Parser::fieldList(Scope* scope, Record* r)
     QList<Ref<Field> > fields;
     Field* f = new Field();
     f->d_scope = scope;
+    f->d_unsafe = r->d_unsafe;
     fields << f;
     identdef(f,scope);
     while( d_la == Tok_Comma || d_la == Tok_ident ) // optional comma
@@ -2107,8 +2108,11 @@ SysAttrs Parser::systemAttrs()
         attr->d_loc = d_cur.toRowCol();
         attr->d_name = d_cur.d_val;
         while( d_la != Tok_Comma && d_la != Tok_Rbrack )
-            attr->d_values.append( constExpression() );
-        res.append(attr);
+            attr->d_valExpr.append( constExpression() );
+        if( res.contains(attr->d_name ) )
+            semanticError(attr->d_loc, tr("duplicate system attribute name") );
+        else
+            res.insert(attr->d_name,attr);
         if( d_la == Tok_Comma )
             next();
     }

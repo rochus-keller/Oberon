@@ -47,7 +47,8 @@ SOURCES += \
     ../LjTools/Engine2.cpp \
     ObxLjbcGen.cpp \
     ObxLibFfi.cpp \
-    ObxLjRuntime.cpp
+    ObxLjRuntime.cpp \
+    ObxCGen.cpp
 
 HEADERS += \
     ../LjTools/LuaJitComposer.h \
@@ -55,7 +56,8 @@ HEADERS += \
     ../LjTools/Engine2.h \
     ObxLjbcGen.h \
     ObxLibFfi.h \
-    ObxLjRuntime.h
+    ObxLjRuntime.h \
+    ObxCGen.h
 
 HAVE_GUI {
     message( Compiling with GUI support )

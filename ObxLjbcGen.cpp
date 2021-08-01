@@ -22,6 +22,7 @@
 #include "ObErrors.h"
 #include "ObxModel.h"
 #include "ObxEvaluator.h"
+#include "ObxCGen.h"
 #include <LjTools/LuaJitComposer.h>
 #include <QDir>
 #include <QtDebug>
@@ -198,13 +199,14 @@ struct ObxLjbcGenImp : public AstVisitor
 
     struct Accessor
     {
-        enum Kind { Invalid, TableIdxSlot, TableIdx, Slot };
+        enum Kind { Invalid, TableIdxSlot, TableIdx, TableName, Slot };
         uint kind : 3;
         uint disposeSlot : 1;
         uint disposeIndex : 1;
         uint slot : 8;
         uint index : 16;
-        Accessor():kind(Invalid),disposeSlot(0),disposeIndex(0),slot(0),index(0){}
+        const char* name;
+        Accessor():kind(Invalid),disposeSlot(0),disposeIndex(0),slot(0),index(0),name(0){}
     };
 
     void visit( Module* me )
@@ -1231,7 +1233,10 @@ struct ObxLjbcGenImp : public AstVisitor
             if( !checkValidSlot(id,me->d_loc) )
                 return;
             Q_ASSERT( id->d_slotValid );
-            emitGetTableByIndex(res, slotStack.back(), id->d_slot, me->d_loc );
+            if( id->d_unsafe )
+                bc.TGET( res, slotStack.back(), id->d_name, me->d_loc.packed() );
+            else
+                emitGetTableByIndex(res, slotStack.back(), id->d_slot, me->d_loc );
             releaseSlot();
             break;
         case Thing::T_NamedType:
@@ -1370,22 +1375,33 @@ struct ObxLjbcGenImp : public AstVisitor
     {
         Record* r = t->toRecord();
         Q_ASSERT( r );
-        bc.TNEW( to, r->d_fieldCount, 0, loc.packed() );
 
-        const int tmp = ctx.back().buySlots(4,true);
-        fetchClass(tmp, t, loc );
+        if( !r->d_unsafe )
+        {
+            bc.TNEW( to, r->d_fieldCount, 0, loc.packed() );
 
-        // call setmetatable
-        int base = tmp+1;
-        fetchObxlibMember(base, 22, loc ); // setmetatable
+            const int tmp = ctx.back().buySlots(4,true);
+            fetchClass(tmp, t, loc );
 
-        bc.MOV(base+1, to, loc.packed() );
-        bc.MOV(base+2, tmp, loc.packed() );
-        bc.CALL( base, 0, 2, loc.packed() );
-        ctx.back().sellSlots(tmp,4);
+            // call setmetatable
+            int base = tmp+1;
+            fetchObxlibMember(base, 22, loc ); // setmetatable
+
+            bc.MOV(base+1, to, loc.packed() );
+            bc.MOV(base+2, tmp, loc.packed() );
+            bc.CALL( base, 0, 2, loc.packed() );
+            ctx.back().sellSlots(tmp,4);
+        }else
+        {
+            const int tmp = ctx.back().buySlots(1,true);
+            fetchClass(tmp, t, loc );
+            bc.CALL( tmp, 1, 0, loc.packed() ); // tmp now has the ctype created with ffi.typeof()
+            bc.MOV(to,tmp,loc.packed());
+            ctx.back().sellSlots(tmp,1);
+        }
     }
 
-    void emitCreateArray( quint8 to, Type* baseType, quint32 constLen, quint8 lenSlot, const RowCol& loc )
+    void emitCreateArray( quint8 to, Array* a, Type* baseType, quint32 constLen, quint8 lenSlot, const RowCol& loc )
     {
         baseType = derefed(baseType);
         Q_ASSERT( baseType );
@@ -1433,6 +1449,30 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.CALL(tmp,1,1,loc.packed());
             bc.MOV(to,tmp,loc.packed());
             ctx.back().sellSlots(tmp,2);
+        }else if( a->d_unsafe )
+        {
+            const int tmp = ctx.back().buySlots(3,true);
+            fetchObxlibMember(tmp,49,loc); // ffi.new
+            QByteArray pfx;
+            Named* decl = a->findDecl();
+            if( decl )
+            {
+                Module* m = decl->getModule();
+                SysAttr* a = m->d_sysAttrs.value("pfx").data();
+                if( a && a->d_values.size() == 1 )
+                    pfx = a->d_values.first().toByteArray();
+            }
+            QByteArray type;
+            CGen::renderNameType(a,type,pfx, true);
+            // TODO: handle more than one dimension
+            bc.KSET(tmp+1, type, loc.packed() );
+            if( constLen > 0 )
+                bc.KSET(tmp+2, constLen, loc.packed() );
+            else
+                bc.MOV(tmp+2, lenSlot, loc.packed() );
+            bc.CALL(tmp,1,2,loc.packed());
+            bc.MOV(to,tmp,loc.packed());
+            ctx.back().sellSlots(tmp,3);
         }else
         {
             bc.TNEW( to, constLen, 0, loc.packed() );
@@ -1483,19 +1523,22 @@ struct ObxLjbcGenImp : public AstVisitor
                 Record* r = cast<Record*>(td);
                 emitCreateRecord( to, t, loc );
 
-                // initialize fields
-                const int tmp = ctx.back().buySlots(1);
-                QList<Field*> fields = r->getOrderedFields();
-                for( int i = 0; i < fields.size(); i++ )
+                if( !r->d_unsafe )
                 {
-                    Type* t2 = fields[i]->d_type.data();
-                    Type* t2d = derefed(t2);
-                    Q_ASSERT( t2d );
-                    // oberon system expects all vars to be initialized
-                    if( emitInitializer(tmp, t2, false, false, loc ) )
+                    // initialize fields
+                    const int tmp = ctx.back().buySlots(1);
+                    QList<Field*> fields = r->getOrderedFields();
+                    for( int i = 0; i < fields.size(); i++ )
+                    {
+                        Type* t2 = fields[i]->d_type.data();
+                        Type* t2d = derefed(t2);
+                        Q_ASSERT( t2d );
+                        // oberon system expects all vars to be initialized
+                        if( emitInitializer(tmp, t2, false, false, loc ) )
                             emitSetTableByIndex(tmp,to,fields[i]->d_slot,loc);
-                }
-                ctx.back().sellSlots(tmp);
+                    }
+                    ctx.back().sellSlots(tmp);
+                }// else luajit does this automatically
             }
             return true;
         case Thing::T_Array:
@@ -1511,15 +1554,15 @@ struct ObxLjbcGenImp : public AstVisitor
                     lengths.first()->accept(this);
                     Q_ASSERT( !slotStack.isEmpty() );
                     lenSlot = slotStack.back();
-                    emitCreateArray(to, td, 0, lenSlot, loc );
+                    emitCreateArray(to, a, td, 0, lenSlot, loc );
                     slotStack.pop_back(); // keep lenSlot for now
                 }else
                 {
                     Q_ASSERT( !a->d_lenExpr.isNull() );
-                    emitCreateArray(to, td, a->d_len, 0, loc );
+                    emitCreateArray(to, a, td, a->d_len, 0, loc );
                 }
 
-                if( td->isStructured() )
+                if( td->isStructured() && !a->d_unsafe )
                 {
                     const quint8 base = ctx.back().buySlots(4);
                     const int tmp = ctx.back().buySlots(1);
@@ -2134,7 +2177,13 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.MOV(res,slotStack.back(),ae->d_loc.packed());
             releaseSlot();
             break;
-        default:
+        case BuiltIn::ADR:
+            ae->d_args.first()->accept(this);
+            Q_ASSERT( !slotStack.isEmpty() );
+            bc.MOV(res,slotStack.back(),ae->d_loc.packed());
+            releaseSlot();
+            break;
+       default:
             // TODO
             qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
             break;
@@ -3046,8 +3095,15 @@ struct ObxLjbcGenImp : public AstVisitor
             acc.slot = slotStack.back();
             acc.disposeSlot = 1;
             slotStack.pop_back();
-            acc.index = id->d_slot;
-            acc.kind = Accessor::TableIdx;
+            if( id->d_unsafe )
+            {
+                acc.name = id->d_name.constData();
+                acc.kind = Accessor::TableName;
+            }else
+            {
+                acc.index = id->d_slot;
+                acc.kind = Accessor::TableIdx;
+            }
         }else if( unop == UnExpr::IDX )
         {
             Q_ASSERT( desig->getTag() == Thing::T_ArgExpr );
@@ -3286,31 +3342,46 @@ struct ObxLjbcGenImp : public AstVisitor
                     emitCreateRecord(lhs,rhsT,loc); // use original type, not derefed
                     // use the rhsT here because in call the actual parameter has local type information (lhsT might
                     // refer to non-local types which are not even imported instead)
-                QList<Field*> ff = r->getOrderedFields();
-                foreach( Field* f, ff )
+                if( r->d_unsafe )
                 {
-                    Type* ft = derefed(f->d_type.data());
-                    Q_ASSERT( ft );
+                    const int tmp = ctx.back().buySlots(4, true);
+                    fetchObxlibMember(tmp,26,loc); // ffi.sizeof
+                    bc.MOV(tmp+1,lhs, loc.packed());
+                    bc.CALL(tmp,1,1, loc.packed());
+                    bc.MOV(tmp+3,tmp, loc.packed());
+                    fetchObxlibMember(tmp,51,loc); // ffi.copy
+                    bc.MOV(tmp+1,lhs, loc.packed());
+                    bc.MOV(tmp+2,rhs, loc.packed());
+                    bc.CALL(tmp,0,3,loc.packed());
+                    ctx.back().sellSlots(tmp,4);
+                }else
+                {
+                    QList<Field*> ff = r->getOrderedFields();
+                    foreach( Field* f, ff )
+                    {
+                        Type* ft = derefed(f->d_type.data());
+                        Q_ASSERT( ft );
 
-                    if( ft->isStructured() )
-                    {
-                        const int lhs2 = ctx.back().buySlots(1);
-                        const int rhs2 = ctx.back().buySlots(1);
-                        if( !create ) // if lhs table is newly created it is empty; no need to fetch.
-                            emitGetTableByIndex(lhs2,lhs,f->d_slot,loc);
-                        emitGetTableByIndex(rhs2,rhs,f->d_slot,loc);
-                        emitCopy(create, f->d_type.data(),lhs2, f->d_type.data(), rhs2, loc );
-                        if( create )
-                            emitSetTableByIndex(lhs2,lhs,f->d_slot,loc);
-                        ctx.back().sellSlots(lhs2);
-                        ctx.back().sellSlots(rhs2);
-                    }else
-                    {
-                        Q_ASSERT( f->d_slotValid );
-                        const int tmp = ctx.back().buySlots(1);
-                        emitGetTableByIndex(tmp,rhs,f->d_slot,loc);
-                        emitSetTableByIndex(tmp,lhs,f->d_slot,loc);
-                        ctx.back().sellSlots(tmp);
+                        if( ft->isStructured() )
+                        {
+                            const int lhs2 = ctx.back().buySlots(1);
+                            const int rhs2 = ctx.back().buySlots(1);
+                            if( !create ) // if lhs table is newly created it is empty; no need to fetch.
+                                emitGetTableByIndex(lhs2,lhs,f->d_slot,loc);
+                            emitGetTableByIndex(rhs2,rhs,f->d_slot,loc);
+                            emitCopy(create, f->d_type.data(),lhs2, f->d_type.data(), rhs2, loc );
+                            if( create )
+                                emitSetTableByIndex(lhs2,lhs,f->d_slot,loc);
+                            ctx.back().sellSlots(lhs2);
+                            ctx.back().sellSlots(rhs2);
+                        }else
+                        {
+                            Q_ASSERT( f->d_slotValid );
+                            const int tmp = ctx.back().buySlots(1);
+                            emitGetTableByIndex(tmp,rhs,f->d_slot,loc);
+                            emitSetTableByIndex(tmp,lhs,f->d_slot,loc);
+                            ctx.back().sellSlots(tmp);
+                        }
                     }
                 }
             }
@@ -3347,7 +3418,7 @@ struct ObxLjbcGenImp : public AstVisitor
                 // can rhsT be an open array? yes, if it's a param of the proc the code is in
 
                 if( create )
-                    emitCreateArray(lhs,laT, constLen, lenSlot >= 0 ? lenSlot : 0, loc );
+                    emitCreateArray(lhs, lhsA,laT, constLen, lenSlot >= 0 ? lenSlot : 0, loc );
 
                 if( laT->isChar() ) // copy to array of char/wchar
                 {
@@ -3367,11 +3438,28 @@ struct ObxLjbcGenImp : public AstVisitor
                         bc.CALL(tmp,0,2,loc.packed());
                         ctx.back().sellSlots(tmp,3);
                     }
-                }else if( laT->isStructured())
+                }else if( laT->getBaseType() > 0 || lhsA->d_unsafe )
                 {
+                    Q_ASSERT( laT == raT );
+                    const int tmp = ctx.back().buySlots(4, true);
+                    fetchObxlibMember(tmp,51,loc); // module.min_size
+                    bc.MOV(tmp+1,lhs,loc.packed());
+                    bc.MOV(tmp+2,rhs,loc.packed());
+                    bc.CALL(tmp,1,2,loc.packed());
+                    bc.MOV(tmp+3,tmp,loc.packed());
+
+                    fetchObxlibMember(tmp,50,loc); // ffi.copy
+                    bc.MOV(tmp+1,lhs,loc.packed());
+                    bc.MOV(tmp+2,rhs,loc.packed());
+                    bc.CALL(tmp,0,3,loc.packed());
+                    ctx.back().sellSlots(tmp,4);
+                }else
+                {
+                    // plain lua table
+                    const bool structured = laT->isStructured();
                     const quint8 base = ctx.back().buySlots(4);
                     const quint8 lhs2 = ctx.back().buySlots(1);
-                    const quint8 rhs2 = ctx.back().buySlots(1);
+                    const quint8 rhs2 = structured ? ctx.back().buySlots(1) : 0;
                     bc.KSET(base,0,loc.packed());
                     if( constLen > 0 )
                         bc.KSET(base+1,constLen-1,loc.packed());
@@ -3386,44 +3474,26 @@ struct ObxLjbcGenImp : public AstVisitor
                     bc.FORI(base,0,loc.packed());
                     const quint32 pc = bc.getCurPc();
 
-                    bc.TGET(rhs2,rhs,base+3,loc.packed());
-                    if( !create )
-                        bc.TGET(lhs2,lhs,base+3,loc.packed());
-                    emitCopy(create,lhsA->d_type.data(),lhs2, rhsA->d_type.data(), rhs2, loc );
-                    if( create )
+                    if( structured )
+                    {
+                        bc.TGET(rhs2,rhs,base+3,loc.packed());
+                        if( !create )
+                            bc.TGET(lhs2,lhs,base+3,loc.packed());
+                        emitCopy(create,lhsA->d_type.data(),lhs2, rhsA->d_type.data(), rhs2, loc );
+                        if( create )
+                            bc.TSET(lhs2,lhs,base+3,loc.packed());
+                    }else
+                    {
+                        bc.TGET(lhs2,rhs,base+3,loc.packed());
                         bc.TSET(lhs2,lhs,base+3,loc.packed());
+                    }
 
                     bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
                     bc.patch(pc);
 
                     ctx.back().sellSlots(lhs2);
-                    ctx.back().sellSlots(rhs2);
-                    ctx.back().sellSlots(base,4);
-                }else
-                {
-                    const quint8 base = ctx.back().buySlots(4);
-                    const quint8 tmp = ctx.back().buySlots(1);
-                    bc.KSET(base,0,loc.packed());
-                    if( constLen > 0 )
-                        bc.KSET(base+1,constLen-1,loc.packed());
-                    else
-                    {
-                        bc.SUB(lenSlot, lenSlot, QVariant(1), loc.packed() );
-                        bc.MOV(base+1, lenSlot, loc.packed() );
-                        ctx.back().sellSlots(lenSlot);
-                        lenSlot = -1;
-                    }
-                    bc.KSET(base+2,1,loc.packed());
-                    bc.FORI(base,0,loc.packed());
-                    const quint32 pc = bc.getCurPc();
-
-                    bc.TGET(tmp,rhs,base+3,loc.packed());
-                    bc.TSET(tmp,lhs,base+3,loc.packed());
-
-                    bc.FORL(base, pc - bc.getCurPc() - 1,loc.packed());
-                    bc.patch(pc);
-
-                    ctx.back().sellSlots(tmp);
+                    if( structured )
+                        ctx.back().sellSlots(rhs2);
                     ctx.back().sellSlots(base,4);
                 }
                 if( lenSlot >= 0 )
@@ -3466,6 +3536,9 @@ struct ObxLjbcGenImp : public AstVisitor
         case Accessor::TableIdx:
             emitGetTableByIndex(slot, acc.slot, acc.index, loc );
             break;
+        case Accessor::TableName:
+            bc.TGET( slot, acc.slot, acc.name, loc.packed() );
+            break;
         case Accessor::TableIdxSlot:
             bc.TGET(slot, acc.slot, acc.index, loc.packed() );
             break;
@@ -3493,6 +3566,9 @@ struct ObxLjbcGenImp : public AstVisitor
             break;
         case Accessor::TableIdx:
             emitSetTableByIndex( slot, acc.slot, acc.index, loc );
+            break;
+        case Accessor::TableName:
+            bc.TSET( slot, acc.slot, acc.name, loc.packed() );
             break;
         case Accessor::TableIdxSlot:
             bc.TSET( slot, acc.slot, acc.index, loc.packed() );
@@ -3653,70 +3729,6 @@ bool LjbcGen::translate(Module* m, QIODevice* out, bool strip, Ob::Errors* errs)
     return hasErrs;
 }
 
-static inline SysAttr* findAttr(Module* m, const QByteArray& name)
-{
-    for( int i = 0; i < m->d_sysAttrs.size(); i++ )
-    {
-        if( m->d_sysAttrs[i]->d_name == name )
-            return m->d_sysAttrs[i].data();
-    }
-    return 0;
-}
-
-bool LjbcGen::generateFfiBinding(Module* m, QIODevice* d, Errors* err)
-{
-    QByteArray lib, pfx;
-    SysAttr* a = findAttr(m,"lib");
-    if( a )
-    {
-        if( a->d_values.isEmpty() )
-            lib = m->d_name;
-        else if( a->d_values.size() == 1 )
-            lib = Evaluator::eval(a->d_values.first().data(),m,err).d_value.toByteArray();
-        else
-            return err->error(Errors::Generator,m->d_file,a->d_loc.d_row,a->d_loc.d_col,
-                       "lib attribute requires zero or one value");
-    }
-    a = findAttr(m,"pfx");
-    if( a )
-    {
-        if( a->d_values.isEmpty() )
-            pfx = m->d_name;
-        else if( a->d_values.size() == 1 )
-            pfx = Evaluator::eval(a->d_values.first().data(),m,err).d_value.toByteArray();
-        else
-            return err->error(Errors::Generator,m->d_file,a->d_loc.d_row,a->d_loc.d_col,
-                       "pfx attribute requires zero or one value");
-    }
-
-    QTextStream hout(d);
-    QByteArray str;
-    QTextStream bout(&str);
-
-    bout << "local module = {}" << endl;
-
-    hout << "local ffi = require 'ffi'" << endl;
-    hout << "ffi.cdef[[" << endl;
-
-    foreach( const Ref<Named>& n, m->d_order )
-    {
-    }
-
-    hout << "]]" << endl;
-    if( lib.isEmpty() )
-        hout << "local C = ffi.C" << endl;
-    else
-        hout << "local C = ffi.load('" << lib << "')" << endl;
-
-    bout << "return module" << endl;
-    bout.flush();
-    hout.flush();
-
-    d->write(str);
-
-    return true;
-}
-
 bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
 {
     // TODO replace this by LjbcGen::allocateSlots
@@ -3775,5 +3787,6 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
 
     return true;
 }
+
 
 

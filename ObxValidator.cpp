@@ -114,6 +114,18 @@ struct ValidatorImp : public AstVisitor
             }
         }
 
+        SysAttrs::const_iterator i;
+        for( i = me->d_sysAttrs.begin(); i != me->d_sysAttrs.end(); ++i )
+        {
+            for( int j = 0; j < i.value()->d_valExpr.size(); j++ )
+            {
+                i.value()->d_valExpr[j]->accept(this);
+                Evaluator::Result res = Evaluator::eval(i.value()->d_valExpr[j].data(), mod, err);
+                i.value()->d_values.append(res.d_value);
+            }
+        }
+
+
         levels.push_back(me);
         // imports are supposed to be already resolved at this place
         visitScope(me);
@@ -386,18 +398,25 @@ struct ValidatorImp : public AstVisitor
         {
             // + a pointer points to a memory location; from this memory location an address can be taken (which
             //   trivially corresponds to the pointer
+            // + a string or byte literal or constant is a memory location (wheras read only)
             // + an index is an offset from the start of the memory location of the array
             // + a guard is just another type for the same memory location
             // + a function returning a pointer to something corresponds to the first case (even if there is no direct ident)
             // - the value result (basic or structured) of a function is only transient (unless assigned to something)
             while( e )
             {
-                switch( e->getUnOp() )
+                if( !e->d_type.isNull() && ( e->d_type->getBaseType() == Type::STRING ||
+                                   e->d_type->getBaseType() == Type::WSTRING ) )
+                    return true; // a string literal (either direct literal or designator to literal)
+                switch( e->getTag() )
                 {
-                case UnExpr::Leaf:
+                case Thing::T_IdentLeaf:
                     n = e->getIdent();
                     e = 0;
-                    break;
+                    continue;
+                }
+                switch( e->getUnOp() )
+                {
                 case UnExpr::SEL:
                     n = e->getIdent();
                     e = 0;
@@ -429,6 +448,9 @@ struct ValidatorImp : public AstVisitor
                         return false;
                     }
                     break;
+                default:
+                    e = 0;
+                    break;
                 }
             }
         }
@@ -441,6 +463,13 @@ struct ValidatorImp : public AstVisitor
             case Thing::T_Parameter:
             case Thing::T_Variable:
                 return true;
+            case Thing::T_Const:
+                {
+                    Const* c = cast<Const*>(n);
+                    if( c->d_vtype == Literal::String || c->d_vtype == Literal::Bytes )
+                        return true;
+                }
+                break;
             default:
                 return false;
             }
@@ -485,7 +514,7 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::BITXOR:
             return false; // these can be handled by ordinary arg checker
 
-        case BuiltIn::ADDROF:
+        case BuiltIn::ADR:
             if( args->d_args.size() == 1 )
             {
                 if( !isMemoryLocation(args->d_args.first().data()) )
@@ -525,7 +554,7 @@ struct ValidatorImp : public AstVisitor
                     break; // already reported
                 if( !isInteger( lhs.d_type.data() ) && lhs.d_type->getTag() != Thing::T_Enumeration )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting integer or enumeration argument"));
-                checkCallArg( &lhs, args->d_args[0] );
+                checkCallArg( p, &lhs, args->d_args[0] );
                 if( args->d_args.size() == 2 )
                 {
                     Parameter rhs;
@@ -534,7 +563,7 @@ struct ValidatorImp : public AstVisitor
                         error( args->d_args[1]->d_loc, Validator::tr("cannot use second argument for enumeration types"));
                     else if( !isInteger( rhs.d_type.data() ) )
                         error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
-                    checkCallArg( &rhs, args->d_args[1] );
+                    checkCallArg( p, &rhs, args->d_args[1] );
                 }
             }else
                 error( args->d_loc, Validator::tr("expecting one or two arguments"));
@@ -544,14 +573,14 @@ struct ValidatorImp : public AstVisitor
             {
                 Parameter lhs;
                 lhs.d_type = bt.d_boolType;
-                checkCallArg( &lhs, args->d_args[0] );
+                checkCallArg( p, &lhs, args->d_args[0] );
                 if( args->d_args.size() == 2 )
                 {
                     Parameter rhs;
                     rhs.d_type = derefed(args->d_args[1]->d_type.data());
                     if( !isInteger( rhs.d_type.data() ) )
                         error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
-                    checkCallArg( &rhs, args->d_args[1] );
+                    checkCallArg( p, &rhs, args->d_args[1] );
                 }
             }else
                 error( args->d_loc, Validator::tr("expecting one or two arguments"));
@@ -595,7 +624,7 @@ struct ValidatorImp : public AstVisitor
                 lhs.d_type = derefed(args->d_args.first()->d_type.data());
                 if( !isNumeric( lhs.d_type.data() ) )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting numeric argument"));
-                checkCallArg( &lhs, args->d_args[0] );
+                checkCallArg( p, &lhs, args->d_args[0] );
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
@@ -799,7 +828,7 @@ struct ValidatorImp : public AstVisitor
         return false;
     }
 
-    void checkCallArg( Parameter* formal, Ref<Expression>& actual )
+    void checkCallArg( ProcType* pt, Parameter* formal, Ref<Expression>& actual )
     {
         Type* tf = derefed(formal->d_type.data());
         Type* ta = derefed(actual->d_type.data());
@@ -831,16 +860,17 @@ struct ValidatorImp : public AstVisitor
             actual = arg.data();
         }
 
-#if 0
-        // no longer supported in Oberon+; use explicit addrof operator instead of this implicit operation
-        // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters, implicit address of operation
+#if 1
+        // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters,
+        // implicit address of only supported in Oberon+ in calls to external library module procedures,
+        // but not in calls of normal procedures nor in assignments
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
                                            || ta == bt.d_stringType || ta == bt.d_wstringType  ) )
         {
             Pointer* p = cast<Pointer*>(tf);
-            if( p->d_unsafe &&
-                    ( ta->d_unsafe || !ta->isStructured(true) || isArrayOfUnstructuredType(ta) ) ) // TODO
-                // don't allow taking the address of safe unstructured types or safe arrays of unstructured types
+            if( pt->d_unsafe && p->d_unsafe &&
+                    isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private &&
+                    ( ta->d_unsafe || !ta->isStructured(true) || isArrayOfUnstructuredType(ta) ) ) // see BuiltIn::ADR
             {
                 Ref<UnExpr> ue = new UnExpr();
                 ue->d_loc = actual->d_loc;
@@ -949,7 +979,7 @@ struct ValidatorImp : public AstVisitor
 
         for( int i = 0; i < p->d_formals.size(); i++ )
         {
-            checkCallArg( p->d_formals[i].data(), me->d_args[i] );
+            checkCallArg( p, p->d_formals[i].data(), me->d_args[i] );
         }
     }
 
@@ -957,7 +987,7 @@ struct ValidatorImp : public AstVisitor
     {
         switch( bi->d_func )
         {
-        case BuiltIn::ADDROF:
+        case BuiltIn::ADR:
         case BuiltIn::SYS_VAL:
         case BuiltIn::SYS_ROT:
         case BuiltIn::SYS_LSH:
@@ -1532,6 +1562,12 @@ struct ValidatorImp : public AstVisitor
             me->d_type->accept(this);
         checkNoAnyRecType(me->d_type.data());
         checkSelfRef(me);
+        if( me->d_type && me->d_type->getTag() == Thing::T_Array && !me->d_lenExpr.isNull() )
+        {
+            Array* a = cast<Array*>(me->d_type.data());
+            if( a->d_lenExpr.isNull() )
+                error( me->d_type->d_loc, Validator::tr("only open arrays can have open array element types") );
+        }
 
 #ifdef OBX_BBOX
         if( me->d_unsafe )
@@ -1702,7 +1738,10 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_return.isNull() )
         {
-            me->d_return->accept(this); // OBX has no restrictions on return types
+            me->d_return->accept(this);
+            if( !me->d_return->hasByteSize() )
+                error(me->d_return->d_loc, Validator::tr("this type cannot be used here") );
+
 #if 0 // TEST
             checkUnsafePointer(me->d_return.data(), true, me->d_loc);
 #endif
@@ -2222,6 +2261,9 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
+        if( mod->d_externC && me->d_mod && !me->d_mod->d_externC )
+            error( me->d_loc, Validator::tr("regular modules cannot be imported by external library modules") );
+
         //qDebug() << "check imports of" << mod->getName();
         if( !me->d_metaActuals.isEmpty() )
         {
@@ -2625,7 +2667,8 @@ struct ValidatorImp : public AstVisitor
         {
             if( rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
                 return true;
-#ifdef OBX_BBOX
+#if 0 // def OBX_BBOX
+            // no longer implicit addrof
             Pointer* lptr = cast<Pointer*>(lhsT);
             if( lptr->d_unsafe && equalType( lptr->d_to.data(), rhsT ) )
                 return true; // BBOX supports taking the address of rhs
@@ -2656,6 +2699,11 @@ struct ValidatorImp : public AstVisitor
 
         if( ltag == Thing::T_Array )
         {
+            // Note:
+            // a variable cannot be an open array; therefore if lhs and rhs are same type, they cannot be open arrays
+            // lhs can be an open array iff it has a char/wchar base type or it is a value parameter or reference by a pointer
+            // in case of a value parameter it is not a real assignment, but the creation of a copy
+            // lhs and rhs can be pointer to open arrays, i.e. both sizes have to be dynamically determined
             Array* l = cast<Array*>(lhsT);
             Type* lt = derefed(l->d_type.data());
             if( rtag == Thing::T_Array )

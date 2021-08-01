@@ -1,5 +1,5 @@
-#ifndef OBXLJBCGEN_H
-#define OBXLJBCGEN_H
+#ifndef OBXCGEN_H
+#define OBXCGEN_H
 
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -32,17 +32,19 @@ namespace Obx
     class Model;
     struct Module;
     struct Type;
+    struct ProcType;
 
-    class LjbcGen
+    class CGen
     {
     public:
-        // static bool translate(Model*,const QString& outdir, const QString& mod, bool strip = false, Ob::Errors* = 0 );
-        static bool allocateSlots(Module*me);
-        static bool translate(Module*, QIODevice* out, bool strip = false, Ob::Errors* = 0 );
-        static bool allocateDef(Module*, QIODevice* out,Ob::Errors* = 0);
+        static bool generateLjFfiBinding(Module*, QIODevice* out, Ob::Errors* = 0 );
+        static bool generateHeader(Module*, QIODevice* out, Ob::Errors* = 0 );
+        static bool renderNameType(Type*, QByteArray& name, const QByteArray& pfx = QByteArray() , bool vla = false);
+        static QByteArray renderBasicType( Type* );
+        static QByteArray renderFormals( ProcType*, const QByteArray& pfx = QByteArray() );
     private:
-        LjbcGen();
+        CGen();
     };
 }
 
-#endif // OBXLJBCGEN_H
+#endif // OBXCGEN_H

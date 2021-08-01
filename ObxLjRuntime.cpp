@@ -26,6 +26,7 @@
 #include "ObsDisplay.h"
 #endif
 #include "ObxLjbcGen.h"
+#include "ObxCGen.h"
 #include <LjTools/Engine2.h>
 #include <QFile>
 #include <QDir>
@@ -63,19 +64,7 @@ LjRuntime::LjRuntime(QObject*p):QObject(p), d_jitEnabled(true),d_buildErrors(fal
 
     d_lua = new Lua::Engine2(this);
     Lua::Engine2::setInst(d_lua);
-    LibFfi::install(d_lua->getCtx());
-#ifdef QT_GUI_LIB
-    Obs::Display::install(d_lua->getCtx());
-#endif
-    d_lua->addStdLibs();
-    d_lua->addLibrary(Lua::Engine2::PACKAGE);
-    d_lua->addLibrary(Lua::Engine2::IO);
-    d_lua->addLibrary(Lua::Engine2::BIT);
-    d_lua->addLibrary(Lua::Engine2::JIT);
-    d_lua->addLibrary(Lua::Engine2::FFI);
-    d_lua->addLibrary(Lua::Engine2::OS);
-    // d_lua->setJit(false); // must be called after addLibrary! doesn't have any effect otherwise
-    loadLuaLib( d_lua, "obxlj" );
+    prepareEngine();
 }
 
 bool LjRuntime::compile(bool doGenerate)
@@ -199,6 +188,15 @@ bool LjRuntime::executeMain()
     return d_lua->executeCmd(src,"terminal");
 }
 
+bool LjRuntime::restartEngine()
+{
+    if( !d_lua->restart() )
+        return false;
+    prepareEngine();
+    d_lua->setJit(d_jitEnabled);
+    return true;
+}
+
 QByteArray LjRuntime::findByteCode(Module* m) const
 {
     for( int i = 0; i < d_byteCode.size(); i++ )
@@ -289,8 +287,18 @@ void LjRuntime::generate()
                 qDebug() << "generating binding for" << m->getName();
                 QBuffer buf;
                 buf.open(QIODevice::WriteOnly);
-                LjbcGen::generateFfiBinding(m, &buf, d_pro->getErrs() );
+                CGen::generateLjFfiBinding(m, &buf, d_pro->getErrs() );
                 buf.close();
+#if 0
+                //qDebug() << buf.buffer(); // TEST
+                QFile f(QDir::current().absoluteFilePath(m->getName() + ".lua"));
+                if( f.open(QIODevice::WriteOnly) )
+                {
+                    qDebug() << "writing generated binding for" << m->getName() << "to" << f.fileName();
+                    f.write(buf.buffer());
+                }else
+                    qCritical() << "could not open for writing" << f.fileName();
+#endif
                 d_byteCode << qMakePair(m,buf.buffer());
             }else
             {
@@ -342,5 +350,22 @@ void LjRuntime::generate(Module* m)
     LjbcGen::translate(m, &buf, false, d_pro->getErrs() );
     buf.close();
     d_byteCode << qMakePair(m,buf.buffer());
+}
+
+void LjRuntime::prepareEngine()
+{
+    LibFfi::install(d_lua->getCtx());
+#ifdef QT_GUI_LIB
+    Obs::Display::install(d_lua->getCtx());
+#endif
+    d_lua->addStdLibs();
+    d_lua->addLibrary(Lua::Engine2::PACKAGE);
+    d_lua->addLibrary(Lua::Engine2::IO);
+    d_lua->addLibrary(Lua::Engine2::BIT);
+    d_lua->addLibrary(Lua::Engine2::JIT);
+    d_lua->addLibrary(Lua::Engine2::FFI);
+    d_lua->addLibrary(Lua::Engine2::OS);
+    // d_lua->setJit(false); // must be called after addLibrary! doesn't have any effect otherwise
+    loadLuaLib( d_lua, "obxlj" );
 }
 
