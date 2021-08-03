@@ -113,7 +113,7 @@ bool Parser::module(bool definition )
 
     if( d_la == Tok_Semi )
         next();
-    declarationSequence(false, m.data() );
+    declarationSequence(m->d_isDef, m.data() );
     if( d_la == Tok_BEGIN || d_la == Tok_DO )
     {
         next();
@@ -1643,10 +1643,12 @@ Ref<Expression> Parser::label()
 #endif
 }
 
-Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
+Procedure* Parser::procedureDeclaration(bool headingOnly,Scope* scope)
 {
+#if 0
     if( d_mod->d_isDef )
         headingOnly = true;
+#endif
     Ref<Procedure> res = new Procedure();
     const int kind = procedureHeading(res.data(), scope);
     if( kind == ProcForward )
@@ -1681,7 +1683,7 @@ Ref<Procedure> Parser::procedureDeclaration(bool headingOnly,Scope* scope)
             res->d_end = d_cur.toRowCol();
         }
     }
-    return res;
+    return res.data();
 }
 
 int Parser::procedureHeading(Procedure* p, Scope* scope)
@@ -1887,9 +1889,13 @@ void Parser::declarationSequence(bool definition, Scope* scope )
             break;
         case Tok_PROCEDURE:
         case Tok_PROC:
-            procedureDeclaration(definition,scope);
-            if( d_la == Tok_Semi )
-                next();
+            {
+                Procedure* p = procedureDeclaration(definition,scope);
+                if( definition && d_la == Tok_Lbrack )
+                    p->d_sysAttrs = systemAttrs();
+                if( d_la == Tok_Semi )
+                    next();
+            }
             break;
         default:
             Q_ASSERT(false);
@@ -2115,6 +2121,12 @@ SysAttrs Parser::systemAttrs()
             res.insert(attr->d_name,attr);
         if( d_la == Tok_Comma )
             next();
+    }
+    if( res.isEmpty() )
+    {
+        Ref<SysAttr> attr = new SysAttr(); // at least one (empty) attr
+        attr->d_loc = d_cur.toRowCol();
+        res.insert(attr->d_name,attr);
     }
     MATCH( Tok_Rbrack, tr("expecting ']'") );
     return res;

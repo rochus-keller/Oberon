@@ -91,7 +91,7 @@ namespace Obx
         ExpList caseLabelList();
         Ref<Expression> labelRange();
         Ref<Expression> label();
-        Ref<Procedure> procedureDeclaration(bool headingOnly, Scope* scope);
+        Procedure* procedureDeclaration(bool headingOnly, Scope* scope);
         enum { ProcNormal, ProcForward, ProcCImp };
         int procedureHeading(Procedure* proc, Scope* scope);
         bool procedureBody(Procedure* p);

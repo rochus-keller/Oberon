@@ -54,7 +54,7 @@ bool CGen::generateLjFfiBinding(Module* m, QIODevice* d, Ob::Errors* err)
     SysAttr* a = m->d_sysAttrs.value("lib").data();
     if( a && a->d_values.size() == 1 )
         lib = a->d_values.first().toByteArray();
-    a = m->d_sysAttrs.value("pfx").data();
+    a = m->d_sysAttrs.value("prefix").data();
     if( a && a->d_values.size() == 1 )
         pfx = a->d_values.first().toByteArray();
 
@@ -283,6 +283,12 @@ QByteArray CGen::renderFormals(ProcType* pt, const QByteArray& pfx)
         QByteArray nameType = pt->d_formals[i]->d_name;
         renderNameType(pt->d_formals[i]->d_type.data(), nameType, pfx );
         res += nameType;
+    }
+    if( pt->d_varargs )
+    {
+        if( !pt->d_formals.isEmpty() )
+            res += ", ";
+        res += "...";
     }
     res += ")";
     return res;

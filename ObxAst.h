@@ -195,10 +195,11 @@ namespace Obx
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
         uint d_typeBound : 1; // used by ProcType
+        uint d_varargs : 1; // used by ProcType
 
         // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
 
-        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),d_typeBound(false) {}
+        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),d_typeBound(false),d_varargs(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
         virtual Type* derefed() { return this; }

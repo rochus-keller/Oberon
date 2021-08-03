@@ -217,6 +217,11 @@ struct ValidatorImp : public AstVisitor
         else if( me->d_visibility == Named::ReadWrite )
             me->d_visibility = Named::ReadOnly; // make public procs readonly; they cannot be assigned to!
 
+        if( !me->d_sysAttrs.isEmpty() && !mod->d_externC )
+            error( me->d_sysAttrs.begin().value()->d_loc, Validator::tr("procedure attributes only supported in external library modules"));
+        else if( me->d_sysAttrs.contains("varargs") )
+            pt->d_varargs = true;
+
         if( !me->d_receiver.isNull() )
         {
             // receiver was already accepted in visitScope
@@ -971,7 +976,11 @@ struct ValidatorImp : public AstVisitor
 
     void checkCallArgs( ProcType* p, ArgExpr* me )
     {
-        if( p->d_formals.size() != me->d_args.size() )
+        if( p->d_varargs && me->d_args.size() < p->d_formals.size() )
+        {
+            error( me->d_loc, Validator::tr("at least %1 actual parameters required").arg(p->d_formals.size()));
+            return;
+        }else if( !p->d_varargs && p->d_formals.size() != me->d_args.size() )
         {
             error( me->d_loc, Validator::tr("number of actual and formal parameters doesn't match"));
             return;
@@ -979,7 +988,15 @@ struct ValidatorImp : public AstVisitor
 
         for( int i = 0; i < p->d_formals.size(); i++ )
         {
-            checkCallArg( p, p->d_formals[i].data(), me->d_args[i] );
+            checkCallArg( p, p->d_formals[i].data(), me->d_args[i] ); // varargs are not considered here
+        }
+        for( int i = p->d_formals.size(); i < me->d_args.size(); i++ )
+        {
+            Expression* a = me->d_args[i].data();
+            Type* t = derefed(a->d_type.data());
+            if( t && !( a->visibilityFor(mod) != Named::Private &&
+                   ( t->d_unsafe || !t->isStructured(true) || isArrayOfUnstructuredType(t) ) ) )
+                error( a->d_loc, Validator::tr("actual parameter type not supported in variadic procedure call"));
         }
     }
 
@@ -2853,7 +2870,7 @@ struct ValidatorImp : public AstVisitor
     {
         if( lhs == 0 || rhs == 0 )
             return false;
-        if( lhs->d_formals.size() != rhs->d_formals.size() )
+        if( lhs->d_formals.size() != rhs->d_formals.size() || lhs->d_varargs != rhs->d_varargs )
             return false;
         if( ( lhs->d_return.isNull() && !rhs->d_return.isNull() ) ||
             ( !lhs->d_return.isNull() && rhs->d_return.isNull() ) )

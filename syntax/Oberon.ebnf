@@ -35,9 +35,9 @@
 // - UNSAFE POINTER TO deprecated by CPOINTER TO and '*'; VOID is a predeclared identifier which can be used as *VOID
 // - SystemAttrs
 
-//#define OBN2
+// #define OBN2
 // combine OBN2 with either OBNX or BBOX
-//#define OBNX
+// #define OBNX
 //#define BBOX
 
 /// Top
@@ -440,7 +440,7 @@ DeclarationSequence2 ::=
 	{ CONST { ConstDeclaration [';'] }
 	| TYPE { TypeDeclaration [';'] }
 	| VAR { VariableDeclaration [';'] }
-	| ProcedureHeading [';'] } // difference to DeclarationSequence
+	| ProcedureHeading [SystemAttrs] [';'] } // difference to DeclarationSequence
 #else
 #ifdef BBOX
 	{ CONST { ConstDeclaration ';' } 

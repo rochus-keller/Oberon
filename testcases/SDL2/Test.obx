@@ -17,6 +17,7 @@ begin
 	Out.Int(v.major,0) Out.String(".") Out.Int(v.minor,0) 
 	Out.String(".") Out.Int(v.patch,0) Out.Ln
 
+	SDL.Log("hello from log %d.%d.%d %f %s", v.major, v.minor, v.patch, 123.45, "test" )
 
 	window := SDL.CreateWindow("Hello SDL!", 20, 20, 512, 512, SDL.WINDOW_SHOWN )
 	surface := SDL.GetWindowSurface(window)

@@ -1458,7 +1458,7 @@ struct ObxLjbcGenImp : public AstVisitor
             if( decl )
             {
                 Module* m = decl->getModule();
-                SysAttr* a = m->d_sysAttrs.value("pfx").data();
+                SysAttr* a = m->d_sysAttrs.value("prefix").data();
                 if( a && a->d_values.size() == 1 )
                     pfx = a->d_values.first().toByteArray();
             }
@@ -2320,6 +2320,14 @@ struct ObxLjbcGenImp : public AstVisitor
 #endif
     }
 
+    bool inline isInteger( Type* t )
+    {
+        if( t == 0 )
+            return false;
+        return t->isInteger() || t->getTag() == Thing::T_Enumeration || t->getBaseType() == Type::SET
+                || t->getBaseType() == Type::CHAR || t->getBaseType() == Type::WCHAR;
+    }
+
     void emitCall( ArgExpr* me )
     {
         CHECK_SLOTS_START();
@@ -2360,7 +2368,7 @@ struct ObxLjbcGenImp : public AstVisitor
         Type* subT = derefed( me->d_sub->d_type.data() );
         Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
         ProcType* pt = cast<ProcType*>( subT );
-        Q_ASSERT( pt->d_formals.size() == me->d_args.size() );
+        Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
 
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
         bool passFrame = false;
@@ -2368,9 +2376,9 @@ struct ObxLjbcGenImp : public AstVisitor
             passFrame = true;
 #endif
 
-        QVector<Accessor> accs(me->d_args.size());
+        QVector<Accessor> accs(pt->d_formals.size());
         int varCount = 0; // number of true var params which have to be returned by the function
-        for( int i = 0; i < me->d_args.size(); i++ )
+        for( int i = 0; i < pt->d_formals.size(); i++ )
         {
             if( trueVarParam( pt->d_formals[i].data() ) )
             {
@@ -2425,7 +2433,7 @@ struct ObxLjbcGenImp : public AstVisitor
         }else
             Q_ASSERT( !myPassingThis );
 
-        for( int i = 0; i < me->d_args.size(); i++ )
+        for( int i = 0; i < pt->d_formals.size(); i++ )
         {
             const int off = funcCount + thisCount + i;
             if( accs[i].kind != Accessor::Invalid )
@@ -2456,6 +2464,29 @@ struct ObxLjbcGenImp : public AstVisitor
                 releaseSlot();
             }
         }
+
+        // pass varargs if present
+        for( int i = pt->d_formals.size(); i < me->d_args.size(); i++ )
+        {
+            me->d_args[i]->accept(this);
+            if( slotStack.isEmpty() )
+                return; // error already reported
+            Type* t = derefed(me->d_args[i]->d_type.data());
+            if( isInteger(t) )
+            {
+                int tmp = ctx.back().buySlots(3,true);
+                fetchObxlibMember(tmp,49,me->d_args[i]->d_loc); // ffi.new
+                bc.KSET(tmp+1, "int", me->d_args[i]->d_loc.packed() );
+                bc.MOV(tmp+2, slotStack.back(), me->d_args[i]->d_loc.packed() );
+                bc.CALL(tmp, 1, 2, me->d_args[i]->d_loc.packed() );
+                bc.MOV( slotStack.back(), tmp, me->d_args[i]->d_loc.packed() );
+                ctx.back().sellSlots(tmp,3);
+            }
+            const int off = funcCount + thisCount + i;
+            bc.MOV(slot+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
+            releaseSlot();
+        }
+
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
         if( passFrame )
         {

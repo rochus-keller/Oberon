@@ -26,10 +26,10 @@
    unused typedefs, _SDL_; fixed two with *void and three with [])
 *)
 
-definition SDL [lib 'SDL2', pfx 'SDL_']
+definition SDL [lib 'SDL2', prefix 'SDL_']
 
+    // from SDL.h
 	
-
     proc Init(flags: integer): integer
     proc InitSubSystem(flags: integer): integer
     proc QuitSubSystem(flags: integer)
@@ -150,7 +150,7 @@ definition SDL [lib 'SDL2', pfx 'SDL_']
     type
         errorcode = (ENOMEM, EFREAD, EFWRITE, EFSEEK, UNSUPPORTED, LASTERROR)
 
-    proc SetError(fmt: *[]char): integer
+    proc SetError(fmt: *[]char): integer [varargs]
     proc GetError(): *[]char
     proc ClearError
     proc Error(code: errorcode): integer
@@ -974,14 +974,14 @@ definition SDL [lib 'SDL2', pfx 'SDL_']
     proc LogSetPriority(category: integer; priority: LogPriority)
     proc LogGetPriority(category: integer): LogPriority
     proc LogResetPriorities
-    proc Log(fmt: *[]char)
-    proc LogVerbose(category: integer; fmt: *[]char)
-    proc LogDebug(category: integer; fmt: *[]char)
-    proc LogInfo(category: integer; fmt: *[]char)
-    proc LogWarn(category: integer; fmt: *[]char)
-    proc LogError(category: integer; fmt: *[]char)
-    proc LogCritical(category: integer; fmt: *[]char)
-    proc LogMessage(category: integer; priority: LogPriority; fmt: *[]char)
+    proc Log(fmt: *[]char) [varargs]
+    proc LogVerbose(category: integer; fmt: *[]char) [varargs]
+    proc LogDebug(category: integer; fmt: *[]char) [varargs]
+    proc LogInfo(category: integer; fmt: *[]char) [varargs]
+    proc LogWarn(category: integer; fmt: *[]char) [varargs]
+    proc LogError(category: integer; fmt: *[]char) [varargs]
+    proc LogCritical(category: integer; fmt: *[]char) [varargs]
+    proc LogMessage(category: integer; priority: LogPriority; fmt: *[]char) [varargs]
     proc LogMessageV(category: integer; priority: LogPriority; fmt: *[]char; _4: *__va_elem)
     proc LogGetOutputFunction(callback: *[]proc(userdata: *void; category: integer; priority: LogPriority; message: *[]char); userdata: *[]*void)
     proc LogSetOutputFunction(callback: LogOutputFunction; userdata: *void)
@@ -1322,9 +1322,9 @@ definition SDL [lib 'SDL2', pfx 'SDL_']
     proc strncmp(str1: *[]char; str2: *[]char; maxlen: integer): integer
     proc strcasecmp(str1: *[]char; str2: *[]char): integer
     proc strncasecmp(str1: *[]char; str2: *[]char; len: integer): integer
-    proc sscanf(text: *[]char; fmt: *[]char): integer
+    proc sscanf(text: *[]char; fmt: *[]char): integer [varargs]
     proc vsscanf(text: *[]char; fmt: *[]char; _3: *__va_elem): integer
-    proc snprintf(text: *[]char; maxlen: integer; fmt: *[]char): integer
+    proc snprintf(text: *[]char; maxlen: integer; fmt: *[]char): integer [varargs]
     proc vsnprintf(text: *[]char; maxlen: integer; fmt: *[]char; _4: *__va_elem): integer
     proc acos(x: longreal): longreal
     proc asin(x: longreal): longreal
