@@ -1,15 +1,32 @@
 module Test
 
-	import SDL, Out
+	import SDL, Out, OBX
 	
 	var
 		window: *SDL.Window
 		surface, image: *SDL.Surface
-		res: integer
+		res, timer: integer
 		running: boolean
 		event: SDL.Event
 		v: SDL.version
 		x,y: [1]integer
+		
+	proc filter(userdata: *void; event: *SDL.Event): integer
+	begin
+		SDL.Log("event: %d\n", event.type_)		
+		return 1
+	end filter
+	
+	proc tick( time: integer )
+	begin
+		OBX.printString("hello from tick ")
+		println(time)
+		SDL.Log("time: %d\n", time)	
+		if time = 20 then
+			OBX.removeTimer(timer)		
+		end	
+	end tick
+		
 begin
 
 	SDL.GetVersion(v)
@@ -18,7 +35,11 @@ begin
 	Out.String(".") Out.Int(v.patch,0) Out.Ln
 
 	SDL.Log("hello from log %d.%d.%d %f %s", v.major, v.minor, v.patch, 123.45, "test" )
+	
+	timer := OBX.addTimer(tick,500)
 
+	// SDL.SetEventFilter( filter, nil ) // crashes after some time, likely because of different thread
+	
 	window := SDL.CreateWindow("Hello SDL!", 20, 20, 512, 512, SDL.WINDOW_SHOWN )
 	surface := SDL.GetWindowSurface(window)
 
@@ -36,9 +57,10 @@ begin
 	      end
 	      res := SDL.GetMouseState(x,y)
 	      Out.String("mouse x=") Out.Int(x[0],0) Out.String(" y=") Out.Int(y[0],0) Out.Ln
+	      OBX.processEvents()
 	   end
    end
-
+	
 	SDL.DestroyWindow(window)
 	SDL.Quit()
 	println("Done")

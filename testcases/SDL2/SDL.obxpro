@@ -14,7 +14,9 @@ size=0
 1\RelPath=SDL.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/SDL2/Test.obx
 2\RelPath=Test.obx
-size=2
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/SDL2/OBX.obx
+3\RelPath=OBX.obx
+size=3
 
 [Packages]
 1\Name=@ByteArray()

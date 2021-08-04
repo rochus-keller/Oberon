@@ -1603,8 +1603,15 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("CARRAY can only have one dimension") );
 #endif
 
-        }else if( mod->d_externC )
-            error(me->d_loc, Validator::tr("ARRAY not supported in external library modules; use CARRAY instead") );
+        }else
+        {
+            Type* t = derefed(me->d_type.data());
+            if( t->d_unsafe && t->isStructured() )
+                error( me->d_type->d_loc, Validator::tr("ARRAY cannot have unsafe structured element types") );
+
+            if( mod->d_externC )
+                error(me->d_loc, Validator::tr("ARRAY not supported in external library modules; use CARRAY instead") );
+        }
 #endif
     }
 
@@ -1716,6 +1723,11 @@ struct ValidatorImp : public AstVisitor
                 Type* t = derefed(f->d_type.data());
                 if( t && t->isStructured(true) && !t->d_unsafe )
                     error( f->d_loc, Validator::tr("CSTRUCT or CUNION cannot have safe non-basic field types") );
+            }else
+            {
+                Type* t = derefed(f->d_type.data());
+                if( t->d_unsafe && t->isStructured() )
+                    error( f->d_loc, Validator::tr("RECORD cannot have unsafe structured field types") );
             }
 #endif
 

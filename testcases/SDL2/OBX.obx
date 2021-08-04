@@ -1,0 +1,12 @@
+definition OBX [ extern "C", prefix "ObxFfi_" ]
+
+	type
+		Ticker = proc(time: integer)
+		
+	proc addTimer( tick: Ticker; msec: integer ): integer
+	proc removeTimer( timer: integer )
+	proc DBGTRACE( msg: *[]char )
+	proc printString( msg: *[]char )
+	proc processEvents()
+
+end OBX

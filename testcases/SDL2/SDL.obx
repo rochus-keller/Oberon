@@ -26,7 +26,7 @@
    unused typedefs, _SDL_; fixed two with *void and three with [])
 *)
 
-definition SDL [lib 'SDL2', prefix 'SDL_']
+definition SDL [extern 'C', dll 'SDL2', prefix 'SDL_']
 
     // from SDL.h
 	

@@ -24,6 +24,7 @@ local io = require 'io'
 local math = require 'math'
 local bit = require 'bit'
 local os = require 'os'
+local jit = require 'jit'
 
 local module = {}
 obxlj = module -- directly publish the module by global var
@@ -321,6 +322,7 @@ module[48] = C.ObxFfi_NOP
 module[49] = ffi.new
 module[50] = ffi.copy
 module[51] = module.min_size
+module[52] = jit.off
 
 return module
 

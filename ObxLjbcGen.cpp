@@ -2458,6 +2458,25 @@ struct ObxLjbcGenImp : public AstVisitor
                 {
                     // a structured arg passed to IN, i.e. just pass the reference
                     // or a non-structured arg passed by IN or by val, just pass the value in both cases
+
+#if 1
+                    Type* rhsT = derefed(me->d_args[i]->d_type.data());
+                    if( pt->d_unsafe && rhsT && rhsT->getTag() == Thing::T_ProcType )
+                    {
+                        const int tmp = ctx.back().buySlots(2,true);
+#if 0
+                        fetchObxlibMember(tmp,52,me->d_args[i]->d_loc); // jit.off
+                        bc.MOV(tmp+1,slotStack.back(),me->d_args[i]->d_loc.packed());
+                        bc.CALL(tmp,0,1, me->d_args[i]->d_loc.packed() );
+#endif
+                        // see http://luajit.org/ext_ffi_semantics.html#callback
+                        fetchObxlibMember(tmp,52,me->d_args[i]->d_loc); // jit.off
+                        bc.KSET(tmp+1, true, me->d_args[i]->d_loc.packed() ); // jit off for the function calling into FFI
+                        bc.CALL(tmp,0,1, me->d_args[i]->d_loc.packed() );
+                        ctx.back().sellSlots(tmp,2);
+                    }
+#endif
+
                     prepareRhs( lhsT, me->d_args[i].data(), me->d_args[i]->d_loc );
                     bc.MOV(slot+off, slotStack.back(), me->d_args[i]->d_loc.packed() );
                 }

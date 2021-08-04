@@ -50,13 +50,13 @@ bool CGen::generateLjFfiBinding(Module* m, QIODevice* d, Ob::Errors* err)
 {
     if( !m->d_externC )
         return false;
-    QByteArray lib, pfx;
-    SysAttr* a = m->d_sysAttrs.value("lib").data();
+    QByteArray dll, prefix;
+    SysAttr* a = m->d_sysAttrs.value("dll").data();
     if( a && a->d_values.size() == 1 )
-        lib = a->d_values.first().toByteArray();
+        dll = a->d_values.first().toByteArray();
     a = m->d_sysAttrs.value("prefix").data();
     if( a && a->d_values.size() == 1 )
-        pfx = a->d_values.first().toByteArray();
+        prefix = a->d_values.first().toByteArray();
 
     QTextStream hout(d);
     QByteArray str;
@@ -75,10 +75,10 @@ bool CGen::generateLjFfiBinding(Module* m, QIODevice* d, Ob::Errors* err)
             if( Record* r = toRecord(n->d_type.data()) ) // all others are aliasses or can be rendered inline
             {
                 hout << "typedef ";
-                QByteArray nameType = pfx + n->d_name;
-                renderNameType( n->d_type.data(), nameType, pfx );
+                QByteArray nameType = prefix + n->d_name;
+                renderNameType( n->d_type.data(), nameType, prefix );
                 hout << nameType << ";" << endl;
-                bout << "module[" << r->d_slot << "] = ffi.typeof(\"" << (pfx+n->d_name) << "\")" << endl;
+                bout << "module[" << r->d_slot << "] = ffi.typeof(\"" << (prefix+n->d_name) << "\")" << endl;
             }
             break;
         }
@@ -91,13 +91,13 @@ bool CGen::generateLjFfiBinding(Module* m, QIODevice* d, Ob::Errors* err)
         case Thing::T_Procedure:
             {
                 ProcType* pt = cast<Procedure*>(n.data())->getProcType();
-                QByteArray function = pfx + n->d_name + renderFormals(pt,pfx);
+                QByteArray function = prefix + n->d_name + renderFormals(pt,prefix);
                 if( pt->d_return )
-                    renderNameType( pt->d_return.data(), function, pfx );
+                    renderNameType( pt->d_return.data(), function, prefix );
                 else
                     function = "void " + function;
                 hout << function << ";" << endl;
-                bout << "module[" << n->d_slot << "] = C." << (pfx+n->d_name) << endl;
+                bout << "module[" << n->d_slot << "] = C." << (prefix+n->d_name) << endl;
 
             }
             break;
@@ -105,10 +105,10 @@ bool CGen::generateLjFfiBinding(Module* m, QIODevice* d, Ob::Errors* err)
     }
 
     hout << "]]" << endl;
-    if( lib.isEmpty() )
+    if( dll.isEmpty() )
         hout << "local C = ffi.C" << endl;
     else
-        hout << "local C = ffi.load('" << lib << "')" << endl;
+        hout << "local C = ffi.load('" << dll << "')" << endl;
 
     bout << "return module" << endl;
     bout.flush();

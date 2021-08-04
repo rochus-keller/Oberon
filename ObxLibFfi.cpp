@@ -29,6 +29,8 @@
 #include <QtDebug>
 #include <QFile>
 #include <QDir>
+#include <QTimer>
+#include <QCoreApplication>
 using namespace Obx;
 
 #ifdef _WIN32
@@ -38,6 +40,25 @@ using namespace Obx;
 #endif
 
 static SendToLog s_sendToLog = 0;
+
+typedef void (*Tick)(int tick);
+class LibFfiTimer : public QTimer
+{
+public:
+    LibFfiTimer(Tick t, int msec):d_cb(t),d_tick(0){ start(msec); }
+
+protected:
+    void timerEvent(QTimerEvent * e)
+    {
+        d_tick++;
+        if( d_cb )
+            d_cb(d_tick);
+    }
+
+    Tick d_cb;
+    int d_tick;
+};
+static QList<LibFfiTimer*> s_timers;
 
 void LibFfi::setSendToLog(SendToLog f)
 {
@@ -271,6 +292,26 @@ DllExport void ObxFfi_NOP()
 DllExport void ObxFfi_CRASH(int)
 {
     *(int*)0 = 0;
+}
+
+DllExport int ObxFfi_addTimer( Tick callback, int msec )
+{
+    s_timers.append( new LibFfiTimer(callback, msec) );
+    return s_timers.size() - 1;
+}
+
+DllExport void ObxFfi_removeTimer( int timer )
+{
+    if( timer >= 0 && timer < s_timers.size() && s_timers[timer] )
+    {
+        delete s_timers[timer];
+        s_timers[timer] = 0;
+    }
+}
+
+DllExport void ObxFfi_processEvents()
+{
+    QCoreApplication::processEvents();
 }
 
 }
