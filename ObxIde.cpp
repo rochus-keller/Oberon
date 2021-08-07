@@ -142,7 +142,7 @@ public:
         d_hl->setEnableExt(on);
         for( int i = BuiltIn::ABS; i < BuiltIn::MAXBUILTIN; i++ )
             d_hl->addBuiltIn(BuiltIn::s_typeName[i]);
-        for( int i = Type::ANY; i < Type::SET; i++ )
+        for( int i = Type::ANY; i <= Type::SET; i++ )
             d_hl->addBuiltIn(BaseType::s_typeName[i]);
         d_hl->addBuiltIn("ANYREC");
     }
@@ -2360,6 +2360,7 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
         case Type::NIL:
         case Type::STRING:
         case Type::WSTRING:
+        case Type::BYTEARRAY:
             Q_ASSERT( false );
             break;
         }
@@ -2440,6 +2441,7 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                     case Type::NIL:
                     case Type::STRING:
                     case Type::WSTRING:
+                    case Type::BYTEARRAY:
                         Q_ASSERT( false );
                         break;
                     }
@@ -3083,7 +3085,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.8.9");
+    a.setApplicationVersion("0.8.10");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

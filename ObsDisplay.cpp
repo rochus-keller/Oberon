@@ -30,6 +30,7 @@ using namespace Obs;
 
 static Display* s_disp = 0;
 static Display::IdleHandler s_ih = 0;
+static QVector<quint32> s_raster;
 
 Display*Display::inst()
 {
@@ -96,6 +97,8 @@ void Display::paintEvent(QPaintEvent*)
     p.drawImage(0,0,d_img);
 }
 
+static QImage rasterToImage();
+
 void Display::timerEvent(QTimerEvent*)
 {
     if( idleHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
@@ -103,6 +106,11 @@ void Display::timerEvent(QTimerEvent*)
         lua_State* L = Lua::Engine2::getInst()->getCtx();
         lua_getref(L, idleHandler); // ()
         Lua::Engine2::getInst()->runFunction(0,0);
+    }
+    if( !s_raster.isEmpty() )
+    {
+       d_img = rasterToImage();
+       update();
     }
     // d_img.save("/home/me/temp.png");
 }
@@ -252,10 +260,10 @@ typedef uint8_t ByteArray[];
 struct BitStream
 {
     quint8 d_byte, d_bit;
-    uint8_t* d_buf;
+    const uint8_t* d_buf;
     int d_count;
 
-    BitStream( uint8_t* buf, int count ):d_buf(buf),d_byte(0),d_bit(0),d_count(count){}
+    BitStream( const uint8_t* buf, int count ):d_buf(buf),d_byte(0),d_bit(0),d_count(count){}
     bool next()
     {
         quint8 cur = ( d_byte < d_count ? d_buf[d_byte] : 0 );
@@ -291,6 +299,37 @@ static QImage patternToImage( uint8_t* pat, int count )
             bs.next();
     }
     return img.mirrored();
+}
+
+static QImage rasterToImage()
+{
+    QImage img( Display::Width, Display::Height, QImage::Format_Mono );
+
+#if 0
+    BitStream bs( (const uint8_t*)s_raster.constData(), s_raster.size() * 4); // TODO: endianness?
+    for( int y = 0; y < Display::Height; y++ )
+    {
+        for( int x = 0; x < Display::Width; x++ )
+            img.setPixel(x,y, bs.next() );
+    }
+    return img.mirrored();
+#else
+    for( int line = Display::Height - 1; line >= 0; line--)
+    {
+        const int line_start = line * (Display::Width / 32);
+        for( int col = 0; col < Display::Width/32; col++ )
+        {
+            const int x = col * 32;
+            quint32 pixels = s_raster[line_start + col];
+            for( int b = 0; b < 32; b++ )
+            {
+                img.setPixel(x + b,line, (pixels & 1) );
+                pixels >>= 1;
+            }
+        }
+    }
+    return img;
+#endif
 }
 
 #ifdef _WIN32
@@ -410,6 +449,13 @@ DllExport void ObsDisplay_Dot(int color, int x, int y, int mode)
     y = Display::mapToQt(y);
     setPoint( d->d_img, x, y, mode, color );
     d->update();
+}
+
+DllExport quint32* ObsDisplay_createRasterBuffer(int len)
+{
+    Display* d = Display::inst(); // open display
+    s_raster.resize(len);
+    return s_raster.data();
 }
 
 

@@ -41,14 +41,15 @@ function module.SetClock(dt)
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Kernel.Def changes!
-module[0] = 0 -- allocated
-module[1] = 0 -- NofSectors
-module[2] = 0 -- heapOrg
-module[3] = 0 -- heapLim
-module[4] = 0 -- stackOrg
-module[5] = module.Time
-module[6] = module.Clock
-module[7] = module.SetClock
+module[0] = module.Time -- procedure
+module[1] = module.Clock -- procedure
+module[2] = module.SetClock -- procedure
+module[3] = 0 -- allocated -- variable
+module[4] = 0 -- NofSectors -- variable
+module[5] = 0 -- heapOrg -- variable
+module[6] = 0 -- heapLim -- variable
+module[7] = 0 -- stackOrg -- variable
+
 
 Kernel = module -- make it globally visible
 

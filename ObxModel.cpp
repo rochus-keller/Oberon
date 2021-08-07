@@ -434,6 +434,7 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_setType = new BaseType(BaseType::SET);
     d_stringType = new BaseType(BaseType::STRING);
     d_wstringType = new BaseType(BaseType::WSTRING);
+    d_byteArrayType = new BaseType(BaseType::BYTEARRAY);
     d_nilType = new BaseType(BaseType::NIL);
     d_anyType = new BaseType(BaseType::ANY);
     d_voidType = new BaseType(BaseType::CVOID);
@@ -514,6 +515,7 @@ bool Model::parseFiles(const PackageList& files)
     bt.d_longrealType = d_longrealType.data();
     bt.d_setType = d_setType.data();
     bt.d_stringType = d_stringType.data();
+    bt.d_byteArrayType = d_byteArrayType.data();
     bt.d_nilType = d_nilType.data();
     bt.d_voidType = d_voidType.data();
     bt.d_anyType = d_anyType.data();

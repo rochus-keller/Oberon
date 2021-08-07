@@ -25,11 +25,11 @@ size=0
 size=6
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ProcType3.obx
-1\RelPath=ProcType3.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ProcType2.obx
-2\RelPath=ProcType2.obx
-size=1
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/System2.obx
+1\RelPath=System2.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/SYSTEM.obx
+2\RelPath=SYSTEM.obx
+size=2
 
 [Packages]
 1\Name=@ByteArray()

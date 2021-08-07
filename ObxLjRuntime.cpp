@@ -305,12 +305,12 @@ void LjRuntime::generate()
 #ifdef _DEBUG
                 QBuffer buf;
                 buf.open(QIODevice::WriteOnly);
-                LjbcGen::allocateDef(m, &buf, d_pro->getErrs());
+                LjbcGen::allocateSlots(m, &buf);
                 buf.close();
                 qDebug() << "********** Definition of" << m->d_name;
                 qDebug() << buf.buffer();
 #else
-                LjbcGen::allocateDef(m, 0, d_pro->getErrs());
+                LjbcGen::allocateSlots(m);
 #endif
             }
         }else

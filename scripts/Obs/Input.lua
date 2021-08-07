@@ -64,13 +64,13 @@ function module.SetMouseLimits(w,h)
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Input.Def changes!
-module[0] = module.RegisterMouseHandler
-module[1] = module.RegisterCharHandler
-module[2] = module.RegisterIdleHandler
-module[3] = module.Available
-module[4] = module.Read
-module[5] = module.Mouse
-module[6] = module.SetMouseLimits
+module[0] = module.RegisterMouseHandler -- procedure
+module[1] = module.RegisterCharHandler -- procedure
+module[2] = module.RegisterIdleHandler -- procedure
+module[3] = module.Available -- procedure
+module[4] = module.Read -- procedure
+module[5] = module.Mouse -- procedure
+module[6] = module.SetMouseLimits -- procedure
 
 Input = module -- make it globally visible
 

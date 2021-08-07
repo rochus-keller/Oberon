@@ -70,6 +70,10 @@ size=0
 35\RelPath=ProcType2.obx
 36\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ProcType3.obx
 36\RelPath=ProcType3.obx
+37\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/SYSTEM.obx
+37\RelPath=SYSTEM.obx
+38\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/System2.obx
+38\RelPath=System2.obx
 4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays4.obx
 4\RelPath=Arrays4.obx
 5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Enum1.obx
@@ -82,7 +86,7 @@ size=0
 8\RelPath=Generic2.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic4.obx
 9\RelPath=Generic4.obx
-size=36
+size=38
 
 [Packages]
 1\Name=@ByteArray()

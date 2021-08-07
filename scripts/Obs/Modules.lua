@@ -28,13 +28,23 @@ ffi.cdef[[
 ]]
 
 local ModDesc = {}
+local root = 3
+local res = 5
+local importing = 6
+local imported = 7
 
-module[2] = 0 -- res
-module[3] = obxlj.charToStringArray(1,"") -- importing
-module[4] = obxlj.charToStringArray(1,"") -- imported
+-- module[3] = root -- variable
+-- module[4] = AllocPtr -- variable
+-- module[5] = res -- variable
+-- module[6] = importing -- variable
+-- module[7] = imported -- variable
+
+module[res] = 0 -- res
+module[importing] = obxlj.charToStringArray(1,"") -- importing
+module[imported] = obxlj.charToStringArray(1,"") -- imported
 
 local function findModule(name)
-	local cur = module[0] -- root
+	local cur = module[root] -- root
 	while cur do
 		if C.ObxFfi_strRelOp(cur[0],name,0) ~= 0 then -- cur[0] is name
 			return cur
@@ -46,26 +56,26 @@ local function findModule(name)
 end
 
 function module.Load(name) -- (name: ARRAY OF CHAR; VAR newmod: Module)
-	module[3] = name -- importing
+	module[importing] = name -- importing
 	local m = findModule(name)
 	if m == nil then
 		-- we don't really load a module here because all modules are already loaded
 		m = {}
 		setmetatable(m,ModDesc)
 		m[0] = name
-		m[1] = module[0] -- next = root
+		m[1] = module[root] -- next = root
 		for i=2,11 do
 			m[i] = 0
 		end
-		module[0] = m
+		module[root] = m
 	end
-	module[2] = 0 -- res
-	module[4] = name -- imported
+	module[res] = 0 -- res
+	module[imported] = name -- imported
 	return nil, m
 end
 
 function module.ThisCommand(mod, name) -- (mod: Module; name: ARRAY OF CHAR): Command
-	module[2] = 5 -- res
+	module[res] = 5 -- res
 	if mod == nil then
 		return nil
 	end
@@ -77,7 +87,7 @@ function module.ThisCommand(mod, name) -- (mod: Module; name: ARRAY OF CHAR): Co
 		func = modTbl[ funcName ]
 	end
 	if func then
-		module[2] = 0 -- res
+		module[res] = 0 -- res
 	end
 	return func
 end
@@ -87,15 +97,10 @@ function module.Free(name)
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Modules.Def changes!
--- module[0] = root
--- module[1] = AllocPtr
--- module[2] = res
--- module[3] = importing
--- module[4] = imported
-module[5] = module.Load
-module[6] = module.ThisCommand
-module[7] = module.Free 
-module[8] = ModDesc
+module[0] = module.Load -- procedure
+module[1] = module.ThisCommand -- procedure
+module[2] = module.Free -- procedure
+module[8] = ModDesc -- record
 
 Modules = module -- make it globally visible
 

@@ -32,6 +32,7 @@
 
 static QFileInfoList s_files;
 static QString s_root;
+static QFile s_disk;
 
 void Obs::Display::setFileSystemRoot(const QString& dirPath) // cheat so that ObsFiles need no header just for this
 {
@@ -58,6 +59,36 @@ static inline void setBuffer( FileBuffer* fb, QBuffer* b )
         delete fb->d_buf;
     fb->d_buf = b;
 }
+
+static bool seekSector(int sector)
+{
+    sector -= 0x80002;
+    if( !s_disk.isOpen() )
+    {
+        QDir dir( getPath() );
+        QStringList files = dir.entryList( QStringList() << "*.dsk", QDir::Files, QDir::Name );
+        if( !files.isEmpty() )
+        {
+            s_disk.setFileName(files.last());
+            if( !s_disk.open(QIODevice::ReadWrite) )
+                qCritical() << "cannot open disk file" << s_disk.fileName();
+            else
+            {
+                const QByteArray hdr = s_disk.read(4);
+                if( hdr.size() != 4 || hdr[0] != 0x8d || hdr[1] != 0xa3 || hdr[2] != 0x1e || hdr[3] != 0x9b )
+                {
+                    qCritical() << "invalid disk format" << s_disk.fileName();
+                    s_disk.close();
+                }else
+                    qDebug() << "using disk file" << s_disk.fileName();
+            }
+        }else
+            qCritical() << "cannot find disk file";
+    }
+    return s_disk.seek(sector);
+}
+
+static QList<FileBuffer> s_buffers;
 
 extern "C"
 {
@@ -227,6 +258,36 @@ DllExport uint32_t ObsFiles_readByte( FileBuffer* fb )
             return 0;
     }else
         return 0;
+}
+
+enum { SECLEN = 1024 };
+
+DllExport void ObsFiles_readSector(int sector, uint8_t* data )
+{
+    if( !seekSector(sector) )
+    {
+        ::memset(data,0,SECLEN);
+    }else
+    {
+        const int res = s_disk.read((char*)data,SECLEN);
+        if( res != SECLEN )
+        {
+            if( res < 0 )
+                ::memset(data,0,SECLEN);
+            else
+                ::memset(data+res,0,SECLEN-res);
+        }
+    }
+}
+
+DllExport void ObsFiles_writeSector(int sector, uint8_t* data )
+{
+    if( seekSector(sector) )
+    {
+        const int res = s_disk.write((char*)data,SECLEN);
+        if( res != SECLEN )
+            qCritical() << "error writing to disk file" << s_disk.fileName();
+    }
 }
 
 

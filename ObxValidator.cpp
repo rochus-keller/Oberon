@@ -227,6 +227,17 @@ struct ValidatorImp : public AstVisitor
             // receiver was already accepted in visitScope
             visitBoundProc(me);
         }
+
+        SysAttrs::const_iterator i;
+        for( i = me->d_sysAttrs.begin(); i != me->d_sysAttrs.end(); ++i )
+        {
+            for( int j = 0; j < i.value()->d_valExpr.size(); j++ )
+            {
+                i.value()->d_valExpr[j]->accept(this);
+                Evaluator::Result res = Evaluator::eval(i.value()->d_valExpr[j].data(), mod, err);
+                i.value()->d_values.append(res.d_value);
+            }
+        }
     }
 
     void visitBody( Procedure* me )
@@ -411,7 +422,8 @@ struct ValidatorImp : public AstVisitor
             while( e )
             {
                 if( !e->d_type.isNull() && ( e->d_type->getBaseType() == Type::STRING ||
-                                   e->d_type->getBaseType() == Type::WSTRING ) )
+                                   e->d_type->getBaseType() == Type::WSTRING ||
+                                             e->d_type->getBaseType() == Type::BYTEARRAY ) )
                     return true; // a string literal (either direct literal or designator to literal)
                 switch( e->getTag() )
                 {
@@ -777,12 +789,28 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::VAL:
             if( args->d_args.size() == 2 )
             {
+                Named* n = args->d_args.first()->getIdent();
+                if( n == 0 || n->getTag() != Thing::T_NamedType )
+                {
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting a type name") );
+                    break;
+                }
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
                 Type* rhs = derefed(args->d_args.last()->d_type.data());
-                if( lhs->getTag() != Thing::T_Enumeration && !isInteger(rhs) )
-                    error( args->d_loc, Validator::tr("incompatible arguments"));
+                if( lhs == 0 || rhs == 0 )
+                    break; // already reported
+                const int ltag = lhs->getTag();
+                const int rtag = rhs->getTag();
+
+                if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
+                        ( lhs == bt.d_intType && rhs == bt.d_setType ) ||
+                        ( lhs == bt.d_setType && isInteger(rhs) ) )
+                    ; // ok
+                else
+                    error( args->d_loc, Validator::tr("cannot cast type %1 to type %2").
+                           arg(rhs->pretty()).arg(lhs->pretty()));
             }else
-                error( args->d_loc, Validator::tr("expecting one or two arguments"));
+                error( args->d_loc, Validator::tr("expecting two arguments"));
             break;
         case BuiltIn::STRLEN:
             if( args->d_args.size() == 1 )
@@ -954,11 +982,10 @@ struct ValidatorImp : public AstVisitor
         if( af && af->d_lenExpr.isNull() )
         {
             // If Tf is an open array, then a must be array compatible with f
-            if( !arrayCompatible( af, actual->d_type.data() ) )
+            if( !arrayCompatible( af, actual->d_type.data(), actual->d_loc ) )
                 error( actual->d_loc,
-                       Validator::tr("actual parameter type %1 not compatible with formal type of %2%3 of '%4'")
-                       .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
-                       .arg(formal->d_name.constData()));
+                       Validator::tr("actual parameter type %1 not compatible with formal type of %2%3")
+                       .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
         }
         else
         {
@@ -967,9 +994,8 @@ struct ValidatorImp : public AstVisitor
             {
                 // paramCompatible( formal, actual.data() ); // TEST
                 error( actual->d_loc,
-                   Validator::tr("actual parameter type %1 not compatible with formal type %2%3 of '%4'")
-                   .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty())
-                   .arg(formal->d_name.constData()));
+                   Validator::tr("actual parameter type %1 not compatible with formal type %2%3")
+                   .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
             }
         }
     }
@@ -1494,7 +1520,7 @@ struct ValidatorImp : public AstVisitor
                 me->d_type = bt.d_stringType;
             break;
         case Literal::Bytes:
-            me->d_type = bt.d_stringType;
+            me->d_type = bt.d_byteArrayType;
             break;
         case Literal::Char:
             me->d_strLen = 1;
@@ -2001,9 +2027,12 @@ struct ValidatorImp : public AstVisitor
         Type* lhsT = derefed(me->d_lhs->d_type.data());
         Type* rhsT = derefed(me->d_rhs->d_type.data());
 
-        const int rhsTag = rhsT ? rhsT->getTag() : 0;
+        if( lhsT == 0 || rhsT == 0 )
+            return; // already reported
+
+        const int rhsTag = rhsT->getTag();
 #ifdef OBX_BBOX
-        const int lhsTag = lhsT ? lhsT->getTag() : 0;
+        const int lhsTag = lhsT->getTag();
         if( ( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array ) && rhsTag == Thing::T_Pointer )
         {
             // BBOX does implicit deref of rhs pointer in assignment to lhs record or array
@@ -2041,16 +2070,24 @@ struct ValidatorImp : public AstVisitor
         }
 #endif
 #endif
-        Array* lstr = toCharArray(lhsT,false);
-        if( lstr && me->d_rhs->getTag() == Thing::T_Literal )
+        if( lhsT->getTag() == Thing::T_Array && me->d_rhs->getTag() == Thing::T_Literal )
         {
-            // Both Oberon-2 and 07 support this
-            // TODO: check wchar vs char compat
+            Array* a = cast<Array*>(lhsT);
+            Type* at = derefed(a->d_type.data());
             Literal* lit = cast<Literal*>( me->d_rhs.data() );
-            if( lstr->d_len && lit->d_vtype == Literal::String && lit->d_strLen > lstr->d_len )
-                error( me->d_rhs->d_loc, Validator::tr("string is too long to assign to given character array"));
-            if( lstr->d_len && lit->d_vtype == Literal::Char && 1 > lstr->d_len )
-                error( me->d_rhs->d_loc, Validator::tr("the character array is too small for the character"));
+            if( at && at->isChar() )
+            {
+                // Both Oberon-2 and 07 support this
+                // TODO: check wchar vs char compat
+                if( a->d_len && lit->d_vtype == Literal::String && lit->d_strLen > a->d_len )
+                    error( me->d_rhs->d_loc, Validator::tr("string is too long to assign to given character array"));
+                if( a->d_len && lit->d_vtype == Literal::Char && 1 > a->d_len )
+                    error( me->d_rhs->d_loc, Validator::tr("the character array is too small for the character"));
+            }else if( at && at == bt.d_byteType )
+            {
+                if( a->d_len && lit->d_vtype == Literal::Bytes && lit->d_strLen > a->d_len )
+                    error( me->d_rhs->d_loc, Validator::tr("literal is too long to assign to given array"));
+            }
             // TODO: runtime checks for var length arrays
 
         }
@@ -2747,9 +2784,14 @@ struct ValidatorImp : public AstVisitor
                 if( lt == bt.d_wcharType && rt->isChar() )
                     // TODO: does assig automatic long(char array)?
                     return true;
+                if( lt == bt.d_byteType && rt == bt.d_byteType )
+                    return true;
                 // TODO: open carrays cannot be rhs because len is unknown at runtime
             }else if( lt == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
                 // Array := string
+                return true;
+            else if( lt == bt.d_byteType && rhsT == bt.d_byteArrayType )
+                // Array := bytearray
                 return true;
             else if( lt == bt.d_wcharType && ( rhsT->isString() || rhsT->isChar() ) )
                 return true;
@@ -2793,10 +2835,14 @@ struct ValidatorImp : public AstVisitor
 
             // Oberon 90: If a formal variable parameter is of type ARRAY OF BYTE, then the corresponding
             //   actual parameter may be of any type.
-            Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
-            Type* afT = af ? derefed( af->d_type.data() ) : 0;
-            if( afT != 0 && afT == bt.d_byteType )
+            Type* lat = tf->getTag() == Thing::T_Array ? derefed(cast<Array*>(tf)->d_type.data()) : 0;
+            Type* rat = ta->getTag() == Thing::T_Array ? derefed(cast<Array*>(ta)->d_type.data()) : 0;
+            if( lat == bt.d_byteType && rat != bt.d_byteType )
+            {
+                Q_ASSERT( !equalType(tf,ta) );
+                warning( rhs->d_loc, Validator::tr("Oberon VAR ARRAY OF BYTE trick not officially supported") );
                 return true;
+            }
 
             // Oberon 90: The type BYTE is compatible with CHAR and SHORTINT (shortint is 16 bit here)
             if( tf == bt.d_byteType && ta == bt.d_charType )
@@ -2804,8 +2850,8 @@ struct ValidatorImp : public AstVisitor
 
 #ifdef OBX_BBOX
             if( lhs->d_const && rhs->getTag() == Thing::T_Literal &&
-                    ( ( afT == bt.d_charType && ta == bt.d_stringType ) ||
-                      ( afT == bt.d_wcharType && ta->isString() )
+                    ( ( lat == bt.d_charType && ta == bt.d_stringType ) ||
+                      ( lat == bt.d_wcharType && ta->isString() )
                       ) )
                 return true; // BBOX supports passing string literals to IN ARRAY TO CHAR/WCHAR
 
@@ -2835,7 +2881,7 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
-    bool arrayCompatible( Type* lhsT, Type* rhsT ) const
+    bool arrayCompatible( Type* lhsT, Type* rhsT, const RowCol& loc ) const
     {
         if( lhsT == 0 || rhsT == 0 )
             return false;
@@ -2856,10 +2902,11 @@ struct ValidatorImp : public AstVisitor
             return false; // Tf is not an open array
 
         // T~f~ is an open array, T~a~ is any array, and their element types are array compatible
-        if( ra && arrayCompatible( la->d_type.data(), ra->d_type.data() ) )
+        if( ra && arrayCompatible( la->d_type.data(), ra->d_type.data(), loc ) )
             return true;
 
         Type* laT = la ? derefed(la->d_type.data()) : 0 ;
+        Type* raT = ra ? derefed(ra->d_type.data()) : 0 ;
 
         // T~f~ is an open array of CHAR and T~a~ is a Latin-1 string
         if( la && laT == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
@@ -2872,8 +2919,12 @@ struct ValidatorImp : public AstVisitor
         //   actual parameter may be of any type.
         // Oberon-2: If a formal **variable** parameter is of type ARRAY OF BYTE then the corresponding
         //   actual parameter may be of any type.
-        if( la && laT == bt.d_byteType )
+        if( laT == bt.d_byteType && raT != bt.d_byteType )
+        {
+            warning( loc, Validator::tr("Oberon VAR ARRAY OF BYTE trick not officially supported") );
             return true;
+        }
+
 
         return false;
     }
@@ -3045,5 +3096,5 @@ void Validator::BaseTypes::assert() const
 {
     Q_ASSERT( d_boolType && d_charType && d_byteType && d_intType && d_realType && d_setType &&
               d_stringType && d_nilType && d_anyType && d_shortType && d_longType && d_longrealType &&
-              d_anyRec && d_wcharType && d_wstringType && d_voidType );
+              d_anyRec && d_wcharType && d_wstringType && d_voidType && d_byteArrayType );
 }

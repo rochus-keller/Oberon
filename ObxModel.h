@@ -81,6 +81,7 @@ namespace Obx
         Ref<BaseType> d_setType;
         Ref<BaseType> d_stringType;  // latin-1 string literal
         Ref<BaseType> d_wstringType; // BMP string literal
+        Ref<BaseType> d_byteArrayType;
         Ref<BaseType> d_nilType;
         Ref<BaseType> d_anyType;
         Ref<BaseType> d_voidType;

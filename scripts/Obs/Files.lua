@@ -263,28 +263,28 @@ function module.RestoreList()
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Files.Def changes!
-module[0] = module.Old
-module[1] = module.New
-module[2] = module.Register
-module[3] = module.Delete
-module[4] = module.Rename
-module[5] = module.Length
-module[6] = module.Set
-module[7] = module.Pos
-module[8] = module.Base
-module[9] = module.ReadByte
-module[10] = module.Read
-module[11] = module.ReadInt
-module[12] = module.ReadString
-module[13] = module.ReadNum
-module[14] = module.WriteByte
-module[15] = module.Write
-module[16] = module.WriteInt
-module[17] = module.WriteString
-module[18] = module.WriteNum
-module[19] = module.RestoreList
-module[20] = Rider
-module[21] = FileDesc
+module[0] = module.Old -- procedure
+module[1] = module.New -- procedure
+module[2] = module.Register -- procedure
+module[3] = module.Delete -- procedure
+module[4] = module.Rename -- procedure
+module[5] = module.Length -- procedure
+module[6] = module.Set -- procedure
+module[7] = module.Pos -- procedure
+module[8] = module.Base -- procedure
+module[9] = module.ReadByte -- procedure
+module[10] = module.Read -- procedure
+module[11] = module.ReadInt -- procedure
+module[12] = module.ReadString -- procedure
+module[13] = module.ReadNum -- procedure
+module[14] = module.WriteByte -- procedure
+module[15] = module.Write -- procedure
+module[16] = module.WriteInt -- procedure
+module[17] = module.WriteString -- procedure
+module[18] = module.WriteNum -- procedure
+module[19] = module.RestoreList -- procedure
+module[20] = Rider -- record
+module[21] = FileDesc -- record
 
 Files = module -- make it globally visible
 

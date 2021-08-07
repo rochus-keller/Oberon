@@ -81,19 +81,19 @@ function module.Dot(col, x, y, mode) -- (col, x, y, mode: INTEGER)
 end
 
 -- NOTE: these numbers are allocated by ObxLjbcGen and need to be updated if Display.Def changes!
-module[0] = Width
-module[1] = Height
-module[2] = arrow
-module[3] = star
-module[4] = hook
-module[5] = updown
-module[6] = block
-module[7] = module.ReplConst
-module[8] = module.CopyPattern
-module[9] = module.CopyBlock
-module[10] = module.Dot
-module[11] = {} -- record FrameMsg
-module[12] = {} -- record FrameDesc
+module[0] = module.ReplConst -- procedure
+module[1] = module.CopyPattern -- procedure
+module[2] = module.CopyBlock -- procedure
+module[3] = module.Dot -- procedure
+module[4] = Width -- variable
+module[5] = Height -- variable
+module[6] = arrow -- variable
+module[7] = star -- variable
+module[8] = hook -- variable
+module[9] = updown -- variable
+module[10] = block -- variable
+module[11] = {} -- FrameMsg -- record
+module[12] = {} -- FrameDesc -- record
 
 Display = module -- make it globally visible
 

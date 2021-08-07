@@ -90,14 +90,20 @@ bool CGen::generateLjFfiBinding(Module* m, QIODevice* d, Ob::Errors* err)
         {
         case Thing::T_Procedure:
             {
-                ProcType* pt = cast<Procedure*>(n.data())->getProcType();
-                QByteArray function = prefix + n->d_name + renderFormals(pt,prefix);
+                Procedure* p = cast<Procedure*>(n.data());
+                QByteArray pfx = prefix;
+                a = p->d_sysAttrs.value("prefix").data();
+                if( a && a->d_values.size() == 1 )
+                    pfx = a->d_values.first().toByteArray(); // can override prefix for function name
+
+                ProcType* pt = p->getProcType();
+                QByteArray function = pfx + n->d_name + renderFormals(pt,prefix);
                 if( pt->d_return )
                     renderNameType( pt->d_return.data(), function, prefix );
                 else
                     function = "void " + function;
                 hout << function << ";" << endl;
-                bout << "module[" << n->d_slot << "] = C." << (prefix+n->d_name) << endl;
+                bout << "module[" << n->d_slot << "] = C." << (pfx+n->d_name) << endl;
 
             }
             break;

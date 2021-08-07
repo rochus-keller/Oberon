@@ -457,6 +457,15 @@ struct EvalVisitor : public AstVisitor
                             val.d_vtype = Literal::Integer;
                             return;
                         }
+                    }else if( bt->d_baseType == BaseType::BYTEARRAY )
+                    {
+                        me->d_args.first()->accept(this);
+                        if( val.d_vtype == Literal::Bytes )
+                        {
+                            val.d_value = val.d_value.toByteArray().size();
+                            val.d_vtype = Literal::Integer;
+                            return;
+                        }
                     }
                     error( me, Evaluator::tr("cannot determine length this argument in a const expression") );
                 }else

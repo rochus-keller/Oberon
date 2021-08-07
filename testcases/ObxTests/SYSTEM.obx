@@ -1,0 +1,8 @@
+module SYSTEM
+
+proc SayHello*()
+begin
+	println("Hello!")
+end SayHello
+
+end SYSTEM

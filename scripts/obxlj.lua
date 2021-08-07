@@ -64,6 +64,7 @@ local WcharArray = ffi.typeof("WcharArray")
 local ShortArray = ffi.typeof("ShortArray")
 local IntArray = ffi.typeof("IntArray")
 local LongArray = ffi.typeof("LongArray")
+local UIntArray = ffi.typeof("UIntArray")
 local FloatArray = ffi.typeof("FloatArray")
 local DoubleArray = ffi.typeof("DoubleArray")
 local bytesize = ffi.sizeof

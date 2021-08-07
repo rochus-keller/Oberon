@@ -1,0 +1,9 @@
+module System2
+
+	import SYSTEM
+	
+begin
+
+	SYSTEM.SayHello
+
+end System2

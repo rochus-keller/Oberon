@@ -42,6 +42,7 @@ namespace Obx
             BaseType* d_setType;
             BaseType* d_stringType;
             BaseType* d_wstringType;
+            BaseType* d_byteArrayType;
             BaseType* d_nilType;
             BaseType* d_voidType;
             Record* d_anyRec;

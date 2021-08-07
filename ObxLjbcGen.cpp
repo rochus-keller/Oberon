@@ -499,7 +499,7 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( Import* me)
     {
         CHECK_SLOTS_START();
-        if( me->d_mod->d_name.constData() == system.constData() )
+        if( me->d_mod->d_synthetic && me->d_mod->d_name.constData() == system.constData() )
             return;
         emitImport( me->d_mod->getName(), me->d_slot, me->d_aliasPos.isValid() ? me->d_aliasPos : me->d_loc );
         CHECK_SLOTS_COUNT(0);
@@ -1102,14 +1102,17 @@ struct ObxLjbcGenImp : public AstVisitor
             }
             break;
         case Thing::T_Import:
-            if( !checkValidSlot(id,me->d_loc))
-                return;
-            Q_ASSERT( id->d_slotValid );
-            Q_ASSERT( id->d_scope != ctx.back().scope );
-//                if( id->d_scope == ctx.back().scope )
-//                    bc.MOV(res,id->d_slot,me->d_loc.packed());
-//                else
-            bc.UGET(res, ctx.back().resolveUpval(id), me->d_loc.packed() );
+            {
+                Import* imp = cast<Import*>(id);
+                if( imp->d_mod && !imp->d_mod->d_synthetic )
+                {
+                    if( !checkValidSlot(id,me->d_loc))
+                        return;
+                    Q_ASSERT( id->d_slotValid );
+                    Q_ASSERT( id->d_scope != ctx.back().scope );
+                    bc.UGET(res, ctx.back().resolveUpval(id), me->d_loc.packed() );
+                }
+            }
             break;
         case Thing::T_Variable:
             {
@@ -1181,9 +1184,10 @@ struct ObxLjbcGenImp : public AstVisitor
 
         //const int res = ctx.back().buySlots(1); // if here crashes the JIT after some rounds, see below
 
-        // shortcut SYSTEM.x
         Named* subId = me->d_sub->getIdent();
         const bool derefImport = subId && subId->getTag() == Thing::T_Import;
+#if 0
+        // shortcut SYSTEM.x
         if( derefImport && subId->d_name.constData() == system.constData() )
         {
             const int res = ctx.back().buySlots(1);
@@ -1191,6 +1195,7 @@ struct ObxLjbcGenImp : public AstVisitor
             CHECK_SLOTS_COUNT(1);
             return;
         }
+#endif
 
         me->d_sub->accept(this);
 
@@ -1281,7 +1286,7 @@ struct ObxLjbcGenImp : public AstVisitor
             releaseSlot();
             break;
         case Thing::T_BuiltIn:
-            bc.MOV(res, slotStack.back(), me->d_loc.packed() );
+            // not needed bc.MOV(res, slotStack.back(), me->d_loc.packed() );
             releaseSlot();
             break;
         default:
@@ -2183,6 +2188,14 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.MOV(res,slotStack.back(),ae->d_loc.packed());
             releaseSlot();
             break;
+        case BuiltIn::VAL:
+        case BuiltIn::SYS_VAL:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            ae->d_args.last()->accept(this);
+            Q_ASSERT( !slotStack.isEmpty() );
+            bc.MOV(res,slotStack.back(),ae->d_loc.packed());
+            releaseSlot();
+            break;
        default:
             // TODO
             qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
@@ -2211,6 +2224,7 @@ struct ObxLjbcGenImp : public AstVisitor
             case Type::CHAR:
             case Type::BYTE:
             case Type::STRING: // STRING happens e.g. in LEN("test")
+            case Type::BYTEARRAY:
                 // NOP
                 break;
             case Type::SHORTINT:
@@ -2435,6 +2449,22 @@ struct ObxLjbcGenImp : public AstVisitor
 
         for( int i = 0; i < pt->d_formals.size(); i++ )
         {
+            Type* lhsT = derefed(pt->d_formals[i]->d_type.data());
+            Q_ASSERT( lhsT != 0 );
+            Type* rhsT = derefed(me->d_args[i]->d_type.data());
+            Q_ASSERT( rhsT != 0 );
+
+            if( pt->d_formals[i]->d_var && lhsT->getTag() == Thing::T_Array )
+            {
+                Array* la = cast<Array*>(lhsT);
+                Type* rat = rhsT->getTag() == Thing::T_Array ? derefed(cast<Array*>(rhsT)->d_type.data()) : 0;
+                if( derefed(la->d_type.data())->getBaseType() == Type::BYTE &&
+                        ( rat == 0 || rat->getBaseType() != Type::BYTE ) )
+                    err->error( Errors::Generator, Loc(me->d_args[i]->d_loc, thisMod->d_file),
+                                  "cannot generate code for Oberon VAR ARRAY OF BYTE trick");
+
+            }
+
             const int off = funcCount + thisCount + i;
             if( accs[i].kind != Accessor::Invalid )
             {
@@ -2447,8 +2477,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 if( slotStack.isEmpty() )
                     return; // error already reported
 
-                Type* lhsT = derefed(pt->d_formals[i]->d_type.data());
-                Q_ASSERT( lhsT != 0 );
                 if( !pt->d_formals[i]->d_var && lhsT->isStructured() )
                 {
                     // a structured arg (record, array) passed by val
@@ -2460,7 +2488,6 @@ struct ObxLjbcGenImp : public AstVisitor
                     // or a non-structured arg passed by IN or by val, just pass the value in both cases
 
 #if 1
-                    Type* rhsT = derefed(me->d_args[i]->d_type.data());
                     if( pt->d_unsafe && rhsT && rhsT->getTag() == Thing::T_ProcType )
                     {
                         const int tmp = ctx.back().buySlots(2,true);
@@ -3462,6 +3489,8 @@ struct ObxLjbcGenImp : public AstVisitor
                         baseType = Type::CHAR;
                     else if( rhsTd->getBaseType() == Type::WSTRING )
                         baseType = Type::WCHAR;
+                    else if( rhsTd->getBaseType() == Type::BYTEARRAY )
+                        baseType = Type::BYTE;
                     emitCalcDynLen(lenSlot,rhs, baseType,loc);
                 }
                 // can lhsT be an open array? yes
@@ -3490,7 +3519,6 @@ struct ObxLjbcGenImp : public AstVisitor
                     }
                 }else if( laT->getBaseType() > 0 || lhsA->d_unsafe )
                 {
-                    Q_ASSERT( laT == raT );
                     const int tmp = ctx.back().buySlots(4, true);
                     fetchObxlibMember(tmp,51,loc); // module.min_size
                     bc.MOV(tmp+1,lhs,loc.packed());
@@ -3679,15 +3707,20 @@ bool LjbcGen::translate(Model* mdl, const QString& outdir, const QString& mod, b
 }
 #endif
 
-bool LjbcGen::allocateSlots(Module* me)
+bool LjbcGen::allocateSlots(Module* me, QIODevice* out)
 {
     Q_ASSERT( me );
+
+    QTextStream ts(out);
+
     quint32 slotNr = me->d_isDef ? 0 : 2;
     foreach( Import* imp, me->d_imports )
     {
         if(imp->d_mod.isNull() || imp->d_mod->d_synthetic )
             continue; // ignore SYSTEM
         imp->setSlot( slotNr++ );
+        if( out )
+            ts << "-- module[" << imp->d_slot << "] = " << imp->getName() << " -- import" << endl;
     }
 
     ObxLjbcGenImp::Collector pc;
@@ -3698,6 +3731,8 @@ bool LjbcGen::allocateSlots(Module* me)
         // bound procs are stored in the class objects instead
 
         p->setSlot( slotNr++ );
+        if( out )
+            ts << "module[" << p->d_slot << "] = module." << p->getName() << " -- procedure" << endl;
     }
     // var and proc slots don't overlap
     foreach( const Ref<Named>& n, me->d_order )
@@ -3706,16 +3741,34 @@ bool LjbcGen::allocateSlots(Module* me)
         {
             n->setSlot(slotNr++);
             // vars are not stored in slots; their slot nr can grow > 255
+            if( out )
+                ts << "-- module[" << n->d_slot << "] = " << n->getName() << " -- variable" << endl;
         }
     }
 
     foreach( Record* r, pc.allRecords )
+    {
         ObxLjbcGenImp::allocateClasses(r,slotNr,me, false);
+        if( out )
+        {
+            Named* name = r->findDecl();
+            if( name )
+                ts << "-- module[" << r->d_slot << "] = " << name->getName() << " -- record" << endl;
+            else
+                qWarning() << "no name for record slot" << r->d_slot;
+        }
+    }
 
     foreach( QualiType* q, pc.allAliasses )
     {
         if( !q->d_slotValid )
             q->setSlot(slotNr++);
+        if( out )
+        {
+            Named* name = q->findDecl();
+            Q_ASSERT( name );
+            ts << "-- module[" << q->d_slot << "] = " << name->getName() << " -- type alias" << endl;
+        }
     }
     me->d_slotValid = true;
     return true;
@@ -3779,6 +3832,7 @@ bool LjbcGen::translate(Module* m, QIODevice* out, bool strip, Ob::Errors* errs)
     return hasErrs;
 }
 
+#if 0 // replaced by allocateSlots
 bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
 {
     // TODO replace this by LjbcGen::allocateSlots
@@ -3837,6 +3891,7 @@ bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
 
     return true;
 }
+#endif
 
 
 
