@@ -827,6 +827,7 @@ void Parser::fieldList(Scope* scope, Record* r)
             next();
         f = new Field();
         f->d_scope = scope;
+        f->d_unsafe = r->d_unsafe;
         fields << f;
         identdef(fields.back().data(),scope);
     }

@@ -270,6 +270,15 @@ function module.min_size(lhs,rhs)
 		return r
 	end
 end
+function module.ldmod(name)
+	local m = require(ffi.string(name))
+	return m ~= nil
+end
+function module.ldcmd(mod,cmd)
+	local m = require(ffi.string(mod))
+	if m then return m[ffi.string(cmd)] end
+	return nil
+end
 
 -- Magic mumbers used by the compiler
 module[1] = module.charToStringArray
@@ -324,6 +333,8 @@ module[49] = ffi.new
 module[50] = ffi.copy
 module[51] = module.min_size
 module[52] = jit.off
+module[53] = module.ldmod
+module[54] = module.ldcmd
 
 return module
 

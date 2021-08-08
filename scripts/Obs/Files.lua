@@ -29,25 +29,20 @@ local basr = bit.arshift
 local isFfiString = obxlj.isFfiString
 
 ffi.cdef[[
-	typedef struct {
-		void* d_buf;
-	} FileBuffer;
 	typedef uint8_t CharArray[?];
 	
-	int ObsFiles_openFile( CharArray filename, FileBuffer* fb );
-	void ObsFiles_freeFile( FileBuffer* fb );
-	int ObsFiles_newFile( FileBuffer* fb );
-	int ObsFiles_saveFile( CharArray filename, FileBuffer* fb );
+	int ObsFiles_openFile( CharArray filename );
+	void ObsFiles_freeFile( int fb );
+	int ObsFiles_newFile();
+	int ObsFiles_saveFile( CharArray filename, int fb );
 	int ObsFiles_removeFile( CharArray filename );
 	int ObsFiles_renameFile( CharArray oldName, CharArray newName );
-	uint32_t ObsFiles_length( FileBuffer* fb );
-        int ObsFiles_setPos( FileBuffer* fb, int pos );
-        int ObsFiles_getPos( FileBuffer* fb );
-	int ObsFiles_atEnd( FileBuffer* fb );
-        int ObsFiles_writeByte( FileBuffer* fb, uint32_t byte );
-	uint32_t ObsFiles_readByte( FileBuffer* fb );
-	int ObxFfi_DIV( int a, int b );
-	int ObxFfi_MOD( int a, int b );
+	uint32_t ObsFiles_length(int fb );
+        int ObsFiles_setPos( int fb, int pos );
+        int ObsFiles_getPos( int fb );
+	int ObsFiles_atEnd( int fb );
+        int ObsFiles_writeByte( int fb, uint32_t byte );
+	uint32_t ObsFiles_readByte( int fb );
 ]]
 
 local Rider = {}
@@ -60,16 +55,13 @@ local FileDesc = {}
 	-- FileDesc[1] FileBuffer or nil
 
 local CharArray = ffi.typeof("CharArray")
-local FileBuffer = ffi.typeof("FileBuffer")
 local errmsg = "invalid FileDesc instance"
 
 function module.Old(name) -- (name: ARRAY OF CHAR): File;
-	local fb = ffi.new(FileBuffer)
-	fb.d_buf = nil
-	ffi.gc(fb, C.ObsFiles_freeFile)
-        if C.ObsFiles_openFile(name, fb) == 0 then
-            return nil
-        end
+	local fb = C.ObsFiles_openFile(name)
+    if fb < 0 then
+    	return nil
+    end
 	local f = {}
 	f[0] = name
 	f[1] = fb
@@ -78,10 +70,7 @@ function module.Old(name) -- (name: ARRAY OF CHAR): File;
 end
 
 function module.New(name) -- (name: ARRAY OF CHAR): File
-	local fb = ffi.new(FileBuffer)
-	fb.d_buf = nil
-	ffi.gc(fb, C.ObsFiles_freeFile)
-	C.ObsFiles_newFile(fb)
+	local fb = C.ObsFiles_newFile()
 	local f = {}
 	f[0] = name
 	f[1] = fb

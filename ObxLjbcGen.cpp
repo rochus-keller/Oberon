@@ -349,6 +349,7 @@ struct ObxLjbcGenImp : public AstVisitor
         ctx.push_back( Ctx(me) );
         CHECK_SLOTS_START();
 
+        ProcType* pt = me->getProcType();
         const int parCount =
 #ifdef _HAVE_OUTER_LOCAL_ACCESS
                 ( me->d_upvalIntermediate || me->d_upvalSink ? 1 : 0 ) +
@@ -436,7 +437,7 @@ struct ObxLjbcGenImp : public AstVisitor
             s->accept(this);
 
         if( me->d_body.isEmpty() || me->d_body.last()->getTag() != Thing::T_Return )
-            emitReturn( me->getProcType(), 0, me->d_end );
+            emitReturn( pt, 0, me->d_end );
             // we need the full emitReturn here instead of only bc.RET(me->d_end.packed()), because there
             // are proper procs with var params
 
@@ -469,20 +470,22 @@ struct ObxLjbcGenImp : public AstVisitor
         {
             if( me->d_receiver.isNull() )
             {
-                // store top-level module procs also by name in module (because of Obs Modules.ThisCommand)
+                // store public command procs also by name in module (because of Obs Modules.ThisCommand)
+                const bool storeByName = me->d_scope == thisMod && pt->d_formals.isEmpty() &&
+                        pt->d_return.isNull() && !pt->d_typeBound && !pt->d_unsafe && me->d_visibility != Named::Private;
                 if( me->d_slot > MAX_PROC_SLOTS )
                 {
                     const int tmp = ctx.back().buySlots(1);
                     bc.FNEW( tmp, id, me->d_end.packed() );
                     emitSetTableByIndex( tmp, modSlot, me->d_slot, me->d_end );
-                    if( me->d_scope == thisMod )
+                    if( storeByName )
                         bc.TSET( tmp, modSlot, me->d_name, me->d_end.packed() );
                     ctx.back().sellSlots(tmp);
                 }else
                 {
                     bc.FNEW( me->d_slot, id, me->d_end.packed() );
                     emitSetTableByIndex( me->d_slot, modSlot, me->d_slot, me->d_end );
-                    if( me->d_scope == thisMod )
+                    if( storeByName )
                         bc.TSET( me->d_slot, modSlot, me->d_name, me->d_end.packed() );
                 }
             }else
@@ -1948,6 +1951,39 @@ struct ObxLjbcGenImp : public AstVisitor
                 bc.MOV(tmp+1,slotStack.back(),ae->d_loc.packed());
                 bc.CALL(tmp,0,1,ae->d_loc.packed());
                 ctx.back().sellSlots(tmp,2);
+                releaseSlot();
+            }
+            break;
+        case BuiltIn::LDMOD:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+                Q_ASSERT( !slotStack.isEmpty() );
+
+                const quint8 tmp = ctx.back().buySlots(2,true);
+                fetchObxlibMember(tmp,53,ae->d_loc); // module.ldmod
+                bc.MOV(tmp+1,slotStack.back(),ae->d_loc.packed());
+                bc.CALL(tmp,1,1,ae->d_loc.packed());
+                bc.MOV(res, tmp, ae->d_loc.packed() );
+                ctx.back().sellSlots(tmp,2);
+                releaseSlot();
+            }
+            break;
+        case BuiltIn::LDCMD:
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+                ae->d_args.first()->accept(this);
+                ae->d_args.last()->accept(this);
+                Q_ASSERT( slotStack.size() >= 2 );
+
+                const quint8 tmp = ctx.back().buySlots(3,true);
+                fetchObxlibMember(tmp,54,ae->d_loc); // module.ldcmd
+                bc.MOV(tmp+1,slotStack[slotStack.size()-2],ae->d_loc.packed());
+                bc.MOV(tmp+2,slotStack.back(),ae->d_loc.packed());
+                bc.CALL(tmp,1,2,ae->d_loc.packed());
+                bc.MOV(res, tmp, ae->d_loc.packed() );
+                ctx.back().sellSlots(tmp,3);
+                releaseSlot();
                 releaseSlot();
             }
             break;

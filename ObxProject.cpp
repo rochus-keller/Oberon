@@ -854,6 +854,14 @@ void Project::setMain(const Project::ModProc& mp)
     touch();
 }
 
+QString Project::renderMain() const
+{
+    QString res = d_main.first;
+    if( !d_main.second.isEmpty() )
+        res += "." + d_main.second;
+    return res;
+}
+
 void Project::setUseBuiltInOakwood(bool on)
 {
     d_useBuiltInOakwood = on;

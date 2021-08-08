@@ -31,6 +31,7 @@ using namespace Obs;
 static Display* s_disp = 0;
 static Display::IdleHandler s_ih = 0;
 static QVector<quint32> s_raster;
+extern int g_obxQuit;
 
 Display*Display::inst()
 {
@@ -41,7 +42,7 @@ Display*Display::inst()
 
 bool Display::isOpen()
 {
-    return s_disp != 0;
+    return s_disp != 0 && !g_obxQuit;
 }
 
 static int Display_RegisterHandler(lua_State* L)
@@ -135,12 +136,14 @@ void Display::mouseReleaseEvent(QMouseEvent* e)
 
 void Display::keyPressEvent(QKeyEvent* e)
 {
+    d_buffer.append(e->text().toLatin1()[0]);
     if( charHandler != LUA_REFNIL && !Lua::Engine2::getInst()->isExecuting() )
     {
         lua_State* L = Lua::Engine2::getInst()->getCtx();
         lua_getref(L, charHandler); // ( ch: CHAR )
         lua_pushinteger(L, e->text().toLatin1()[0] );
         Lua::Engine2::getInst()->runFunction(1,0);
+        d_buffer.clear();
     }
 }
 
@@ -185,7 +188,14 @@ void Display::dispatchMouse(const ObSet& keys, int x, int y)
     }
 }
 
-Display::Display():d_img(Width,Height,QImage::Format_Mono)
+void Display::closeEvent(QCloseEvent* event)
+{
+    QWidget::closeEvent(event);
+    event->accept();
+    g_obxQuit = true;
+}
+
+Display::Display():d_img(Width,Height,QImage::Format_Mono),d_xOb(0),d_yOb(0)
 {
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -316,7 +326,7 @@ static QImage rasterToImage()
 #else
     for( int line = Display::Height - 1; line >= 0; line--)
     {
-        const int line_start = line * (Display::Width / 32);
+        const int line_start = (Display::Height - line - 1) * (Display::Width / 32);
         for( int col = 0; col < Display::Width/32; col++ )
         {
             const int x = col * 32;
@@ -328,8 +338,8 @@ static QImage rasterToImage()
             }
         }
     }
-    return img;
 #endif
+    return img;
 }
 
 #ifdef _WIN32
@@ -354,6 +364,18 @@ DllExport void ObsDisplay_getState( InputState* s )
     s->keys = d->d_keys.to_ulong();
     s->x = d->d_xOb;
     s->y = d->d_yOb;
+}
+
+DllExport char ObsDisplay_nextKey()
+{
+    Display* d = Display::inst();
+    char ch = 0;
+    if( !d->d_buffer.isEmpty() )
+    {
+        ch = d->d_buffer.front();
+        d->d_buffer.pop_front();
+    }
+    return ch;
 }
 
 DllExport uint32_t ObsDisplay_getTime()
@@ -454,6 +476,7 @@ DllExport void ObsDisplay_Dot(int color, int x, int y, int mode)
 DllExport quint32* ObsDisplay_createRasterBuffer(int len)
 {
     Display* d = Display::inst(); // open display
+    g_obxQuit = false;
     s_raster.resize(len);
     return s_raster.data();
 }

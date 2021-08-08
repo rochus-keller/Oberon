@@ -20,6 +20,7 @@
 #include "ObxLjRuntime.h"
 #include "ObxAst.h"
 #include "ObxProject.h"
+#include "ObxLibFfi.h"
 #include <LjTools/Engine2.h>
 #include <QDir>
 #include <QStringList>
@@ -76,20 +77,28 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
     }
 }
 
+static void log( const QString& msg )
+{
+    QTextStream out(stdout);
+    out << msg << endl;
+}
+
 int main(int argc, char *argv[])
 {
 #ifdef QT_GUI_LIB
     QApplication a(argc, argv);
+    a.setQuitOnLastWindowClosed(true);
 #else
     QCoreApplication a(argc, argv);
 #endif
 
     s_oldHandler = qInstallMessageHandler(messageHander);
+    Obx::LibFfi::setSendToLog(log);
 
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXLJ");
-    a.setApplicationVersion("2021-08-07");
+    a.setApplicationVersion("2021-08-08");
 
     QTextStream out(stdout);
     QTextStream err(stderr);

@@ -213,7 +213,7 @@ namespace Obx
         bool isString() const { return d_baseType == STRING || d_baseType == WSTRING; }
         bool isChar() const { return d_baseType == CHAR || d_baseType == WCHAR; }
         bool isSet() const { return d_baseType == SET; }
-        bool isText(bool* wide = 0) const;
+        bool isText(bool* wide = 0, bool resolvePtr = false) const;
         Record* toRecord() const;
     };
 
@@ -420,7 +420,7 @@ namespace Obx
                NEW, ASSERT, PACK, UNPK,
                LED, // LED not global proc in Oberon report, but used as such in Project Oberon
                // IDE
-               TRAP, TRAPIF, TRACE, NOP,
+               TRAP, TRAPIF, TRACE, NOP, LDMOD, LDCMD,
                // SYSTEM
                SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY,
                // Oberon-2

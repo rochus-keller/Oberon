@@ -86,6 +86,7 @@ namespace Obx
         Ref<BaseType> d_anyType;
         Ref<BaseType> d_voidType;
         Ref<Record> d_anyRec;
+        Ref<ProcType> d_cmdType;
         Ref<Module> d_systemModule;
         QList<Module*> d_depOrder; // most (0) to least (n-1) dependent
         typedef QList<Ref<Module> > ModList;

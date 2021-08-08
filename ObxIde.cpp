@@ -786,6 +786,7 @@ void Ide::createMenu()
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "JIT Enabled", this, SLOT(onJitEnabled()) );
     pop->addCommand( "Restart LuaJIT", this, SLOT(onRestartLua()), tr("CTRL+SHIFT+R"), false );
+    pop->addCommand( "Set Command...", this, SLOT(onRunCommand()) );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     addTopCommands(pop);
@@ -858,6 +859,7 @@ void Ide::createMenuBar()
     pop->addCommand( "Compile && Generate", this, SLOT(onGenerate()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "JIT Enabled", this, SLOT(onJitEnabled()) );
     pop->addCommand( "Restart LuaJIT", this, SLOT(onRestartLua()), tr("CTRL+SHIFT+R"), false );
+    pop->addCommand( "Set Command...", this, SLOT(onRunCommand()) );
     pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
@@ -1742,8 +1744,8 @@ void Ide::addDebugMenu(Gui::AutoMenu* pop)
     sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
     sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     sub->addAction( d_dbgStepIn );
-    pop->addAction( d_dbgStepOver );
-    pop->addAction( d_dbgStepOut );
+    sub->addAction( d_dbgStepOver );
+    sub->addAction( d_dbgStepOut );
     sub->addAction( d_dbgBreak );
     sub->addAction( d_dbgContinue );
     sub->addAction( d_dbgAbort );
@@ -2499,6 +2501,19 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
             {
                 item->setText(1,"nil");
                 break;
+            }else if( type == 10 ) // ffi type
+            {
+                item->setText(1,nameOf(r,true));
+                QList<Field*> fs = r->getOrderedFields();
+                foreach( Field* f, fs )
+                {
+                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+                    sub->setText(0,f->d_name);
+                    lua_getfield( L, rec, f->d_name );
+                    printLocalVal(sub,derefed(f->d_type.data()),depth+1);
+                    lua_pop( L, 1 );
+                }
+                break;
             }else if( type != LUA_TTABLE )
             {
                 item->setText(1,tr("<invalid %1>").arg(nameOf(r)));
@@ -3079,13 +3094,35 @@ void Ide::onRestartLua()
     d_rt->restartEngine();
 }
 
+void Ide::onRunCommand()
+{
+    ENABLED_IF(true);
+
+    bool ok = false;
+    QString res = QInputDialog::getText(this,tr("Set Command"),tr("<module>.<command> to run at start of program:"),
+                             QLineEdit::Normal, d_rt->getPro()->renderMain(), &ok );
+    if( !ok )
+        return;
+
+    Project::ModProc m;
+    QStringList tmp = res.split('.');
+    if( tmp.size() > 2 || ( tmp.first().isEmpty() && !tmp.last().isEmpty() ) )
+        QMessageBox::critical(this,tr("Set Command"), tr("Invalid command syntax") );
+    else
+    {
+        m.first = tmp.first().toUtf8();
+        m.second = tmp.last().toUtf8();
+        d_rt->getPro()->setMain(m);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.8.10");
+    a.setApplicationVersion("0.8.11");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

@@ -46,6 +46,7 @@ namespace Obs
         int mouseHandler;
         int charHandler;
         int idleHandler;
+        QList<char> d_buffer;
 
         static Display* inst();
         static bool isOpen();
@@ -67,6 +68,7 @@ namespace Obs
         void keyReleaseEvent(QKeyEvent *);
         bool mapOb( QMouseEvent* );
         void dispatchMouse(const ObSet& keys, int x, int y);
+        void closeEvent(QCloseEvent * event);
     private:
         explicit Display();
         ~Display();

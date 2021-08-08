@@ -57,7 +57,7 @@ begin
 	      end
 	      res := SDL.GetMouseState(x,y)
 	      Out.String("mouse x=") Out.Int(x[0],0) Out.String(" y=") Out.Int(y[0],0) Out.Ln
-	      OBX.processEvents()
+	      OBX.processEvents(10)
 	   end
    end
 	

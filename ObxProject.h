@@ -81,6 +81,7 @@ namespace Obx
 
         void setMain( const ModProc& );
         const ModProc& getMain() const { return d_main; }
+        QString renderMain() const;
         void setUseBuiltInOakwood(bool);
         bool useBuiltInOakwood() const { return d_useBuiltInOakwood; }
         void setUseBuiltInObSysInner(bool);

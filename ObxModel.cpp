@@ -439,6 +439,7 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_anyType = new BaseType(BaseType::ANY);
     d_voidType = new BaseType(BaseType::CVOID);
     d_anyRec = new Record();
+    d_cmdType = new ProcType();
 
     fillGlobals();
 }
@@ -989,6 +990,10 @@ void Model::fillGlobals()
     bi = new BuiltIn(BuiltIn::TRACE, new ProcType( Type::List() << d_stringType.data() ) );
     d_globals->add( bi.data());
     bi = new BuiltIn(BuiltIn::NOP, new ProcType() );
+    d_globals->add( bi.data());
+    bi = new BuiltIn(BuiltIn::LDMOD, new ProcType( Type::List() << d_stringType.data(), d_boolType.data() ) );
+    d_globals->add( bi.data());
+    bi = new BuiltIn(BuiltIn::LDCMD, new ProcType( Type::List() << d_stringType.data() << d_stringType.data(), d_cmdType.data() ) );
     d_globals->add( bi.data());
 
     // Oberon-2

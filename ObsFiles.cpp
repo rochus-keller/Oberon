@@ -39,10 +39,6 @@ void Obs::Display::setFileSystemRoot(const QString& dirPath) // cheat so that Ob
     s_root = dirPath;
 }
 
-struct FileBuffer
-{
-    QBuffer* d_buf;
-};
 typedef uint8_t CharArray[];
 
 static inline QString getPath()
@@ -53,42 +49,29 @@ static inline QString getPath()
     return str;
 }
 
-static inline void setBuffer( FileBuffer* fb, QBuffer* b )
-{
-    if( fb->d_buf )
-        delete fb->d_buf;
-    fb->d_buf = b;
-}
+static QList<QBuffer*> s_buffers;
 
-static bool seekSector(int sector)
+static int getFreeBufferSlot(QBuffer* b)
 {
-    sector -= 0x80002;
-    if( !s_disk.isOpen() )
+    for( int i = 0; i < s_buffers.size(); i++ )
     {
-        QDir dir( getPath() );
-        QStringList files = dir.entryList( QStringList() << "*.dsk", QDir::Files, QDir::Name );
-        if( !files.isEmpty() )
+        if( s_buffers[i] == 0 )
         {
-            s_disk.setFileName(files.last());
-            if( !s_disk.open(QIODevice::ReadWrite) )
-                qCritical() << "cannot open disk file" << s_disk.fileName();
-            else
-            {
-                const QByteArray hdr = s_disk.read(4);
-                if( hdr.size() != 4 || hdr[0] != 0x8d || hdr[1] != 0xa3 || hdr[2] != 0x1e || hdr[3] != 0x9b )
-                {
-                    qCritical() << "invalid disk format" << s_disk.fileName();
-                    s_disk.close();
-                }else
-                    qDebug() << "using disk file" << s_disk.fileName();
-            }
-        }else
-            qCritical() << "cannot find disk file";
+            s_buffers[i] = b;
+            return i;
+        }
     }
-    return s_disk.seek(sector);
+    s_buffers.append( b );
+    return s_buffers.size() - 1;
 }
 
-static QList<FileBuffer> s_buffers;
+static inline QBuffer* getBuffer(int i)
+{
+    if( i >= 0 && i < s_buffers.size() )
+        return s_buffers[i];
+    else
+        return 0;
+}
 
 extern "C"
 {
@@ -124,12 +107,12 @@ DllExport uint32_t ObsFiles_fileTime( int i )
     return s_files[i].created().toTime_t();
 }
 
-DllExport int ObsFiles_openFile( CharArray filename, FileBuffer* fb )
+DllExport int ObsFiles_openFile( CharArray filename )
 {
     QDir dir( getPath() );
     const QString path = dir.absoluteFilePath( QString::fromLatin1((char*)filename) );
     if( !QFileInfo(path).isFile() )
-        return false;
+        return -1;
     QFile f( path );
     if( f.exists() )
     {
@@ -138,38 +121,43 @@ DllExport int ObsFiles_openFile( CharArray filename, FileBuffer* fb )
             qWarning() << "*** could not open for reading" << f.fileName();
             return false;
         }
-        setBuffer(fb,new QBuffer() );
-        fb->d_buf->setData(f.readAll());
-        fb->d_buf->open( QIODevice::ReadWrite );
-        return true;
+        QBuffer* b = new QBuffer();
+        b->setData(f.readAll());
+        b->open( QIODevice::ReadWrite );
+        return getFreeBufferSlot(b);
     }else
-        return false;
+        return -1;
 }
 
-DllExport int ObsFiles_newFile( FileBuffer* fb )
+DllExport int ObsFiles_newFile()
 {
-    setBuffer(fb,new QBuffer() );
-    fb->d_buf->open( QIODevice::ReadWrite );
-    return true;
+    QBuffer* b = new QBuffer();
+    b->open( QIODevice::ReadWrite );
+    return getFreeBufferSlot(b);
 }
 
-DllExport void ObsFiles_freeFile( FileBuffer* fb )
+DllExport void ObsFiles_freeFile(int fb)
 {
-    setBuffer(fb,0);
+    if( fb >= 0 && fb < s_buffers.size() )
+    {
+        if( s_buffers[fb] )
+            delete s_buffers[fb];
+        s_buffers[fb] = 0;
+    }
 }
 
-DllExport int ObsFiles_saveFile( CharArray filename, FileBuffer* fb )
+DllExport int ObsFiles_saveFile( CharArray filename, int fb )
 {
     QDir dir( getPath() );
     QFile f( dir.absoluteFilePath( QString::fromLatin1((char*)filename)) );
-    if( fb->d_buf )
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
     {
         if( !f.open(QIODevice::WriteOnly) )
             qWarning() << "*** could not open for writing" << f.fileName();
-        fb->d_buf->close();
-        setBuffer(fb,new QBuffer() );
-        f.write(fb->d_buf->data());
-        fb->d_buf->open( QIODevice::ReadWrite );
+        buf->close();
+        f.write(buf->data());
+        buf->open( QIODevice::ReadWrite );
         return true;
     }else
         return false;
@@ -197,23 +185,25 @@ DllExport int ObsFiles_renameFile( CharArray oldName, CharArray newName )
         return dir.rename(old,_new);
 }
 
-DllExport uint32_t ObsFiles_length( FileBuffer* fb )
+DllExport uint32_t ObsFiles_length( int fb )
 {
-    if( fb->d_buf )
-        return fb->d_buf->size();
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
+        return buf->size();
     else
         return 0;
 }
 
-DllExport int ObsFiles_setPos( FileBuffer* fb, int pos )
+DllExport int ObsFiles_setPos( int fb, int pos )
 {
-    if( fb->d_buf )
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
     {
         if( pos < 0 ) // it happens a few times that -1 instead of 0 is passed; according to Oberon book should always be >= 0
             pos = 0;
-        if( !fb->d_buf->seek(pos) )
+        if( !buf->seek(pos) )
         {
-            qWarning() << "*** could not seek to" << pos << fb->d_buf->pos() << fb->d_buf->size();
+            qWarning() << "*** could not seek to" << pos << buf->pos() << buf->size();
             return false;
         }
         return true;
@@ -221,75 +211,46 @@ DllExport int ObsFiles_setPos( FileBuffer* fb, int pos )
         return false;
 }
 
-DllExport int ObsFiles_getPos( FileBuffer* fb )
+DllExport int ObsFiles_getPos( int fb )
 {
-    if( fb->d_buf )
-        return fb->d_buf->pos();
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
+        return buf->pos();
     else
         return 0;
 }
 
 
-DllExport int ObsFiles_atEnd( FileBuffer* fb )
+DllExport int ObsFiles_atEnd( int fb )
 {
-    if( fb->d_buf )
-        return fb->d_buf->atEnd();
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
+        return buf->atEnd();
     else
         return false;
 }
 
-DllExport int ObsFiles_writeByte( FileBuffer* fb, uint32_t byte )
+DllExport int ObsFiles_writeByte( int fb, uint32_t byte )
 {
-    if( fb->d_buf )
-    {
-        return fb->d_buf->putChar( (char) (byte & 0xff) );
-    }else
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
+        return buf->putChar( (char) (byte & 0xff) );
+    else
         return false;
 }
 
-DllExport uint32_t ObsFiles_readByte( FileBuffer* fb )
+DllExport uint32_t ObsFiles_readByte( int fb )
 {
-    if( fb->d_buf )
+    QBuffer* buf = getBuffer(fb);
+    if( buf )
     {
         char ch;
-        if( fb->d_buf->getChar( &ch ) )
+        if( buf->getChar( &ch ) )
             return (quint8)ch;
         else
             return 0;
     }else
         return 0;
 }
-
-enum { SECLEN = 1024 };
-
-DllExport void ObsFiles_readSector(int sector, uint8_t* data )
-{
-    if( !seekSector(sector) )
-    {
-        ::memset(data,0,SECLEN);
-    }else
-    {
-        const int res = s_disk.read((char*)data,SECLEN);
-        if( res != SECLEN )
-        {
-            if( res < 0 )
-                ::memset(data,0,SECLEN);
-            else
-                ::memset(data+res,0,SECLEN-res);
-        }
-    }
-}
-
-DllExport void ObsFiles_writeSector(int sector, uint8_t* data )
-{
-    if( seekSector(sector) )
-    {
-        const int res = s_disk.write((char*)data,SECLEN);
-        if( res != SECLEN )
-            qCritical() << "error writing to disk file" << s_disk.fileName();
-    }
-}
-
-
 
 }

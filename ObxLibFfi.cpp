@@ -31,6 +31,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QCoreApplication>
+#include <QThread>
 using namespace Obx;
 
 #ifdef _WIN32
@@ -309,9 +310,14 @@ DllExport void ObxFfi_removeTimer( int timer )
     }
 }
 
-DllExport void ObxFfi_processEvents()
+int g_obxQuit = 0;
+
+DllExport int ObxFfi_processEvents(int sleepMs)
 {
-    QCoreApplication::processEvents();
+    QCoreApplication::processEvents( QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents, sleepMs ); // wait doesn't seem to work
+    if( sleepMs > 0 )
+        QThread::currentThread()->msleep(sleepMs);
+    return g_obxQuit; // return 1 to quit
 }
 
 }

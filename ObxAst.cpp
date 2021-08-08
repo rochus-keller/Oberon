@@ -43,7 +43,7 @@ const char* BuiltIn::s_typeName[] =
 {
     "ABS", "ODD", "LEN", "LSL", "ASR", "ROR", "FLOOR", "FLT", "ORD",
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
-    "LED", "TRAP", "TRAPIF", "TRACE", "NOP",
+    "LED", "TRAP", "TRAPIF", "TRACE", "NOP", "LDMOD", "LDCMD",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "BYTESIZE", "ENTIER",
     "BITS",
@@ -1085,7 +1085,7 @@ Named*Type::findDecl(bool recursive) const
         return 0;
 }
 
-bool Type::isText(bool* wide) const
+bool Type::isText(bool* wide, bool resolvePtr) const
 {
     if( isString() || isChar() )
     {
@@ -1093,10 +1093,19 @@ bool Type::isText(bool* wide) const
             *wide = d_baseType == WCHAR || d_baseType == WSTRING;
         return true;
     }
-    if( getTag() == Thing::T_Array )
+    Type* t = const_cast<Type*>(this);
+    int tag = t->getTag();
+    if( resolvePtr && tag == Thing::T_Pointer )
     {
-        Array* a = cast<Array*>(const_cast<Type*>(this));
-        Type* t = a->d_type.data();
+        Pointer* p = cast<Pointer*>(t);
+        t = p->d_to.data();
+        if( t )
+            t = t->derefed();
+    }
+    if( tag == Thing::T_Array )
+    {
+        Array* a = cast<Array*>(t);
+        t = a->d_type.data();
         if( t )
             t = t->derefed();
         if( t && t->isChar() )

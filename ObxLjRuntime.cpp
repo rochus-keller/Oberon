@@ -127,14 +127,17 @@ bool LjRuntime::loadLibraries()
         loadLuaLib(d_lua,"Obs/Modules", "Modules");
         loadLuaLib(d_lua,"Obs/FileDir", "FileDir");
         loadLuaLib(d_lua,"Obs/Files", "Files");
-        const QString root = d_pro->getWorkingDir(true);
-        d_lua->print(QString("Oberon file system root: %1\n").arg(root).toUtf8().constData());
-        Obs::Display::setFileSystemRoot(root);
 #else
         qCritical() << "this version doesn't support the Oberon System backend modules";
         return false;
 #endif
     }
+#ifdef QT_GUI_LIB
+    const QString root = d_pro->getWorkingDir(true);
+    Obs::Display::setFileSystemRoot(root);
+    if( d_pro->useBuiltInObSysInner() )
+        d_lua->print(QString("Oberon file system root: %1\n").arg(root).toUtf8().constData());
+#endif
     return true;
 }
 

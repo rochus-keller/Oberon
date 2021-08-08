@@ -825,6 +825,29 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
+        case BuiltIn::LDMOD:
+            if( args->d_args.size() == 1 )
+            {
+                Type* lhs = derefed(args->d_args.first()->d_type.data());
+                bool wide = false;
+                if( !lhs->isText(&wide,true) || wide )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting string or char array"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::LDCMD:
+            if( args->d_args.size() == 2 )
+            {
+                Type* t = derefed(args->d_args.first()->d_type.data());
+                bool wide = false;
+                if( !t->isText(&wide,true) || wide )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting string or char array"));
+                t = derefed(args->d_args.last()->d_type.data());
+                if( !t->isText(&wide,true) || wide )
+                    error( args->d_args.last()->d_loc, Validator::tr("expecting string or char array"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
         case BuiltIn::PRINTLN:
             if( args->d_args.size() == 1 )
             {
@@ -1872,16 +1895,16 @@ struct ValidatorImp : public AstVisitor
 #if 0 // TEST
         checkUnsafePointer(me->d_type.data(),false,me->d_loc);
 #endif
-#if 0
-        // not true; open array value parameter are supported as well, in all old Oberon/-2, Oberon-07 and BBOX
+
+        // open array value parameter are supported in all old Oberon/-2, Oberon-07 and BBOX
         Type* t = derefed(me->d_type.data());
         if( t && t->getTag() == Thing::T_Array )
         {
             Array* a = cast<Array*>( t );
             if( a->d_lenExpr.isNull() && !me->d_var )
-                error( me->d_loc, Validator::tr("only variable parameters allowed with open array type") );
+                warning( me->d_loc, Validator::tr("passing an array by value might be inefficient") );
+                // TODO: check body if the array is lhs at all
         }
-#endif
     }
 
     //////// Statements
