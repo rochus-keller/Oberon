@@ -30,6 +30,7 @@ namespace Obx
     public:
         struct BaseTypes
         {
+            BaseType* d_noType;
             BaseType* d_boolType;
             BaseType* d_charType;
             BaseType* d_wcharType;

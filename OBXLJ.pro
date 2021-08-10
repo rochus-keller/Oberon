@@ -33,7 +33,7 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
-DEFINES += OBX_BBOX
+DEFINES += OBX_BBOX LUA_ENGINE_USE_DEFAULT_PRINT
 
 include( ObxParser.pri )
 
@@ -48,7 +48,8 @@ SOURCES += \
     ObxLjbcGen.cpp \
     ObxLibFfi.cpp \
     ObxLjRuntime.cpp \
-    ObxCGen.cpp
+    ObxCGen.cpp \
+    ObsFiles.cpp
 
 HEADERS += \
     ../LjTools/LuaJitComposer.h \
@@ -57,7 +58,8 @@ HEADERS += \
     ObxLjbcGen.h \
     ObxLibFfi.h \
     ObxLjRuntime.h \
-    ObxCGen.h
+    ObxCGen.h \
+    ObsFiles.h
 
 HAVE_GUI {
     message( Compiling with GUI support )
@@ -66,8 +68,7 @@ HAVE_GUI {
         ObsDisplay.h
 
     SOURCES += \
-        ObsDisplay.cpp \
-        ObsFiles.cpp
+        ObsDisplay.cpp
 
 }
 

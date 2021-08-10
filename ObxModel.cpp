@@ -422,6 +422,7 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
 
     d_globals = new Scope();
     d_globalsLower = new Scope();
+    d_noType = new BaseType(BaseType::NONE);
     d_boolType = new BaseType(BaseType::BOOLEAN);
     d_charType = new BaseType(BaseType::CHAR);
     d_wcharType = new BaseType(BaseType::WCHAR);
@@ -506,6 +507,7 @@ bool Model::parseFiles(const PackageList& files)
         return false; // stop on parsing errors, but only after we found the dependency order
 
     Validator::BaseTypes bt;
+    bt.d_noType = d_noType.data();
     bt.d_boolType = d_boolType.data();
     bt.d_charType = d_charType.data();
     bt.d_byteType = d_byteType.data();

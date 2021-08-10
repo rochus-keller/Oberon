@@ -17,7 +17,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include "ObsDisplay.h"
+#include "ObsFiles.h"
 #include <QDir>
 #include <QDateTime>
 #include <QBuffer>
@@ -34,7 +34,7 @@ static QFileInfoList s_files;
 static QString s_root;
 static QFile s_disk;
 
-void Obs::Display::setFileSystemRoot(const QString& dirPath) // cheat so that ObsFiles need no header just for this
+void Obs::Files::setFileSystemRoot(const QString& dirPath) // cheat so that ObsFiles need no header just for this
 {
     s_root = dirPath;
 }

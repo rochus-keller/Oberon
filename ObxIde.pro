@@ -65,7 +65,8 @@ HEADERS  += ObxIde.h \
     ObsDisplay.h \
     ObxLjRuntime.h \
     ../LjTools/LjDisasm.h \
-    ObxCGen.h
+    ObxCGen.h \
+    ObsFiles.h
 
 # NOTE on LuaJIT: to make use of the line:column position information used in
 # OberonIDE please use this version: https://github.com/rochus-keller/LuaJIT/tree/LjTools

@@ -359,10 +359,8 @@ struct ValidatorImp : public AstVisitor
         {
             // prev must be a pointer or a record
             Type* prevT = derefed( me->d_sub->d_type.data() );
-            if( prevT == 0 )
-                return;
 
-            if( prevT->getTag() == Thing::T_Pointer )
+            if( prevT && prevT->getTag() == Thing::T_Pointer )
             {
                 // The designator p^.f may be abbreviated as p.f, i.e. record selectors imply dereferencing.
                 // So add a deref to the AST.
@@ -379,7 +377,7 @@ struct ValidatorImp : public AstVisitor
             }
 
             // TODO: do we allow a selector from an unsafe pointer to a safe record?
-            if( prevT->getTag() == Thing::T_Record )
+            if( prevT && prevT->getTag() == Thing::T_Record )
             {
                 Record* r = cast<Record*>(prevT);
                 Named* field = r->find(me->d_name, true);
@@ -1194,7 +1192,11 @@ struct ValidatorImp : public AstVisitor
                     if( me->d_type.isNull() )
                         me->d_type = calcBuiltInReturnType( cast<BuiltIn*>(p->d_decl), me->d_args );
                 }else
+                {
                     me->d_type = p->d_return.data();
+                    if( me->d_type.isNull() )
+                        me->d_type = bt.d_noType;
+                }
             }else if( decl && decl->getTag() == Thing::T_NamedType )
             {
                 // this is a type guard
@@ -2047,6 +2049,7 @@ struct ValidatorImp : public AstVisitor
         markIdent( false, me->d_rhs.data() );
         if( !checkValidLhs(me->d_lhs.data()) )
             return;
+
         Type* lhsT = derefed(me->d_lhs->d_type.data());
         Type* rhsT = derefed(me->d_rhs->d_type.data());
 
@@ -2054,6 +2057,12 @@ struct ValidatorImp : public AstVisitor
             return; // already reported
 
         const int rhsTag = rhsT->getTag();
+
+        if( rhsTag == Thing::T_BaseType && rhsT->getBaseType() == Type::NONE )
+        {
+            error(me->d_rhs->d_loc,Validator::tr("procedure doesn't return a value") );
+            return;
+        }
 #ifdef OBX_BBOX
         const int lhsTag = lhsT->getTag();
         if( ( lhsTag == Thing::T_Record || lhsTag == Thing::T_Array ) && rhsTag == Thing::T_Pointer )
@@ -2195,11 +2204,14 @@ struct ValidatorImp : public AstVisitor
             }
             Q_ASSERT( proc->getTag() == Thing::T_ArgExpr );
             ArgExpr* ae = cast<ArgExpr*>(proc);
+#if 0
+            // no, we allow that to avoid having to declar a lot of dummy vars when not using the result
             if( !ae->d_type.isNull() )
             {
                 error( me->d_loc, Validator::tr("cannot use a function procedure in a call statement") ); // TODO: why not?
                 return;
             }
+#endif
             proc = ae->d_sub.data();
             Type* t = derefed(proc->d_type.data());
             if( ae->d_op != UnExpr::CALL || t == 0 || t->getTag() != Thing::T_ProcType )
@@ -3119,5 +3131,5 @@ void Validator::BaseTypes::assert() const
 {
     Q_ASSERT( d_boolType && d_charType && d_byteType && d_intType && d_realType && d_setType &&
               d_stringType && d_nilType && d_anyType && d_shortType && d_longType && d_longrealType &&
-              d_anyRec && d_wcharType && d_wstringType && d_voidType && d_byteArrayType );
+              d_anyRec && d_wcharType && d_wstringType && d_voidType && d_byteArrayType && d_noType );
 }

@@ -69,6 +69,7 @@ namespace Obx
         Ref<Scope> d_globals;
         Ref<Scope> d_globalsLower;
         QHash<QByteArray,QByteArray> d_preload;
+        Ref<BaseType> d_noType; // returned by calls to proper procs
         Ref<BaseType> d_boolType;
         Ref<BaseType> d_charType;  // 8 bit latin-1 (ISO-8859-1) character
         Ref<BaseType> d_wcharType; // 16 bit Unicode plane 0 character, the Basic Multilingual Plane (BMP)

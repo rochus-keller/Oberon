@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXLJ");
-    a.setApplicationVersion("2021-08-08");
+    a.setApplicationVersion("2021-08-10");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -133,7 +133,10 @@ int main(int argc, char *argv[])
             out << "usage: OBXLJ [options] files or directory" << endl;
             out << "  reads Oberon+ source or project files and runs them." << endl;
             out << "options:" << endl;
+            out << "  -nojit        disable JIT" << endl;
             out << "  -out=path     path where to save generated files (default don't generate)" << endl;
+            out << "  -run          run the project if a project file is loaded" << endl;
+            out << "  the following options are overridden if a project file is loaded" << endl;
             out << "  -run=A[.B]    run module A or procedure B in module A and quit" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -obs          use built-in Oberon System backend definitions" << endl;
@@ -172,6 +175,10 @@ int main(int argc, char *argv[])
         {
             Obx::Project::ModProc modProc;
             rt.getPro()->setMain(modProc);
+            doRun = true;
+        }else if( args[i] == "-nojit" )
+        {
+            rt.setJitEnabled(false);
             doRun = true;
         }else if( args[i].startsWith("-fsroot=") )
         {
@@ -220,13 +227,14 @@ int main(int argc, char *argv[])
             return -1;
         }
         qDebug() << "loading project" << pro;
-        if( !rt.getPro()->loadFrom(pro) )
+        if( !rt.getPro()->loadFrom(pro) ) // This overrides most command line settings!
             return -1;
         if( fromBc )
         {
             err << "-frombc is not allowed when a project file is loaded" << endl;
             return -1;
         }
+        QDir::setCurrent(QFileInfo(pro).absolutePath()); // so files relative to obxpro file are found
     }else if( fromBc )
     {
         if( dirOrFilePaths.size() != 1 || !QFileInfo(dirOrFilePaths.first()).isDir() )

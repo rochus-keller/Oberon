@@ -28,7 +28,6 @@ module Test
 	end tick
 		
 begin
-
 	SDL.GetVersion(v)
 	Out.String("Loaded SDL version: ")
 	Out.Int(v.major,0) Out.String(".") Out.Int(v.minor,0) 

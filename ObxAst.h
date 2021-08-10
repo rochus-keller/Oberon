@@ -185,13 +185,13 @@ namespace Obx
 
     struct Type : public Thing
     {
-        enum { ANY, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
+        enum { NONE, ANY, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET }; // BaseType
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
         Type* d_binding; // points back to pointer or array type in case of anonymous type
 
-        uint d_baseType : 4;    // used by BaseType
+        uint d_baseType : 5;    // used by BaseType
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
         uint d_typeBound : 1; // used by ProcType

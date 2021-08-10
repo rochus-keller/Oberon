@@ -25,6 +25,7 @@
 #ifdef QT_GUI_LIB
 #include "ObsDisplay.h"
 #endif
+#include "ObsFiles.h"
 #include "ObxLjbcGen.h"
 #include "ObxCGen.h"
 #include <LjTools/Engine2.h>
@@ -35,6 +36,20 @@
 #include <QTime>
 using namespace Obx;
 
+static void printLoadError(Lua::Engine2* lua, const QByteArray& what)
+{
+    Lua::Engine2::ErrorMsg msg = Lua::Engine2::decodeRuntimeMessage(lua->getLastError());
+    QString str;
+    if( msg.d_line )
+    {
+        if( Ob::RowCol::isPacked(msg.d_line) )
+            str = QString("%1:%2: %3").arg(Ob::RowCol::unpackRow(msg.d_line)).arg(Ob::RowCol::unpackCol(msg.d_line))
+                    .arg(msg.d_message.constData());
+    }else
+        str = msg.d_message;
+    qCritical() << "error loading" << what << str.toUtf8().constData();
+}
+
 static void loadLuaLib( Lua::Engine2* lua, const QByteArray& path, QByteArray name = QByteArray() )
 {
     QFile lib( QString(":/scripts/%1.lua").arg(path.constData()) );
@@ -43,7 +58,7 @@ static void loadLuaLib( Lua::Engine2* lua, const QByteArray& path, QByteArray na
     if( name.isEmpty() )
         name = path;
     if( !lua->addSourceLib( lib.readAll(), name ) )
-        qCritical() << "compiling" << path << ":" << lua->getLastError();
+        printLoadError( lua, path );
 }
 
 static bool preloadLib( Project* pro, const QByteArray& name )
@@ -132,12 +147,10 @@ bool LjRuntime::loadLibraries()
         return false;
 #endif
     }
-#ifdef QT_GUI_LIB
     const QString root = d_pro->getWorkingDir(true);
-    Obs::Display::setFileSystemRoot(root);
+    Obs::Files::setFileSystemRoot(root);
     if( d_pro->useBuiltInObSysInner() )
         d_lua->print(QString("Oberon file system root: %1\n").arg(root).toUtf8().constData());
-#endif
     return true;
 }
 
@@ -157,7 +170,10 @@ bool LjRuntime::loadBytecode()
             const QByteArray name = d_byteCode[i].first->getName();
             qDebug() << "loading" << name;
             if( !d_lua->addSourceLib( d_byteCode[i].second, name ) )
+            {
+                printLoadError(d_lua,name);
                 hasErrors = true;
+            }
             if( d_lua->isAborted() )
             {
                 return true;
