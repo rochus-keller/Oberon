@@ -35,9 +35,9 @@
 // - UNSAFE POINTER TO deprecated by CPOINTER TO and '*'; VOID is a predeclared identifier which can be used as *VOID
 // - SystemAttrs
 
-// #define OBN2
+//#define OBN2
 // combine OBN2 with either OBNX or BBOX
-// #define OBNX
+//#define OBNX
 //#define BBOX
 
 /// Top
@@ -193,9 +193,7 @@ ProcedureType ::= ( PROCEDURE
 #endif 
 	) 
 #ifdef OBNX
-	[  '^'  ] // TODO type-bound procedure types; only for record pointers (records on stack go out of scope)
-	// alternatives: (:) (..) (^) () ( ) (nil) (?) [()] ^
-	// NOTE that only '()' gives an ambiguity with a missing empty formal parameter list; (^) is too long
+	[  '^' | \LL:2\ '(' [ POINTER | '^' ]  ')'  ] 
 #endif 
 #ifdef BBOX
 	[ SysFlag ]

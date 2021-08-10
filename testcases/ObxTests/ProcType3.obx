@@ -1,7 +1,7 @@
 module ProcType3
 
 	type P = proc (in str: array of char)
-		  M = proc ^(in str: array of char)
+		  M = proc (^)(in str: array of char)
 
 	proc generate1():P
 		proc sayHello(in str: array of char)

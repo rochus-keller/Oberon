@@ -1,7 +1,7 @@
 module ProcType1
 
 	var p : proc (in str: array of char)
-		m, n : proc ^(in str: array of char) 
+		m, n : proc (^)(in str: array of char) 
 
 	
 	proc outer()

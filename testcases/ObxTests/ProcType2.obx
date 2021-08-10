@@ -14,7 +14,8 @@ module ProcType2
 	end sayHello
 	
 	type P = proc (in str: array of char)
-		  M = proc ^(in str: array of char)
+		  M = proc (pointer)(in str: array of char)
+		  K = proc (pointer)
 
 	proc test1( p: P )
 	begin
@@ -26,11 +27,20 @@ module ProcType2
 		m("5678")
 	end test2
 	
+	proc (var this: T)test3()
+	begin
+		println("test3")
+	end test3
+	
 	var t: pointer to T
+		k: K
 begin
 
 	test1(sayHello)
 	new(t)
 	test2(t.sayHello)
+
+	k := t.test3
+	k
 
 end ProcType2

@@ -668,14 +668,22 @@ Ref<Type> Parser::procedureType(Scope* scope, Named* id, Type* binding)
         MATCH( Tok_PROCEDURE, tr("expecting the PROCEDURE keyword") );
     }
     p->d_loc = d_cur.toRowCol();
-    if( d_la == Tok_Hat )
+    if( d_la == Tok_Hat ) // TODO: deprecated, will be replaced by (^), see below
     {
         next();
         p->d_typeBound = true;
     }
     if( d_la == Tok_Lpar )
     {
-        formalParameters(scope, p.data());
+        if( peek(2) == Tok_POINTER || peek(2) == Tok_Hat )
+        {
+            next(); next();
+            p->d_typeBound = true;
+            MATCH( Tok_Rpar, tr("expecting ')' to close type-bound procedure type") );
+            if( d_la == Tok_Lpar )
+                formalParameters(scope, p.data());
+        }else
+            formalParameters(scope, p.data());
     }
     return p.data();
 }
