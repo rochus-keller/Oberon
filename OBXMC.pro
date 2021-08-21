@@ -33,34 +33,17 @@ INCLUDEPATH += ..
 
 SOURCES += \
     ObxMcMain.cpp \
-    ObxParser.cpp \
-    ObxAst.cpp \
-    ObxValidator.cpp \
-    ObxEvaluator.cpp \
-    ObxModel.cpp \
-    ObErrors.cpp \
-    ObToken.cpp \
-    ObLexer.cpp \
-    ObFileCache.cpp \
-    ObRowCol.cpp \
-    ObTokenType.cpp \
-    ObxPelibGen.cpp
+    ObxPelibGen.cpp \
+    ObxIlasmGen.cpp
 
 HEADERS += \
     ObxParser.h \
-    ObxAst.h \
-    ObxValidator.h \
-    ObxEvaluator.h \
-    ObxModel.h \
-    ObErrors.h \
-    ObToken.h \
-    ObLexer.h \
-    ObFileCache.h \
-    ObRowCol.h \
-    ObTokenType.h \
-    ObxPelibGen.h
+    ObxPelibGen.h \
+    ObxIlasmGen.h
 
 include( ../PeLib/PeLib.pri )
+include( ObxParser.pri )
+
 
 !win32 {
     QMAKE_CXXFLAGS += -Wno-reorder -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable

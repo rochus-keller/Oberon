@@ -61,14 +61,16 @@ struct ObxPelibGenImp : public AstVisitor
                     allAliasses.append( cast<QualiType*>(t) );
                 return;
             }
-            if( tag == Thing::T_ProcType )
+            if( tag == Thing::T_ProcType && p == 0 )
             {
                 ProcType* pt = cast<ProcType*>(t);
                 Q_ASSERT( pt->d_decl == 0 || pt->d_decl->getTag() != Thing::T_Procedure ); // we only want proc pointer types
-                allProcTypes.append(pt);
+                if( pt->d_typeBound )
+                    allProcTypes.append(pt);
                 foreach( const Ref<Parameter>& p, pt->d_formals )
                     collect(0,p->d_type.data(),false);
-                // return type is quali; we don't follow qualies here
+                if( pt->d_return )
+                    collect(0, pt->d_return.data(), false );
                 return;
             }
             if( tag == Thing::T_Pointer )
@@ -235,7 +237,7 @@ struct ObxPelibGenImp : public AstVisitor
             p->accept(this);
 
         // generate module level initializer (for variables and the begin part)
-        out.beginMethod( "..ctor", true, DotNetPELib::SimpleApi::Static );
+        out.beginMethod( ".ctor", true, DotNetPELib::SimpleApi::Static );
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Variable )

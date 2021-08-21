@@ -41,6 +41,7 @@ using namespace Obx;
 #endif
 
 static SendToLog s_sendToLog = 0;
+int g_obxQuit = 0;
 
 typedef void (*Tick)(int tick);
 class LibFfiTimer : public QTimer
@@ -309,8 +310,6 @@ DllExport void ObxFfi_removeTimer( int timer )
         s_timers[timer] = 0;
     }
 }
-
-int g_obxQuit = 0;
 
 DllExport int ObxFfi_processEvents(int sleepMs)
 {

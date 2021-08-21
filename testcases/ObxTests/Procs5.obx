@@ -10,6 +10,12 @@ module Procs5
 	begin
 		println("Hello Superclass!")
 	end Hello
+	
+	proc ( var this : Superclass ) Hello2(in str: array of char)
+	begin
+		println("Hello2 Superclass!")
+		println(str)
+	end Hello2
 
 	proc ( var this : Class ) Hello()
 	begin
@@ -17,6 +23,13 @@ module Procs5
 		println("Hello Class!")
 	end Hello
 	
+	proc ( var this : Class ) Hello2(in str: array of char)
+	begin
+		this.Hello2^(str)
+		println("Hello2 Class!")
+	end Hello2
+
 begin
 	inst.Hello
+	inst.Hello2("this is a string")
 end Procs5

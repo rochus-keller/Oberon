@@ -272,6 +272,7 @@ function module.min_size(lhs,rhs)
 end
 function module.ldmod(name)
 	local m = require(ffi.string(name))
+	-- print("LDMOD "..ffi.string(name).." "..tostring(m ~= nil)) 
 	return m ~= nil
 end
 function module.ldcmd(mod,cmd)

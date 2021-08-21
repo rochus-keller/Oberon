@@ -46,7 +46,8 @@ SOURCES += ObxIde.cpp \
     ObsFiles.cpp \
     ObxLjRuntime.cpp \
     ../LjTools/LjDisasm.cpp \
-    ObxCGen.cpp
+    ObxCGen.cpp \
+    ObxIlasmGen.cpp
 
 HEADERS  += ObxIde.h \
     ../GuiTools/CodeEditor.h \
@@ -66,7 +67,8 @@ HEADERS  += ObxIde.h \
     ObxLjRuntime.h \
     ../LjTools/LjDisasm.h \
     ObxCGen.h \
-    ObsFiles.h
+    ObsFiles.h \
+    ObxIlasmGen.h
 
 # NOTE on LuaJIT: to make use of the line:column position information used in
 # OberonIDE please use this version: https://github.com/rochus-keller/LuaJIT/tree/LjTools

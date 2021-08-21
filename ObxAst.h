@@ -149,6 +149,7 @@ namespace Obx
         virtual void visit( Record* ) {}
         virtual void visit( ProcType* ) {}
         virtual void visit( QualiType* ) {}
+        virtual void visit( Enumeration* ) {}
         virtual void visit( Field* ) {}
         virtual void visit( Variable* ) {}
         virtual void visit( LocalVar* ) {}
@@ -172,7 +173,6 @@ namespace Obx
         virtual void visit( IdentSel* ) {}
         virtual void visit( ArgExpr* ) {}
         virtual void visit( BinExpr* ) {}
-        virtual void visit( Enumeration* ) {}
         virtual void visit( GenericName* ) {}
         virtual void visit( Exit* ) {}
     };
@@ -196,10 +196,13 @@ namespace Obx
         uint d_union : 1;   // used by Record (CUNION)
         uint d_typeBound : 1; // used by ProcType
         uint d_varargs : 1; // used by ProcType
+        uint d_byValue : 1;   // used to mark a Record which can be represented as CLI struct
+        uint d_selfRef : 1;  // true if legally referencing self (i.e. via pointer)
 
         // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
 
-        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),d_typeBound(false),d_varargs(false) {}
+        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),
+            d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
         virtual Type* derefed() { return this; }
@@ -325,7 +328,7 @@ namespace Obx
         uint d_upvalSource : 1; // the scope from which locals are used; the local used as upval
         uint d_upvalIntermediate: 1; // the scopes between source and user
         uint d_upvalSink : 1; // the scope from which locals from the outer scope are used
-        uint d_visibility : 2; // Visibility enum
+        uint d_visibility : 3; // Visibility enum
         uint d_synthetic: 1;
         uint d_hasErrors : 1;
         uint d_liveTo : 20;
@@ -353,8 +356,9 @@ namespace Obx
 
     struct Field : public Named // Record field
     {
+        Record* d_owner; // the record owning the field
         Field* d_super; // the field of the super class this field overrides, or zero
-        Field():d_super(0){}
+        Field():d_super(0),d_owner(0){}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Field; }
     };

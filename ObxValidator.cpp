@@ -798,7 +798,6 @@ struct ValidatorImp : public AstVisitor
                 if( lhs == 0 || rhs == 0 )
                     break; // already reported
                 const int ltag = lhs->getTag();
-                const int rtag = rhs->getTag();
 
                 if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
                         ( lhs == bt.d_intType && rhs == bt.d_setType ) ||
@@ -1453,9 +1452,10 @@ struct ValidatorImp : public AstVisitor
             else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
-            else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT,true)) && (rhsT = isTextual(rhsT,true)) )
+            else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT,false)) && (rhsT = isTextual(rhsT,false)) )
             {
-                // TODO: add deref op in case of pointer to array
+                // NOTE: because of Blackbox we had isTextual(str,true) so far, but there is actually only one place
+                // in BB minimal where a pointer is added; added a deref, case closed.
                 if( includes(lhsT,rhsT) ) // allow concat of mixed latin/unicode strings
                     me->d_type = me->d_lhs->d_type;
                 else
@@ -1464,7 +1464,7 @@ struct ValidatorImp : public AstVisitor
 #endif
             else
                 error( me->d_loc, Validator::tr("operator '%1' expects both operands to "
-                                                "be either of numeric or SET type").arg( BinExpr::s_opName[me->d_op]) );
+                                                "be either of numeric, SET or text type").arg( BinExpr::s_opName[me->d_op]) );
             break;
 
         case BinExpr::FDIV: // set num
@@ -3047,6 +3047,18 @@ struct ValidatorImp : public AstVisitor
     }
 #endif
 
+    void markSelfRef( Type* t )
+    {
+        Type* ctdd = derefed(curTypeDecl);
+        Type* td = derefed(t);
+        if( td == ctdd && ctdd->getTag() != Thing::T_Pointer )
+            error(t->d_loc, Validator::tr("a structured type cannot contain itself"));
+        else if( td == ctdd )
+            curTypeDecl->d_selfRef = true;
+        else if( td == t ) // dont follow qualitypes
+            checkSelfRef(td);
+    }
+
     void checkSelfRef( Type* t )
     {
         Type* td = derefed(t);
@@ -3055,11 +3067,12 @@ struct ValidatorImp : public AstVisitor
         if( td != t )
             return; // don't check type aliasses, only original types
 
+#if 0 // we do this now in markSelfRef
         Type* ctdd = derefed(curTypeDecl);
-
         if( ctdd && ctdd->getTag() == Thing::T_Pointer )
             return; // legal in any case
             // and a pointer cannot point to a pointer anyway
+#endif
 
         switch( td->getTag() )
         {
@@ -3067,23 +3080,13 @@ struct ValidatorImp : public AstVisitor
             {
                 Record* r = cast<Record*>(td);
                 foreach( const Ref<Field>& f, r->d_fields )
-                {
-                    Type* ftd = derefed(f->d_type.data());
-                    if( ftd == ctdd )
-                        error(f->d_type->d_loc, Validator::tr("cannot use structured type to define itself"));
-                    else if( ftd == f->d_type.data() ) // dont follow qualitypes
-                        checkSelfRef(ftd);
-                }
+                    markSelfRef(f->d_type.data());
             }
             break;
         case Thing::T_Array:
             {
                 Array* a = cast<Array*>(td);
-                Type* atd = derefed(a->d_type.data());
-                if( atd == ctdd )
-                    error(a->d_type->d_loc, Validator::tr("cannot use structured type to define itself"));
-                else if( atd == a->d_type.data() ) // dont follow qualitypes
-                    checkSelfRef(atd);
+                markSelfRef(a->d_type.data());
             }
             break;
         case Thing::T_Pointer:

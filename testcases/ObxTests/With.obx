@@ -1,0 +1,13 @@
+MODULE With;
+   TYPE
+      T0 = POINTER TO RECORD END;
+      T1 = POINTER TO RECORD(T0) i: INTEGER END;
+   VAR t : T1; v: T0;
+BEGIN
+   NEW(t);
+   v := t;
+	WITH v: T1 DO v.i := 3 END;
+	PRINTLN(t.i); // prints 3
+	IF v IS T1 THEN v(T1).i := 4 END;
+	PRINTLN(t.i); // prints 4
+END With.

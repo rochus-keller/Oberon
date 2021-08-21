@@ -183,7 +183,6 @@ struct ObxLjbcGenImp : public AstVisitor
     #define CHECK_SLOTS_COUNT(off)
 #endif
 
-
     QList<Ctx> ctx;
     JitComposer bc;
     Errors* err;
@@ -191,7 +190,7 @@ struct ObxLjbcGenImp : public AstVisitor
     bool ownsErr, stripped;
     quint8 modSlot, obxlj, curClass;
     QList<quint8> slotStack;
-    QList <quint32> exitJumps;
+    QList <quint32> exitJumps; // TODO: must be a separate list for each (nested) LOOP
     QByteArray system;
     bool passingThis;
 
@@ -681,9 +680,9 @@ struct ObxLjbcGenImp : public AstVisitor
         bc.KSET(res, 0, me->d_loc.packed() );
 
         const quint8 addElemToSet = ctx.back().buySlots(1);
-        fetchObxlibMember(addElemToSet,9,me->d_loc);
+        fetchObxlibMember(addElemToSet,9,me->d_loc); // addElemToSet
         const quint8 addRangeToSet = ctx.back().buySlots(1);
-        fetchObxlibMember(addRangeToSet,10,me->d_loc);
+        fetchObxlibMember(addRangeToSet,10,me->d_loc); // module.addRangeToSet
 
         for( int i = 0; i < me->d_parts.size(); i++ )
         {
@@ -776,14 +775,14 @@ struct ObxLjbcGenImp : public AstVisitor
                     {
                         Q_ASSERT(passingThis);
                         const int proc = ctx.back().buySlots(1);
-                        fetchObxlibMember( proc, 40, me->d_loc ); // getmetatable
+                        fetchObxlibMember( proc, 40, me->d_loc ); // getmetatable, apply twice
                         const int tmp = ctx.back().buySlots(2,true);
                         bc.MOV(tmp,proc,me->d_loc.packed());
                         bc.MOV( tmp+1, slotStack[ slotStack.size() - 2 ], me->d_loc.packed() ); // this
-                        bc.CALL( tmp, 1, 1, me->d_loc.packed() );
-                        bc.MOV( tmp+1, tmp, me->d_loc.packed() ); // class of this
+                        bc.CALL( tmp, 1, 1, me->d_loc.packed() ); // resulting tmp is class of this
+                        bc.MOV( tmp+1, tmp, me->d_loc.packed() );
                         bc.MOV(tmp,proc,me->d_loc.packed());
-                        bc.CALL( tmp, 1, 1, me->d_loc.packed() );
+                        bc.CALL( tmp, 1, 1, me->d_loc.packed() ); // resulting tmp is superclass of class
                         emitGetTableByIndex( slotStack.back(), tmp, p->d_slot, me->d_loc );
                         ctx.back().sellSlots(tmp,2);
                         ctx.back().sellSlots(proc);
@@ -875,9 +874,6 @@ struct ObxLjbcGenImp : public AstVisitor
                 bc.CALL(tmp,1,4,me->d_loc.packed());
                 bc.MOV(res,tmp,me->d_loc.packed());
                 ctx.back().sellSlots(tmp,5);
-            }else if( ltag == Thing::T_Pointer || rtag == Thing::T_Pointer )
-            {
-                qWarning() << "adding of pointer to array of char/wchar not yet supported";
             }else
                 Q_ASSERT(false);
             break;
@@ -3282,7 +3278,7 @@ struct ObxLjbcGenImp : public AstVisitor
             ArgExpr* ae = cast<ArgExpr*>(desig);
             Q_ASSERT( ae->d_sub && ae->d_sub->getIdent() && ae->d_sub->getIdent()->getTag() == Thing::T_BuiltIn &&
                       cast<BuiltIn*>(ae->d_sub->getIdent())->d_func == BuiltIn::SYS_VAL);
-            acc.kind = Accessor::Invalid;
+            acc.kind = Accessor::Invalid; // TODO BuiltIn::VAL & shouldn't this just call accessor recursively?
         }else
         {
             qDebug() << "ERR" << desig->getUnOp() << desig->getTag() << thisMod->getName() << desig->d_loc.d_row << desig->d_loc.d_col;
@@ -3867,67 +3863,4 @@ bool LjbcGen::translate(Module* m, QIODevice* out, bool strip, Ob::Errors* errs)
         delete imp.err;
     return hasErrs;
 }
-
-#if 0 // replaced by allocateSlots
-bool LjbcGen::allocateDef(Module* m, QIODevice* out, Errors* errs)
-{
-    // TODO replace this by LjbcGen::allocateSlots
-
-    ObxLjbcGenImp::Collector pc;
-    m->accept(&pc);
-
-    quint32 slotNr = 0;
-    QTextStream ts(out);
-
-    foreach( const Ref<Named>& n, m->d_order )
-    {
-        if( n->getTag() == Thing::T_Variable )
-        {
-            n->setSlot(slotNr++);
-            if( out )
-                ts << "-- module[" << n->d_slot << "] = " << n->getName() << endl;
-        }
-    }
-
-    foreach( Procedure* p, pc.allProcs )
-    {
-        Q_ASSERT( p->d_receiver.isNull() );
-        // bound procs are stored in the class objects instead
-        p->setSlot( slotNr++ );
-        if( out )
-            ts << "module[" << p->d_slot << "] = module." << p->getName() << endl;
-    }
-
-    foreach( Record* r, pc.allRecords )
-    {
-        ObxLjbcGenImp::allocateClasses(r,slotNr,m,true);
-        if( out )
-        {
-            Named* name = r->d_decl;
-            if( name == 0 && r->d_binding )
-                name = r->d_binding->d_decl;
-            if( name )
-                ts << "-- module[" << r->d_slot << "] = record " << name->getName() << endl;
-            else
-                qWarning() << "no name for record slot" << r->d_slot;
-        }
-    }
-
-    foreach( QualiType* q, pc.allAliasses )
-    {
-        q->setSlot(slotNr++);
-        if( out )
-        {
-            ts << "-- module[" << q->d_slot << "] = alias ";
-            Named* name = q->d_decl;
-            Q_ASSERT( name );
-            ts << name->getName() << endl;
-        }
-    }
-
-    return true;
-}
-#endif
-
-
 

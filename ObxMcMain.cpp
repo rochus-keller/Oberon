@@ -22,9 +22,13 @@
 #include <QtDebug>
 #include <QFileInfo>
 #include <QDir>
+#include <QDateTime>
 #include "ObxModel.h"
 #include "ObErrors.h"
 #include "ObxPelibGen.h"
+#include "ObxProject.h"
+#include "ObxIlasmGen.h"
+#include "ObFileCache.h"
 
 static QStringList collectFiles( const QDir& dir )
 {
@@ -48,7 +52,7 @@ static QStringList collectFiles( const QDir& dir )
     return res;
 }
 
-static bool preloadLib( Obx::Model& mdl, const QByteArray& name )
+static bool preloadLib( Obx::Project* pro, const QByteArray& name )
 {
     QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
@@ -56,50 +60,8 @@ static bool preloadLib( Obx::Model& mdl, const QByteArray& name )
         qCritical() << "unknown preload" << name;
         return false;
     }
-    mdl.addPreload( name, f.readAll() );
+    pro->getFc()->addFile( name, f.readAll(), true );
     return true;
-}
-
-static int docompile2(const Obx::Model::FileGroups& files,
-                      const QString& outPath, bool forceObnExt, bool useOakwood, bool dump)
-{
-    Obx::Model model;
-    model.getErrs()->setReportToConsole(true);
-
-    if( useOakwood )
-    {
-        preloadLib(model,"In");
-        preloadLib(model,"Out");
-        preloadLib(model,"Files");
-        preloadLib(model,"Input");
-        preloadLib(model,"Math");
-        preloadLib(model,"Strings");
-        preloadLib(model,"Coroutines");
-        preloadLib(model,"XYPlane");
-    }
-
-    model.parseFiles(files);
-
-    qDebug() << "parsed" << model.getSloc() << "physical lines (LOC, no whitespace or comment only) in total";
-    if( model.getErrs()->getErrCount() == 0 && model.getErrs()->getWrnCount() == 0 )
-        qDebug() << "no errors or warnings found";
-    else
-    {
-        qDebug() << "completed with" << model.getErrs()->getErrCount() << "errors and" <<
-                    model.getErrs()->getWrnCount() << "warnings";
-    }
-#ifdef _DEBUG_
-        qDebug() << "things count peak" << Obx::Thing::insts.size();
-#endif
-
-    if( model.getErrs()->getErrCount() != 0 )
-        return -1;
-
-    qDebug() << "generating files using gen=4 ...";
-
-    Obx::PelibGen::translate(&model, outPath);
-
-    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -109,99 +71,149 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-04-11");
+    a.setApplicationVersion("2021-08-20");
 
     QTextStream out(stdout);
+    QTextStream err(stderr);
     out << "OBXMC version: " << a.applicationVersion() <<
                  " author: me@rochus-keller.ch  license: GPL" << endl;
 
+
+    Obx::Project pro;
+
     QStringList dirOrFilePaths;
     QString outPath;
-    bool dump = false;
-    QString mod;
-    QString run;
-    int n = 1;
-    bool forceObnExt = false;
-    bool useOakwood = false;
-    bool ok;
-    const QStringList args = QCoreApplication::arguments();
+    QStringList args = QCoreApplication::arguments();
+    bool genAsm = false;
+    if( args.size() <= 1 )
+    {
+        // if there are no args look in the application directory for a file called obxljconfig which includes
+        // the command line ("" sections not supported); this is useful e.g. on macOS to include the bytecode in the bundle
+        QStringList newArgs;
+        newArgs.append( args.isEmpty() ? QString(): args.first() );
+        QFile config(QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("obxljconfig"));
+        if( config.open(QIODevice::ReadOnly) )
+            newArgs += QString::fromUtf8(
+                        config.readAll().simplified()).split(' '); // RISK: this also affects whitespace included in " "
+        args = newArgs;
+    }
     for( int i = 1; i < args.size(); i++ ) // arg 0 enthaelt Anwendungspfad
     {
         if(  args[i] == "-h" || args.size() == 1 )
         {
-            out << "usage: OBXMC [options] sources" << endl;
-            out << "  reads Oberon sources (files or directories) and translates them to corresponding assemblies." << endl;
+            out << "usage: OBXMC [options] files or directory" << endl;
+            out << "  reads Oberon+ source or project files and compiles them to IL assembler." << endl;
             out << "options:" << endl;
-            out << "  -dst          dump syntax trees to files" << endl;
-            out << "  -path=path    path where to save generated files (default like first source)" << endl;
-            out << "  -dir=name     directory of the generated files (default empty)" << endl;
-            out << "  -ext          force Oberon extensions (default autosense)" << endl;
-            out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -h            display this information" << endl;
+            out << "  -out=path     path where to save generated files" << endl;
+            out << "  -asm          generate IL assembler (default binary assemblies)" << endl;
+            out << "  the following options are overridden if a project file is loaded" << endl;
+            out << "  -main=A[.B]   run module A or procedure B in module A and quit" << endl;
+            out << "  -oak          use built-in oakwood definitions" << endl;
+            out << "  -obs          use built-in Oberon System backend definitions" << endl;
             return 0;
-        }else if( args[i] == "-dst" )
-            dump = true;
-        else if( args[i] == "-oak" )
-                    useOakwood = true;
-        else if( args[i].startsWith("-path=") )
-            outPath = args[i].mid(6);
-        else if( args[i].startsWith("-run=") )
-            run = args[i].mid(5);
-        else if( args[i] == "-run" )
-            run = "?";
-        else if( args[i].startsWith("-n=") )
+        }else if( args[i] == "-oak" )
+            pro.setUseBuiltInOakwood(true);
+        else if( args[i] == "-obs" )
+            pro.setUseBuiltInObSysInner(true);
+        else if( args[i] == "-asm" )
+            genAsm = true;
+        else if( args[i].startsWith("-out=") )
         {
-            n = args[i].mid(3).toUInt(&ok);
-            if( !ok )
+            outPath = args[i].mid(5);
+            QFileInfo info(outPath);
+            if( info.isRelative() )
+                outPath = QDir::current().absoluteFilePath(outPath);
+        }else if( args[i].startsWith("-run=") )
+        {
+            QStringList run = args[i].mid(5).split('.');
+            if( run.size() > 2 )
             {
-                qCritical() << "invalid -n value";
+                err << "invalid -run option" << endl;
                 return -1;
             }
-        }
-        else if( args[i] == "-ext" )
-            forceObnExt = true;
-        else if( !args[ i ].startsWith( '-' ) )
+            Obx::Project::ModProc modProc;
+            if( run.size() == 2 )
+            {
+                modProc.first = run[0].toUtf8();
+                modProc.second = run[1].toUtf8();
+            }else
+                modProc.first = run[0].toUtf8();
+            pro.setMain(modProc);
+        }else if( !args[ i ].startsWith( '-' ) )
         {
             dirOrFilePaths += args[ i ];
         }else
         {
-            qCritical() << "error: invalid command line option " << args[i] << endl;
+            err << "error: invalid command line option " << args[i] << endl;
             return -1;
         }
     }
     if( dirOrFilePaths.isEmpty() )
     {
-        qWarning() << "no file or directory to process; quitting (use -h option for help)" << endl;
+        out << "no file or directory to process; quitting (use -h option for help)" << endl;
         return -1;
     }
 
-    Obx::Model::FileGroups fgs;
-    fgs << Obx::Model::FileGroup();
-    QStringList files;
+    Obx::PackageList pl;
+    Obx::Package p;
+    QString pfile;
     foreach( const QString& path, dirOrFilePaths )
     {
         QFileInfo info(path);
-        if( outPath.isEmpty() )
-            outPath = info.isDir() ? info.absoluteFilePath() : info.absolutePath();
         if( info.isDir() )
         {
             const QStringList tmp = collectFiles( info.absoluteFilePath() );
-            files += tmp;
-            fgs.back().d_files += tmp;
+            p.d_files += tmp;
         }else
         {
-            files << path;
-            fgs.back().d_files << path;
+            if( pfile.isEmpty() && ( path.endsWith(".obxpro") || path.endsWith(".obnpro") ) )
+                pfile = path;
+            else
+                p.d_files << path;
         }
     }
+    pl << p;
+    if( !pfile.isEmpty() )
+    {
+        if( !p.d_files.isEmpty() )
+        {
+            err << "expecting either a project file or source files/directories, but not both" << endl;
+            return -1;
+        }
+        qDebug() << "loading project" << pfile;
+        if( !pro.loadFrom(pfile) ) // This overrides most command line settings!
+            return -1;
+    }else
+    {
+        qDebug() << "processing" << p.d_files.size() << "files...";
+        pro.initializeFromPackageList(pl);
+    }
 
-    qDebug() << "processing" << files.size() << "files...";
+    if( pro.useBuiltInOakwood() )
+    {
+        preloadLib(&pro,"In");
+        preloadLib(&pro,"Out");
+        preloadLib(&pro,"Files");
+        preloadLib(&pro,"Input");
+        preloadLib(&pro,"Math");
+        preloadLib(&pro,"Strings");
+        preloadLib(&pro,"Coroutines");
+        preloadLib(&pro,"XYPlane");
+    }
 
-    const int res = docompile2(fgs,outPath,forceObnExt,useOakwood,dump);
-    if( res < 0 )
-        return res;
+    const QTime start = QTime::currentTime();
+    if( !pro.reparse() )
+        return -1;
+    qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 
-    // return dorun( files, run, mod, outPath, useOakwood, n );
+    if( genAsm )
+    {
+        Obx::IlasmGen::translateAll(&pro, outPath );
+    }else
+    {
+        Obx::PelibGen::translate(pro.getMdl(), outPath);
+    }
 
     return 0;
 }

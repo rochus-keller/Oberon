@@ -219,7 +219,7 @@ void Parser::identdef(Named* n, Scope* scope)
         if( d_mod->d_isDef && scope->getTag() != Thing::T_Procedure )
             n->d_visibility = Named::ReadWrite;
         else
-            n->d_visibility = Named::NotApplicable;
+            n->d_visibility = Named::Private;
     }
 }
 
@@ -825,7 +825,8 @@ void Parser::fieldList(Scope* scope, Record* r)
 {
     QList<Ref<Field> > fields;
     Field* f = new Field();
-    f->d_scope = scope;
+    f->d_owner = r;
+    f->d_scope = scope; // this is not the record but the module or procedure where the record is declared
     f->d_unsafe = r->d_unsafe;
     fields << f;
     identdef(f,scope);
@@ -834,6 +835,7 @@ void Parser::fieldList(Scope* scope, Record* r)
         if( d_la == Tok_Comma )
             next();
         f = new Field();
+        f->d_owner = r;
         f->d_scope = scope;
         f->d_unsafe = r->d_unsafe;
         fields << f;

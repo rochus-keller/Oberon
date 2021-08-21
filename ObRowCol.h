@@ -11,7 +11,7 @@ namespace Ob
         uint d_row : ROW_BIT_LEN; // supports 524k lines
         uint d_col : COL_BIT_LEN; // supports 4k chars per line
         uint unused : 1;
-        RowCol():d_row(0),d_col(0) {}
+        RowCol():d_row(0),d_col(0),unused(0) {}
         RowCol( quint32 row, quint32 col );
         bool setRowCol( quint32 row, quint32 col );
         bool isValid() const { return d_row > 0 && d_col > 0; } // valid lines and cols start with 1; 0 is invalid

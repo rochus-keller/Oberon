@@ -321,7 +321,7 @@ void LjRuntime::generate()
                 d_byteCode << qMakePair(m,buf.buffer());
             }else
             {
-#ifdef _DEBUG
+#ifdef _DEBUG_
                 QBuffer buf;
                 buf.open(QIODevice::WriteOnly);
                 LjbcGen::allocateSlots(m, &buf);
@@ -357,13 +357,14 @@ void LjRuntime::generate()
             }
         }
     }
+
     d_buildErrors = d_pro->getErrs()->getErrCount() != errCount;
 }
 
 void LjRuntime::generate(Module* m)
 {
     Q_ASSERT( m && m->isFullyInstantiated() );
-    qDebug() << "generating" << m->getName();
+    //qDebug() << "generating" << m->getName();
     QBuffer buf;
     buf.open(QIODevice::WriteOnly);
     LjbcGen::translate(m, &buf, false, d_pro->getErrs() );

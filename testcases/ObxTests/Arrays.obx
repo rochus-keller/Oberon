@@ -1,7 +1,13 @@
 module Arrays
 
+	type 
+	   S = record c: array 4 of T end
+	   R = record(S) a,b: integer end
+	   T = record s: array 10 of char end
 	var a : array 20 of shortint
 		c : array 10 of char
+		d : array 3 of R
+		e : array 10 of byte
 	
 	proc sub
 		var b : array 10 of byte
@@ -18,4 +24,9 @@ begin
 	c := "test"
 	println(c)
 	println(c[3])
+	
+	d[1].a := 5
+	println(d[1].a)
+	e := $20616263$
+	println(e[2])
 end Arrays
