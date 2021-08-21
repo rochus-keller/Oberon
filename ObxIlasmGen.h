@@ -21,6 +21,7 @@
 */
 
 #include <QString>
+#include <QByteArrayList>
 class QIODevice;
 
 namespace Ob
@@ -40,6 +41,7 @@ namespace Obx
         static bool translate(Module*, QIODevice* out, Ob::Errors* = 0 );
         static bool generateMain(QIODevice* out, const QByteArray& name,
                                  const QByteArray& module = QByteArray(), const QByteArray& function = QByteArray());
+        static bool generateMain(QIODevice* out, const QByteArray& name, const QByteArrayList& modules );
     private:
         IlasmGen();
     };

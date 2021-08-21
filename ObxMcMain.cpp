@@ -23,6 +23,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QDateTime>
+#include <QProcess>
 #include "ObxModel.h"
 #include "ObErrors.h"
 #include "ObxPelibGen.h"
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-08-20");
+    a.setApplicationVersion("2021-08-21");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -85,6 +86,8 @@ int main(int argc, char *argv[])
     QString outPath;
     QStringList args = QCoreApplication::arguments();
     bool genAsm = false;
+    bool run = false;
+    bool build = false;
     if( args.size() <= 1 )
     {
         // if there are no args look in the application directory for a file called obxljconfig which includes
@@ -109,6 +112,8 @@ int main(int argc, char *argv[])
             out << "  -asm          generate IL assembler (default binary assemblies)" << endl;
             out << "  the following options are overridden if a project file is loaded" << endl;
             out << "  -main=A[.B]   run module A or procedure B in module A and quit" << endl;
+            out << "  -build        run the generated build.sh script" << endl;
+            out << "  -run          run the generated run.sh script" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -obs          use built-in Oberon System backend definitions" << endl;
             return 0;
@@ -118,6 +123,10 @@ int main(int argc, char *argv[])
             pro.setUseBuiltInObSysInner(true);
         else if( args[i] == "-asm" )
             genAsm = true;
+        else if( args[i] == "-run" )
+            run = true;
+        else if( args[i] == "-build" )
+            build = true;
         else if( args[i].startsWith("-out=") )
         {
             outPath = args[i].mid(5);
@@ -210,6 +219,18 @@ int main(int argc, char *argv[])
     if( genAsm )
     {
         Obx::IlasmGen::translateAll(&pro, outPath );
+        QDir::setCurrent(outPath);
+        QDir dir(outPath);
+        if( build )
+        {
+            if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
+                return -1;
+        }
+        if( run )
+        {
+            if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
+                return -1;
+        }
     }else
     {
         Obx::PelibGen::translate(pro.getMdl(), outPath);

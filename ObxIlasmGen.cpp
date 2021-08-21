@@ -180,13 +180,6 @@ struct ObxIlasmGenImp : public AstVisitor
     int exitJump; // TODO: nested LOOPs
     Procedure* scope;
 
-    struct Evaluate : public Statement
-    {
-        Ref<Expression> d_what;
-        void accept(ObxIlasmGenImp* v) { v->visit(this); }
-    };
-
-
     ObxIlasmGenImp():ownsErr(false),err(0),dev(0),thisMod(0),anonymousDeclNr(0),level(0),
         stackDepth(0),maxStackDepth(0),labelCount(0),exitJump(-1),scope(0)
     {
@@ -370,10 +363,10 @@ struct ObxIlasmGenImp : public AstVisitor
         emitOpcode("ldarg.1",1,loc);
         emitOpcode("ldlen",1, loc);
         emitOpcode("br '#"+QByteArray::number(storeLen)+"'",0,loc);
-        out << "'#" << lhsIsLen << "':";
+        out << "'#" << lhsIsLen << "':" << endl;
         emitOpcode("ldarg.0",1,loc);
         emitOpcode("ldlen",1, loc);
-        out << "'#" << storeLen << "':";
+        out << "'#" << storeLen << "':" << endl;
         emitOpcode("stloc "+QByteArray::number(len),-1,loc); // len = qMin(lenLhs,lenRhs)
         // TODO: only up to and including \0 for char arrays?
 
@@ -385,7 +378,7 @@ struct ObxIlasmGenImp : public AstVisitor
         const int checkLenLbl = labelCount++;
         const int addLbl = labelCount++;
         const int copyLbl = labelCount++;
-        out << "'#" << checkLenLbl << "':";
+        out << "'#" << checkLenLbl << "':" << endl;
         emitOpcode("ldloc "+QByteArray::number(idx),1,loc);
         emitOpcode("ldloc "+QByteArray::number(len),1,loc);
         const int afterLoopLbl = labelCount++;
@@ -419,7 +412,7 @@ struct ObxIlasmGenImp : public AstVisitor
             emitOpcode("br '#"+QByteArray::number(addLbl)+"'",0,loc);
         }
 
-        out << "'#" << copyLbl << "':";
+        out << "'#" << copyLbl << "':" << endl;
         switch( et->getTag() )
         {
         case Thing::T_Record:
@@ -472,14 +465,13 @@ struct ObxIlasmGenImp : public AstVisitor
             break;
         }
 
-        out << "'#" << addLbl << "':";
+        out << "'#" << addLbl << "':" << endl;
         emitOpcode("ldloc "+QByteArray::number(idx),1,loc);
         emitOpcode("ldc.i4.1",1,loc);
         emitOpcode("add",-1,loc);
         emitOpcode("stloc "+QByteArray::number(idx),-1,loc);
         emitOpcode("br '#"+QByteArray::number(checkLenLbl)+"'",0,loc);
-        out << "'#" << afterLoopLbl << "':";
-        emitOpcode("nop",0,loc);
+        out << "'#" << afterLoopLbl << "':" << endl;
         temps.sell(idx);
         temps.sell(len);
 
@@ -1004,7 +996,7 @@ struct ObxIlasmGenImp : public AstVisitor
             if( i != 0 )
                 res += ", ";
             res += formatType( formals[i]->d_type.data() );
-            if( formals[i]->d_var && !formals[i]->d_const )
+            if( passByRef(formals[i].data()) )
                 res += "&";
             if( withName );
             res += " " + escape(formals[i]->d_name);
@@ -1102,7 +1094,7 @@ struct ObxIlasmGenImp : public AstVisitor
         {
             switch( n->getTag() )
             {
-            case Thing::T_Variable:
+            case Thing::T_LocalVar:
             case Thing::T_Parameter:
                 emitInitializer(n.data());
                 break;
@@ -1205,36 +1197,13 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("ldc.i4 "+ QByteArray::number(ba.size()),1,loc);
                 emitOpcode("newarr uint8",0, loc);
 
-                const int i = temps.buy();
-                Q_ASSERT( i >= 0 );
-                emitOpcode("ldc.i4.0",1,loc);
-                emitOpcode("stloc "+QByteArray::number(i),-1,loc);
-
-                const int checkLenLbl = labelCount++;
-                out << "'#" << checkLenLbl << "':";
-                emitOpcode("ldloc "+QByteArray::number(i),1,loc);
-                emitOpcode("ldloc "+QByteArray::number(ba.size()),1,loc);
-                const int afterLoopLbl = labelCount++;
-                emitOpcode("bge '#"+QByteArray::number(afterLoopLbl)+"'",-2,loc);
-
-                emitOpcode("dup",1,loc);
-                // new array on top
-                emitOpcode("ldloc "+QByteArray::number(i),1,loc);
-                // index on top
-                emitOpcode("ldc.i4 "+ QByteArray::number((quint8)ba[i]),1,loc);
-                // value on top
-
-                // now the array value is on top of the stack
-                emitOpcode("stelem uint8", -3, loc );
-
-                emitOpcode("ldloc "+QByteArray::number(i),1,loc);
-                emitOpcode("ldc.i4.1",1,loc);
-                emitOpcode("add",-1,loc);
-                emitOpcode("stloc "+QByteArray::number(i),-1,loc);
-                emitOpcode("br '#"+QByteArray::number(checkLenLbl)+"'",0,loc);
-                out << "'#" << afterLoopLbl << "':";
-                emitOpcode("nop",0,loc);
-                temps.sell(i);
+                for( int i = 0; i < ba.size(); i++ ) // TODO: this is inefficient
+                {
+                    emitOpcode("dup",1,loc);
+                    emitOpcode("ldc.i4 "+ QByteArray::number(i),1,loc);
+                    emitOpcode("ldc.i4 "+ QByteArray::number((quint8)ba[i]),1,loc);
+                    emitOpcode("stelem uint8", -3, loc );
+                }
 #endif
             }
             break;
@@ -1284,7 +1253,7 @@ struct ObxIlasmGenImp : public AstVisitor
             return;
         case UnExpr::NOT:
             emitOpcode("ldc.i4.0", 1, me->d_loc);
-            emitOpcode("ceq", -2, me->d_loc);
+            emitOpcode("ceq", -2+1, me->d_loc);
             Q_ASSERT( stackDepth == before );
             return;
         case UnExpr::DEREF:
@@ -1325,9 +1294,65 @@ struct ObxIlasmGenImp : public AstVisitor
             return;
         case Thing::T_Variable:
         case Thing::T_LocalVar:
-        case Thing::T_Parameter:
             emitVarToStack(id,me->d_loc);
             Q_ASSERT( stackDepth == before+1 );
+            return;
+        case Thing::T_Parameter:
+            {
+                Parameter* p = cast<Parameter*>(id);
+                emitVarToStack(id,me->d_loc);
+                if( passByRef(p) ) // the value on the stack is a &, so we need to fetch the value first
+                {
+                    Type* td = derefed(p->d_type.data());
+                    switch( td->getTag() )
+                    {
+                    case Thing::T_Array:
+                    case Thing::T_Record:
+                    default:
+                        Q_ASSERT( false ); // never happens because no passByRef for structured types
+                        break;
+                    case Thing::T_Pointer:
+                    case Thing::T_ProcType:
+                        emitOpcode("ldind.ref", -1+1, me->d_loc);
+                        break;
+                    case Thing::T_Enumeration:
+                        emitOpcode("ldind.u4", -1+1, me->d_loc);
+                        break;
+                    case Thing::T_BaseType:
+                        switch(td->getBaseType())
+                        {
+                        case Type::LONGREAL:
+                            emitOpcode("ldind.r8",-2, me->d_loc);
+                            break;
+                        case Type::REAL:
+                            emitOpcode("ldind.r4",-2, me->d_loc);
+                            break;
+                        case Type::LONGINT:
+                            emitOpcode("ldind.i8",-2, me->d_loc);
+                            break;
+                        case Type::INTEGER:
+                            emitOpcode("ldind.i4",-2, me->d_loc);
+                            break;
+                        case Type::SET:
+                        case Type::BOOLEAN:
+                            emitOpcode("ldind.u4",-2, me->d_loc);
+                            break;
+                        case Type::SHORTINT:
+                            emitOpcode("ldind.i2",-2, me->d_loc);
+                            break;
+                        case Type::CHAR:
+                        case Type::WCHAR:
+                            emitOpcode("ldind.u2",-2, me->d_loc);
+                            break;
+                        case Type::BYTE:
+                            emitOpcode("ldind.u1",-2, me->d_loc);
+                            break;
+                        }
+                        break;
+                    }
+                }
+                Q_ASSERT( stackDepth == before+1 );
+            }
             return;
         case Thing::T_NamedType:
             // NOP
@@ -1405,14 +1430,15 @@ struct ObxIlasmGenImp : public AstVisitor
         const int before = stackDepth;
         Q_ASSERT( me->d_sub );
         me->d_sub->accept(this);
-        Q_ASSERT( !me->d_sub->d_type.isNull() && me->d_sub->d_type->getTag() == Thing::T_Array);
+        Type* subT = derefed(me->d_sub->d_type.data());
+        Q_ASSERT( subT && subT->getTag() == Thing::T_Array);
 
         Q_ASSERT( me->d_args.size() == 1 );
         me->d_args.first()->accept(this);
 
         Q_ASSERT( stackDepth == before + 2 );
 
-        Type* et = derefed(cast<Array*>(me->d_sub->d_type.data())->d_type.data());
+        Type* et = derefed(cast<Array*>(subT)->d_type.data());
         if( et == 0 )
             return; // already reported
         emitOpcode2("ldelem", -2 + 1, me->d_loc);
@@ -1430,7 +1456,6 @@ struct ObxIlasmGenImp : public AstVisitor
             Q_ASSERT( desig->getTag() == Thing::T_IdentSel );
             IdentSel* sel = cast<IdentSel*>(desig);
             Named* id = sel->getIdent();
-            // NOTE: id could come from another module, but d_sub evaluates to the proper table anyway
             Q_ASSERT( id );
             sel->d_sub->accept(this);
             switch( id->getTag() )
@@ -1474,11 +1499,12 @@ struct ObxIlasmGenImp : public AstVisitor
             {
             case Thing::T_Variable:
                 emitOpcode2("ldsflda ", 1, desig->d_loc);
-                out << variableRef(n) << endl;
+                n->d_type->accept(this);
+                out << " " << variableRef(n) << endl;
                 break;
             case Thing::T_Parameter:
                 Q_ASSERT( n->d_slotValid );
-                if( omitParams && cast<Parameter*>(n)->d_var && !cast<Parameter*>(n)->d_const )
+                if( omitParams && passByRef(cast<Parameter*>(n)) )
                     emitOpcode("ldarg "+QByteArray::number(n->d_slot), 1, desig->d_loc); // we already have the address of the value
                 else
                     emitOpcode("ldarga "+QByteArray::number(n->d_slot), 1, desig->d_loc);
@@ -1582,10 +1608,9 @@ struct ObxIlasmGenImp : public AstVisitor
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
                 const int atEnd = labelCount++;
-                emitOpcode("brfalse "+QByteArray::number(atEnd), -1, ae->d_loc );
+                emitOpcode("brfalse '#"+QByteArray::number(atEnd)+"'", -1, ae->d_loc );
                 emitOpcode("break",0,ae->d_loc);
-                out << "'#" << atEnd << "':";
-                emitOpcode("nop",0,ae->d_loc);
+                out << "'#" << atEnd << "':" << endl;
             }
             break;
         case BuiltIn::MAX:
@@ -1647,32 +1672,19 @@ struct ObxIlasmGenImp : public AstVisitor
                 }
             }else if( ae->d_args.size() == 2 )
             {
-                Ref<IfLoop> ifl = new IfLoop();
-                ifl->d_op = IfLoop::IF;
-                ifl->d_loc = ae->d_loc;
-
-                Ref<BinExpr> eq = new BinExpr();
+                ae->d_args.first()->accept(this);
+                ae->d_args.last()->accept(this);
+                const int posCase = labelCount++;
                 if( bi->d_func == BuiltIn::MAX )
-                    eq->d_op = BinExpr::GEQ;
+                    emitOpcode("bge '#"+QByteArray::number(posCase)+"'",-2, ae->d_loc);
                 else
-                    eq->d_op = BinExpr::LEQ;
-                eq->d_lhs = ae->d_args.first();
-                eq->d_rhs = ae->d_args.last();
-                eq->d_loc = ae->d_loc;
-                eq->d_type = new BaseType(Type::BOOLEAN);
-
-                ifl->d_if.append(eq.data());
-                Ref<Evaluate> s = new Evaluate();
-                s->d_what = ae->d_args.first();
-                s->d_loc = s->d_what->d_loc;
-                ifl->d_then.append(StatSeq() << s.data());
-                s = new Evaluate();
-                s->d_what = ae->d_args.last();
-                s->d_loc = s->d_what->d_loc;
-                ifl->d_else.append(s.data());
-
-                // and now generate code for the if
-                ifl->accept(this);
+                    emitOpcode("ble '#"+QByteArray::number(posCase)+"'",-2, ae->d_loc);
+                ae->d_args.last()->accept(this);
+                const int toEnd = labelCount++;
+                emitOpcode("br '#"+QByteArray::number(toEnd)+"'",0, ae->d_loc);
+                out << "'#" << posCase << "':" << endl;
+                ae->d_args.first()->accept(this);
+                out << "'#" << toEnd << "':" << endl;
             }else
                 Q_ASSERT( false );
             break;
@@ -1777,7 +1789,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("conv.r8", 0, ae->d_args.first()->d_loc);
                 ae->d_args.last()->accept(this);
                 emitOpcode("conv.r8", 0, ae->d_args.last()->d_loc);
-                emitOpcode("call float64 [mscorelib]Math::Pow(float64, float64)", -2+1, ae->d_loc );
+                emitOpcode("call float64 [mscorlib]Math::Pow(float64, float64)", -2+1, ae->d_loc );
                 emitOpcode("conv.r4", 0, ae->d_loc);
                 emitOpcode("stind.r4", -2, ae->d_loc);
            }
@@ -1924,10 +1936,35 @@ struct ObxIlasmGenImp : public AstVisitor
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.last()->accept(this);
             break;
+        case BuiltIn::ASSERT:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() ); // TODO: by now second optional arg ignored!
+                ae->d_args.first()->accept(this);
+
+                const int after = labelCount++;
+                emitOpcode("brtrue '#"+QByteArray::number(after)+"'",-1,ae->d_loc);
+                emitOpcode("ldstr \"assertion failed\"",1, ae->d_loc);
+                emitOpcode("newobj instance void [mscorlib]System.Exception::.ctor(string)",-1+1,ae->d_loc);
+                emitOpcode("throw", -1, ae->d_loc);
+
+                out << "'#" << after << "':" << endl;
+            }
+            break;
         default:
              qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
              break;
         }
+    }
+
+    static inline bool passByRef( Parameter* p )
+    {
+        if( !p->d_var || p->d_const )
+            return false;
+        Type* td = derefed(p->d_type.data());
+        if( td && !td->isStructured() )
+            return true; // we only need to pass simple types including pointers and proc refs by &
+        else
+            return false; // all our structured values are already on the heap, the value is actually a object reference
     }
 
     void emitCall( ArgExpr* me )
@@ -1971,9 +2008,8 @@ struct ObxIlasmGenImp : public AstVisitor
             Parameter* p = pt->d_formals[i].data();
             Type* tf = derefed(p->d_type.data());
             Q_ASSERT( tf != 0 );
-            const bool varParam = p->d_var && !p->d_const;
 
-            if( varParam )
+            if( passByRef(p) )
             {
                 if( tf->getTag() == Thing::T_Array )
                 {
@@ -2203,13 +2239,12 @@ struct ObxIlasmGenImp : public AstVisitor
                 // lhs was run and stack has a bool result
                 const int afterEnd = labelCount++;
                 const int setFalse = labelCount++;
-                emitOpcode("brfalse "+QByteArray::number(setFalse), -1, me->d_loc);
+                emitOpcode("brfalse '#"+QByteArray::number(setFalse)+"'", -1, me->d_loc);
                 me->d_rhs->accept(this);
-                emitOpcode("br "+QByteArray::number(afterEnd), -1, me->d_loc);
-                out << "'#" << setFalse << "':";
+                emitOpcode("br '#"+QByteArray::number(afterEnd)+"'", 0, me->d_loc);
+                out << "'#" << setFalse << "':" << endl;
                 emitOpcode("ldc.i4.0",1,me->d_loc);
-                out << "'#" << afterEnd << "':";
-                emitOpcode("nop",0,me->d_loc);
+                out << "'#" << afterEnd << "':" << endl;
             }else
                 Q_ASSERT(false);
             break;
@@ -2219,13 +2254,12 @@ struct ObxIlasmGenImp : public AstVisitor
                 // lhs was run and stack has a bool result
                 const int afterEnd = labelCount++;
                 const int setTrue = labelCount++;
-                emitOpcode("brtrue "+QByteArray::number(setTrue), -1, me->d_loc);
+                emitOpcode("brtrue '#"+QByteArray::number(setTrue)+"'", -1, me->d_loc);
                 me->d_rhs->accept(this);
-                emitOpcode("br "+QByteArray::number(afterEnd), -1, me->d_loc);
-                out << "'#" << setTrue << "':";
+                emitOpcode("br '#"+QByteArray::number(afterEnd)+"'", 0, me->d_loc);
+                out << "'#" << setTrue << "':" << endl;
                 emitOpcode("ldc.i4.1",1,me->d_loc);
-                out << "'#" << afterEnd << "':";
-                emitOpcode("nop",0,me->d_loc);
+                out << "'#" << afterEnd << "':" << endl;
             }else
                 Q_ASSERT(false);
             break;
@@ -2256,7 +2290,8 @@ struct ObxIlasmGenImp : public AstVisitor
                     ( rhsT->getBaseType() == Type::NIL || rtag == Thing::T_Pointer || rtag == Thing::T_ProcType ) ) )
             {
                 emitOpcode("ceq", -2+1, me->d_loc );
-                emitOpcode("not", 0, me->d_loc );
+                emitOpcode("ldc.i4.0", 1, me->d_loc);
+                emitOpcode("ceq", -2+1, me->d_loc);
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
                 emitOpcode("ldc.i4.2",1,me->d_loc);
@@ -2283,7 +2318,8 @@ struct ObxIlasmGenImp : public AstVisitor
                     ( lhsT->isChar() && rhsT->isChar() ) )
             {
                 emitOpcode("cgt", -2+1, me->d_loc );
-                emitOpcode("not", 0, me->d_loc );
+                emitOpcode("ldc.i4.0", 1, me->d_loc);
+                emitOpcode("ceq", -2+1, me->d_loc);
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
                 emitOpcode("ldc.i4.4",1,me->d_loc);
@@ -2310,7 +2346,8 @@ struct ObxIlasmGenImp : public AstVisitor
                     ( lhsT->isChar() && rhsT->isChar() ) )
             {
                 emitOpcode("clt", -2+1, me->d_loc );
-                emitOpcode("not", 0, me->d_loc );
+                emitOpcode("ldc.i4.0", 1, me->d_loc);
+                emitOpcode("ceq", -2+1, me->d_loc);
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
                 emitOpcode("ldc.i4.6",1,me->d_loc);
@@ -2349,11 +2386,6 @@ struct ObxIlasmGenImp : public AstVisitor
                 // new set on stack
             }
         }
-    }
-
-    void visit( Evaluate* me )
-    {
-        me->d_what->accept(this);
     }
 
     void visit( Call* me)
@@ -2417,27 +2449,27 @@ struct ObxIlasmGenImp : public AstVisitor
     {
         me->d_if[0]->accept(this); // IF
         const int afterFirst = labelCount++;
-        emitOpcode("brfalse "+QByteArray::number(afterFirst), -1, me->d_loc);
+        emitOpcode("brfalse '#"+QByteArray::number(afterFirst)+"'", -1, me->d_loc);
 
         for( int i = 0; i < me->d_then[0].size(); i++ )
             me->d_then[0][i]->accept(this);
 
         const int afterEnd = labelCount++;
-        emitOpcode("br "+QByteArray::number(afterEnd), -1, me->d_loc);
+        emitOpcode("br '#"+QByteArray::number(afterEnd)+"'", 0, me->d_loc);
 
-        out << "'#" << afterFirst << "':";
+        out << "'#" << afterFirst << "':" << endl;
         for( int i = 1; i < me->d_if.size(); i++ ) // ELSIF
         {
             me->d_if[i]->accept(this);
             const int afterNext = labelCount++;
-            emitOpcode("brfalse "+QByteArray::number(afterNext), -1, me->d_loc);
+            emitOpcode("brfalse '#"+QByteArray::number(afterNext)+"'", -1, me->d_loc);
 
             for( int j = 0; j < me->d_then[i].size(); j++ )
                 me->d_then[i][j]->accept(this);
 
-            emitOpcode("br "+QByteArray::number(afterEnd), -1, me->d_loc);
+            emitOpcode("br '#"+QByteArray::number(afterEnd)+"'", 0, me->d_loc);
 
-            out << "'#" << afterNext << "':";
+            out << "'#" << afterNext << "':" << endl;
         }
 
         if( !me->d_else.isEmpty() ) // ELSE
@@ -2446,8 +2478,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 me->d_else[j]->accept(this);
         }
 
-        out << "'#" << afterEnd << "':";
-        emitOpcode("nop",0,me->d_loc);
+        out << "'#" << afterEnd << "':" << endl;
     }
 
     void visit( IfLoop* me)
@@ -2485,19 +2516,18 @@ struct ObxIlasmGenImp : public AstVisitor
         case IfLoop::REPEAT:
             {
                 const int loopStart = labelCount++;
-                out << "'#" << loopStart << "':";
+                out << "'#" << loopStart << "':" << endl;
 
                 for( int i = 0; i < me->d_then.first().size(); i++ )
                     me->d_then.first()[i]->accept(this);
 
                 me->d_if[0]->accept(this); // until condition
                 const int afterEnd = labelCount++;
-                emitOpcode("brtrue "+QByteArray::number(afterEnd), -1, me->d_loc);
+                emitOpcode("brtrue '#"+QByteArray::number(afterEnd)+"'", -1, me->d_loc);
 
-                emitOpcode("br "+QByteArray::number(loopStart), -1, me->d_loc);
+                emitOpcode("br '#"+QByteArray::number(loopStart)+"'", 0, me->d_loc);
 
-                out << "'#" << afterEnd << "':";
-                emitOpcode("nop",0,me->d_loc);
+                out << "'#" << afterEnd << "':" << endl;
             }
             break;
         case IfLoop::WITH:
@@ -2510,17 +2540,16 @@ struct ObxIlasmGenImp : public AstVisitor
         case IfLoop::LOOP:
             {
                 const int loopStart = labelCount++;
-                out << "'#" << loopStart << "':";
+                out << "'#" << loopStart << "':" << endl;
 
                 for( int i = 0; i < me->d_then.first().size(); i++ )
                     me->d_then.first()[i]->accept(this);
 
-                emitOpcode("br "+QByteArray::number(loopStart), -1, me->d_loc);
+                emitOpcode("br '#"+QByteArray::number(loopStart)+"'", 0, me->d_loc);
 
                 if( exitJump != -1 )
                 {
-                    out << "'#" << exitJump << "':";
-                    emitOpcode("nop",0,me->d_loc);
+                    out << "'#" << exitJump << "':" << endl;
                     exitJump = -1;
                 }
             }
@@ -2591,25 +2620,31 @@ struct ObxIlasmGenImp : public AstVisitor
                 switch( lhsT->getBaseType() )
                 {
                 case Type::LONGREAL:
+                    emitOpcode("conv.r8",0,me->d_loc);
                     emitOpcode("stind.r8",-2, me->d_loc);
                     break;
                 case Type::REAL:
+                    emitOpcode("conv.r4",0,me->d_loc);
                     emitOpcode("stind.r4",-2, me->d_loc);
                     break;
                 case Type::LONGINT:
+                    emitOpcode("conv.i8",0,me->d_loc);
                     emitOpcode("stind.i8",-2, me->d_loc);
                     break;
                 case Type::INTEGER:
                 case Type::SET:
                 case Type::BOOLEAN:
+                    emitOpcode("conv.i4",0,me->d_loc);
                     emitOpcode("stind.i4",-2, me->d_loc);
                     break;
                 case Type::SHORTINT:
                 case Type::CHAR:
                 case Type::WCHAR:
+                    emitOpcode("conv.i2",0,me->d_loc);
                     emitOpcode("stind.i2",-2, me->d_loc);
                     break;
                 case Type::BYTE:
+                    emitOpcode("conv.u1",0,me->d_loc);
                     emitOpcode("stind.i1",-2, me->d_loc);
                     break;
                 default:
@@ -2757,7 +2792,7 @@ struct ObxIlasmGenImp : public AstVisitor
     void visit( Exit* me)
     {
         const int before = stackDepth;
-        if( exitJump <= 0 )
+        if( exitJump < 0 )
             exitJump = labelCount++;
         emitOpcode("br '#"+QByteArray::number(exitJump)+"'",0,me->d_loc);
         Q_ASSERT( before == stackDepth );
@@ -2958,7 +2993,7 @@ struct ObxIlasmGenImp : public AstVisitor
                     emitOpcode("br '#"+QByteArray::number(checkLenLbl)+"'",0,loc);
 
                     const int loopStartLbl = labelCount++;
-                    out << "'#" << loopStartLbl << "':";
+                    out << "'#" << loopStartLbl << "':" << endl;
                     emitOpcode("dup",1,loc);
                     // new array on top
                     emitOpcode("ldloc "+QByteArray::number(i),1,loc);
@@ -2978,14 +3013,14 @@ struct ObxIlasmGenImp : public AstVisitor
                     emitOpcode("add",-1,loc);
                     emitOpcode("stloc "+QByteArray::number(i),-1,loc);
 
-                    out << "'#" << checkLenLbl << "':";
+                    out << "'#" << checkLenLbl << "':" << endl;
                     emitOpcode("ldloc "+QByteArray::number(i),1,loc);
                     emitOpcode("ldloc "+QByteArray::number(len),1,loc);
                     emitOpcode("blt '#"+QByteArray::number(loopStartLbl)+"'",-2,loc);
 #else // works with Mono 3 and .Net 4.0 Windows
                     // apparently Mono doesn't like dup after br; looks like a verifier issue
                     const int checkLenLbl = labelCount++;
-                    out << "'#" << checkLenLbl << "':";
+                    out << "'#" << checkLenLbl << "':" << endl;
                     emitOpcode("ldloc "+QByteArray::number(i),1,loc);
                     emitOpcode("ldloc "+QByteArray::number(len),1,loc);
                     const int afterLoopLbl = labelCount++;
@@ -3010,8 +3045,7 @@ struct ObxIlasmGenImp : public AstVisitor
                     emitOpcode("add",-1,loc);
                     emitOpcode("stloc "+QByteArray::number(i),-1,loc);
                     emitOpcode("br '#"+QByteArray::number(checkLenLbl)+"'",0,loc);
-                    out << "'#" << afterLoopLbl << "':";
-                    emitOpcode("nop",0,loc);
+                    out << "'#" << afterLoopLbl << "':" << endl;
 #endif
                     temps.sell(i);
                 }
@@ -3130,6 +3164,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 Type* t = derefed(p->d_type.data());
                 if( !p->d_var && t && t->isStructured() )
                 {
+                    // make a copy if a structured value is not passed by VAR or IN
                     const int tag = t->getTag();
                     QList<int> lengths;
                     if( tag == Thing::T_Array && cast<Array*>(t)->d_lenExpr.isNull() )
@@ -3257,6 +3292,32 @@ bool IlasmGen::generateMain(QIODevice* d, const QByteArray& name, const QByteArr
     return true;
 }
 
+bool IlasmGen::generateMain(QIODevice* d, const QByteArray& name, const QByteArrayList& modules)
+{
+    Q_ASSERT( d );
+    if( modules.isEmpty() )
+        return false;
+    QTextStream out(d); // default is UTF-8, so no need to setCodec
+
+    out << ".assembly '" << name << "' {}" << endl;
+    out << ".module '"<< name << ".exe'" << endl;
+    out << ".assembly extern mscorlib {}" << endl;
+    foreach( const QByteArray& mod, modules )
+        out << ".assembly extern '" << mod << "' {}" << endl;
+
+    out << ".method static void main() cil managed {" << endl;
+    out << "    .maxstack 1" << endl;
+    out << "    .entrypoint" << endl;
+    foreach( const QByteArray& mod, modules )
+        out << "    call void ['" << mod << "']'" << mod << "'::'ping#'()" << endl;
+    out << "    ldstr \"this is " << name << ".main\"" << endl;
+    out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
+    out << "    ret" << endl;
+    out << "}" << endl;
+
+    return true;
+}
+
 bool IlasmGen::translateAll(Project* pro, const QString& where)
 {
     Q_ASSERT( pro );
@@ -3326,13 +3387,35 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
         {
             const Project::ModProc& mp = pro->getMain();
             if( mp.first.isEmpty() )
-                IlasmGen::generateMain(&f,name,mods.last()->getName());
-            else
+            {
+                QByteArrayList roots;
+                for(int i = mods.size() - 1; i >= 0; i-- )
+                {
+                    if( mods[i]->d_usedBy.isEmpty() )
+                        roots.append(mods[i]->getName());
+                    else
+                        break;
+                }
+                if( roots.isEmpty() )
+                    roots.append(mods.last()->getName()); // shouldn't actually happenk
+                IlasmGen::generateMain(&f,name,roots);
+            }else
                 IlasmGen::generateMain(&f, name,mp.first, mp.second);
             out << "./ilasm /exe \"" << name << ".il\"" << endl;
         }else
             qCritical() << "could not open for writing" << f.fileName();
     }
+
+    QFile run( outDir.absoluteFilePath("run.sh") );
+    if( !run.open(QIODevice::WriteOnly) )
+    {
+        qCritical() << "could not open for writing" << make.fileName();
+        return false;
+    }
+    out.setDevice(&run);
+    out << "export MONO_PATH=." << endl;
+    out << "./mono Main#.exe" << endl;
+
     return pro->getErrs()->getErrCount() != errCount;
 }
 

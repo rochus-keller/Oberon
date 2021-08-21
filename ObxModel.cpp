@@ -1122,6 +1122,8 @@ bool Model::resolveImport(Module* m)
                 }
             }
         }
+        if( !i->d_mod.isNull() )
+            i->d_mod->d_usedBy.append(m);
     }
     return hasErrors;
 }

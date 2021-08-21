@@ -2,6 +2,7 @@ module Procs2
 	type A = array 4 of shortint
 	var a : A
 		i : integer
+		ap : pointer to A
 
 	proc P1( var c : A )
 	begin
@@ -13,6 +14,12 @@ module Procs2
 		c[2] := 33
 		println(c[2])
 	end P2
+	
+	proc P3( var ap: pointer to A )
+	begin
+		new(ap)
+		ap[3] := 44
+	end P3
 
 begin
 	println("Procs2")
@@ -29,4 +36,6 @@ begin
 	println(i)
 	dec(i)
 	println(i)
+	P3(ap)
+	println(ap[3])
 end Procs2

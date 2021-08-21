@@ -482,6 +482,7 @@ namespace Obx
     struct Module : public Scope
     {
         QList<Import*> d_imports;
+        QList<Module*> d_usedBy;
         QString d_file;
         VirtualPath d_fullName;  // package path (if present) + module name
         MetaParams d_metaParams;
