@@ -17,19 +17,19 @@ module Procs9
 	
 	proc test2(a: Aircraft)
 	begin
-		assert( a.position.z = 4 )
+		assert( a.position.z = 4.0 )
 		a.position.z := 5	
 	end test2
 	
 	proc test3(in a: Aircraft)
 	begin
-		assert( a.position.z = 4 )
+		assert( a.position.z = 4.0 )
 		//a.position.z := 5	 // is an error
 	end test3
 
 	proc test4(var a: Aircraft)
 	begin
-		assert( a.position.z = 4 )
+		assert( a.position.z = 4.0 )
 		a.position.z := 6
 	end test4
 
@@ -46,17 +46,17 @@ begin
 	 assert( a2.position.z # a1.position.z )
 
 	 test2(a1)
-	 assert( a1.position.z = 4)
+	 assert( a1.position.z = 4.0 )
 	 
 	 test4(a1)
-	 assert( a1.position.z = 6)
+	 assert( a1.position.z = 6.0)
 	 a1.position.z := 4
 	 
 	 test3(a1)
-	 assert( a1.position.z = 4)
+	 assert( a1.position.z = 4.0)
 	 
 	 a2 := test()
-	 assert( a2.position.z = 8 )
+	 assert( a2.position.z = 8.0 )
 	 
 	 println("Procs9 done")
 end Procs9

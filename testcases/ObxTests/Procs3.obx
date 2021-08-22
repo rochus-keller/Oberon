@@ -8,6 +8,7 @@ module Procs3
 		proc Inner( d: array of array of integer )
 			var i,j: integer
 		begin
+			d[2,3] := 12
 			println(d[2,3])
 		end Inner
 	begin
@@ -28,6 +29,7 @@ begin
 	end
    println(d[2,3])
 	Q(d)
+   println(d[2,3])
 	
 	Str("Test")
 

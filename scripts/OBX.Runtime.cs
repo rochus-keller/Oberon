@@ -19,7 +19,7 @@
 
 namespace OBX
 {
-	class Runtime
+	public class Runtime
 	{
 		public static int DIV( int a, int b )
 		{
@@ -126,6 +126,10 @@ namespace OBX
 		public static bool ODD(int n)
 		{
 			return !(n % 2 == 0);
+		}
+		public static void PACK(ref float x, int n)
+		{
+			x = x * (float)System.Math.Pow(2, n);
 		}
 		public static void UNPACK(ref float x, ref int n)
 		{

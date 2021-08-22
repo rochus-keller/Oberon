@@ -1,36 +1,3 @@
 module Tests
-	type 	D = array 3,4 of integer	
-	var d : D
-		i,j: integer
 
-	proc Q( d: array of array of integer )
-		proc Inner( d: array of array of integer )
-			var i,j: integer
-		begin
-			println(d[2,3])
-		end Inner
-	begin
-			//println(d[2,3])
-		Inner(d)
-	end Q
-	
-	proc Str( s: array of char )
-	begin
-		println(s)
-	end Str
-
-begin
-(*
-	println("Procs3")
-	for i := 0 to len(d)-1 do
-		for j := 0 to len(d[0])-1 do
-			d[i,j] := i + j + i * j
-		end
-	end
-   println(d[2,3])
-   *)
-   d[2,3] := 11
-	Q(d)
-	
-	//Str("Test")
 end Tests

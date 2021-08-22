@@ -1235,3 +1235,9 @@ quint8 UnExpr::visibilityFor(Module* m) const
     else
         return Named::NotApplicable;
 }
+
+
+bool BinExpr::isArithRelation() const
+{
+    return ( d_op >= EQ && d_op <= GEQ ) || ( d_op >= ADD && d_op <= SUB ) || ( d_op >= MUL && d_op <= MOD );
+}

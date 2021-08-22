@@ -1407,8 +1407,15 @@ struct ValidatorImp : public AstVisitor
                     ( ltag == Thing::T_ProcType && rtag == Thing::T_ProcType &&
                       lhsT->d_typeBound == rhsT->d_typeBound ) ||
                     ( lhsT == bt.d_anyType && rhsT == bt.d_anyType ) ) // because of generics
+            {
                 me->d_type = bt.d_boolType;
-            else
+                if( isNumeric(lhsT) && isNumeric(rhsT) )
+                {
+                    Type* t = inclusiveType1(lhsT,rhsT);
+                    if( t )
+                        me->d_baseType = t->d_baseType;
+                }
+            }else
             {
                 // qDebug() << "lhsT" << lhsT->getTagName() << "rhsT" << rhsT->getTagName();
                 error( me->d_loc, Validator::tr("operands of the given type cannot be compared") );
@@ -1422,8 +1429,15 @@ struct ValidatorImp : public AstVisitor
             if( ( isNumeric(lhsT) && isNumeric(rhsT) ) ||
                     ( ltag == Thing::T_Enumeration && lhsT == rhsT ) ||
                     ( isTextual(lhsT) && isTextual(rhsT) ) )
+            {
                 me->d_type = bt.d_boolType;
-            else
+                if( isNumeric(lhsT) && isNumeric(rhsT) )
+                {
+                    Type* t = inclusiveType1(lhsT,rhsT);
+                    if( t )
+                        me->d_baseType = t->d_baseType;
+                }
+            }else
             {
                 // qDebug() << "lhsT" << lhsT->getTagName() << "rhsT" << rhsT->getTagName();
                 error( me->d_loc, Validator::tr("operands of the given type cannot be compared") );
@@ -1448,8 +1462,11 @@ struct ValidatorImp : public AstVisitor
         case BinExpr::SUB: // set num
         case BinExpr::MUL:  // set num
             if( isNumeric(lhsT) && isNumeric(rhsT) )
+            {
                 me->d_type = inclusiveType1(lhsT,rhsT);
-            else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
+                if( !me->d_type.isNull() )
+                    me->d_baseType = me->d_type->d_baseType;
+            }else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
             else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT,false)) && (rhsT = isTextual(rhsT,false)) )
@@ -1469,8 +1486,11 @@ struct ValidatorImp : public AstVisitor
 
         case BinExpr::FDIV: // set num
             if( isNumeric(lhsT) && isNumeric(rhsT) )
+            {
                 me->d_type = inclusiveType2(lhsT,rhsT);
-            else if( lhsT == bt.d_setType || rhsT == bt.d_setType )
+                if( !me->d_type.isNull() )
+                    me->d_baseType = me->d_type->d_baseType;
+            }else if( lhsT == bt.d_setType || rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
             else
                 error( me->d_loc, Validator::tr("operator '/' expects both operands to be either of numeric or SET type") );
@@ -1483,6 +1503,8 @@ struct ValidatorImp : public AstVisitor
             if( !isInteger(rhsT ) )
                 error( me->d_rhs->d_loc, Validator::tr("integer type expected for right side of MOD or DIV operator") );
             me->d_type = inclusiveType1(lhsT,rhsT);
+            if( !me->d_type.isNull() )
+                me->d_baseType = me->d_type->d_baseType;
             break;
 
         case BinExpr::OR:  // bool
@@ -3113,7 +3135,7 @@ bool Validator::check(Module* m, const BaseTypes& bt, Ob::Errors* err, Instantia
     ValidatorImp imp;
     imp.err = err;
     imp.bt = bt;
-    imp.bt.assert();
+    imp.bt.check();
     imp.mod = m;
     imp.insts = insts;
     m->accept(&imp);
@@ -3130,7 +3152,7 @@ Validator::BaseTypes::BaseTypes()
     ::memset(this,0,sizeof(BaseTypes));
 }
 
-void Validator::BaseTypes::assert() const
+void Validator::BaseTypes::check() const
 {
     Q_ASSERT( d_boolType && d_charType && d_byteType && d_intType && d_realType && d_setType &&
               d_stringType && d_nilType && d_anyType && d_shortType && d_longType && d_longrealType &&

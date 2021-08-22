@@ -49,7 +49,7 @@ namespace Obx
             Record* d_anyRec;
             BaseType* d_anyType;
             BaseTypes();
-            void assert() const;
+            void check() const;
         };
 
         // assumes imports are already resolved

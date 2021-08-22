@@ -12,8 +12,6 @@ size=0
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Tests.obx
 1\RelPath=Tests.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Hello.obx
-2\RelPath=Hello.obx
 size=1
 
 [Packages]
