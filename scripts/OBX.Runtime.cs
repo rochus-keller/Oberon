@@ -84,6 +84,45 @@ namespace OBX
 			}
 			return false;
 		}
+		public static bool relOp( char l, char r, int op )
+		{
+			switch( op )
+			{
+			case 1: // EQ
+				return l == r;
+			case 2: // NEQ
+				return l != r;
+			case 3: // LT
+				return l < r;
+			case 4: // LEQ
+				return l <= r;
+			case 5: // GT
+				return l > r;
+			case 6: // GEQ
+				return l >= r;
+			}
+			return false;
+		}
+		public static bool relOp( char[] l, char r, int op )
+		{
+			if( l.Length == 2 )
+				return relOp(l[0],r,op);
+			// else
+			char[] rr = new char[2];
+			rr[0] = r;
+			rr[1] = '\0';
+			return relOp(l,rr,op);
+		}
+		public static bool relOp( char l, char[] r, int op )
+		{
+			if( r.Length == 2 )
+				return relOp(l,r[0],op);
+			// else
+			char[] ll = new char[2];
+			ll[0] = l;
+			ll[1] = '\0';
+			return relOp(ll,r,op);
+		}
 		public static int strlen( char[] str )
 		{
 			int len = str.Length;
@@ -107,6 +146,13 @@ namespace OBX
 			res[lhslen+rhslen] = '\x0';
 			return res;
 		}
+		public static char[] toString(char ch)
+		{
+			char[] str = new char[2];
+			str[0] = ch;
+			str[1] = '\0';
+			return str;
+		}
 		public static int addElemToSet(int set_, int elem )
 		{
 			return set_ | ( 1 << elem );
@@ -123,6 +169,10 @@ namespace OBX
 				set_ = addElemToSet(set_,i);
 			return set_;
 		}
+		public static bool IN(int elem, int set_)
+		{
+			return ( ( 1 << elem ) & set_ ) != 0;
+		}
 		public static bool ODD(int n)
 		{
 			return !(n % 2 == 0);
@@ -133,9 +183,10 @@ namespace OBX
 		}
 		public static void UNPACK(ref float x, ref int n)
 		{
+			// UNPACK(4,-10) -> 1,2
+			//System.Console.WriteLine("unpack("+x.ToString()+" "+n.ToString());
 			frexp(ref x, ref n);
-			x = x + x;
-			n = n - 1;
+			//System.Console.WriteLine("->"+x.ToString()+" "+n.ToString());
 		}
 		public static void frexp(ref float d, ref int e)
 		{

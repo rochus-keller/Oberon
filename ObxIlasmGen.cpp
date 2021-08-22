@@ -53,7 +53,9 @@ struct ObxIlasmGenCollector : public AstVisitor
                 Record* r = cast<Record*>(t);
                 allRecords.append( r );
                 foreach( const Ref<Field>& f, r->d_fields )
+                {
                     collect(f->d_type.data());
+                }
                 if( r->d_base )
                     collect(r->d_base.data());
             }
@@ -77,12 +79,16 @@ struct ObxIlasmGenCollector : public AstVisitor
                 Named* n = r->findDecl();
                 if( n ) // actually n cannot be 0
                     allImports.insert(n->getModule());
-            }else
+            }
+#if 0
+            // no, we only create delegates for proc types declared here
+            else
             {
                 t = t->derefed();
                 if( t && t->getTag() == Thing::T_ProcType )
                     collect(t); // even if the proc type was declared in another module, we create a local delegate here
             }
+#endif
             break;
         }
     }
@@ -252,12 +258,17 @@ struct ObxIlasmGenImp : public AstVisitor
     QByteArray classRef( Record* r )
     {
         Named* n = r->findDecl();
-        if( n )
+        if( n && n->getTag() == Thing::T_NamedType )
             return classRef(n);
         else
         {
             Q_ASSERT( r->d_slotValid );
-            return moduleRef(thisMod) + "/'#" + QByteArray::number(r->d_slot) + "'";
+            if( n == 0 )
+                n = r->findDecl(true);
+            Module* m = n ? n->getModule() : 0;
+            if( m == 0 )
+                m = thisMod;
+            return moduleRef(m) + "/'#" + QByteArray::number(r->d_slot) + "'";
         }
     }
 
@@ -298,21 +309,8 @@ struct ObxIlasmGenImp : public AstVisitor
     {
         if( pt == 0 )
             return "?";
-        Named* n = pt->findDecl(true);
-
-        if( n )
-        {
-#if 0
-            if( pt->d_slotValid )
-                return "valuetype " + moduleRef(n->getModule()) + "/'#" + QByteArray::number(pt->d_slot) + "'";
-            else
-                return "valuetype " + moduleRef(n->getModule()) + "/" + dottedName(n);
-#else
-            Q_ASSERT( pt->d_slotValid);
-            return moduleRef(n->getModule()) + "/'#" + QByteArray::number(pt->d_slot) + "'";
-#endif
-        }else
-            return moduleRef(thisMod) + "/'#" + QByteArray::number(pt->d_slot) + "'";
+        Q_ASSERT( pt->d_slotValid);
+        return moduleRef(pt->declaredIn()) + "/'#" + QByteArray::number(pt->d_slot) + "'";
     }
 
     void emitArrayCopierRef(Array* a)
@@ -480,14 +478,28 @@ struct ObxIlasmGenImp : public AstVisitor
 //#define _USE_VALUE_RECORDS_
     // no value records currently because the initialization works completely different; needs extra work
 
-    void emitRecordDecl(Record* r)
+    void allocRecordDecl(Record* r)
     {
+        if( r->d_slotValid )
+            return; // can happen e.g. with VAR foo, bar: RECORD ch: CHAR; i: INTEGER END;
         Named* n = r->findDecl();
-        out << ws() << ".class ";
         if( n == 0 || n->getTag() != Thing::T_NamedType )
         {
             r->d_slot = anonymousDeclNr++;
             r->d_slotValid = true;
+        }
+    }
+
+    void emitRecordDecl(Record* r)
+    {
+        if( r->d_slotAllocated )
+            return;
+        r->d_slotAllocated = true;
+        Named* n = r->findDecl();
+        out << ws() << ".class ";
+        if( n == 0 || n->getTag() != Thing::T_NamedType )
+        {
+            Q_ASSERT(r->d_slotValid);
             out << "nested ";
             Named* n = r->findDecl(true);
             if( n && n->d_visibility != Named::Private )
@@ -694,7 +706,7 @@ struct ObxIlasmGenImp : public AstVisitor
         // since there can be several proc types with the same signature but different names, we just use numbers
         pt->d_slot = anonymousDeclNr++;
         pt->d_slotValid = true;
-        out << "nested assembly sealed '#" << pt->d_slot << "' "; // we created local deleg def even if defined in another mod
+        out << "nested public sealed '#" << pt->d_slot << "' ";
 #endif
         out << "extends [mscorlib]System.MulticastDelegate {" << endl;
         level++;
@@ -741,6 +753,9 @@ struct ObxIlasmGenImp : public AstVisitor
             emitDelegDecl(co.allProcTypes[i]); // we use delegates for both proc types and type-bound proc types (plain function pointers are not verifiable)
 
         foreach( Record* r, co.allRecords )
+            allocRecordDecl(r);
+
+        foreach( Record* r, co.allRecords )
             emitRecordDecl(r);
 
         foreach( const Ref<Named>& n, me->d_order )
@@ -771,8 +786,10 @@ struct ObxIlasmGenImp : public AstVisitor
             emitOpcode("call void ['" + imp->d_mod->getName() + "']'" +
                        imp->d_mod->getName() + "'::'ping#'()",0, me->d_begin );
         }
+#if 0
         emitOpcode( "ldstr \"this is " + me->getName() + "\"", 1, me->d_begin );
         emitOpcode( "call void [mscorlib]System.Console::WriteLine (string)", -1, me->d_begin );
+#endif
 #endif
         emitOpcode("ret",0,me->d_begin);
 
@@ -796,7 +813,7 @@ struct ObxIlasmGenImp : public AstVisitor
         while( !copiers.isEmpty() )
         {
             QByteArray t = copiers.begin().key();
-            const int dims = copiers.begin().value().second;
+            //const int dims = copiers.begin().value().second;
             Array* tt = copiers.begin().value().first;
             copiers.remove(t);
             if( done.contains(t) )
@@ -956,6 +973,7 @@ struct ObxIlasmGenImp : public AstVisitor
 
     void emitVar( Named* me, bool isStatic )
     {
+        emitLine(me->d_loc);
         out << ws() << ".field ";
         if( me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly )
             out << "public ";
@@ -1161,7 +1179,7 @@ struct ObxIlasmGenImp : public AstVisitor
             break;
         case Literal::Real:
             emitOpcode2("ldc.r4",1,loc);
-            out << " " << val.toFloat() << endl; // TODO r8 vs r4
+            out << " " << val.toDouble() << endl; // TODO r8 vs r4
             break;
         case Literal::Nil:
             emitOpcode("ldnull",1,loc);
@@ -1697,7 +1715,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 if( t->isString() )
                 {
                     ae->d_args.first()->accept(this);
-                    emitOpcode("call int [OBX.Runtime]OBX.Runtime::strlen(char[])", -1+1, ae->d_loc );
+                    emitOpcode("call int32 [OBX.Runtime]OBX.Runtime::strlen(char[])", -1+1, ae->d_loc );
                 }else
                 {
                     Q_ASSERT( t->getTag() == Thing::T_Array );
@@ -1750,10 +1768,10 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitFetchDesigAddr(ae->d_args.first().data(),true);
                 // stack: addr of store
                 emitOpcode("dup",1,ae->d_args.first()->d_loc);
-                emitOpcode("ldind.u4", -1, ae->d_args.first()->d_loc);
+                emitOpcode("ldind.u4", -1+1, ae->d_args.first()->d_loc);
                 ae->d_args.last()->accept(this);
-                emitOpcode("call int [OBX.Runtime]OBX.Runtime::addElemToSet(int,int)", -2+1, ae->d_loc );
-                emitOpcode("stind.u4", -2, ae->d_args.last()->d_loc);
+                emitOpcode("call int32 [OBX.Runtime]OBX.Runtime::addElemToSet(int32,int32)", -2+1, ae->d_loc );
+                emitOpcode("stind.i4", -2, ae->d_args.last()->d_loc);
             }
             break;
         case BuiltIn::EXCL:
@@ -1763,10 +1781,10 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitFetchDesigAddr(ae->d_args.first().data(),true);
                 // stack: addr of store
                 emitOpcode("dup",1,ae->d_args.first()->d_loc);
-                emitOpcode("ldind.u4", -1, ae->d_args.first()->d_loc);
+                emitOpcode("ldind.u4", -1+1, ae->d_args.first()->d_loc);
                 ae->d_args.last()->accept(this);
-                emitOpcode("call int [OBX.Runtime]OBX.Runtime::removeElemFromSet(int,int)", -2+1, ae->d_loc );
-                emitOpcode("stind.u4", -2, ae->d_loc);
+                emitOpcode("call int32 [OBX.Runtime]OBX.Runtime::removeElemFromSet(int32,int32)", -2+1, ae->d_loc );
+                emitOpcode("stind.i4", -2, ae->d_loc);
             }
             break;
         case BuiltIn::PACK:
@@ -1793,7 +1811,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
                 Type* t = derefed(ae->d_args.first()->d_type.data() );
-                if( t && t->isText() && t->getBaseType() == 0 )
+                if( t && ( t->isString() || t->isStructured() ) )
                 {
                     emitOpcode("ldc.i4.0",1,ae->d_loc);
                     emitOpcode("ldelem char", -2+1, ae->d_loc);
@@ -1801,9 +1819,22 @@ struct ObxIlasmGenImp : public AstVisitor
             }
             break;
         case BuiltIn::CHR:
-        case BuiltIn::FLT:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
+            break;
+        case BuiltIn::FLT:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+                const int bt = ae->d_args.first()->d_type.isNull() ? 0 : ae->d_args.first()->d_type->getBaseType();
+                if( bt != Type::REAL && bt != Type::LONGREAL )
+                {
+                    if( bt == Type::LONGINT )
+                        emitOpcode("conv.r8",0,ae->d_loc);
+                    else
+                        emitOpcode("conv.r4",0,ae->d_loc);
+                }
+            }
             break;
         case BuiltIn::ODD:
             Q_ASSERT( ae->d_args.size() == 1 );
@@ -1927,14 +1958,56 @@ struct ObxIlasmGenImp : public AstVisitor
 
                 const int after = labelCount++;
                 emitOpcode("brtrue '#"+QByteArray::number(after)+"'",-1,ae->d_loc);
-                emitOpcode("ldstr \"assertion failed\"",1, ae->d_loc);
+                emitOpcode("ldstr \"assertion failed at line "+QByteArray::number(ae->d_loc.d_row)+"\"",1, ae->d_loc);
                 emitOpcode("newobj instance void [mscorlib]System.Exception::.ctor(string)",-1+1,ae->d_loc);
                 emitOpcode("throw", -1, ae->d_loc);
 
                 out << "'#" << after << "':" << endl;
             }
             break;
-        default:
+        case BuiltIn::BYTESIZE:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() && !ae->d_args.first()->d_type.isNull() );
+                Expression* e = ae->d_args.first().data();
+                Type* t = derefed(e->d_type.data());
+                switch( t->getBaseType() )
+                {
+                case Type::BOOLEAN:
+                case Type::CHAR:
+                case Type::BYTE:
+                    emitOpcode("ldc.i4 1",1,e->d_loc);
+                    break;
+                case Type::WCHAR:
+                case Type::SHORTINT:
+                    emitOpcode("ldc.i4 2",1,e->d_loc);
+                    break;
+                case Type::INTEGER:
+                case Type::REAL:
+                case Type::SET:
+                    emitOpcode("ldc.i4 4",1,e->d_loc);
+                    break;
+                case Type::LONGINT:
+                case Type::LONGREAL:
+                    emitOpcode("ldc.i4 8",1,e->d_loc);
+                    break;
+                default:
+                    switch( t->getTag() )
+                    {
+                    case Thing::T_Pointer:
+                        emitOpcode("ldc.i4 4",1,e->d_loc);// TODO
+                        break;
+                    case Thing::T_Record:
+                    case Thing::T_Array:
+                        emitOpcode("ldc.i4 1",1,e->d_loc);// TODO
+                        break;
+                    default:
+                        Q_ASSERT( false ); // TODO
+                        break;
+                    }
+                    break;
+                }
+            }
+            break;        default:
              qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
              break;
         }
@@ -2038,8 +2111,8 @@ struct ObxIlasmGenImp : public AstVisitor
         }else
         {
             Q_ASSERT( pt->d_slotValid );
-            emitOpcode2("callvirt instance ", -pt->d_formals.size()-1, me->d_loc);
-            out << formatType(pt->d_return.data()) << " " << moduleRef(thisMod) << "/'#" << pt->d_slot << "'::Invoke"
+            emitOpcode2("callvirt instance ", -pt->d_formals.size()-1+(pt->d_return.isNull()?0:1), me->d_loc);
+            out << formatType(pt->d_return.data()) << " " << delegateRef(pt) << "::Invoke"
                 << formatFormals(pt->d_formals,false) << endl;
         }
 
@@ -2066,6 +2139,9 @@ struct ObxIlasmGenImp : public AstVisitor
             else
 #endif
                 emitOpcode("ldelem char",-2+1,loc);
+        }else if( tf->isText() && !tf->isChar() && ta->isChar() )
+        {
+            emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::toString(char)", -1+1, loc ); // TODO
         }else if( ta->getTag() == Thing::T_ProcType )
         {
             Named* n = ea->getIdent();
@@ -2118,6 +2194,19 @@ struct ObxIlasmGenImp : public AstVisitor
         }
     }
 
+    void stringOp( bool lhsChar, bool rhsChar, int op, const RowCol& loc )
+    {
+        emitOpcode("ldc.i4."+QByteArray::number(op),1,loc);
+        if( lhsChar && rhsChar )
+            emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char,char,int32)", -3+1, loc );
+        else if( lhsChar && !rhsChar )
+            emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char,char[],int32)", -3+1, loc );
+        else if( !lhsChar && rhsChar )
+            emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char,int32)", -3+1, loc );
+        else
+            emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int32)", -3+1, loc );
+    }
+
     void convertTo( quint8 toBaseType, Type* from, const RowCol& loc )
     {
         from = derefed(from);
@@ -2154,12 +2243,9 @@ struct ObxIlasmGenImp : public AstVisitor
         Q_ASSERT( !me->d_lhs.isNull() && !me->d_rhs.isNull() &&
                   !me->d_lhs->d_type.isNull() && !me->d_rhs->d_type.isNull() );
 
-        if( me->d_op != BinExpr::IN )
-        {
-            me->d_lhs->accept(this);
-            if( me->isArithRelation() )
-                convertTo(me->d_baseType, me->d_lhs->d_type.data(), me->d_lhs->d_loc);
-        }
+        me->d_lhs->accept(this);
+        if( me->isArithRelation() )
+            convertTo(me->d_baseType, me->d_lhs->d_type.data(), me->d_lhs->d_loc);
 
         if( me->d_op != BinExpr::AND && me->d_op != BinExpr::OR )
         {
@@ -2181,16 +2267,17 @@ struct ObxIlasmGenImp : public AstVisitor
         case BinExpr::IN:
             if( lhsT->isInteger() && rhsT->getBaseType() == Type::SET )
             {
-                me->d_lhs->accept(this);
-                emitOpcode("ldc.i4.1",1,me->d_lhs->d_loc);
-                emitOpcode("shl",-2+1,me->d_lhs->d_loc);
-                emitOpcode("and",-2+1,me->d_loc);
+                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::IN(int32, int32)", -2+1, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
         case BinExpr::IS:
-            emitOpcode2("isinst ", -2 + 1, me->d_loc);
+            emitOpcode2("isinst ", -1 + 1, me->d_loc); // returns object or null
             rhsT->accept(this); out << endl;
+            emitOpcode("ldnull",1,me->d_loc);
+            emitOpcode("ceq", -2+1, me->d_loc ); // true if null
+            emitOpcode("ldc.i4.0", 1, me->d_loc);
+            emitOpcode("ceq", -2+1, me->d_loc); // not
             break;
         case BinExpr::ADD:
             if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
@@ -2223,12 +2310,12 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("stloc "+QByteArray::number(rhs),-1, me->d_loc );
                 const int lhs = temps.buy();
                 emitOpcode("stloc "+QByteArray::number(lhs),-1, me->d_loc );
-                emitOpcode("ldloc"+QByteArray::number(lhs),1, me->d_loc);
-                emitOpcode("ldloc"+QByteArray::number(rhs),1, me->d_loc);
+                emitOpcode("ldloc "+QByteArray::number(lhs),1, me->d_loc);
+                emitOpcode("ldloc "+QByteArray::number(rhs),1, me->d_loc);
                 emitOpcode("and", -2+1, me->d_loc );
                 emitOpcode("not", -1+1, me->d_loc );
-                emitOpcode("ldloc"+QByteArray::number(lhs),1, me->d_loc);
-                emitOpcode("ldloc"+QByteArray::number(rhs),1, me->d_loc);
+                emitOpcode("ldloc "+QByteArray::number(lhs),1, me->d_loc);
+                emitOpcode("ldloc "+QByteArray::number(rhs),1, me->d_loc);
                 emitOpcode("or", -2+1, me->d_loc );
                 emitOpcode("and", -2+1, me->d_loc );
                 temps.sell(rhs);
@@ -2271,10 +2358,13 @@ struct ObxIlasmGenImp : public AstVisitor
                 const int setFalse = labelCount++;
                 emitOpcode("brfalse '#"+QByteArray::number(setFalse)+"'", -1, me->d_loc);
                 me->d_rhs->accept(this);
+                Q_ASSERT( stackDepth == before+1 );
                 emitOpcode("br '#"+QByteArray::number(afterEnd)+"'", 0, me->d_loc);
                 out << "'#" << setFalse << "':" << endl;
                 emitOpcode("ldc.i4.0",1,me->d_loc);
                 out << "'#" << afterEnd << "':" << endl;
+                Q_ASSERT( stackDepth == before+2 );
+                stackDepth--; // correct for alternative rhs or ldc
             }else
                 Q_ASSERT(false);
             break;
@@ -2286,10 +2376,13 @@ struct ObxIlasmGenImp : public AstVisitor
                 const int setTrue = labelCount++;
                 emitOpcode("brtrue '#"+QByteArray::number(setTrue)+"'", -1, me->d_loc);
                 me->d_rhs->accept(this);
+                Q_ASSERT( stackDepth == before+1 );
                 emitOpcode("br '#"+QByteArray::number(afterEnd)+"'", 0, me->d_loc);
                 out << "'#" << setTrue << "':" << endl;
                 emitOpcode("ldc.i4.1",1,me->d_loc);
                 out << "'#" << afterEnd << "':" << endl;
+                Q_ASSERT( stackDepth == before+2 );
+                stackDepth--; // correct for alternative rhs or ldc
             }else
                 Q_ASSERT(false);
             break;
@@ -2305,8 +2398,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("ceq", -2+1, me->d_loc );
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                emitOpcode("ldc.i4.1",1,me->d_loc);
-                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int)", -3+1, me->d_loc );
+                stringOp(lhsT->isChar(), rhsT->isChar(), 1, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2324,8 +2416,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("ceq", -2+1, me->d_loc);
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                emitOpcode("ldc.i4.2",1,me->d_loc);
-                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int)", -3+1, me->d_loc );
+                stringOp(lhsT->isChar(), rhsT->isChar(), 2, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2337,8 +2428,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("clt", -2+1, me->d_loc );
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                emitOpcode("ldc.i4.3",1,me->d_loc);
-                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int)", -3+1, me->d_loc );
+                stringOp(lhsT->isChar(), rhsT->isChar(), 3, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2352,8 +2442,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("ceq", -2+1, me->d_loc);
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                emitOpcode("ldc.i4.4",1,me->d_loc);
-                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int)", -3+1, me->d_loc );
+                stringOp(lhsT->isChar(), rhsT->isChar(), 4, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2365,8 +2454,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("cgt", -2+1, me->d_loc );
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                emitOpcode("ldc.i4.5",1,me->d_loc);
-                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int)", -3+1, me->d_loc );
+                stringOp(lhsT->isChar(), rhsT->isChar(), 5, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2380,8 +2468,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("ceq", -2+1, me->d_loc);
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                emitOpcode("ldc.i4.6",1,me->d_loc);
-                emitOpcode("call bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int)", -3+1, me->d_loc );
+                stringOp(lhsT->isChar(), rhsT->isChar(), 6, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2405,14 +2492,14 @@ struct ObxIlasmGenImp : public AstVisitor
                 if( bi->d_rhs )
                     bi->d_rhs->accept(this);
                 // set, from and to index on stack
-                emitOpcode("call int [OBX.Runtime]OBX.Runtime::addRangeToSet(int, int, int)", -3+1, me->d_loc );
+                emitOpcode("call int32 [OBX.Runtime]OBX.Runtime::addRangeToSet(int32, int32, int32)", -3+1, me->d_loc );
                 // new set on stack
             }else
             {
                 // set or 0 already on stack
                 me->d_parts[i]->accept(this);
                 // element index on stack
-                emitOpcode("call int [OBX.Runtime]OBX.Runtime::addElemToSet(int, int)", -2+1, me->d_loc );
+                emitOpcode("call int32 [OBX.Runtime]OBX.Runtime::addElemToSet(int32, int32)", -2+1, me->d_loc );
                 // new set on stack
             }
         }
@@ -2608,6 +2695,7 @@ struct ObxIlasmGenImp : public AstVisitor
         {
             me->d_lhs->accept(this);
             me->d_rhs->accept(this);
+            prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
             switch(lhsT->getTag())
             {
             case Thing::T_Record:
@@ -2900,17 +2988,22 @@ struct ObxIlasmGenImp : public AstVisitor
             return 0;
     }
 
+    void emitLine(const RowCol& loc)
+    {
+        if( !(loc == last) )
+        {
+            out << ws() << ".line " << loc.d_row << ":" << loc.d_col << endl; // filename is given by current assembly
+            last = loc;
+        }
+    }
+
     void emitOpcode( const QByteArray& op, int stackDelta, const RowCol& loc, bool withEndl = true )
     {
         stackDepth += stackDelta;
         Q_ASSERT( stackDepth >= 0 );
         if( stackDepth > maxStackDepth )
             maxStackDepth = stackDepth;
-        if( !(loc == last) )
-        {
-            out << ws() << ".line " << loc.d_row << ":" << loc.d_col << endl; // filename is given by current assembly
-            last = loc;
-        }
+        emitLine(loc);
         out << ws() << op;
         if( withEndl )
             out << endl;
@@ -3311,8 +3404,10 @@ bool IlasmGen::generateMain(QIODevice* d, const QByteArray& name, const QByteArr
         out << "    call void ['" << module << "']'" << module << "'::" << function << "()" << endl;
     else
         out << "    call void ['" << module << "']'" << module << "'::'ping#'()" << endl;
+#if 0 // TEST
     out << "    ldstr \"this is " << name << ".main\"" << endl;
     out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
+#endif
     out << "    ret" << endl;
     out << "}" << endl;
 
@@ -3337,8 +3432,10 @@ bool IlasmGen::generateMain(QIODevice* d, const QByteArray& name, const QByteArr
     out << "    .entrypoint" << endl;
     foreach( const QByteArray& mod, modules )
         out << "    call void ['" << mod << "']'" << mod << "'::'ping#'()" << endl;
+#if 0 // TEST
     out << "    ldstr \"this is " << name << ".main\"" << endl;
     out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
+#endif
     out << "    ret" << endl;
     out << "}" << endl;
 

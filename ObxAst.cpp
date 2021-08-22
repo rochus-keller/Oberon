@@ -1133,6 +1133,13 @@ Record*Type::toRecord() const
         return 0;
 }
 
+Module*Type::declaredIn()
+{
+    Named* n = findDecl(true);
+    Q_ASSERT(n);
+    return n->getModule();
+}
+
 bool Literal::isWide(const QString& str)
 {
     for( int i = 0; i < str.size(); i++ )

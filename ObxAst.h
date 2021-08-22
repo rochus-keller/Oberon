@@ -218,6 +218,7 @@ namespace Obx
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0, bool resolvePtr = false) const;
         Record* toRecord() const;
+        Module* declaredIn();
     };
 
     struct BaseType : public Type

@@ -98,3 +98,25 @@ Tree       19
 FFT       25
 Nonfloating point composite is 1.411675e+02
 Floating point composite is 2.714228e+02
+
+**** OBXMC 2021-08-22 + Mono 3
+Perm	8.892
+Towers 10.200
+Queens errors
+Intmm	8.508
+Mm		7.475
+Quick	8.052
+Bubble	15.689
+Tree	9.880
+FFT		15.091
+
+**** OBXMC 2021-08-22 + Mono 5
+Perm	9.814
+Towers 12.614
+Queens errors
+Intmm	8.463
+Mm		8.606
+Quick	10.411
+Bubble	17.312
+Tree	11.895
+FFT		17.339

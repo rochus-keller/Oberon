@@ -1,3 +1,10 @@
 module Tests
 
+var c: char
+begin
+	c := "s"
+	if (c # "s") & (c # "i") then
+		println("hit")
+	end
+	println("done")
 end Tests
