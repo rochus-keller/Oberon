@@ -1,10 +1,46 @@
 module Tests
 
-var c: char
+	type T = record end
+	proc (var this: T)sayHello(in str: array of char)
+	begin
+		println("hello from method:")
+		println(str)
+	end sayHello
+
+	proc sayHello(in str: array of char)
+	begin
+		println("hello from proc:")
+		println(str)
+	end sayHello
+	
+	type P = proc (in str: array of char)
+		  M = proc (pointer)(in str: array of char)
+		  K = proc (pointer)
+
+	proc test1( p: P )
+	begin
+		p("1234")
+	end test1
+	
+	proc test2( m: M )
+	begin
+		m("5678")
+	end test2
+	
+	proc (var this: T)test3()
+	begin
+		println("test3")
+	end test3
+	
+	var t: pointer to T
+		k: K
 begin
-	c := "s"
-	if (c # "s") & (c # "i") then
-		println("hit")
-	end
-	println("done")
+
+	test1(sayHello)
+	new(t)
+	test2(t.sayHello)
+
+	k := t.test3
+	k
+	
 end Tests

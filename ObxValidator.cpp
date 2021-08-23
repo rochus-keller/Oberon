@@ -3076,7 +3076,7 @@ struct ValidatorImp : public AstVisitor
         if( td == ctdd && ctdd->getTag() != Thing::T_Pointer )
             error(t->d_loc, Validator::tr("a structured type cannot contain itself"));
         else if( td == ctdd )
-            curTypeDecl->d_selfRef = true;
+            t->d_selfRef = true;
         else if( td == t ) // dont follow qualitypes
             checkSelfRef(td);
     }
