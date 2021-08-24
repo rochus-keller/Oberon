@@ -10,9 +10,11 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Tests.obx
-1\RelPath=Tests.obx
-size=1
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic3.obx
+1\RelPath=Generic3.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest6.obx
+2\RelPath=GenericTest6.obx
+size=2
 
 [Packages]
 1\Name=@ByteArray()

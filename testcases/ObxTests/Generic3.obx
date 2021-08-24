@@ -1,18 +1,25 @@
-module Generic3
+module Generic3<T>
 
 type
-	Element<A,V> = record 
-				value : V 
+	Element = record 
+				value* : T 
 		  end
+   // illegal: Element2 = record(T) end
 	
-	List<T> = pointer to record (Element<real,T>)
-            next  : List<T>
+	List* = pointer to record (Element)
+            next*  : List
         end
-var
-	IntList : List<integer>
-
-begin
-	new(IntList)
-	IntList.value := 55
-	println(IntList.value)
+        
+    Printer = proc( in elem: T );
+        
+   proc (in this: Element) print*(p: Printer)
+   begin
+	   p(this.value)
+   end print
+   
+   proc (var this: Element) setValue*( in v: T )
+   begin
+	   this.value := v
+	end setValue
+   
 end Generic3

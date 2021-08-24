@@ -26,6 +26,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QDir>
+#include <QCryptographicHash>
 using namespace Obx;
 using namespace Ob;
 
@@ -178,16 +179,17 @@ struct ObxIlasmGenImp : public AstVisitor
     quint16 maxStackDepth;
     quint16 labelCount;
     bool ownsErr;
+    bool forceAssemblyPrefix;
     RowCol last;
     TempPool temps;
     QSet<QByteArray> keywords;
     QHash<QByteArray, QPair<Array*,int> > copiers; // type string -> array, max dim count
-    QHash<QByteArray,quint32> delegates; // signature -> slotNr
+    QHash<QByteArray,QByteArray> delegates; // signature hash -> signature
     int exitJump; // TODO: nested LOOPs
     Procedure* scope;
 
     ObxIlasmGenImp():ownsErr(false),err(0),dev(0),thisMod(0),anonymousDeclNr(1),level(0),
-        stackDepth(0),maxStackDepth(0),labelCount(0),exitJump(-1),scope(0)
+        stackDepth(0),maxStackDepth(0),labelCount(0),exitJump(-1),scope(0),forceAssemblyPrefix(false)
     {
         // Source: mono-5.20.1.34/mcs/ilasm/scanner/ILTables.cs, replaced = by \t and extracted string col with excel
         keywords << "at" << "as" << "implicitcom" << "implicitres" << "noappdomain" << "noprocess"
@@ -276,7 +278,7 @@ struct ObxIlasmGenImp : public AstVisitor
     {
         Q_ASSERT( modName && modName->getTag() == Thing::T_Module );
         const QByteArray mod = escape(modName->getName());
-        if( modName == thisMod )
+        if( !forceAssemblyPrefix && modName == thisMod )
             return "'" + mod + "'";
         else
             return "['" + mod + "']'" + mod + "'";
@@ -305,19 +307,31 @@ struct ObxIlasmGenImp : public AstVisitor
             return moduleRef(p->getModule()) + "::" + dottedName(procName);
     }
 
+    QByteArray inline delegateName( const QByteArray& sig )
+    {
+        QCryptographicHash hash(QCryptographicHash::Md5);
+        hash.addData(sig);
+        return hash.result().toBase64(QByteArray::OmitTrailingEquals);
+    }
+
     QByteArray delegateRef( ProcType* pt )
     {
         if( pt == 0 )
             return "?";
 
-        const QByteArray sig = procTypeSignature(pt);
-        quint32& slot = delegates[sig];
-        if( slot == 0 )
-        {
-            slot = anonymousDeclNr++;
-        }
+        forceAssemblyPrefix = true;
 
-        return moduleRef(thisMod) + "/'#" + QByteArray::number(slot) + "'";
+        const QByteArray sig = procTypeSignature(pt);
+        const QByteArray name = delegateName(sig);
+        if( pt->declaredIn() == thisMod )
+            delegates.insert(name,sig);
+
+        Module* m = pt->declaredIn();
+        if( m == 0 )
+            m = thisMod;
+        const QByteArray res = moduleRef(m) + "/'" + name + "'";
+        forceAssemblyPrefix = false;
+        return res;
     }
 
     void emitArrayCopierRef(Array* a)
@@ -677,12 +691,12 @@ struct ObxIlasmGenImp : public AstVisitor
         out << ws() << "}" << endl;
     }
 
-    void emitDelegDecl(const QByteArray sig, int nr)
+    void emitDelegDecl(const QByteArray& sig, const QByteArray& name)
     {
         const int pos = sig.indexOf('*');
         Q_ASSERT( pos != -1);
         out << ws() << ".class ";
-        out << "nested assembly sealed '#" << nr << "' ";
+        out << "nested public sealed '" << name << "' ";
         out << "extends [mscorlib]System.MulticastDelegate {" << endl;
         level++;
         out << ws() << ".method public hidebysig instance void .ctor(object MethodsClass, "
@@ -723,10 +737,8 @@ struct ObxIlasmGenImp : public AstVisitor
         out << ".class public sealed '" << me->getName() << "' extends [mscorlib]System.ValueType {" << endl; // MODULE
         level++;
 
-#if 0 // obsolete
         for( int i = 0; i < co.allProcTypes.size(); i++ )
-            emitDelegDecl(co.allProcTypes[i]); // we use delegates for both proc types and type-bound proc types (plain function pointers are not verifiable)
-#endif
+            delegateRef(co.allProcTypes[i]);
 
         foreach( Record* r, co.allRecords )
             allocRecordDecl(r);
@@ -798,9 +810,9 @@ struct ObxIlasmGenImp : public AstVisitor
             done.insert(t);
         }
 
-        QHash<QByteArray,quint32>::const_iterator i;
+        QHash<QByteArray,QByteArray>::const_iterator i;
         for( i = delegates.begin(); i != delegates.end(); ++i )
-            emitDelegDecl( i.key(), i.value() );
+            emitDelegDecl( i.value(), i.key() );
 
         level--;
         out << "}" << endl;  // END MODULE
@@ -819,7 +831,7 @@ struct ObxIlasmGenImp : public AstVisitor
         else
             str = formatType(pt->d_return.data());
         str += "*";
-        str += formatFormals(pt->d_formals);
+        str += formatFormals(pt->d_formals,false);
         return str;
     }
 
@@ -982,8 +994,8 @@ struct ObxIlasmGenImp : public AstVisitor
             res += formatType( formals[i]->d_type.data() );
             if( passByRef(formals[i].data()) )
                 res += "&";
-            if( withName );
-            res += " " + escape(formals[i]->d_name);
+            if( withName )
+                res += " " + escape(formals[i]->d_name);
         }
         res += ")";
         return res;
@@ -2125,12 +2137,12 @@ struct ObxIlasmGenImp : public AstVisitor
         }else if( tf->isText() && !tf->isChar() && ta->isChar() )
         {
             emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::toString(char)", -1+1, loc );
-        }else if( ta->getTag() == Thing::T_ProcType )
+        }else if( tf->getTag() == Thing::T_ProcType )
         {
             Named* n = ea->getIdent();
             if( n && n->getTag() == Thing::T_Procedure )
             {
-                ProcType* pt = cast<ProcType*>(ta);
+                ProcType* pt = cast<ProcType*>(tf);
 
                 if( ta->d_typeBound )
                 {
