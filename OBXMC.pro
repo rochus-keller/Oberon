@@ -27,7 +27,7 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
-DEFINES += OBX_BBOX
+DEFINES += OBX_BBOX _USE_LDSTOBJ
 
 INCLUDEPATH += ..
 

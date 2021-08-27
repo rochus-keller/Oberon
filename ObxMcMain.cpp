@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-08-23");
+    a.setApplicationVersion("2021-08-27");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
         preloadLib(&pro,"Files");
         preloadLib(&pro,"Input");
         preloadLib(&pro,"Math");
+        preloadLib(&pro,"MathL");
         preloadLib(&pro,"Strings");
         preloadLib(&pro,"Coroutines");
         preloadLib(&pro,"XYPlane");

@@ -9,5 +9,7 @@ module Import1
 	var t : i1.T1
 		t1 : T1
 begin
+	println("Import1 start")
 	i1.Do
+	println("Import1 done")
 end Import1

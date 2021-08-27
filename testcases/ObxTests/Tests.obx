@@ -1,46 +1,63 @@
 module Tests
 
-	type T = record end
-	proc (var this: T)sayHello(in str: array of char)
+	type
+	    CallSign = record value: integer end
+		Aircraft = record callsign: CallSign; position: Vector3D end
+		Vector3D = record x,y,z: longreal end
+		
+	proc test(): Aircraft
+		var a: Aircraft
 	begin
-		println("hello from method:")
-		println(str)
-	end sayHello
-
-	proc sayHello(in str: array of char)
-	begin
-		println("hello from proc:")
-		println(str)
-	end sayHello
+		 a.callsign.value := 5
+		 a.position.x := 6
+		 a.position.y := 7
+		 a.position.z := 8
+		 return a
+	end test
 	
-	type P = proc (in str: array of char)
-		  M = proc (pointer)(in str: array of char)
-		  K = proc (pointer)
-
-	proc test1( p: P )
+	proc test2(a: Aircraft)
 	begin
-		p("1234")
-	end test1
-	
-	proc test2( m: M )
-	begin
-		m("5678")
+		assert( a.position.z = 4.0 )
+		a.position.z := 5	
 	end test2
 	
-	proc (var this: T)test3()
+	proc test3(in a: Aircraft)
 	begin
-		println("test3")
+		assert( a.position.z = 4.0 )
+		//a.position.z := 5	 // is an error
 	end test3
+
+	proc test4(var a: Aircraft)
+	begin
+		assert( a.position.z = 4.0 )
+		a.position.z := 6
+	end test4
+
+	var a1, a2: Aircraft
 	
-	var t: pointer to T
-		k: K
 begin
+	 println("Procs9 start")
+	 a1.callsign.value := 1
+	 a1.position.x := 2
+	 a1.position.y := 3
+	 a1.position.z := 4
+	 a2 := a1
+	 assert( a2.position.z = a1.position.z )
+	 a2.position.z := 10
+	 assert( a2.position.z # a1.position.z )
 
-	test1(sayHello)
-	new(t)
-	test2(t.sayHello)
-
-	k := t.test3
-	k
-	
+	 test2(a1)
+	 assert( a1.position.z = 4.0 )
+	 
+	 test4(a1)
+	 assert( a1.position.z = 6.0)
+	 a1.position.z := 4
+	 
+	 test3(a1)
+	 assert( a1.position.z = 4.0)
+	 
+	 a2 := test()
+	 assert( a2.position.z = 8.0 )
+	 
+	 println("Procs9 done")
 end Tests

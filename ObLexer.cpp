@@ -340,11 +340,12 @@ static inline bool checkHexNumber( QByteArray str )
 
 Token Lexer::number()
 {
-    // integer ::= // digit {digit} | digit {hexDigit} 'H'
-    // real ::= // digit {digit} '.' {digit} [ScaleFactor]
-    // ScaleFactor- ::= // 'E' ['+' | '-'] digit {digit}
+    // integer      ::=  digit {digit} | digit {hexDigit} 'H'
+    // real         ::=  digit {digit} '.' {digit} [ScaleFactor]
+    // ScaleFactor  ::=  'E' ['+' | '-'] digit {digit}
     const int startLine = d_lineNr;
     const int startCol = d_colNr;
+    int lhsPlaces = 0, rhsPlaces = 0, expPlaces = 0;
     int off = 1;
     while( true )
     {
@@ -354,6 +355,7 @@ Token Lexer::number()
         else
             off++;
     }
+    lhsPlaces = off;
     bool isHex = false;
     bool isChar = false;
     bool isReal = false;
@@ -384,6 +386,7 @@ Token Lexer::number()
                 break;
             else
                 off++;
+            rhsPlaces++;
         }
         const char de = lookAhead(off); // Oberon-2 allows E (REAL) or D (LONGREAL)
         if( de == 'E' || de == 'D' || de == 'e' || de == 'd' )
@@ -404,6 +407,7 @@ Token Lexer::number()
                     break;
                 else
                     off++;
+                expPlaces++;
             }
         }
     }
@@ -425,8 +429,12 @@ Token Lexer::number()
         return token( Tok_hexchar, off, str );
     }
     else if( isReal)
-        return token( Tok_real, off, str );
-    else
+    {
+        Token tok = token( Tok_real, off, str );
+        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 )
+            tok.d_double = true; // TODO should we trade decimal places with exponent width?
+        return tok;
+    }else
         return token( Tok_integer, off, str );
 }
 

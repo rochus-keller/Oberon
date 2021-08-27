@@ -9,6 +9,7 @@ module Arrays4
 
 
 begin
+	println("Arrays4 start")
 	a[1,2] := 33
 	println(a[1][2])
 
@@ -16,5 +17,5 @@ begin
 	b[0].a[0] := 1
 	println(b[0].a[0])
 	assert(b[0].a[0] = 1)
-
+	println("Arrays4 done")
 end Arrays4

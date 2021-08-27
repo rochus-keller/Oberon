@@ -35,6 +35,7 @@ module ProcType2
 	var t: pointer to T
 		k: K
 begin
+	println("ProcType2 start")
 
 	test1(sayHello)
 	new(t)
@@ -43,4 +44,5 @@ begin
 	k := t.test3
 	k
 
+	println("ProcType2 done")
 end ProcType2

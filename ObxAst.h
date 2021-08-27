@@ -186,7 +186,7 @@ namespace Obx
     struct Type : public Thing
     {
         enum { NONE, ANY, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
-               INTEGER, LONGINT, REAL, LONGREAL, SET }; // BaseType
+               INTEGER, LONGINT, REAL, LONGREAL, SET, ENUMINT }; // BaseType
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
         Type* d_binding; // points back to pointer or array type in case of anonymous type
@@ -198,11 +198,12 @@ namespace Obx
         uint d_varargs : 1; // used by ProcType
         uint d_byValue : 1;   // used to mark a Record which can be represented as CLI struct
         uint d_selfRef : 1;  // true if legally referencing self (i.e. via pointer)
+        uint d_metaActual : 1;  // true if this is an actual type replacing ANY in instantiation
 
         // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
 
         Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),
-            d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false) {}
+            d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false),d_metaActual(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
         virtual Type* derefed() { return this; }
@@ -609,7 +610,7 @@ namespace Obx
         QVariant d_val;
         uint d_vtype : 8;
         uint d_strLen : 23;
-        uint d_wide : 1; // mark WSTRING and WCHAR
+        uint d_wide : 1; // mark WSTRING and WCHAR, or double precision float
         Literal( ValueType t = Invalid, Ob::RowCol l = Ob::RowCol(),
                  const QVariant& v = QVariant(), Type* typ = 0 ):
                         d_val(v),d_vtype(t),d_strLen(0),d_wide(0){ d_loc = l; d_type = typ; }

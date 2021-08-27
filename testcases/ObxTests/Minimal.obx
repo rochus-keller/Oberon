@@ -1,5 +1,7 @@
 module Minimal
 
 begin
+	println("Minimal start")
 	println("Hello" + " World!")
+	println("Minimal done")
 end Minimal

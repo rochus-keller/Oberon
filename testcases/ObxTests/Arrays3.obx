@@ -7,6 +7,7 @@ module Arrays3
 		b : B
 		c : C
 begin
+	println("Arrays3 start")		
 	new(a)
 	new(b,5)
 	new(c,3,10)
@@ -22,5 +23,5 @@ begin
 	println( len(a) )
 	println( len(b) )
 	println( len(c) )
-		
+	println("Arrays3 done")		
 end Arrays3

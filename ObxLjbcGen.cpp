@@ -1409,7 +1409,7 @@ struct ObxLjbcGenImp : public AstVisitor
     {
         baseType = derefed(baseType);
         Q_ASSERT( baseType );
-        if( baseType->getBaseType() > 0 )
+        if( baseType->getTag() == Thing::T_BaseType )
         {
             const int tmp = ctx.back().buySlots(2,true);
             switch( baseType->getBaseType() )
@@ -3549,7 +3549,7 @@ struct ObxLjbcGenImp : public AstVisitor
                         bc.CALL(tmp,0,2,loc.packed());
                         ctx.back().sellSlots(tmp,3);
                     }
-                }else if( laT->getBaseType() > 0 || lhsA->d_unsafe )
+                }else if( laT->getTag() == Thing::T_BaseType || lhsA->d_unsafe )
                 {
                     const int tmp = ctx.back().buySlots(4, true);
                     fetchObxlibMember(tmp,51,loc); // module.min_size

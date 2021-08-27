@@ -30,6 +30,8 @@ module Procs5
 	end Hello2
 
 begin
+	println("Procs5 start")
 	inst.Hello
 	inst.Hello2("this is a string")
+	println("Procs5 done")
 end Procs5

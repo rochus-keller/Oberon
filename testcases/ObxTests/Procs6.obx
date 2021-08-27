@@ -34,8 +34,10 @@ module Procs6
 		b : B
 
 begin
+	println("Procs6 start")
 	new(a)
 	new(b)
 	SayHello(a)
 	SayHello(b)
+	println("Procs6 done")
 end Procs6

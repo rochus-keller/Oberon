@@ -3,7 +3,9 @@ module System2
 	import SYSTEM
 	
 begin
+	println("System2 start")
 
 	SYSTEM.SayHello
 
+	println("System2 done")
 end System2

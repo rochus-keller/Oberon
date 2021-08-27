@@ -11,7 +11,9 @@ var
 	l1 : SL.List
 
 begin
+	println("GenericTest4 start")
 	new(l1)
 	l1.value := "hello!"
 	l1.Print()
+	println("GenericTest4 done")
 end GenericTest4

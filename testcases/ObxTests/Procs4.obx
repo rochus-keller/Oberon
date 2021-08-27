@@ -10,12 +10,12 @@ module Procs4
 		return 0
 	end ReturnZero
 begin
-	println("Procs4")
+	println("Procs4 start")
 	a[0] := 1.0
 	i := 0
 	pack(a[ReturnZero(i)], 2);
 	println(i)
 	assert(a[0] >= 4.0 - eps);
 	assert(a[0] <= 4.0 + eps);
-	println("done")
+	println("Procs4 done")
 end Procs4

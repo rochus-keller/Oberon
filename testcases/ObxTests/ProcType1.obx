@@ -29,10 +29,12 @@ module ProcType1
 	end outer
 
 begin
+	println("ProcType1 start")
 	outer()
 	p("1234")
 	m("5679")
 	n := m
 	n("abcd")
 
+	println("ProcType1 done")
 end ProcType1

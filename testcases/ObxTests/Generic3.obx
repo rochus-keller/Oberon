@@ -12,6 +12,8 @@ type
         
     Printer = proc( in elem: T );
         
+    var test : integer
+    
    proc (in this: Element) print*(p: Printer)
    begin
 	   p(this.value)
@@ -20,6 +22,7 @@ type
    proc (var this: Element) setValue*( in v: T )
    begin
 	   this.value := v
+	   test := 3
 	end setValue
    
 end Generic3

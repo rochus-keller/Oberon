@@ -34,6 +34,12 @@ using namespace Ob;
 Q_DECLARE_METATYPE( Obx::Literal::SET )
 #endif
 
+#define _MY_GENERICS_ // using my own generics implementation instead of the dotnet generics;
+                      // TODO there is an architectural value type initialization issue with dotnet generics!
+
+// NOTE: mono (and .Net 4) ILASM and runtime error messages are of very little use, or even counter productive in that
+// they often point in the wrong direction.
+
 struct ObxIlasmGenCollector : public AstVisitor
 {
     QList<Procedure*> allProcs;
@@ -180,6 +186,7 @@ struct ObxIlasmGenImp : public AstVisitor
     quint16 labelCount;
     bool ownsErr;
     bool forceAssemblyPrefix;
+    bool forceFormalIndex;
     RowCol last;
     TempPool temps;
     QSet<QByteArray> keywords;
@@ -189,7 +196,7 @@ struct ObxIlasmGenImp : public AstVisitor
     Procedure* scope;
 
     ObxIlasmGenImp():ownsErr(false),err(0),dev(0),thisMod(0),anonymousDeclNr(1),level(0),
-        stackDepth(0),maxStackDepth(0),labelCount(0),exitJump(-1),scope(0),forceAssemblyPrefix(false)
+        stackDepth(0),maxStackDepth(0),labelCount(0),exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false)
     {
         // Source: mono-5.20.1.34/mcs/ilasm/scanner/ILTables.cs, replaced = by \t and extracted string col with excel
         keywords << "at" << "as" << "implicitcom" << "implicitres" << "noappdomain" << "noprocess"
@@ -250,6 +257,73 @@ struct ObxIlasmGenImp : public AstVisitor
         return name;
     }
 
+    QByteArray formatMetaActuals(Module* m)
+    {
+#ifndef _MY_GENERICS_
+        if( m == thisMod && !m->d_metaParams.isEmpty() )
+        {
+            Q_ASSERT( m->d_metaActuals.isEmpty() );
+            QByteArray res = "<";
+            for( int i = 0; i < m->d_metaParams.size(); i++ )
+            {
+                if( i != 0 )
+                    res += ",";
+                Q_ASSERT( m->d_metaParams[i]->d_slotValid );
+                res += "!" + QByteArray::number(m->d_metaParams[i]->d_slot);
+            }
+            res += ">";
+            return res;
+        }else if( !m->d_metaActuals.isEmpty() )
+        {
+            QByteArray res = "<";
+            for( int i = 0; i < m->d_metaActuals.size(); i++ )
+            {
+                if( i != 0 )
+                    res += ",";
+                res += formatType(m->d_metaActuals[i].data());
+            }
+            res += ">";
+            return res;
+        }
+#endif
+        return QByteArray();
+    }
+
+    QByteArray formatMetaActuals(Type* t)
+    {
+        // t==0 -> module
+        Module* m = 0;
+        t = derefed(t);
+        if( t == 0 )
+            m = thisMod;
+        else
+            m = t->declaredIn();
+
+        return formatMetaActuals(m);
+    }
+
+    inline QByteArray getName( Named* n )
+    {
+        Q_ASSERT(n);
+#ifdef _MY_GENERICS_
+        return n->getName();
+#else
+        if( n->getTag() == Thing::T_Module )
+            return cast<Module*>(n)->d_fullName.join('.');
+        else
+            return n->d_name;
+#endif
+    }
+
+    QByteArray moduleRef( Named* modName )
+    {
+        const QByteArray mod = escape(getName(modName));
+        if( !forceAssemblyPrefix && modName == thisMod )
+            return "'" + mod + "'";
+        else
+            return "['" + mod + "']'" + mod + "'";
+    }
+
     QByteArray classRef( Named* className )
     {
         Q_ASSERT( className && className->getTag() == Thing::T_NamedType );
@@ -274,37 +348,55 @@ struct ObxIlasmGenImp : public AstVisitor
         }
     }
 
-    QByteArray moduleRef( Named* modName )
+    QByteArray memberRef( Named* member )
     {
-        Q_ASSERT( modName && modName->getTag() == Thing::T_Module );
-        const QByteArray mod = escape(modName->getName());
-        if( !forceAssemblyPrefix && modName == thisMod )
-            return "'" + mod + "'";
+        QByteArray res;
+        Record* record = 0;
+        ProcType* pt = 0;
+        switch( member->getTag() )
+        {
+        case Thing::T_Field:
+            {
+                Field* f = cast<Field*>(member);
+                record = f->d_owner;
+            }
+            break;
+        case Thing::T_Variable:
+            break;
+        case Thing::T_Procedure:
+            {
+                Procedure* p = cast<Procedure*>(member);
+                if( p->d_receiverRec )
+                    record = p->d_receiverRec;
+                pt = p->getProcType();
+            }
+            break;
+        default:
+            Q_ASSERT(false);
+        }
+        const QByteArray ma = formatMetaActuals(record);
+        forceFormalIndex = !ma.isEmpty();
+        if( pt )
+            res = formatType(pt->d_return.data());
         else
-            return "['" + mod + "']'" + mod + "'";
-    }
-
-    QByteArray variableRef( Named* varName )
-    {
-        Q_ASSERT( varName && varName->getTag() == Thing::T_Variable );
-        return moduleRef(varName->d_scope) + "::" + escape(varName->d_name);
-    }
-
-    QByteArray fieldRef( Named* fieldName )
-    {
-        Q_ASSERT( fieldName && fieldName->getTag() == Thing::T_Field );
-        Field* f = cast<Field*>(fieldName);
-        return classRef(f->d_owner) + "::" + escape(fieldName->d_name);
-    }
-
-    QByteArray methodRef( Named* procName )
-    {
-        Q_ASSERT( procName && procName->getTag() == Thing::T_Procedure );
-        Procedure* p = cast<Procedure*>(procName);
-        if( p->d_receiverRec )
-            return classRef(p->d_receiverRec) + "::" + dottedName(procName);
+            res = formatType(member->d_type.data());
+        res += " ";
+        if( !ma.isEmpty() )
+            res += "class ";
+        if( record == 0 ) // if module level
+            res += moduleRef(member->getModule());
         else
-            return moduleRef(p->getModule()) + "::" + dottedName(procName);
+            res += classRef(record);
+        res += ma;
+        res += "::";
+        if( record == 0 ) // if module level
+            res += dottedName(member);
+        else
+            res += escape(member->d_name);
+        if( pt )
+            res += formatFormals(pt->d_formals);
+        forceFormalIndex = false;
+        return res;
     }
 
     QByteArray inline delegateName( const QByteArray& sig )
@@ -321,7 +413,14 @@ struct ObxIlasmGenImp : public AstVisitor
 
         forceAssemblyPrefix = true;
 
+#ifndef _MY_GENERICS_
+        const bool old = forceFormalIndex;
+        forceFormalIndex = true;
         const QByteArray sig = procTypeSignature(pt);
+        forceFormalIndex = old;
+#else
+        const QByteArray sig = procTypeSignature(pt);
+#endif
         const QByteArray name = delegateName(sig);
         if( pt->declaredIn() == thisMod )
             delegates.insert(name,sig);
@@ -329,7 +428,7 @@ struct ObxIlasmGenImp : public AstVisitor
         Module* m = pt->declaredIn();
         if( m == 0 )
             m = thisMod;
-        const QByteArray res = moduleRef(m) + "/'" + name + "'";
+        const QByteArray res = moduleRef(m) + "/'" + name + "'" + formatMetaActuals(pt);
         forceAssemblyPrefix = false;
         return res;
     }
@@ -339,8 +438,6 @@ struct ObxIlasmGenImp : public AstVisitor
         Q_ASSERT(a);
         const QByteArray sig = formatType(a);
         QPair<Array*,int>& d = copiers[sig];
-        //if( d.second < dims )
-        //    d.second = dims;
         if( d.first == 0 )
             d.first = a;
         out << "void " << moduleRef(thisMod) << "::'#copy'(";
@@ -443,7 +540,7 @@ struct ObxIlasmGenImp : public AstVisitor
                     // stack: lhs record, rhs record
                     emitOpcode2("callvirt ", -2, loc);
                     Record* r2 = cast<Record*>(et);
-                    out << "instance void " << classRef(r2) + "::'#copy'(";
+                    out << "instance void class " << classRef(r2) << formatMetaActuals(r2) << "::'#copy'(";
                     r2->accept(this);
                     if( r2->d_byValue )
                         out << "&";
@@ -531,7 +628,9 @@ struct ObxIlasmGenImp : public AstVisitor
             out << "sealed ";
 #endif
             Q_ASSERT( r->d_slotValid );
-            out << "'#" << r->d_slot << "' extends ";
+            out << "'#" << r->d_slot << "'"
+                << formatMetaParams(thisMod)
+                << " extends ";
 #ifdef _USE_VALUE_RECORDS_
             r->d_byValue = true;
             out << "[mscorlib]System.ValueType {" << endl;
@@ -554,14 +653,24 @@ struct ObxIlasmGenImp : public AstVisitor
                 out << "public ";
             else
                 out << "assembly ";
-            out << dottedName(n) << " extends ";
+            out << dottedName(n)
+                << formatMetaParams(thisMod)
+                << " extends ";
             if( r->d_byValue )
-                out << "[mscorlib]System.ValueType ";
+                out << "[mscorlib]System.ValueType";
             else if( r->d_base.isNull() )
-                out << "[mscorlib]System.Object ";
+                out << "[mscorlib]System.Object";
             else
+            {
                 r->d_base->accept(this);
-            out << "{" << endl;
+#if 0 // no longer needed, done in formatType
+#ifndef _MY_GENERICS_
+                if( r->d_baseRec->declaredIn() == thisMod ) // if declared in another mod meta actuals are provided in the source
+                    out << formatMetaActuals();
+#endif
+#endif
+            }
+            out << " {" << endl;
         }
         level++;
         foreach( const Ref<Field>& f, r->d_fields )
@@ -576,7 +685,7 @@ struct ObxIlasmGenImp : public AstVisitor
         emitOpcode("ldarg.0",1,r->d_loc);
         emitOpcode2("call ", -1, r->d_loc);
         if( r->d_baseRec )
-            out << "instance void " << classRef(r->d_baseRec) << "::.ctor()" << endl;
+            out << "instance void class " << classRef(r->d_baseRec) << formatMetaActuals(r->d_baseRec) << "::.ctor()" << endl;
         else if( r->d_byValue )
             out << "instance void [mscorlib]System.ValueType::.ctor()" << endl;
         else
@@ -615,7 +724,7 @@ struct ObxIlasmGenImp : public AstVisitor
             emitOpcode("ldarg.0",1,r->d_loc);
             emitOpcode("ldarg.1",1,r->d_loc);
             emitOpcode2("call ", -2, r->d_loc);
-            out << "instance void " << classRef(r->d_baseRec) << "::'#copy'(";
+            out << "instance void class " << classRef(r->d_baseRec) << formatMetaActuals(r->d_baseRec) << "::'#copy'(";
             r->d_baseRec->accept(this);
             if( r->d_byValue )
                 out << "&";
@@ -629,16 +738,14 @@ struct ObxIlasmGenImp : public AstVisitor
             case Thing::T_Record:
                 {
                     emitOpcode("ldarg.0",1,r->d_loc);
-                    emitOpcode2("ldfld ", -1+1, r->d_loc); // lhs
-                    fields[i]->d_type->accept(this);
-                    out << " " << fieldRef(fields[i]) << endl;
+                    emitOpcode2("ldfld", -1+1, r->d_loc); // lhs
+                    out << " " << memberRef(fields[i]) << endl;
                     emitOpcode("ldarg.1",1,r->d_loc);
-                    emitOpcode2("ldfld ", -1+1, r->d_loc); // rhs
-                    fields[i]->d_type->accept(this);
-                    out << " " << fieldRef(fields[i]) << endl;
+                    emitOpcode2("ldfld", -1+1, r->d_loc); // rhs
+                    out << " " << memberRef(fields[i]) << endl;
                     emitOpcode2("callvirt ", -2, r->d_loc);
                     Record* r2 = cast<Record*>(ft);
-                    out << "instance void " << classRef(r2) + "::'#copy'(";
+                    out << "instance void class " << classRef(r2) << formatMetaActuals(r2) << "::'#copy'(";
                     r2->accept(this);
                     if( r2->d_byValue )
                         out << "&";
@@ -648,14 +755,12 @@ struct ObxIlasmGenImp : public AstVisitor
             case Thing::T_Array:
                 {
                     emitOpcode("ldarg.0",1,r->d_loc);
-                    emitOpcode2("ldfld ", -1+1, r->d_loc);
-                    fields[i]->d_type->accept(this);
-                    out << " " << fieldRef(fields[i]) << endl;
+                    emitOpcode2("ldfld", -1+1, r->d_loc);
+                    out << " " << memberRef(fields[i]) << endl;
 
                     emitOpcode("ldarg.1",1,r->d_loc);
-                    emitOpcode2("ldfld ", -1+1, r->d_loc);
-                    fields[i]->d_type->accept(this);
-                    out << " " << fieldRef(fields[i]) << endl;
+                    emitOpcode2("ldfld", -1+1, r->d_loc);
+                    out << " " << memberRef(fields[i]) << endl;
 
                     // stack: lhs array, rhs array
                     emitOpcode2("call ", -2, r->d_loc);
@@ -669,12 +774,10 @@ struct ObxIlasmGenImp : public AstVisitor
             case Thing::T_ProcType:
                 emitOpcode("ldarg.0",1,r->d_loc);
                 emitOpcode("ldarg.1",1,r->d_loc);
-                emitOpcode2("ldfld ", -1+1, r->d_loc);
-                fields[i]->d_type->accept(this);
-                out << " " << fieldRef(fields[i]) << endl;
-                emitOpcode2("stfld ", -2, r->d_loc);
-                fields[i]->d_type->accept(this);
-                out << " " << fieldRef(fields[i]) << endl;
+                emitOpcode2("ldfld", -1+1, r->d_loc);
+                out << " " << memberRef(fields[i]) << endl;
+                emitOpcode2("stfld", -2, r->d_loc);
+                out << " " << memberRef(fields[i]) << endl;
                 break;
             }
         }
@@ -693,19 +796,43 @@ struct ObxIlasmGenImp : public AstVisitor
 
     void emitDelegDecl(const QByteArray& sig, const QByteArray& name)
     {
+        // NOTE: if the name deviates from the one used for referencing the delegate mono3 crashes with this message:
+        // TypeRef ResolutionScope not yet handled (3) for .48b15Qezth5ae11+xOqLVw in image GenericTest6.dll
+        // * Assertion at class.c:5695, condition `!mono_loader_get_last_error ()' not met
+
         const int pos = sig.indexOf('*');
         Q_ASSERT( pos != -1);
         out << ws() << ".class ";
-        out << "nested public sealed '" << name << "' ";
-        out << "extends [mscorlib]System.MulticastDelegate {" << endl;
+        out << "nested public sealed '" << name << "'"
+            << formatMetaParams(thisMod)
+            << " extends [mscorlib]System.MulticastDelegate {" << endl;
         level++;
-        out << ws() << ".method public hidebysig instance void .ctor(object MethodsClass, "
+        out << ws() << ".method public hidebysig specialname rtspecialname instance void .ctor(object MethodsClass, "
                "native unsigned int MethodPtr) runtime managed { }" << endl;
         out << ws() << ".method public hidebysig virtual instance " << sig.left(pos) << " Invoke";
         out << sig.mid(pos+1);
         out << " runtime managed { }" << endl;
         level--;
         out << ws() << "}" << endl;
+    }
+
+    QByteArray formatMetaParams(Module* m)
+    {
+#ifdef _MY_GENERICS_
+        return QByteArray();
+#else
+        if( m->d_metaParams.isEmpty() )
+            return QByteArray();
+        QByteArray res = "<";
+        for( int i = 0; i < m->d_metaParams.size(); i++ )
+        {
+            if( i != 0 )
+                res += ", ";
+            res += escape(m->d_metaParams[i]->d_name);
+        }
+        res += ">";
+        return res;
+#endif
     }
 
     void visit( Module* me )
@@ -725,16 +852,30 @@ struct ObxIlasmGenImp : public AstVisitor
             if(imp->d_mod->d_synthetic || imp->d_mod->d_isDef ) // TODO: def
                 continue; // ignore SYSTEM
             co.allImports.insert(imp->d_mod.data());
+            if( !imp->d_mod.isNull() && !imp->d_mod->d_metaActuals.isEmpty() )
+            {
+                for( int i = 0; i < imp->d_mod->d_metaActuals.size(); i++ )
+                {
+                    Type* at = imp->d_mod->d_metaActuals[i].data();
+                    //Q_ASSERT( !at->d_slotValid );
+                    at->d_slot = i;
+                    at->d_slotValid = true;
+                    at->d_metaActual = true;
+                }
+            }
         }
         foreach( Module* m, co.allImports )
         {
             if( m && m != me )
-                out << ".assembly extern '" << m->getName() << "' {}" << endl;
+                out << ".assembly extern '" << getName(m) << "' {}" << endl;
         }
         if( !co.allImports.isEmpty() )
             out << endl;
 
-        out << ".class public sealed '" << me->getName() << "' extends [mscorlib]System.ValueType {" << endl; // MODULE
+        emitLine( me->d_loc, true );
+        out << ".class public sealed '" << me->getName() << "'"
+            << formatMetaParams(me)
+            << " extends [mscorlib]System.ValueType {" << endl; // MODULE
         level++;
 
         for( int i = 0; i < co.allProcTypes.size(); i++ )
@@ -751,6 +892,16 @@ struct ObxIlasmGenImp : public AstVisitor
             if( n->getTag() == Thing::T_Variable )
                 n->accept(this);
         }
+#ifndef _MY_GENERICS_
+        if( !me->d_metaParams.isEmpty() && me->d_metaActuals.isEmpty() )
+        {
+            foreach( const Ref<GenericName>& n, me->d_metaParams )
+            {
+                Q_ASSERT( n->d_slotValid );
+                out << ws() << ".field assembly static !" << n->d_slot << " '##" << n->d_slot << "'" << endl;
+            }
+        }
+#endif
 
         foreach( Procedure* p, co.allProcs )
             p->accept(this);
@@ -758,6 +909,23 @@ struct ObxIlasmGenImp : public AstVisitor
         out << ws() << ".method private specialname rtspecialname static void .cctor() cil managed {" << endl; // MODULE BEGIN
         level++;
         beginBody();
+#ifndef _MY_GENERICS_
+        if( !me->d_metaParams.isEmpty() && me->d_metaActuals.isEmpty() )
+        {
+            foreach( const Ref<GenericName>& n, me->d_metaParams ) // generate default values
+            {
+                // NOTE: this doesn't initialize OBX value types; e.g. in GenericTest3 l1.value is initialized to null instead
+                // of an empty array 20 of char; to get around a default constructor for all possible types, especially
+                // fixed size arrays, would be needed.
+                emitOpcode2("ldsflda ",  1, me->d_begin );
+                Q_ASSERT(n->d_slotValid);
+                out << "!" << QByteArray::number(n->d_slot) << " class " << moduleRef(me) << formatMetaActuals(me)
+                    << "::'##" << n->d_slot << "'" << endl;
+                emitOpcode("initobj !"+escape(n->d_name),-1, me->d_begin);
+            }
+        }
+#endif
+
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Variable )
@@ -766,13 +934,13 @@ struct ObxIlasmGenImp : public AstVisitor
         foreach( const Ref<Statement>& s, me->d_body )
             s->accept(this);
 
-#if 1  // TEST
+#if 0  // TEST
         foreach( Import* imp, me->d_imports )
         {
             if( imp->d_mod->d_synthetic || imp->d_mod->d_isDef )
                 continue;
-            emitOpcode("call void ['" + imp->d_mod->getName() + "']'" +
-                       imp->d_mod->getName() + "'::'ping#'()",0, me->d_begin );
+            emitOpcode("call void class ['" + getName(imp->d_mod.data()) + "']'" +
+                       getName(imp->d_mod.data()) + "'" + formatMetaActuals(imp->d_mod.data()) + "::'ping#'()",0, me->d_begin );
         }
 #if 0
         emitOpcode( "ldstr \"this is " + me->getName() + "\"", 1, me->d_begin );
@@ -818,11 +986,6 @@ struct ObxIlasmGenImp : public AstVisitor
         out << "}" << endl;  // END MODULE
     }
 
-    void visit( Import* me)
-    {
-        // NOP
-    }
-
     QByteArray procTypeSignature(ProcType* pt)
     {
         QByteArray str;
@@ -839,6 +1002,8 @@ struct ObxIlasmGenImp : public AstVisitor
     {
         if( t == 0 )
             return "void";
+        else if( forceFormalIndex && t->d_metaActual )
+            return "!"+QByteArray::number(t->d_slot);
         switch(t->getTag())
         {
         case Thing::T_Array:
@@ -873,22 +1038,35 @@ struct ObxIlasmGenImp : public AstVisitor
         case Thing::T_QualiType:
             {
                 QualiType* me = cast<QualiType*>(t);
+                Type* td = derefed(me->d_quali->d_type.data());
+                if( td == 0 )
+                    break; // error already reported
                 // all qualis are immediatedly resolved
-                if( !me->d_quali->d_type.isNull() )
+
+                if( me->d_selfRef )
                 {
-                    if( me->d_selfRef )
-                    {
-                        if( Record* r = me->d_quali->d_type->toRecord() )
-                            return formatType(r);
-                        else
-                            return "[mscorlib]System.Object"; // avoid infinite loop
-                    }else
-                        return formatType(me->d_quali->d_type.data());
+                    if( Record* r = td->toRecord() )
+                        return formatType(r);
+                    else
+                        return "[mscorlib]System.Object"; // avoid infinite loop
                 }
+#ifndef _MY_GENERICS_
+                else if( td->getBaseType() == Type::ANY )
+                {
+                    Named* n = me->d_quali->getIdent();
+                    Q_ASSERT( n && n->getTag() == Thing::T_GenericName );
+                    Q_ASSERT( n->d_slotValid );
+                    return "!"+QByteArray::number(n->d_slot);
+                }
+#endif
+                else
+                    return formatType(me->d_quali->d_type.data());
             }
             break;
         case Thing::T_Record:
-            return "class " + classRef(cast<Record*>(t));
+            return "class " + classRef(cast<Record*>(t))
+                    + formatMetaActuals(t)
+                    ;
         default:
             Q_ASSERT(false);
         }
@@ -1001,11 +1179,6 @@ struct ObxIlasmGenImp : public AstVisitor
         return res;
     }
 
-    void emitFormals( const ProcType::Formals& formals )
-    {
-        out << formatFormals(formals);
-    }
-
     void emitLocalVars( Procedure* me = 0 )
     {
         if( (me && me->d_varCount) || temps.d_max >= 0 )
@@ -1062,8 +1235,11 @@ struct ObxIlasmGenImp : public AstVisitor
         else
             pt->d_return->accept(this);
 
-        out << " " << dottedName(me);
-        emitFormals(pt->d_formals);
+        if( me->d_receiverRec )
+            out << " " << escape(me->d_name);
+        else
+            out << " " << dottedName(me);
+        out << formatFormals(pt->d_formals);
 
         // allocate params and local
         int off = me->d_receiver.isNull() ? 0 : 1;
@@ -1146,33 +1322,50 @@ struct ObxIlasmGenImp : public AstVisitor
         // initializer is emitted at begin of proc body
     }
 
-    void emitConst(quint8 vtype, const QVariant& val, const RowCol& loc )
+    void emitConst(quint8 basetype, const QVariant& val, const RowCol& loc )
     {
         const int before = stackDepth;
-        switch( vtype )
+        switch( basetype )
         {
-        case Literal::Boolean:
+        case Type::BOOLEAN:
             if( val.toBool() )
                 emitOpcode("ldc.i4.1", 1, loc);
             else
                 emitOpcode("ldc.i4.0", 1, loc);
             break;
-        case Literal::Integer:
-            emitOpcode2("ldc.i4",1,loc);
-            out << " " << val.toInt() << endl; // TODO i8 vs i4
-            break;
-        case Literal::Enum:
+        case Type::SHORTINT:
             emitOpcode2("ldc.i4",1,loc);
             out << " " << val.toInt() << endl;
             break;
-        case Literal::Real:
-            emitOpcode2("ldc.r4",1,loc);
-            out << " " << val.toDouble() << endl; // TODO r8 vs r4
+        case Type::INTEGER:
+            emitOpcode2("ldc.i4",1,loc);
+            out << " " << val.toInt() << endl;
             break;
-        case Literal::Nil:
+        case Type::LONGINT:
+            emitOpcode2("ldc.i8",1,loc);
+            out << " " << val.toInt() << endl;
+            break;
+        case Type::BYTE:
+            emitOpcode2("ldc.i4",1,loc);
+            out << " " << val.toInt() << endl;
+            break;
+        case Type::ENUMINT:
+            emitOpcode2("ldc.i4",1,loc);
+            out << " " << val.toInt() << endl;
+            break;
+        case Type::REAL:
+            emitOpcode2("ldc.r4",1,loc);
+            out << " " << val.toDouble() << endl;
+            break;
+        case Type::LONGREAL:
+            emitOpcode2("ldc.r8",1,loc);
+            out << " " << val.toDouble() << endl;
+            break;
+        case Type::NIL:
             emitOpcode("ldnull",1,loc);
             break;
-        case Literal::String:
+        case Type::STRING:
+        case Type::WSTRING:
             {
                 emitOpcode2("ldstr",1,loc);
                 QByteArray str = val.toByteArray();
@@ -1183,7 +1376,7 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitOpcode("callvirt instance char[] [mscorlib]System.String::ToCharArray()", -1+1, loc);
             }
             break;
-        case Literal::Bytes:
+        case Type::BYTEARRAY:
             {
 #if 0 // not necessary
                 emitOpcode2("ldstr",1,loc);
@@ -1207,24 +1400,30 @@ struct ObxIlasmGenImp : public AstVisitor
 #endif
             }
             break;
-        case Literal::Char:
+        case Type::CHAR:
+        case Type::WCHAR:
             emitOpcode2("ldc.i4",1,loc);
             out << " " << val.toUInt() << endl;
             break;
-        case Literal::Set:
+        case Type::SET:
             {
                 Literal::SET s = val.value<Literal::SET>();
                 emitOpcode2("ldc.i4",1,loc);
                 out << " " << s.to_ulong() << endl;
             }
             break;
+        default:
+            Q_ASSERT(false);
         }
         Q_ASSERT( stackDepth == before+1 );
     }
 
     void visit( Literal* me)
     {
-        emitConst( me->d_vtype, me->d_val, me->d_loc );
+        Type* td = derefed(me->d_type.data());
+        Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration) );
+        // Enumeration has basetype ENUMINT
+        emitConst( td->getBaseType(), me->d_val, me->d_loc );
     }
 
     void visit( UnExpr* me)
@@ -1283,8 +1482,9 @@ struct ObxIlasmGenImp : public AstVisitor
         {
         case Thing::T_Const:
             {
-                Const* c = cast<Const*>(id);
-                emitConst( c->d_vtype, c->d_val, me->d_loc );
+                Type* td = derefed(me->d_type.data() );
+                Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
+                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
             }
             Q_ASSERT( stackDepth == before+1 );
             return;
@@ -1303,6 +1503,11 @@ struct ObxIlasmGenImp : public AstVisitor
                 emitVarToStack(id,me->d_loc);
                 if( passByRef(p) ) // the value on the stack is a &, so we need to fetch the value first
                 {
+#ifdef _USE_LDSTOBJ
+                    emitOpcode2("ldobj ", -1+1, me->d_loc );
+                    p->d_type->accept(this);
+                    out << endl;
+#else
                     Type* td = derefed(p->d_type.data());
                     switch( td->getTag() )
                     {
@@ -1350,6 +1555,7 @@ struct ObxIlasmGenImp : public AstVisitor
                         }
                         break;
                     }
+#endif
                 }
                 Q_ASSERT( stackDepth == before+1 );
             }
@@ -1408,8 +1614,9 @@ struct ObxIlasmGenImp : public AstVisitor
         case Thing::T_Const:
             {
                 Q_ASSERT( derefImport );
-                Const* c = cast<Const*>(id);
-                emitConst( c->d_vtype, c->d_val, me->d_loc );
+                Type* td = derefed(id->d_type.data() );
+                Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
+                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
             }
             Q_ASSERT( stackDepth == before+1 );
             return;
@@ -1461,14 +1668,12 @@ struct ObxIlasmGenImp : public AstVisitor
             switch( id->getTag() )
             {
             case Thing::T_Variable:
-                emitOpcode2("ldsflda ", 1, desig->d_loc);
-                id->d_type->accept(this);
-                out << " " << variableRef(id) << endl;
+                emitOpcode2("ldsflda", 1, desig->d_loc);
+                out << " " << memberRef(id) << endl;
                 break;
             case Thing::T_Field:
-                emitOpcode2("ldflda ", -1+1, desig->d_loc);
-                id->d_type->accept(this);
-                out << " " << fieldRef(id) << endl;
+                emitOpcode2("ldflda", -1+1, desig->d_loc);
+                out << " " << memberRef(id) << endl;
                 break;
             default:
                 Q_ASSERT( false );
@@ -1498,9 +1703,8 @@ struct ObxIlasmGenImp : public AstVisitor
             switch( n->getTag() )
             {
             case Thing::T_Variable:
-                emitOpcode2("ldsflda ", 1, desig->d_loc);
-                n->d_type->accept(this);
-                out << " " << variableRef(n) << endl;
+                emitOpcode2("ldsflda", 1, desig->d_loc);
+                out << " " << memberRef(n) << endl;
                 break;
             case Thing::T_Parameter:
                 Q_ASSERT( n->d_slotValid );
@@ -1560,6 +1764,8 @@ struct ObxIlasmGenImp : public AstVisitor
                     emitOpcode("call void [mscorlib]System.Console::WriteLine(float64)",-1,ae->d_loc);
                 else if( t->isSet() )
                     emitOpcode("call void [mscorlib]System.Console::WriteLine(uint32)",-1,ae->d_loc);
+                else if( t->getBaseType() == Type::BOOLEAN )
+                    emitOpcode("call void [mscorlib]System.Console::WriteLine(bool)",-1,ae->d_loc);
                 else
                 {
                     switch(t->getTag())
@@ -1601,6 +1807,9 @@ struct ObxIlasmGenImp : public AstVisitor
             }
             break;
         case BuiltIn::TRAP:
+            // doesn't work:
+            //emitOpcode("ldstr \"trap hit\"",1,ae->d_loc); // TEST
+            //emitOpcode("call void [mscorlib]System.Console::WriteLine(string)",-1,ae->d_loc);
             emitOpcode("break",0,ae->d_loc);
             break;
         case BuiltIn::TRAPIF:
@@ -1838,9 +2047,9 @@ struct ObxIlasmGenImp : public AstVisitor
             emitOpcode("call bool [OBX.Runtime]OBX.Runtime::ODD(int32)", -1+1, ae->d_loc );
             break;
         case BuiltIn::ABS:
-            Q_ASSERT( ae->d_args.size() == 1 );
-            ae->d_args.first()->accept(this);
             {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
                 Type* t = derefed(ae->d_args.first()->d_type.data());
                 Q_ASSERT( t );
                 switch(t->getBaseType())
@@ -2099,15 +2308,13 @@ struct ObxIlasmGenImp : public AstVisitor
             if( pt->d_typeBound && !superCall )
                 emitOpcode2("callvirt instance ", stackDiff, me->d_loc);
             else
-                emitOpcode2("call ", stackDiff, me->d_loc);
-            out << formatType(pt->d_return.data());
-            out << " " << methodRef(func);
-            emitFormals(pt->d_formals);
+                emitOpcode2("call", stackDiff, me->d_loc);
+            out << " " << memberRef(func);
             out << endl;
         }else
         {
             emitOpcode2("callvirt instance ", -pt->d_formals.size()-1+(pt->d_return.isNull()?0:1), me->d_loc);
-            out << formatType(pt->d_return.data()) << " " << delegateRef(pt) << "::Invoke"
+            out << formatType(pt->d_return.data()) << " class " << delegateRef(pt) << "::Invoke"
                 << formatFormals(pt->d_formals,false) << endl;
         }
 
@@ -2149,21 +2356,19 @@ struct ObxIlasmGenImp : public AstVisitor
                     // we assign a type bound procedure to a type-bound proc type variable
                     // for this purpose we create a delegate instance on the stack
                     emitOpcode("dup", 1, loc); // stack: this, this
-                    emitOpcode2("ldvirtftn ", -1+1, loc); // stack: this, fn
-                    out << formatType(pt->d_return.data());
-                    out << " " << methodRef(n) << formatFormals(pt->d_formals,false) << endl;
+                    emitOpcode2("ldvirtftn", -1+1, loc); // stack: this, fn
+                    out << " " << memberRef(n) << endl;
                     emitOpcode2("newobj ",-2+1, loc); // stack: -
-                    out << "instance void " << delegateRef(pt) << "::.ctor(object, "
+                    out << "instance void class " << delegateRef(pt) << "::.ctor(object, "
                                                                    "native unsigned int)" << endl;
                 }else
                 {
                     // assign a normal procedure to a normal proc type variable
                     emitOpcode("ldnull",1,loc);
-                    emitOpcode2("ldftn ", 1, loc); // stack: null, fn
-                    out << formatType(pt->d_return.data());
-                    out << " " << methodRef(n) << formatFormals(pt->d_formals,false) << endl;
+                    emitOpcode2("ldftn", 1, loc); // stack: null, fn
+                    out << " " << memberRef(n) << endl;
                     emitOpcode2("newobj ",-2+1, loc); // stack: -
-                    out << "instance void " << delegateRef(pt) << "::.ctor(object, "
+                    out << "instance void class " << delegateRef(pt) << "::.ctor(object, "
                                                                    "native unsigned int)" << endl;
                 }
             }//else: we copy a proc type variable, i.e. delegate already exists
@@ -2669,6 +2874,37 @@ struct ObxIlasmGenImp : public AstVisitor
         // no, it is legal and not known here how many values are pushed in the body: Q_ASSERT( before == stackDepth );
     }
 
+    void emitConv( quint8 baseType, const RowCol& loc )
+    {
+        switch( baseType )
+        {
+        case Type::LONGREAL:
+            emitOpcode("conv.r8",0,loc);
+            break;
+        case Type::REAL:
+            emitOpcode("conv.r4",0,loc);
+            break;
+        case Type::LONGINT:
+            emitOpcode("conv.i8",0,loc);
+            break;
+        case Type::INTEGER:
+        case Type::SET:
+            emitOpcode("conv.i4",0,loc);
+            break;
+        case Type::SHORTINT:
+        case Type::CHAR:
+        case Type::WCHAR:
+            emitOpcode("conv.i2",0,loc);
+            break;
+        case Type::BYTE:
+        case Type::BOOLEAN:
+            emitOpcode("conv.u1",0,loc);
+            break;
+        default:
+           ; // NOP
+        }
+    }
+
     void visit( Assign* me )
     {
         const int before = stackDepth;
@@ -2694,7 +2930,7 @@ struct ObxIlasmGenImp : public AstVisitor
                     // stack: lhs record, rhs record
                     emitOpcode2("callvirt ", -2, me->d_loc);
                     Record* r = cast<Record*>(lhsT);
-                    out << "instance void " << classRef(r) + "::'#copy'(";
+                    out << "instance void class " << classRef(r) << formatMetaActuals(r) << "::'#copy'(";
                     r->accept(this);
                     if( r->d_byValue )
                         out << "&";
@@ -2717,6 +2953,12 @@ struct ObxIlasmGenImp : public AstVisitor
             emitFetchDesigAddr(me->d_lhs.data());
             me->d_rhs->accept(this);
             prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
+#if _USE_LDSTOBJ
+            emitConv(lhsT->getBaseType(),me->d_loc); // required, otherwise crash when LONGREAL
+            emitOpcode2("stobj ", -2, me->d_loc);
+            me->d_lhs->d_type->accept(this);
+            out << endl;
+#else
             switch( lhsT->getTag() )
             {
             case Thing::T_Pointer:
@@ -2764,6 +3006,7 @@ struct ObxIlasmGenImp : public AstVisitor
             default:
                 Q_ASSERT(false);
             }
+#endif
         }
         Q_ASSERT( before == stackDepth );
     }
@@ -2930,7 +3173,7 @@ struct ObxIlasmGenImp : public AstVisitor
                         // stack: new record, new record, rhs record
                         emitOpcode2("callvirt ", -2, loc);
                         Record* r = cast<Record*>(ltd);
-                        out << "instance void " << classRef(r) + "::'#copy'(";
+                        out << "instance void class " << classRef(r) << formatMetaActuals(r) << "::'#copy'(";
                         r->accept(this);
                         if( r->d_byValue )
                             out << "&";
@@ -2982,11 +3225,14 @@ struct ObxIlasmGenImp : public AstVisitor
             return 0;
     }
 
-    void emitLine(const RowCol& loc)
+    void emitLine(const RowCol& loc, bool withFile = false)
     {
         if( !(loc == last) )
         {
-            out << ws() << ".line " << loc.d_row << ":" << loc.d_col << endl; // filename is given by current assembly
+            out << ws() << ".line " << loc.d_row << ":" << loc.d_col;
+            if( withFile )
+                out << "'" << thisMod->d_file << "'";
+            out << endl;
             last = loc;
         }
     }
@@ -3044,6 +3290,19 @@ struct ObxIlasmGenImp : public AstVisitor
             case Type::LONGREAL:
                 emitOpcode("ldc.r8 0.0",1,loc);
                 break;
+#ifndef _MY_GENERICS_
+            case Type::ANY:
+                {
+                    QByteArray name = formatType(t);
+                    emitOpcode2("ldsfld ",  1, loc );
+                    out << name;
+                    if( name.startsWith('\'') )
+                        name = name.mid(1, name.size() - 2 );
+                    name = name.mid(1); // get rid of !
+                    out << " class " << moduleRef(thisMod) << formatMetaActuals(thisMod) << "::'##" << name << "'" << endl;
+                }
+                break;
+#endif
             default:
                 Q_ASSERT( false );
                 break;
@@ -3069,7 +3328,8 @@ struct ObxIlasmGenImp : public AstVisitor
                 Q_ASSERT( !r->d_byValue );
 
                 emitOpcode2("newobj",1,loc);
-                out << " instance void " << classRef(r) << "::.ctor()" << endl; // initializes fields incl. superclasses
+                out << " instance void class " << classRef(r) << formatMetaActuals(r)
+                    << "::.ctor()" << endl; // initializes fields incl. superclasses
             }
             Q_ASSERT( stackDepth == before+1 );
             return true;
@@ -3187,15 +3447,11 @@ struct ObxIlasmGenImp : public AstVisitor
         {
         case Thing::T_Field:
             emitOpcode2("stfld", -2, loc);
-            out << " ";
-            me->d_type->accept(this);
-            out << " " << fieldRef(me) << endl;
+            out << " " << memberRef(me) << endl;
             break;
         case Thing::T_Variable:
             emitOpcode2("stsfld", -1, loc);
-            out << " ";
-            me->d_type->accept(this);
-            out << " " << variableRef(me) << endl;
+            out << " " << memberRef(me) << endl;
             break;
         case Thing::T_LocalVar:
             Q_ASSERT( me->d_slotValid );
@@ -3222,15 +3478,11 @@ struct ObxIlasmGenImp : public AstVisitor
         {
         case Thing::T_Field:
             emitOpcode2("ldfld", 0, loc);
-            out << " ";
-            me->d_type->accept(this);
-            out << " " << fieldRef(me) << endl;
+            out << " " << memberRef(me) << endl;
             break;
         case Thing::T_Variable:
             emitOpcode2("ldsfld", 1, loc);
-            out << " ";
-            me->d_type->accept(this);
-            out << " " << variableRef(me) << endl;
+            out << " " << memberRef(me) << endl;
             break;
         case Thing::T_LocalVar:
             if( me->d_slot <= 0xff )
@@ -3305,7 +3557,7 @@ struct ObxIlasmGenImp : public AstVisitor
                             // stack: lhs record, lhs record, rhs record
                             emitOpcode2("callvirt ", -2, me->d_loc);
                             Record* r = cast<Record*>(t);
-                            out << "instance void " << classRef(r) + "::'#copy'(";
+                            out << "instance void class " << classRef(r) << formatMetaActuals(r) << "::'#copy'(";
                             r->accept(this);
                             if( r->d_byValue )
                                 out << "&";
@@ -3342,6 +3594,7 @@ struct ObxIlasmGenImp : public AstVisitor
     void visit( GenericName* ) {Q_ASSERT( false );}
     void visit( BuiltIn* ) {Q_ASSERT( false );}
     void visit( Parameter* ) { Q_ASSERT( false ); }
+    void visit( Import* ) { Q_ASSERT( false ); }
 };
 
 bool IlasmGen::translate(Module* m, QIODevice* out, Ob::Errors* errs)
@@ -3443,6 +3696,13 @@ bool IlasmGen::generateMain(QIODevice* d, const QByteArray& name, const QByteArr
 
 bool IlasmGen::translateAll(Project* pro, const QString& where)
 {
+    // NOTE: the Ljbc generic approach doesn't work with CLI because it creates a mutual dependency when a
+    // generic module is imported with an actual param of a type declared in the importing module but with
+    // initialization in the importing module (such as delegates); it worked with Generic3/GenericTest6, but
+    // not with Havlak (Mono crash). We thus try to use the CLI generics assuming it not to suffer from such.
+    // stind an ldind are the only bytecodes not suited for generics; replaced by ldobj and stobj; works with all
+    // tests and same performance.
+
     Q_ASSERT( pro );
     QDir outDir(where);
     if( where.isEmpty() )
@@ -3453,16 +3713,28 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
         outDir = dir;
     }
 
-    QFile make( outDir.absoluteFilePath("build.sh") );
-    if( !make.open(QIODevice::WriteOnly) )
+    QFile build( outDir.absoluteFilePath("build.sh") );
+    if( !build.open(QIODevice::WriteOnly) )
     {
-        qCritical() << "could not open for writing" << make.fileName();
+        qCritical() << "could not open for writing" << build.fileName();
+        return false;
+    }
+    QFile clear( outDir.absoluteFilePath("clear.sh") );
+    if( !clear.open(QIODevice::WriteOnly) )
+    {
+        qCritical() << "could not open for writing" << clear.fileName();
         return false;
     }
 
-    QTextStream out(&make);
 
+    QTextStream bout(&build);
+    QTextStream cout(&clear);
+
+#ifdef _MY_GENERICS_
     QList<Module*> mods = pro->getModulesToGenerate();
+#else
+    QList<Module*> mods = pro->getModulesToGenerate(true);
+#endif
     const quint32 errCount = pro->getErrs()->getErrCount();
     QSet<Module*> generated;
     foreach( Module* m, mods )
@@ -3478,6 +3750,7 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
             // NOP, TODO
         }else
         {
+#ifdef _MY_GENERICS_
             if( m->d_metaParams.isEmpty() )
             {
                 QList<Module*> result;
@@ -3494,12 +3767,29 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
                         {
                             //qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
                             IlasmGen::translate(inst,&f,pro->getErrs());
-                            out << "./ilasm /dll \"" << inst->getName() << ".il\"" << endl;
+                            bout << "./ilasm /dll \"" << inst->getName() << ".il\"" << endl;
+                            cout << "rm \"" << inst->getName() << ".il\"" << endl;
+                            cout << "rm \"" << inst->getName() << ".dll\"" << endl;
                         }else
                             qCritical() << "could not open for writing" << f.fileName();
                     }
                 }
             }
+#else
+            if( m->d_metaParams.isEmpty() || m->d_metaActuals.isEmpty() )
+            {
+                QFile f(outDir.absoluteFilePath(m->getName() + ".il"));
+                if( f.open(QIODevice::WriteOnly) )
+                {
+                    qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
+                    IlasmGen::translate(m,&f,pro->getErrs());
+                    bout << "./ilasm /dll \"" << m->getName() << ".il\"" << endl;
+                    cout << "rm \"" << m->getName() << ".il\"" << endl;
+                    cout << "rm \"" << m->getName() << ".dll\"" << endl;
+                }else
+                    qCritical() << "could not open for writing" << f.fileName();
+            }
+#endif
         }
     }
     if( !mods.isEmpty() )
@@ -3522,7 +3812,9 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
                 IlasmGen::generateMain(&f,name,roots);
             }else
                 IlasmGen::generateMain(&f, name,mp.first, mp.second);
-            out << "./ilasm /exe \"" << name << ".il\"" << endl;
+            bout << "./ilasm /exe \"" << name << ".il\"" << endl;
+            cout << "rm \"" << name << ".il\"" << endl;
+            cout << "rm \"" << name << ".exe\"" << endl;
         }else
             qCritical() << "could not open for writing" << f.fileName();
     }
@@ -3530,12 +3822,12 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
     QFile run( outDir.absoluteFilePath("run.sh") );
     if( !run.open(QIODevice::WriteOnly) )
     {
-        qCritical() << "could not open for writing" << make.fileName();
+        qCritical() << "could not open for writing" << build.fileName();
         return false;
     }
-    out.setDevice(&run);
-    out << "export MONO_PATH=." << endl;
-    out << "./mono Main#.exe" << endl;
+    bout.setDevice(&run);
+    bout << "export MONO_PATH=." << endl;
+    bout << "./mono Main#.exe" << endl;
 
     return pro->getErrs()->getErrCount() != errCount;
 }

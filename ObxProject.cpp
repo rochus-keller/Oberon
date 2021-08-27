@@ -1241,7 +1241,7 @@ bool Project::generate()
 }
 #endif
 
-QList<Module*> Project::getModulesToGenerate() const
+QList<Module*> Project::getModulesToGenerate(bool includeTemplates) const
 {
     QList<Module*> res;
     FileHash::const_iterator i;
@@ -1275,6 +1275,8 @@ QList<Module*> Project::getModulesToGenerate() const
             ; // NOP
         else if( m->d_isDef || m->d_metaParams.isEmpty() )
             res.append(m); // we don't add generic modules because the instances to generate are identified by Module:findAllInstances
+        else if( includeTemplates && m->d_metaActuals.isEmpty() )
+            res.append(m);
     }
     return res;
 }

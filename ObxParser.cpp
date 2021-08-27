@@ -105,6 +105,7 @@ bool Parser::module(bool definition )
             for( int i = 0; i < m->d_metaParams.size(); i++ )
             {
                 m->d_metaParams[i]->d_slot = i;
+                m->d_metaParams[i]->d_slotValid = true;
                 if( !m->add( m->d_metaParams[i].data() ) )
                     semanticError(m->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
             }
@@ -140,6 +141,7 @@ bool Parser::module(bool definition )
 Ref<Literal> Parser::number()
 {
     QVariant val;
+    Ref<Literal> res;
     switch( d_la )
     {
     case Tok_integer:
@@ -148,16 +150,19 @@ Ref<Literal> Parser::number()
             val = d_cur.d_val.left(d_cur.d_val.size()-1).toLongLong(0,16);
         else
             val = d_cur.d_val.toLongLong();
-        return new Literal( Literal::Integer, d_cur.toRowCol(),val);
+        res = new Literal( Literal::Integer, d_cur.toRowCol(),val);
+        break;
     case Tok_real:
         next();
-        val = d_cur.d_val.toDouble();
-        return new Literal( Literal::Real, d_cur.toRowCol(),val);
+        val = d_cur.d_val.toDouble(); // we save double in any case (JitComposer depends on it)
+        res = new Literal( Literal::Real, d_cur.toRowCol(),val);
+        res->d_wide = d_cur.d_double; // here we notice whether it is a float or a double
         break;
     default:
         syntaxError( tr("expecting a number") );
         return 0;
     }
+    return res;
 }
 
 Ref<Expression> Parser::qualident()

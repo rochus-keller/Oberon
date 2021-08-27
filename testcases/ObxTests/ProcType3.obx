@@ -29,6 +29,7 @@ module ProcType3
 	var p: P
 		m: M
 begin
+	println("ProcType3 start")
 	generate1()("1234")
 	
 	generate2()("3456")
@@ -39,4 +40,5 @@ begin
 	m := generate2()
 	m("7890")
 	
+	println("ProcType3 done")
 end ProcType3

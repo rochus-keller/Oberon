@@ -91,6 +91,7 @@ bool LjRuntime::compile(bool doGenerate)
         preloadLib(d_pro,"Files");
         preloadLib(d_pro,"Input");
         preloadLib(d_pro,"Math");
+        preloadLib(d_pro,"MathL");
         preloadLib(d_pro,"Strings");
         preloadLib(d_pro,"Coroutines");
         preloadLib(d_pro,"XYPlane");
@@ -128,6 +129,7 @@ bool LjRuntime::loadLibraries()
         loadLuaLib(d_lua,"Files");
         loadLuaLib(d_lua,"Input");
         loadLuaLib(d_lua,"Math");
+        loadLuaLib(d_lua,"MathL");
         loadLuaLib(d_lua,"Strings");
         loadLuaLib(d_lua,"Coroutines");
         loadLuaLib(d_lua,"XYPlane");

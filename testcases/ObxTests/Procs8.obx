@@ -12,7 +12,9 @@ module Procs8
 	
 	var ch: char
 begin
+	println("Procs8 start")
 	ch := test2()
 	test(41x)
 	test("B")
+	println("Procs8 done")
 end Procs8

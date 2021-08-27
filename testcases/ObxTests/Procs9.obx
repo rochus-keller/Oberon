@@ -36,6 +36,7 @@ module Procs9
 	var a1, a2: Aircraft
 	
 begin
+	 println("Procs9 start")
 	 a1.callsign.value := 1
 	 a1.position.x := 2
 	 a1.position.y := 3

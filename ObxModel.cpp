@@ -796,22 +796,28 @@ void Model::addPreload(const QByteArray& name, const QByteArray& source)
     d_fc->addFile( name, source, true );
 }
 
+static inline bool match( const MetaActuals& lhs, const MetaActuals& rhs )
+{
+    if( lhs.size() != rhs.size() )
+        return false;
+    for( int i = 0; i < lhs.size(); i++ )
+    {
+        if( lhs[i]->derefed() != rhs[i]->derefed() )
+            return false;
+    }
+    return true;
+}
+
 Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
 {
     Q_ASSERT( generic && generic->d_metaActuals.isEmpty() && !generic->d_metaParams.isEmpty() &&
               generic->d_metaParams.size() == actuals.size() );
 
-    MetaActuals search = actuals;
-    for( int i = 0; i < search.size(); i++ )
-    {
-        Q_ASSERT( search[i] );
-        search[i] = search[i]->derefed();
-    }
     ModList& insts = d_insts[generic];
     Ref<Module> inst;
     for( int i = 0; i < insts.size(); i++ )
     {
-        if( insts[i]->d_metaActuals == search )
+        if( match(insts[i]->d_metaActuals,actuals) )
         {
             inst = insts[i];
             break;
@@ -822,7 +828,7 @@ Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
         inst = parseFile( generic->d_file );
         if( inst.isNull() || inst->d_hasErrors )
             return 0; // already reported
-        inst->d_metaActuals = search;
+        inst->d_metaActuals = actuals;
         inst->d_fullName = generic->d_fullName;
         inst->d_scope = generic->d_scope;
         if( resolveImport(inst.data()) )

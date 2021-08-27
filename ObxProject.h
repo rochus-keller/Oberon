@@ -100,7 +100,7 @@ namespace Obx
         const FileGroups& getFileGroups() const { return d_groups; }
         FileGroup getRootFileGroup() const;
         FileGroup findFileGroup(const VirtualPath& package ) const;
-        QList<Module*> getModulesToGenerate() const; // in exec/depencency order
+        QList<Module*> getModulesToGenerate(bool includeTemplates=false) const; // in exec/depencency order
         FileMod findFile( const QString& file ) const;
         Model* getMdl() const { return d_mdl; }
 

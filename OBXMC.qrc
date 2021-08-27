@@ -8,5 +8,6 @@
         <file>oakwood/Out.Def</file>
         <file>oakwood/Strings.Def</file>
         <file>oakwood/XYPlane.Def</file>
+        <file>oakwood/MathL.Def</file>
     </qresource>
 </RCC>

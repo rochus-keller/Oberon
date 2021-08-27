@@ -1539,7 +1539,6 @@ struct ValidatorImp : public AstVisitor
     void visit( Literal* me )
     {
         const qint64 i = me->d_val.toLongLong();
-        const double d = me->d_val.toDouble();
         switch( me->d_vtype )
         {
         case Literal::Enum:
@@ -1555,7 +1554,10 @@ struct ValidatorImp : public AstVisitor
                 me->d_type = bt.d_longType;
             break;
         case Literal::Real:
-            me->d_type = bt.d_realType; // TODO: adjust precision
+            if( me->d_wide )
+                me->d_type = bt.d_longrealType;
+            else
+                me->d_type = bt.d_realType;
             break;
         case Literal::Boolean:
             me->d_type = bt.d_boolType;
@@ -1588,6 +1590,8 @@ struct ValidatorImp : public AstVisitor
             Q_ASSERT( false );
             break;
         }
+        Q_ASSERT( !me->d_type.isNull() &&
+                  ( me->d_type->getTag() == Thing::T_BaseType || me->d_type->getTag() == Thing::T_Enumeration ));
     }
 
     ///////// Types
@@ -1695,7 +1699,10 @@ struct ValidatorImp : public AstVisitor
         me->d_visited = true;
 
         foreach( const Ref<Const>& c, me->d_items )
+        {
             c->accept(this);
+            c->d_type->d_baseType = Type::ENUMINT;
+        }
     }
 
     void visit( QualiType* me )

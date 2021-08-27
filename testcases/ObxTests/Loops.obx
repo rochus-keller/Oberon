@@ -1,6 +1,7 @@
 module Loops
 	var i : integer
 begin
+	println("Loops start")
 	i := 3
 	while i < 10 do
 		println(i)
@@ -40,4 +41,5 @@ begin
 		println(i)
 	end
 	
+	println("Loops done")
 end Loops

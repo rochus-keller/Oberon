@@ -21,7 +21,7 @@ module Procs3
 	end Str
 
 begin
-	println("Procs3")
+	println("Procs3 start")
 	for i := 0 to len(d)-1 do
 		for j := 0 to len(d[0])-1 do
 			d[i,j] := i + j + i * j
@@ -33,4 +33,5 @@ begin
 	
 	Str("Test")
 
+	println("Procs3 done")
 end Procs3

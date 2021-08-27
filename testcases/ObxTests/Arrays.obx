@@ -17,6 +17,7 @@ module Arrays
 		a[4] := 50
 	end sub
 begin
+	println("Arrays start")
 	a[3] := 42
 	sub
 	println(a[3])
@@ -29,4 +30,5 @@ begin
 	println(d[1].a)
 	e := $20616263$
 	println(e[2])
+	println("Arrays done")
 end Arrays

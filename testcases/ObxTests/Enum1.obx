@@ -8,6 +8,7 @@ module Enum1
 		t : T
 
 begin
+	println("Enum1 start")
 	//println(I.C)
 	t := B
 	println(t)
@@ -29,4 +30,5 @@ begin
 	println( t )
 	println( max(T) )
 	println( min(T) )
+	println("Enum1 done")
 end Enum1

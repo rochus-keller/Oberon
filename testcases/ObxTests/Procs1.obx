@@ -32,11 +32,12 @@ module Procs1
 	end Proc4
 
 begin
-	println("Procs1")
+	println("Procs1 start")
 	println( Proc1() )
 	println( Proc2() )
 	Proc3("Test")
 	x := 12
 	Proc4(x)
 	println(x)
+	println("Procs1 done")
 end Procs1

@@ -26,6 +26,7 @@ module Proc10
 	var a: A
 		b: B
 begin
+	println("Procs10 start")
 	new(a)
 	a.a := 33
 
@@ -37,5 +38,5 @@ begin
 	assert( a.test3(b) = 77 )
 	assert( b.b = 66 )
 	
-	println("Done Proc10")
+	println("Procs10 done")
 end Proc10

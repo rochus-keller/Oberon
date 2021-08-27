@@ -22,7 +22,7 @@ module Procs2
 	end P3
 
 begin
-	println("Procs2")
+	println("Procs2 start")
 	a[0] := -4
 	a[1] := -3
 	a[2] := -2
@@ -38,4 +38,5 @@ begin
 	println(i)
 	P3(ap)
 	println(ap[3])
+	println("Procs2 done")
 end Procs2

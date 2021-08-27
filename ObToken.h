@@ -41,12 +41,12 @@ namespace Ob
 
         uint d_lineNr : RowCol::ROW_BIT_LEN; // supports 524k lines
         uint d_colNr : RowCol::COL_BIT_LEN; // supports 4k chars per line
-        uint unused : 1;
+        uint d_double : 1;     // originally unused, now set if floating point mantissa or exponent require double precision
 
         QByteArray d_val;
         QString d_sourcePath;
         Token(quint16 t = Tok_Invalid, quint32 line = 0, quint16 col = 0, quint16 len = 0, const QByteArray& val = QByteArray() ):
-            d_type(t),d_lineNr(line),d_colNr(col),d_len(len),d_val(val){}
+            d_type(t),d_lineNr(line),d_colNr(col),d_len(len),d_val(val),d_double(0){}
         bool isValid() const;
         bool isEof() const;
         const char* getName() const;

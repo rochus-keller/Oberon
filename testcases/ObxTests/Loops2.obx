@@ -1,9 +1,9 @@
 module Loops2
 	var n, n1: integer
 begin
+	println("Loops2 start")
 		n := 4;
 		n1 := 6;
-		println("start")
 		WHILE n > n1 DO
 			println("while")
 			n := n - n1
@@ -24,4 +24,5 @@ begin
 		END;
 		ASSERT(n = 1);
 		ASSERT(n1 = 1);
+	println("Loops2 done")
 end Loops2

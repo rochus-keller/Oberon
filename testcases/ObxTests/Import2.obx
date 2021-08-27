@@ -7,6 +7,7 @@ var
 	p : I.P
 
 begin
+	println("Import2 start")
 
 	r.f := 33
 	println(r.f)
@@ -15,4 +16,5 @@ begin
 	p.f := 44
 	println(p.f)
 
+	println("Import2 done")
 end Import2

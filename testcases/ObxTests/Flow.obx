@@ -1,6 +1,7 @@
 module Flow
 	var i : integer
 begin
+	println("Flow start")
 	i := 1
 	if i = 1 then
 		println("a")
@@ -9,4 +10,5 @@ begin
 	else
 		println("c")
 	end
+	println("Flow done")
 end Flow

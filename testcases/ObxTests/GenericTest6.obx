@@ -27,4 +27,5 @@ begin
 	println(l.value.name)
 	println(l.value.age)
 	l.print(print)
+	println("GenericTest6 done")
 end GenericTest6
