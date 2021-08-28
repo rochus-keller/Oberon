@@ -403,7 +403,7 @@ struct ObxIlasmGenImp : public AstVisitor
     {
         QCryptographicHash hash(QCryptographicHash::Md5);
         hash.addData(sig);
-        return hash.result().toBase64(QByteArray::OmitTrailingEquals);
+        return hash.result().toHex(); // issues because of '/': toBase64(QByteArray::OmitTrailingEquals);
     }
 
     QByteArray delegateRef( ProcType* pt )
@@ -457,7 +457,7 @@ struct ObxIlasmGenImp : public AstVisitor
         // the multi-dim code is only generated if there is a multi-dim used in code (i.e. dims > 1)
         // the generated procedure assumes array of array if dim > 0 and array of non-array if dim == 0
 
-        out << ws() << ".method assembly static void '#copy'(";
+        out << ws() << ".method public static void '#copy'("; // just make everything public
             // NOTE: currently each assembly has it's own copy of each required copier
         a->accept(this);
         out << " lhs, ";
@@ -620,7 +620,7 @@ struct ObxIlasmGenImp : public AstVisitor
             Q_ASSERT(r->d_slotValid);
             out << "nested ";
             Named* n = r->findDecl(true);
-            if( n && n->d_visibility != Named::Private )
+            if( true ) // just make everything public, n && n->d_visibility != Named::Private )
                 out << "public ";
             else
                 out << "assembly ";
@@ -1140,7 +1140,7 @@ struct ObxIlasmGenImp : public AstVisitor
     {
         emitLine(me->d_loc);
         out << ws() << ".field ";
-        if( me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly )
+        if( true ) // me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly )
             out << "public ";
         else
             out << "assembly ";
@@ -1217,7 +1217,7 @@ struct ObxIlasmGenImp : public AstVisitor
         scope = me;
         out << ws() << ".method ";
 
-        if( me->d_visibility != Named::Private )
+        if( true ) // me->d_visibility != Named::Private )
             out << "public ";
         else
             out << "assembly ";
@@ -1355,11 +1355,11 @@ struct ObxIlasmGenImp : public AstVisitor
             break;
         case Type::REAL:
             emitOpcode2("ldc.r4",1,loc);
-            out << " " << val.toDouble() << endl;
+            out << " " << QByteArray::number(val.toDouble(),'e',9) << endl;
             break;
         case Type::LONGREAL:
             emitOpcode2("ldc.r8",1,loc);
-            out << " " << val.toDouble() << endl;
+            out << " " << QByteArray::number(val.toDouble(),'e',17) << endl;
             break;
         case Type::NIL:
             emitOpcode("ldnull",1,loc);
@@ -1842,9 +1842,11 @@ struct ObxIlasmGenImp : public AstVisitor
                             break;
                         case Type::LONGREAL:
                             if( bi->d_func == BuiltIn::MAX )
-                                emitOpcode("ldc.r8 " + bt->maxVal().toByteArray(),1,ae->d_args.first()->d_loc);
+                                emitOpcode("ldc.r8 " + QByteArray::number(bt->maxVal().toDouble(),'e',17),
+                                           1,ae->d_args.first()->d_loc);
                             else
-                                emitOpcode("ldc.r8 " + bt->minVal().toByteArray(),1,ae->d_args.first()->d_loc);
+                                emitOpcode("ldc.r8 " + QByteArray::number(bt->minVal().toDouble(),'e',17),
+                                           1,ae->d_args.first()->d_loc);
                             break;
                         case Type::REAL:
                             if( bi->d_func == BuiltIn::MAX )
@@ -2423,12 +2425,16 @@ struct ObxIlasmGenImp : public AstVisitor
             emitOpcode("conv.i8",0,loc);
             break;
         case Type::INTEGER:
+        case Type::SET:
             emitOpcode("conv.i4",0,loc);
             break;
         case Type::SHORTINT:
+        case Type::CHAR:
+        case Type::WCHAR:
             emitOpcode("conv.i2",0,loc);
             break;
         case Type::BYTE:
+        case Type::BOOLEAN:
             emitOpcode("conv.u1",0,loc);
             break;
         }
@@ -2483,8 +2489,16 @@ struct ObxIlasmGenImp : public AstVisitor
             else if( lhsT->isSet() && rhsT->isSet() )
                 emitOpcode("or", -2+1, me->d_loc);
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
-                emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::join(char[],char[])", -2+1, me->d_loc );
-            else
+            {
+                if( lhsT->isChar() && rhsT->isChar() )
+                    emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::join(char,char)", -2+1, me->d_loc );
+                else if( lhsT->isChar() && !rhsT->isChar() )
+                    emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::join(char,char[])", -2+1, me->d_loc );
+                else if( !lhsT->isChar() && rhsT->isChar() )
+                    emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::join(char[],char)", -2+1, me->d_loc );
+                else
+                    emitOpcode("call char[] [OBX.Runtime]OBX.Runtime::join(char[],char[])", -2+1, me->d_loc );
+            }else
                 Q_ASSERT(false);
             break;
         case BinExpr::SUB:
@@ -2874,37 +2888,6 @@ struct ObxIlasmGenImp : public AstVisitor
         // no, it is legal and not known here how many values are pushed in the body: Q_ASSERT( before == stackDepth );
     }
 
-    void emitConv( quint8 baseType, const RowCol& loc )
-    {
-        switch( baseType )
-        {
-        case Type::LONGREAL:
-            emitOpcode("conv.r8",0,loc);
-            break;
-        case Type::REAL:
-            emitOpcode("conv.r4",0,loc);
-            break;
-        case Type::LONGINT:
-            emitOpcode("conv.i8",0,loc);
-            break;
-        case Type::INTEGER:
-        case Type::SET:
-            emitOpcode("conv.i4",0,loc);
-            break;
-        case Type::SHORTINT:
-        case Type::CHAR:
-        case Type::WCHAR:
-            emitOpcode("conv.i2",0,loc);
-            break;
-        case Type::BYTE:
-        case Type::BOOLEAN:
-            emitOpcode("conv.u1",0,loc);
-            break;
-        default:
-           ; // NOP
-        }
-    }
-
     void visit( Assign* me )
     {
         const int before = stackDepth;
@@ -2954,7 +2937,7 @@ struct ObxIlasmGenImp : public AstVisitor
             me->d_rhs->accept(this);
             prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
 #if _USE_LDSTOBJ
-            emitConv(lhsT->getBaseType(),me->d_loc); // required, otherwise crash when LONGREAL
+            convertTo(lhsT->getBaseType(),me->d_rhs->d_type.data(), me->d_loc); // required, otherwise crash when LONGREAL
             emitOpcode2("stobj ", -2, me->d_loc);
             me->d_lhs->d_type->accept(this);
             out << endl;

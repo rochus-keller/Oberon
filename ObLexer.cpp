@@ -431,7 +431,7 @@ Token Lexer::number()
     else if( isReal)
     {
         Token tok = token( Tok_real, off, str );
-        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 )
+        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 ) // double has 52 bit mantissa, i.e. ~15 decimal digits
             tok.d_double = true; // TODO should we trade decimal places with exponent width?
         return tok;
     }else

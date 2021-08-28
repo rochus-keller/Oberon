@@ -1381,6 +1381,7 @@ struct ValidatorImp : public AstVisitor
         const int ltag = lhsT->getTag();
         const int rtag = rhsT->getTag();
 
+        bool lwchar, rwchar;
         switch( me->d_op )
         {
         case BinExpr::Range: // int
@@ -1469,14 +1470,15 @@ struct ValidatorImp : public AstVisitor
             }else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
-            else if( me->d_op == BinExpr::ADD && (lhsT = isTextual(lhsT,false)) && (rhsT = isTextual(rhsT,false)) )
+            else if( me->d_op == BinExpr::ADD && lhsT->isText(&lwchar) && rhsT->isText(&rwchar) )
             {
                 // NOTE: because of Blackbox we had isTextual(str,true) so far, but there is actually only one place
                 // in BB minimal where a pointer is added; added a deref, case closed.
-                if( includes(lhsT,rhsT) ) // allow concat of mixed latin/unicode strings
-                    me->d_type = me->d_lhs->d_type;
+
+                if( lwchar || rwchar )
+                    me->d_type = bt.d_wstringType;
                 else
-                    me->d_type = me->d_rhs->d_type;
+                    me->d_type = bt.d_stringType;
             }
 #endif
             else

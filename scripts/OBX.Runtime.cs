@@ -146,6 +146,18 @@ namespace OBX
 			res[lhslen+rhslen] = '\x0';
 			return res;
 		}
+		public static char[] join( char lhs, char rhs )
+		{
+			return join(toString(lhs),toString(rhs));
+		}
+		public static char[] join( char lhs, char[] rhs )
+		{
+			return join(toString(lhs),rhs);
+		}
+		public static char[] join( char[] lhs, char rhs )
+		{
+			return join(lhs,toString(rhs));
+		}
 		public static char[] toString(char ch)
 		{
 			char[] str = new char[2];
