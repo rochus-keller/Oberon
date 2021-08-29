@@ -40,6 +40,11 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
 // NOTE: mono (and .Net 4) ILASM and runtime error messages are of very little use, or even counter productive in that
 // they often point in the wrong direction.
 
+// NOTE: even though CoreCLR replaced mscorlib by System.Private.CoreLib the generated code still runs with "dotnet Main.exe",
+// but the directory with the OBX assemblies requires a Main.runtimeconfig.json file as generated below
+// "dotnet.exe run" apparently creates an non-managed exe which loads coreclr.dll and the app assembly dll; mono5 (in contrast to 3)
+// is able to disasm and even run the app assembly dll created by dotnet.exe CoreCLR 3.1.
+
 struct ObxIlasmGenCollector : public AstVisitor
 {
     QList<Procedure*> allProcs;
@@ -3798,6 +3803,17 @@ bool IlasmGen::translateAll(Project* pro, const QString& where)
             bout << "./ilasm /exe \"" << name << ".il\"" << endl;
             cout << "rm \"" << name << ".il\"" << endl;
             cout << "rm \"" << name << ".exe\"" << endl;
+        }else
+            qCritical() << "could not open for writing" << f.fileName();
+        QFile json(outDir.absoluteFilePath(name + ".runtimeconfig.json"));
+        if( json.open(QIODevice::WriteOnly) )
+        {
+            cout << "rm \"" << name << ".runtimeconfig.json\"" << endl;
+            json.write("{\n\"runtimeOptions\": {\n"
+                       "\"framework\": {\n"
+                       "\"name\": \"Microsoft.NETCore.App\",\n"
+                       "\"version\": \"3.1.0\"\n" // TODO: replace version number depending on the used CoreCLR runtime version
+                       "}}}");
         }else
             qCritical() << "could not open for writing" << f.fileName();
     }
