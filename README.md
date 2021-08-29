@@ -24,7 +24,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [x] LuaJIT compiler backend
 - [ ] Complete built-in procedure and Oakwood library implementations
 - [ ] Write documentation and focus articles
-- [ ] Implement a DotNet CIL compiler backend (started)
+- [x] Implement a CIL/ECMA-335 compiler backend (done for IL assembly, pending for direct dll generator)
 - [ ] Use a minimal Mono runtime as an alternative to the LuaJIT VM
 - [ ] Implement an LLVM compiler backend
 - [ ] Proceed with the programming language development (based on actual need and after careful consideration)
@@ -56,6 +56,16 @@ This is a lean IDE with the following features:
 - The full Oberon+ language including the Oakwood libraries are supported
 - The SYSTEM module is not supported
 - The TRAP() and TRAPIF(condition:BOOLEAN) bult-in procedures let you escape to the debugger
+- FFI with dedicated Oberon+ language constructs for C library integration
+
+### Oberon+ to CIL/ECMA-335 assembly language compiler
+
+- Generates IL assembly language compatible with ECMA-335/ISO 23271:2012
+- The generated code runs on Mono, .NET and CoreCLR (all supported platforms)
+- The full Oberon+ language including generics and the Oakwood libraries are supported
+- The SYSTEM module is not supported
+- FFI not yet supported
+- Direct DLL generator (i.e. without intermediate assembly files and ILASM translation step) pending
 
 
 ### Binary versions
