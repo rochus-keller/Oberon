@@ -56,7 +56,6 @@ module Towers
   begin
     top := this.piles[pile]
     if ( top # nil ) & (disk.size >= top.size) then
-        trap()
       Out.String("Cannot put a big disk on a smaller one") Out.Ln
     end
     disk.next := top

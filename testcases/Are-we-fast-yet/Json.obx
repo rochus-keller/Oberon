@@ -237,7 +237,6 @@ module Json
        if (index # -1) & (name^ = this.names.at(index)^) then
           return index
        else
-           trap()
            halt(0)
         end
     end indexOf

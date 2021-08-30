@@ -1359,7 +1359,8 @@ struct ObxIlasmGenImp : public AstVisitor
             out << " " << val.toInt() << endl;
             break;
         case Type::REAL:
-            emitOpcode2("ldc.r4",1,loc);
+            emitOpcode2("ldc.r8",1,loc); // NOTE: before r4, but this causes round-off errors when e.g. 365.24 is later converted to r8
+                                         // CLR anyway has F on the stack, even when pushing r4
             out << " " << QByteArray::number(val.toDouble(),'e',9) << endl;
             break;
         case Type::LONGREAL:
@@ -1854,10 +1855,10 @@ struct ObxIlasmGenImp : public AstVisitor
                                            1,ae->d_args.first()->d_loc);
                             break;
                         case Type::REAL:
-                            if( bi->d_func == BuiltIn::MAX )
-                                emitOpcode("ldc.r4 " + bt->maxVal().toByteArray(),1,ae->d_args.first()->d_loc);
+                            if( bi->d_func == BuiltIn::MAX ) // NOTE: used r4 before, but see above
+                                emitOpcode("ldc.r8 " + bt->maxVal().toByteArray(),1,ae->d_args.first()->d_loc);
                             else
-                                emitOpcode("ldc.r4 " + bt->minVal().toByteArray(),1,ae->d_args.first()->d_loc);
+                                emitOpcode("ldc.r8 " + bt->minVal().toByteArray(),1,ae->d_args.first()->d_loc);
                             break;
                         case Type::BOOLEAN:
                         case Type::CHAR:
@@ -3684,13 +3685,6 @@ bool IlasmGen::generateMain(QIODevice* d, const QByteArray& name, const QByteArr
 
 bool IlasmGen::translateAll(Project* pro, const QString& where)
 {
-    // NOTE: the Ljbc generic approach doesn't work with CLI because it creates a mutual dependency when a
-    // generic module is imported with an actual param of a type declared in the importing module but with
-    // initialization in the importing module (such as delegates); it worked with Generic3/GenericTest6, but
-    // not with Havlak (Mono crash). We thus try to use the CLI generics assuming it not to suffer from such.
-    // stind an ldind are the only bytecodes not suited for generics; replaced by ldobj and stobj; works with all
-    // tests and same performance.
-
     Q_ASSERT( pro );
     QDir outDir(where);
     if( where.isEmpty() )

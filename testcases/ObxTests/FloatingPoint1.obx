@@ -1,0 +1,13 @@
+module FloatingPoint1
+
+	import M := MathL
+	
+begin
+
+	println(M.pi)
+	println(M.pi/M.e)
+	println(short(M.pi))
+	println(short(M.pi)/short(M.e))
+	println(M.sqrt(M.pi))
+
+end FloatingPoint1
