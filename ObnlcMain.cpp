@@ -87,19 +87,6 @@ static bool preloadLib( Ob::Ast::Model& mdl, const QByteArray& name )
     return true;
 }
 
-static bool preloadLib( Obx::Model& mdl, const QByteArray& name )
-{
-    QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
-    if( !f.open(QIODevice::ReadOnly) )
-    {
-        qCritical() << "unknown preload" << name;
-        return false;
-    }
-    mdl.addPreload( name, f.readAll() );
-    return true;
-}
-
-
 #ifdef OBNLC_USING_LUAJIT
 static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
 {
@@ -242,55 +229,6 @@ static int docompile1(const QStringList& files, int gen, const QString& run, con
     return 0;
 }
 
-static int docompile2(const Obx::Model::FileGroups& files, const QString& mod,
-                      const QString& outPath, bool forceObnExt, bool useOakwood, bool dump)
-{
-    Obx::Model model;
-    model.getErrs()->setReportToConsole(true);
-
-#if 1
-    if( useOakwood )
-    {
-        preloadLib(model,"In");
-        preloadLib(model,"Out");
-        preloadLib(model,"Files");
-        preloadLib(model,"Input");
-        preloadLib(model,"Math");
-        preloadLib(model,"Strings");
-        preloadLib(model,"Coroutines");
-        preloadLib(model,"XYPlane");
-    }
-#endif
-    model.parseFiles(files);
-
-    qDebug() << "parsed" << model.getSloc() << "physical lines (LOC, no whitespace or comment only) in total";
-    if( model.getErrs()->getErrCount() == 0 && model.getErrs()->getWrnCount() == 0 )
-        qDebug() << "no errors or warnings found";
-    else
-    {
-        qDebug() << "completed with" << model.getErrs()->getErrCount() << "errors and" <<
-                    model.getErrs()->getWrnCount() << "warnings";
-    }
-#ifdef _DEBUG_
-        qDebug() << "things count peak" << Obx::Thing::insts.size();
-#endif
-
-    if( model.getErrs()->getErrCount() != 0 )
-        return -1;
-
-    qDebug() << "generating files using gen=4 ...";
-
-    Obx::LjbcGen::translate(&model, outPath,mod);
-    QDir dir(outPath);
-    if( !mod.isEmpty() )
-    {
-        dir.mkpath( mod );
-        dir.cd( mod );
-    }
-
-    return 0;
-}
-
 static int dorun( const QStringList& files, QString run, const QString& mod,
                   const QString& outPath, bool useOakwood, int n )
 {
@@ -341,8 +279,6 @@ static int dorun( const QStringList& files, QString run, const QString& mod,
         lua.addLibrary(Lua::Engine2::OS);
         lua.addLibrary(Lua::Engine2::FFI);
         Ob::LjLib::install(lua.getCtx());
-        Obx::LibFfi::install(lua.getCtx());
-        loadLuaLib( lua, "obxlj" );
         loadLuaLib( lua, "obnlj" );
         if( useOakwood )
         {
@@ -387,7 +323,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBNLC");
-    a.setApplicationVersion("2021-06-02");
+    a.setApplicationVersion("2021-09-03");
 
     QTextStream out(stdout);
     out << "OBNLC version: " << a.applicationVersion() <<
@@ -465,8 +401,6 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    Obx::Model::FileGroups fgs;
-    fgs << Obx::Model::FileGroup();
     QStringList files;
     foreach( const QString& path, dirOrFilePaths )
     {
@@ -477,11 +411,9 @@ int main(int argc, char *argv[])
         {
             const QStringList tmp = collectFiles( info.absoluteFilePath() );
             files += tmp;
-            fgs.back().d_files += tmp;
         }else
         {
             files << path;
-            fgs.back().d_files << path;
         }
     }
 
@@ -491,25 +423,6 @@ int main(int argc, char *argv[])
     {
         if( docompile1(files,gen,run,mod,outPath,forceObnExt,useOakwood,dump) < 0 )
             return -1;
-    }else if( gen == 4 )
-    {
-#ifdef _DEBUG
-        const quint32 before = Obx::Thing::insts.size();
-        qDebug() << "things count before" << before;
-#endif
-        const int res = docompile2(fgs,mod,outPath,forceObnExt,useOakwood,dump);
-#ifdef _DEBUG_
-        const quint32 after = Obx::Thing::insts.size();
-        qDebug() << "things count after" << after;
-        QHash<int,int> counts; // tag -> inst count
-        foreach( Obx::Thing* t, Obx::Thing::insts )
-            counts[t->getTag()]++;
-        QHash<int,int>::const_iterator i;
-        for( i = counts.begin(); i != counts.end(); ++i )
-            qDebug() << Obx::Thing::s_tagName[i.key()] << i.value();
-#endif
-        if( res < 0 )
-            return res;
     }else
     {
         qCritical() << "invalid generator selected (see -h for more information):" << gen;

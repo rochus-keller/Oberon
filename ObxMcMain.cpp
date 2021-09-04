@@ -26,7 +26,6 @@
 #include <QProcess>
 #include "ObxModel.h"
 #include "ObErrors.h"
-#include "ObxPelibGen.h"
 #include "ObxProject.h"
 #include "ObxIlasmGen.h"
 #include "ObFileCache.h"
@@ -72,7 +71,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-08-30");
+    a.setApplicationVersion("2021-09-04");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -164,6 +163,11 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+#ifndef _DEBUG
+    if( !genAsm )
+        qWarning() << "the direct assembly generator is currently only available in debug mode (i.e. not ready for use)";
+    genAsm = true;
+#endif
     Obx::PackageList pl;
     Obx::Package p;
     QString pfile;
@@ -217,24 +221,18 @@ int main(int argc, char *argv[])
         return -1;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 
-    if( genAsm )
+    Obx::IlasmGen::translateAll(&pro, genAsm, outPath );
+    QDir::setCurrent(outPath);
+    QDir dir(outPath);
+    if( build && genAsm )
     {
-        Obx::IlasmGen::translateAll(&pro, outPath );
-        QDir::setCurrent(outPath);
-        QDir dir(outPath);
-        if( build )
-        {
-            if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
-                return -1;
-        }
-        if( run )
-        {
-            if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
-                return -1;
-        }
-    }else
+        if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
+            return -1;
+    }
+    if( run )
     {
-        Obx::PelibGen::translate(pro.getMdl(), outPath);
+        if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
+            return -1;
     }
 
     return 0;

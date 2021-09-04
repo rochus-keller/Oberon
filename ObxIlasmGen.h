@@ -33,15 +33,16 @@ namespace Obx
     class Model;
     class Project;
     struct Module;
+    class IlEmitter;
 
     class IlasmGen
     {
     public:
-        static bool translateAll( Project*, const QString& where );
-        static bool translate(Module*, QIODevice* out, Ob::Errors* = 0 );
-        static bool generateMain(QIODevice* out, const QByteArray& name,
+        static bool translateAll(Project*, bool ilasm, const QString& where );
+        static bool translate(Module*, IlEmitter* out, Ob::Errors* = 0 );
+        static bool generateMain(IlEmitter* out, const QByteArray& name,
                                  const QByteArray& module = QByteArray(), const QByteArray& function = QByteArray());
-        static bool generateMain(QIODevice* out, const QByteArray& name, const QByteArrayList& modules );
+        static bool generateMain(IlEmitter* out, const QByteArray& name, const QByteArrayList& modules );
     private:
         IlasmGen();
     };

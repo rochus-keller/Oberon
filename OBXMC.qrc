@@ -9,5 +9,11 @@
         <file>oakwood/Strings.Def</file>
         <file>oakwood/XYPlane.Def</file>
         <file>oakwood/MathL.Def</file>
+        <file>scripts/Dll/In.dll</file>
+        <file>scripts/Dll/Input.dll</file>
+        <file>scripts/Dll/Math.dll</file>
+        <file>scripts/Dll/MathL.dll</file>
+        <file>scripts/Dll/OBX.Runtime.dll</file>
+        <file>scripts/Dll/Out.dll</file>
     </qresource>
 </RCC>

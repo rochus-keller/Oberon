@@ -1,5 +1,5 @@
-#ifndef OBXPELIBGEN_H
-#define OBXPELIBGEN_H
+#ifndef OBXPELIBRENDERER_H
+#define OBXPELIBRENDERER_H
 
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -20,27 +20,37 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include <QString>
-class QIODevice;
-
-namespace Ob
-{
-    class Errors;
-}
+#include <Oberon/ObxIlEmitter.h>
 
 namespace Obx
 {
-    class Model;
-    class Module;
-
-    class PelibGen
+    class PelibGen : public IlRenderer
     {
     public:
-        static bool translate(Model*, const QString& outdir, bool strip = false, Ob::Errors* = 0 );
-        static bool translate(Module*, const QString& outdir, bool isPrimary, bool strip = false, Ob::Errors* = 0 );
-    private:
         PelibGen();
+        ~PelibGen();
+
+        void writeByteCode(const QByteArray& filePath );
+        void writeAssembler( const QByteArray& filePath );
+
+        virtual void beginModule( const QByteArray& moduleName, const QByteArrayList& imports,
+                                  const QString& sourceFile, quint8 moduleKind );
+        virtual void endModule();
+
+        virtual void addMethod(const IlMethod& method );
+
+        virtual void beginClass(const QByteArray& className, bool isPublic = true,
+                         const QByteArray& superClassRef = QByteArray() );
+        virtual void endClass();
+
+        virtual void addField( const QByteArray& fieldName, // on top level or in class
+                       const QByteArray& typeRef,
+                       bool isPublic = true,
+                       bool isStatic = false );
+    private:
+        struct Imp;
+        Imp* d_imp;
     };
 }
 
-#endif // OBXPELIBGEN_H
+#endif // OBXPELIBRENDERER_H
