@@ -1059,10 +1059,10 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
         out << "static final ";
         break;
     case IlEmitter::Virtual:
-        out << "virtual ";
+        out << "virtual "; // a virtual instance method
         break;
     case IlEmitter::Instance:
-        //out << "instance ";
+        //out << "instance "; // instance is default; an instance method is either virtual or nonvirtual
         break;
     default:
         Q_ASSERT(false);

@@ -1180,8 +1180,16 @@ struct ObxIlasmGenImp : public AstVisitor
                 QByteArray str = val.toByteArray();
                 str.replace('\\', "\\\\");
                 str.replace("\"","\\\"");
-                line(loc).ldstr_("\"" + str + "\\0" + "\"");
+                line(loc).ldstr_("\"" + str + "\\0" + "\""); // without explicit \0 the resulting char[] has no trailing zero!
                 line(loc).callvirt_("char[] [mscorlib]System.String::ToCharArray()",0,true);
+#if 0 // TEST
+                line(loc).dup_();
+                line(loc).ldlen_();
+                line(loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
+                line(loc).dup_();
+                line(loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
+                line(loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
+#endif
             }
             break;
         case Type::BYTEARRAY:
@@ -3501,7 +3509,7 @@ bool IlasmGen::translateAll(Project* pro, bool ilasm, const QString& where)
 
             r.writeAssembler(outDir.absoluteFilePath(name + ".il").toUtf8());
             cout << "rm \"" << name << ".il\"" << endl;
-            // TODO crashes: r.writeByteCode(outDir.absoluteFilePath(name + ".exe").toUtf8());
+            r.writeByteCode(outDir.absoluteFilePath(name + ".exe").toUtf8());
             cout << "rm \"" << name << ".exe\"" << endl;
         }
         QFile json(outDir.absoluteFilePath(name + ".runtimeconfig.json"));

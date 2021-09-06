@@ -131,6 +131,7 @@ namespace OBX
 				if( str[i] == '\x0' )
 					return i;
 			}
+			// TEST System.Console.WriteLine("strlen no terminating zero");
 			return len;
 		}
 		public static char[] join( char[] lhs, char[] rhs )

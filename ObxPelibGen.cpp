@@ -63,59 +63,6 @@ public:
         return t.d_tt != Invalid && t.d_tt != Done;
     }
     const QByteArray& text() const { return d_in; }
-#if 0 // not used
-    QByteArrayList params()
-    {
-        QByteArrayList res;
-        if( peek().d_tt != LPAR )
-            return res;
-        int start = d_off;
-        int i = start;
-        int level = 0;
-        bool inString = false;
-        bool done = false;
-        while( i < d_in.size() && !done )
-        {
-            switch( d_in[i] )
-            {
-            case ')':
-                if( !inString )
-                {
-                    if( level == 0 )
-                    {
-                        if( i-start != 0 )
-                            res.append( d_in.mid(start,i-start) );
-                        done = true;
-                    }else
-                        level--;
-                }
-                i++;
-                break;
-            case '(':
-                if( !inString )
-                    level++;
-                break;
-            case '\'':
-                inString = !inString;
-                i++;
-                break;
-            case ',':
-                if( !inString && level == 0 )
-                {
-                    res.append( d_in.mid(start,i-start) );
-                    start = i+1;
-                    i++;
-                }
-                break;
-            default:
-                i++;
-                break;
-            }
-        }
-        // qDebug() << d_in << res;
-        return res;
-    }
-#endif
 protected:
     Token nextImp()
     {
@@ -156,7 +103,7 @@ protected:
                 return Token(COMMA,d_off-1);
             case '.':
                 if( peek(&ch) && ch == 'c' )
-                    return ident(ch);
+                    return ident('.');
                 else
                     return Token(DOT,d_off-1);
             default:
@@ -290,11 +237,11 @@ public:
 
     static bool equalParams( MethodSignature* sig, const Pars& pars )
     {
-        if( sig->getParamCount() != pars.size() )
+        if( sig->ParamCount() != pars.size() )
             return false;
         for( int i = 0; i < pars.size(); i++ )
         {
-            if( ::strcmp( sig->getParam(i)->typeCompare.c_str(), pars[i].d_typeStr.constData() ) != 0 )
+            if( ::strcmp( sig->getParam(i,true)->typeCompare.c_str(), pars[i].d_typeStr.constData() ) != 0 )
                 return false;
         }
         return true;
@@ -317,6 +264,7 @@ public:
             q |= Qualifiers::Instance;
             break;
         case Virtual:
+            q |= Qualifiers::Instance;
             q |= Qualifiers::Virtual;
             break;
         }
@@ -329,7 +277,8 @@ public:
 
         for( int i = 0; i < pars.size(); i++ )
         {
-            Param* p = new Param( pars[i].d_name.constData(), dynamic_cast<Type*>(pars[i].d_type->thing), i );
+            const int index = ( hint == Instance || hint == Virtual ) ? i+1 : i;
+            Param* p = new Param( pars[i].d_name.constData(), dynamic_cast<Type*>(pars[i].d_type->thing), index );
             p->typeCompare = pars[i].d_typeStr.constData();
             sig->AddParam( p );
         }
@@ -387,6 +336,45 @@ public:
         return member;
     }
 
+    static Node* fetchByRef(Node* node)
+    {
+        Type* t = dynamic_cast<Type*>(node->thing);
+        Q_ASSERT( t );
+        if( t->GetClass() || t->ArrayLevel() )
+        {
+            // res.d_type is in any case a suffix Type owned by the parent node
+            // or res.d_type is a suffix, make a specialized copy
+            const QByteArray name = node->name + "&";
+            Node* suffix = node->parent->subs.value(name);
+            if( suffix == 0 )
+            {
+                suffix = new Node(node->parent,name);
+                node->parent->subs.insert(name,suffix);
+                Type* tt = 0;
+                if( t->GetClass() )
+                    tt = new Type(t->GetClass());
+                else
+                    tt = new Type(t->GetBasicType());
+                tt->ArrayLevel(t->ArrayLevel());
+                tt->ByRef(true);
+                suffix->thing = tt;
+            }
+            return suffix;
+        }else
+        {
+            // res.d_type is the original primitive type
+            Node* suffix = node->subs.value("&");
+            if( suffix == 0 )
+            {
+                suffix = new Node(node,"&");
+                node->subs.insert("&",suffix);
+                Type* tt = new Type(t->GetBasicType());
+                tt->ByRef(true);
+                suffix->thing = tt;
+            }
+            return suffix;
+        }
+    }
 protected:
     Node* typeRef()
     {
@@ -597,11 +585,11 @@ protected:
 
     Node* fetchAssembly( const QByteArray& name )
     {
+        if( root.name == name )
+            return &root;
         Node* a = root.subs.value(name);
         if( a == 0 )
         {
-            if( root.name == name )
-                return &root;
             a = new Node(&root,name);
             a->thing = pe.AddExternalAssembly(name.constData());
             Q_ASSERT( a->thing );
@@ -714,42 +702,7 @@ protected:
         if( lex.peek().d_tt == SignatureLexer::AMPERS )
         {
             lex.next();
-            Type* t = dynamic_cast<Type*>(res.d_type->thing);
-            Q_ASSERT( t );
-            if( t->GetClass() || t->ArrayLevel() )
-            {
-                // res.d_type is in any case a suffix Type owned by the parent node
-                // or res.d_type is a suffix, make a specialized copy
-                const QByteArray name = res.d_type->name + "&";
-                Node* suffix = res.d_type->parent->subs.value(name);
-                if( suffix == 0 )
-                {
-                    suffix = new Node(res.d_type->parent,name);
-                    res.d_type->parent->subs.insert(name,suffix);
-                    Type* tt = 0;
-                    if( t->GetClass() )
-                        tt = new Type(t->GetClass());
-                    else
-                        tt = new Type(t->GetBasicType());
-                    tt->ArrayLevel(t->ArrayLevel());
-                    tt->ByRef(true);
-                    suffix->thing = tt;
-                }
-                res.d_type = suffix;
-            }else
-            {
-                // res.d_type is the original primitive type
-                Node* suffix = res.d_type->subs.value("&");
-                if( suffix == 0 )
-                {
-                    suffix = new Node(res.d_type,"&");
-                    res.d_type->subs.insert("&",suffix);
-                    Type* tt = new Type(t->GetBasicType());
-                    tt->ByRef(true);
-                    suffix->thing = tt;
-                }
-                res.d_type = suffix;
-            }
+            res.d_type = fetchByRef( res.d_type );
         }
         res.d_typeStr = lex.text().mid(start, lex.peek().d_pos-start).simplified();
         if( lex.peek().isName() )
@@ -836,11 +789,9 @@ struct PelibGen::Imp : public PELib
     void addMethodOp( Method* m, quint8 op, SignatureParser::MemberHint hint, const QByteArray& methodRef )
     {
         SignatureParser::Node* node = find(hint,methodRef);
-        if( node == 0 )
-            node = find(hint,methodRef); // TEST
         Method* meth = dynamic_cast<Method*>(node->thing);
         Q_ASSERT( meth );
-        m->AddInstruction(new Instruction((Instruction::iop)op,
+        m->AddInstruction(new Instruction((Instruction::iop)op, // TODO: how about instance specifier?
                                           new Operand( new MethodName( meth->Signature() ))));
     }
 
@@ -867,7 +818,12 @@ struct PelibGen::Imp : public PELib
     {
         int i = arg.toInt();
         MethodSignature* sig = m->Signature();
-        // TODO: arg.0 for virtual methods is this; Q_ASSERT( i >= 0 && i < sig->ParamCount() );
+#if 0
+        // No, getParam asserts that index i is present independently of the number of params
+        if( sig->Instance() )
+            i--;
+        Q_ASSERT( i >= 0 && i < sig->ParamCount() );
+#endif
         m->AddInstruction( new Instruction((Instruction::iop)op,new Operand(sig->getParam(i))));
     }
 };
@@ -897,10 +853,12 @@ void PelibGen::writeAssembler(const QByteArray& filePath)
 
 static inline QByteArray unescape( const QByteArray& name )
 {
-    if( name.startsWith('\'') )
+    if( name.contains('\'') ) // something like 'name' or 'a'.'b'.'c'
     {
-        Q_ASSERT( name.endsWith('\'') );
-        return name.mid(1,name.size()-2);
+        QByteArray temp = name;
+        temp.replace('\'',"");
+        // TODO: can we afford to do so, or could be \' escapes in the string?
+        return temp;
     }else
         return name;
 }
@@ -937,7 +895,7 @@ void PelibGen::endModule()
     Q_ASSERT( d_imp && !d_imp->level.isEmpty() );
     d_imp->level.pop_back();
 
-    dump(&d_imp->root);
+    // TEST dump(&d_imp->root);
 }
 
 void PelibGen::addMethod(const IlMethod& m)
@@ -953,7 +911,10 @@ void PelibGen::addMethod(const IlMethod& m)
         SignatureParser::Par p;
         p.d_type = d_imp->find(SignatureParser::TypeRef,m.d_args[i].first);
         p.d_typeStr = m.d_args[i].first.simplified();
-        p.d_name = m.d_args[i].second;
+        if( p.d_typeStr.endsWith('&') )
+            p.d_type = SignatureParser::fetchByRef( p.d_type );
+
+        p.d_name = unescape(m.d_args[i].second);
         pars << p;
     }
 
@@ -976,7 +937,7 @@ void PelibGen::addMethod(const IlMethod& m)
     Q_ASSERT(mm);
     mm->HasEntryPoint(m.d_methodKind == IlEmitter::Primary );
 
-    Qualifiers q = Qualifiers::CIL | Qualifiers::Managed;
+    Qualifiers q = Qualifiers::Managed;
     switch( m.d_methodKind )
     {
     case IlEmitter::Static:
@@ -1000,6 +961,8 @@ void PelibGen::addMethod(const IlMethod& m)
 
     if( m.d_isRuntime )
         q |= Qualifiers::Runtime;
+    else
+        q |= Qualifiers::CIL; // CIL and Runtime together leads to crash in Mono3 (not in 5)
 
     if( name == ".ctor" )
     {
@@ -1018,7 +981,7 @@ void PelibGen::addMethod(const IlMethod& m)
     for( int i = 0; i < m.d_locals.size(); i++ )
     {
         SignatureParser::Node* type = d_imp->find(SignatureParser::TypeRef,m.d_locals[i].first);
-        Local* loc = new Local(m.d_locals[i].second.constData(), dynamic_cast<Type*>(type->thing) );
+        Local* loc = new Local(unescape(m.d_locals[i].second).constData(), dynamic_cast<Type*>(type->thing) );
         mm->AddLocal(loc);
     }
 
@@ -1095,8 +1058,12 @@ void PelibGen::addMethod(const IlMethod& m)
             break;
         case IL_ldstr:
             {
+#if 0
                 std::string str = op.d_arg.mid(1,op.d_arg.size()-2-1).constData(); // remove "" and chop '0', only '\' remains
                 str[ str.size() - 1 ] = 0;
+#else
+                std::string str = op.d_arg.mid(1,op.d_arg.size()-2).constData(); // remove ""; \0 will be kept by PEWriter
+#endif
                 mm->AddInstruction(
                         new Instruction(Instruction::i_ldstr, new Operand(str,true)));
             }
@@ -1136,7 +1103,7 @@ void PelibGen::addMethod(const IlMethod& m)
             break;
         }
     }
-    mm->Optimize(*d_imp);
+    mm->Optimize();
 }
 
 void PelibGen::beginClass(const QByteArray& className, bool isPublic, const QByteArray& superClassRef)
