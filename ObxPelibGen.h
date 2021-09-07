@@ -32,6 +32,7 @@ namespace Obx
 
         void writeByteCode(const QByteArray& filePath );
         void writeAssembler( const QByteArray& filePath );
+        void clear();
 
         virtual void beginModule( const QByteArray& moduleName, const QByteArrayList& imports,
                                   const QString& sourceFile, quint8 moduleKind );

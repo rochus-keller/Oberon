@@ -19,6 +19,7 @@
 
 #include "ObxPelibGen.h"
 #include <PeLib/PublicApi.h>
+#include <PeLib/PEMetaTables.h>
 #include <QSet>
 #include <QtDebug>
 #include <typeinfo>
@@ -198,6 +199,7 @@ public:
             for( i = subs.begin(); i != subs.end(); ++i )
                 delete i.value();
         }
+        Node* getTop() { return parent ? parent->getTop() : this; }
     };
 
     SignatureParser(const QByteArray& ref, Node& r, PELib& p ):lex(ref),root(r),pe(p)
@@ -834,8 +836,7 @@ PelibGen::PelibGen():d_imp(0)
 
 PelibGen::~PelibGen()
 {
-    if( d_imp )
-        delete d_imp;
+    clear();
 }
 
 void PelibGen::writeByteCode(const QByteArray& filePath)
@@ -849,6 +850,16 @@ void PelibGen::writeAssembler(const QByteArray& filePath)
 {
     Q_ASSERT( d_imp && d_imp->level.isEmpty() );
     d_imp->DumpOutputFile(filePath.constData(), PELib::ilasm, d_imp->moduleKind == IlEmitter::GuiApp );
+}
+
+void PelibGen::clear()
+{
+    if( d_imp )
+    {
+        MetaBase::dump();
+        delete d_imp;
+        d_imp = 0;
+    }
 }
 
 static inline QByteArray unescape( const QByteArray& name )
@@ -865,8 +876,7 @@ static inline QByteArray unescape( const QByteArray& name )
 
 void PelibGen::beginModule(const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind)
 {
-    if( d_imp )
-        delete d_imp;
+    clear();
     const QByteArray name = unescape(moduleName);
     d_imp = new Imp(name);
     d_imp->moduleKind = moduleKind;
@@ -895,7 +905,7 @@ void PelibGen::endModule()
     Q_ASSERT( d_imp && !d_imp->level.isEmpty() );
     d_imp->level.pop_back();
 
-    // TEST dump(&d_imp->root);
+    //dump(&d_imp->root); // TEST
 }
 
 void PelibGen::addMethod(const IlMethod& m)
@@ -1062,10 +1072,14 @@ void PelibGen::addMethod(const IlMethod& m)
                 std::string str = op.d_arg.mid(1,op.d_arg.size()-2-1).constData(); // remove "" and chop '0', only '\' remains
                 str[ str.size() - 1 ] = 0;
 #else
-                std::string str = op.d_arg.mid(1,op.d_arg.size()-2).constData(); // remove ""; \0 will be kept by PEWriter
+                QByteArray str = op.d_arg.mid(1,op.d_arg.size()-2); // remove ""
+                str.replace("\\\\", "\\"); // replace \\ by "\"
+                str.replace("\\\"","\""); // replace \" by "
+                // TODO: other escapes
+                std::string cstr = str.constData(); // remove ""; \0 will be kept by PEWriter
 #endif
                 mm->AddInstruction(
-                        new Instruction(Instruction::i_ldstr, new Operand(str,true)));
+                        new Instruction(Instruction::i_ldstr, new Operand(cstr,true)));
             }
             break;
         case IL_ldc_r8:
