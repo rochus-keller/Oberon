@@ -253,7 +253,7 @@ namespace Obx
                          const QByteArray& superClassRef = QByteArray() );
         virtual void endClass();
 
-        virtual void addField( const QByteArray& fieldName, // on top level or in class
+        virtual void addField( const QByteArray& fieldName,
                        const QByteArray& typeRef,
                        bool isPublic = true,
                        bool isStatic = false );

@@ -204,15 +204,6 @@ public:
 
     SignatureParser(const QByteArray& ref, Node& r, PELib& p ):lex(ref),root(r),pe(p)
     {
-        if( primitives.isEmpty() )
-            primitives << "void" << "bool" << "char"
-                       << "int8" << "unsigned int8" << "uint8"
-                       << "int16" << "unsigned int16" << "uint16"
-                       << "int32" << "unsigned int32" << "uint32"
-                       << "int64" << "unsigned int64" << "uint64"
-                       << "float32" << "float64"
-                       << "native int" << "native unsigned int" << "native uint" << "int" << "uint"
-                       << "string" << "object";
     }
     Node* parse(MemberHint hint, const QByteArray& moduleName, const QByteArray& line)
     {
@@ -228,8 +219,20 @@ public:
         }
         return 0;
     }
-    bool isPrimitive(const QByteArray& t) const { primitives.contains(t); }
+    bool isPrimitive(const QByteArray& t) const
+    {
+        if( primitives.isEmpty() )
+            primitives << "void" << "bool" << "char"
+                       << "int8" << "unsigned int8" << "uint8"
+                       << "int16" << "unsigned int16" << "uint16"
+                       << "int32" << "unsigned int32" << "uint32"
+                       << "int64" << "unsigned int64" << "uint64"
+                       << "float32" << "float64"
+                       << "native int" << "native unsigned int" << "native uint" << "int" << "uint"
+                       << "string" << "object";
 
+        return primitives.contains(t);
+    }
     struct Par
     {
         Node* d_type;
@@ -452,7 +455,10 @@ protected:
         if( !t.isName() )
             throw "expecting ID in primitive type";
         if( !isPrimitive(t.d_val) )
+        {
+            qDebug() << t.d_val;
             throw "expecting primitive type";
+        }
         str += t.d_val;
         return fetchPrimitive(str.join(' ') );
     }

@@ -1,5 +1,5 @@
-#ifndef OBXILASMGEN_H
-#define OBXILASMGEN_H
+#ifndef OBXCILGEN_H
+#define OBXCILGEN_H
 
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -35,7 +35,7 @@ namespace Obx
     struct Module;
     class IlEmitter;
 
-    class IlasmGen
+    class CilGen
     {
     public:
         static bool translateAll(Project*, bool ilasm, const QString& where );
@@ -44,8 +44,8 @@ namespace Obx
                                  const QByteArray& module = QByteArray(), const QByteArray& function = QByteArray());
         static bool generateMain(IlEmitter* out, const QByteArray& name, const QByteArrayList& modules );
     private:
-        IlasmGen();
+        CilGen();
     };
 }
 
-#endif // OBXILASMGEN_H
+#endif // OBXCILGEN_H

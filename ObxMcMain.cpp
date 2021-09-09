@@ -27,7 +27,7 @@
 #include "ObxModel.h"
 #include "ObErrors.h"
 #include "ObxProject.h"
-#include "ObxIlasmGen.h"
+#include "ObxCilGen.h"
 #include "ObFileCache.h"
 
 static QStringList collectFiles( const QDir& dir )
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-09-07");
+    a.setApplicationVersion("2021-09-09");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-#ifndef _DEBUG
+#if 0 // #ifndef _DEBUG
     if( !genAsm )
         qWarning() << "the direct assembly generator is currently only available in debug mode (i.e. not ready for use)";
     genAsm = true;
@@ -216,18 +216,21 @@ int main(int argc, char *argv[])
         preloadLib(&pro,"XYPlane");
     }
 
-    const QTime start = QTime::currentTime();
+    QTime start = QTime::currentTime();
     if( !pro.reparse() )
         return -1;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
-
-    Obx::IlasmGen::translateAll(&pro, genAsm, outPath );
+    start = QTime::currentTime();
+    Obx::CilGen::translateAll(&pro, genAsm, outPath );
+    qDebug() << "translated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     QDir::setCurrent(outPath);
     QDir dir(outPath);
     if( build && genAsm )
     {
+        start = QTime::currentTime();
         if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
             return -1;
+        qDebug() << "built with ilasm in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     }
     if( run )
     {

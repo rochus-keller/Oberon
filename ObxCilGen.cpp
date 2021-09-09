@@ -17,7 +17,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include "ObxIlasmGen.h"
+#include "ObxCilGen.h"
 #include "ObxAst.h"
 #include "ObErrors.h"
 #include "ObxProject.h"
@@ -45,7 +45,7 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
 // "dotnet.exe run" apparently creates an non-managed exe which loads coreclr.dll and the app assembly dll; mono5 (in contrast to 3)
 // is able to disasm and even run the app assembly dll created by dotnet.exe CoreCLR 3.1.
 
-struct ObxIlasmGenCollector : public AstVisitor
+struct ObxCilGenCollector : public AstVisitor
 {
     QList<Procedure*> allProcs;
     QList<Record*> allRecords;
@@ -142,13 +142,13 @@ struct ObxIlasmGenCollector : public AstVisitor
     }
 };
 
-struct TempPool
+struct CilGenTempPool
 {
     enum { MAX_TEMP = 32 };
     std::bitset<MAX_TEMP> d_slots;
     quint16 d_start;
     qint16 d_max; // max used slot
-    TempPool():d_start(0),d_max(-1){}
+    CilGenTempPool():d_start(0),d_max(-1){}
     void reset(quint16 start)
     {
         d_slots.reset();
@@ -177,7 +177,7 @@ struct TempPool
     }
 };
 
-struct ObxIlasmGenImp : public AstVisitor
+struct ObxCilGenImp : public AstVisitor
 {
     Errors* err;
     Module* thisMod;
@@ -189,13 +189,13 @@ struct ObxIlasmGenImp : public AstVisitor
     bool forceAssemblyPrefix;
     bool forceFormalIndex;
     RowCol last;
-    TempPool temps;
+    CilGenTempPool temps;
     QHash<QByteArray, QPair<Array*,int> > copiers; // type string -> array, max dim count
     QHash<QByteArray,ProcType*> delegates; // signature hash -> signature
     int exitJump; // TODO: nested LOOPs
     Procedure* scope;
 
-    ObxIlasmGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
+    ObxCilGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
         exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false)
     {
     }
@@ -731,7 +731,7 @@ struct ObxIlasmGenImp : public AstVisitor
 
     void visit( Module* me )
     {
-        ObxIlasmGenCollector co;
+        ObxCilGenCollector co;
         me->accept(&co);
 
         foreach( Import* imp, me->d_imports )
@@ -3271,7 +3271,7 @@ struct ObxIlasmGenImp : public AstVisitor
     void visit( Import* ) { Q_ASSERT( false ); }
 };
 
-bool IlasmGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
+bool CilGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
 {
     Q_ASSERT( m != 0 && e != 0 );
 
@@ -3281,7 +3281,7 @@ bool IlasmGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
     if( m->d_isDef )
         return true;
 
-    ObxIlasmGenImp imp;
+    ObxCilGenImp imp;
     imp.thisMod = m;
     imp.emitter = e;
 
@@ -3307,12 +3307,12 @@ bool IlasmGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
     return hasErrs;
 }
 
-bool IlasmGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray& module, const QByteArray& function)
+bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray& module, const QByteArray& function)
 {
     if( module.isEmpty() )
         return false;
 
-    QByteArray mod = ObxIlasmGenImp::escape(name);
+    QByteArray mod = ObxCilGenImp::escape(name);
     QByteArrayList imports;
     imports << mod;
     e->beginModule(mod, imports,QString(),IlEmitter::ConsoleApp);
@@ -3333,7 +3333,7 @@ bool IlasmGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArr
     return true;
 }
 
-bool IlasmGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArrayList& modules)
+bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArrayList& modules)
 {
     Q_ASSERT( e );
     if( modules.isEmpty() )
@@ -3341,9 +3341,9 @@ bool IlasmGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArr
 
     QByteArrayList imports;
     foreach( const QByteArray& mod, modules )
-        imports << ObxIlasmGenImp::escape(mod);
+        imports << ObxCilGenImp::escape(mod);
 
-    e->beginModule(ObxIlasmGenImp::escape(name), imports,QString(),IlEmitter::ConsoleApp);
+    e->beginModule(ObxCilGenImp::escape(name), imports,QString(),IlEmitter::ConsoleApp);
     //out << ".assembly extern mscorlib {}" << endl;
 
     e->beginMethod("main",false,IlEmitter::Primary);
@@ -3378,7 +3378,7 @@ static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream& co
     return true;
 }
 
-bool IlasmGen::translateAll(Project* pro, bool ilasm, const QString& where)
+bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
 {
     Q_ASSERT( pro );
     if( where.isEmpty() )
@@ -3433,7 +3433,7 @@ bool IlasmGen::translateAll(Project* pro, bool ilasm, const QString& where)
                                 //qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
                                 IlAsmRenderer r(&f);
                                 IlEmitter e(&r);
-                                IlasmGen::translate(inst,&e,pro->getErrs());
+                                CilGen::translate(inst,&e,pro->getErrs());
                                 bout << "./ilasm /dll \"" << inst->getName() << ".il\"" << endl;
                                 cout << "rm \"" << inst->getName() << ".il\"" << endl;
                                 cout << "rm \"" << inst->getName() << ".dll\"" << endl;
@@ -3443,7 +3443,7 @@ bool IlasmGen::translateAll(Project* pro, bool ilasm, const QString& where)
                         {
                             PelibGen r;
                             IlEmitter e(&r);
-                            IlasmGen::translate(inst,&e,pro->getErrs());
+                            CilGen::translate(inst,&e,pro->getErrs());
                             r.writeAssembler(outDir.absoluteFilePath(inst->getName() + ".il").toUtf8());
                             cout << "rm \"" << inst->getName() << ".il\"" << endl;
                             r.writeByteCode(outDir.absoluteFilePath(inst->getName() + ".dll").toUtf8());
@@ -3489,9 +3489,9 @@ bool IlasmGen::translateAll(Project* pro, bool ilasm, const QString& where)
                 IlEmitter e(&r);
                 const Project::ModProc& mp = pro->getMain();
                 if( mp.first.isEmpty() )
-                    IlasmGen::generateMain(&e,name,roots);
+                    CilGen::generateMain(&e,name,roots);
                 else
-                    IlasmGen::generateMain(&e, name,mp.first, mp.second);
+                    CilGen::generateMain(&e, name,mp.first, mp.second);
                 bout << "./ilasm /exe \"" << name << ".il\"" << endl;
                 cout << "rm \"" << name << ".il\"" << endl;
                 cout << "rm \"" << name << ".exe\"" << endl;
@@ -3503,9 +3503,9 @@ bool IlasmGen::translateAll(Project* pro, bool ilasm, const QString& where)
             IlEmitter e(&r);
             const Project::ModProc& mp = pro->getMain();
             if( mp.first.isEmpty() )
-                IlasmGen::generateMain(&e,name,roots);
+                CilGen::generateMain(&e,name,roots);
             else
-                IlasmGen::generateMain(&e, name,mp.first, mp.second);
+                CilGen::generateMain(&e, name,mp.first, mp.second);
 
             r.writeAssembler(outDir.absoluteFilePath(name + ".il").toUtf8());
             cout << "rm \"" << name << ".il\"" << endl;

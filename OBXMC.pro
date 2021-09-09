@@ -33,14 +33,14 @@ INCLUDEPATH += ..
 
 SOURCES += \
     ObxMcMain.cpp \
-    ObxIlasmGen.cpp \
     ObxIlEmitter.cpp \
-    ObxPelibGen.cpp
+    ObxPelibGen.cpp \
+    ObxCilGen.cpp
 
 HEADERS += \
-    ObxIlasmGen.h \
     ObxIlEmitter.h \
-    ObxPelibGen.h
+    ObxPelibGen.h \
+    ObxCilGen.h
 
 include( ../PeLib/PeLib.pri )
 include( ObxParser.pri )
