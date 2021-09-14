@@ -1126,24 +1126,30 @@ void PelibGen::addMethod(const IlMethod& m)
     mm->Optimize();
 }
 
-void PelibGen::beginClass(const QByteArray& className, bool isPublic, const QByteArray& superClassRef)
+void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef)
 {
     Q_ASSERT( d_imp && !d_imp->level.isEmpty() );
     const QByteArray name = unescape(className);
     SignatureParser::Node* me = d_imp->level.back()->subs.value(name);
+    Qualifiers flags = Qualifiers::Public;
+    if( byValue )
+        flags |= Qualifiers::Sealed;
     Class* cls = 0;
     if( me == 0 )
     {
         me = new SignatureParser::Node(d_imp->level.back(),name);
-        cls = new Class(name.constData(), Qualifiers::Public, -1, -1);
+        cls = new Class(name.constData(), flags, -1, -1);
         DataContainer* dc = dynamic_cast<DataContainer*>(d_imp->level.back()->thing);
         Q_ASSERT(dc);
         dc->Add(cls);
         me->thing = cls;
         d_imp->level.back()->subs.insert(name,me);
     }else
+    {
         cls = dynamic_cast<Class*>(me->thing);
-    Q_ASSERT(cls);
+        Q_ASSERT(cls);
+        cls->Flags() = flags;
+    }
     if( !superClassRef.isEmpty() && cls->Extends() == 0 )
     {
         SignatureParser::Node* super = d_imp->find(SignatureParser::TypeRef,superClassRef);

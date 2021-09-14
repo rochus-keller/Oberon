@@ -578,7 +578,7 @@ struct ObxCilGenImp : public AstVisitor
             if( !r->d_base.isNull() )
                 superClassName = formatType(r->d_base.data());
         }
-        emitter->beginClass(className, isPublic, superClassName);
+        emitter->beginClass(className, isPublic, false, superClassName);
 
         foreach( const Ref<Field>& f, r->d_fields )
             f->accept(this);
@@ -689,7 +689,7 @@ struct ObxCilGenImp : public AstVisitor
         // TypeRef ResolutionScope not yet handled (3) for .48b15Qezth5ae11+xOqLVw in image GenericTest6.dll
         // * Assertion at class.c:5695, condition `!mono_loader_get_last_error ()' not met
 
-        emitter->beginClass(escape(name),true,"[mscorlib]System.MulticastDelegate"); // sealed
+        emitter->beginClass(escape(name),true,true,"[mscorlib]System.MulticastDelegate");
         // formatMetaParams(thisMod)
         emitter->beginMethod(".ctor",true,IlEmitter::Instance,true);
         emitter->addArgument("object","MethodsClass");
@@ -896,7 +896,7 @@ struct ObxCilGenImp : public AstVisitor
         case Thing::T_BaseType:
             return formatBaseType(t->getBaseType());
         case Thing::T_Enumeration:
-            return "uint16";
+            return "int32";
         case Thing::T_Pointer:
             {
                 Pointer* me = cast<Pointer*>(t);
@@ -1301,6 +1301,7 @@ struct ObxCilGenImp : public AstVisitor
 #ifdef _USE_LDSTOBJ
                     line(me->d_loc).ldobj_(formatType(p->d_type.data()));
 #else
+                    // NOTE: _USE_LDSTOBJ on or off has practically no influence on performance, geomean 0.40 vs 0.39
                     Type* td = derefed(p->d_type.data());
                     switch( td->getTag() )
                     {
@@ -1311,39 +1312,39 @@ struct ObxCilGenImp : public AstVisitor
                         break;
                     case Thing::T_Pointer:
                     case Thing::T_ProcType:
-                        emitOpcode("ldind.ref", -1+1, me->d_loc);
+                        line(me->d_loc).ldind_(IlEmitter::Ref);
                         break;
                     case Thing::T_Enumeration:
-                        emitOpcode("ldind.u4", -1+1, me->d_loc);
+                        line(me->d_loc).ldind_(IlEmitter::I4);
                         break;
                     case Thing::T_BaseType:
                         switch(td->getBaseType())
                         {
                         case Type::LONGREAL:
-                            emitOpcode("ldind.r8",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::R8);
                             break;
                         case Type::REAL:
-                            emitOpcode("ldind.r4",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::R4);
                             break;
                         case Type::LONGINT:
-                            emitOpcode("ldind.i8",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::I8);
                             break;
                         case Type::INTEGER:
-                            emitOpcode("ldind.i4",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::I4);
                             break;
                         case Type::SET:
-                            emitOpcode("ldind.u4",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::U4);
                             break;
                         case Type::SHORTINT:
-                            emitOpcode("ldind.i2",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::I2);
                             break;
                         case Type::CHAR:
                         case Type::WCHAR:
-                            emitOpcode("ldind.u2",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::U2);
                             break;
                         case Type::BYTE:
                         case Type::BOOLEAN: // bool is 1 byte in RAM but 4 bytes on stack
-                            emitOpcode("ldind.u1",-1+1, me->d_loc);
+                            line(me->d_loc).ldind_(IlEmitter::U1);
                             break;
                         }
                         break;
@@ -1543,7 +1544,7 @@ struct ObxCilGenImp : public AstVisitor
                     switch(t->getTag())
                     {
                     case Thing::T_Enumeration:
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(uint32)",1);
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
                         break;
                     default:
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(object)",1);
@@ -2194,6 +2195,7 @@ struct ObxCilGenImp : public AstVisitor
             break;
         case Type::INTEGER:
         case Type::SET:
+        case Type::ENUMINT:
             line(loc).conv_(IlEmitter::ToI4);
             break;
         case Type::SHORTINT:
@@ -2310,20 +2312,28 @@ struct ObxCilGenImp : public AstVisitor
         case BinExpr::DIV:
             if( lhsT->isInteger() && rhsT->isInteger() )
             {
+#if 1
                 if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
                     line(me->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::DIV(int32,int32)",2,true );
                 else
                     line(me->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::DIV(int64,int64)",2,true );
+#else
+                line(me->d_loc).div_(); // TEST, nearly no performance impact on Mono and CoreCLR
+#endif
             }else
                 Q_ASSERT(false);
             break;
         case BinExpr::MOD:
             if( lhsT->isInteger() && rhsT->isInteger() )
             {
+#if 1
                 if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
                     line(me->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::MOD(int32,int32)",2,true);
                 else
                     line(me->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::MOD(int64,int64)",2,true);
+#else
+                line(me->d_loc).rem_(); // TEST
+#endif
             }else
                 Q_ASSERT(false);
             break;
@@ -2694,49 +2704,44 @@ struct ObxCilGenImp : public AstVisitor
             emitFetchDesigAddr(me->d_lhs.data());
             me->d_rhs->accept(this);
             prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
-#if _USE_LDSTOBJ
             convertTo(lhsT->getBaseType(),me->d_rhs->d_type.data(), me->d_loc); // required, otherwise crash when LONGREAL
+#if _USE_LDSTOBJ
             line(me->d_loc).stobj_(formatType(me->d_lhs->d_type.data()));
 #else
             switch( lhsT->getTag() )
             {
             case Thing::T_Pointer:
             case Thing::T_ProcType:
-                emitOpcode("stind.ref",-2, me->d_loc);
+                line(me->d_loc).stind_(IlEmitter::Ref);
                 break;
             case Thing::T_Enumeration:
-                emitOpcode("stind.i4",-2, me->d_loc);
+                //line(me->d_loc).stobj_(formatType(me->d_lhs->d_type.data()));
+                line(me->d_loc).stind_(IlEmitter::I4);
                 break;
             case Thing::T_BaseType:
                 switch( lhsT->getBaseType() )
                 {
                 case Type::LONGREAL:
-                    emitOpcode("conv.r8",0,me->d_loc);
-                    emitOpcode("stind.r8",-2, me->d_loc);
+                    line(me->d_loc).stind_(IlEmitter::R8);
                     break;
                 case Type::REAL:
-                    emitOpcode("conv.r4",0,me->d_loc);
-                    emitOpcode("stind.r4",-2, me->d_loc);
+                    line(me->d_loc).stind_(IlEmitter::R4);
                     break;
                 case Type::LONGINT:
-                    emitOpcode("conv.i8",0,me->d_loc);
-                    emitOpcode("stind.i8",-2, me->d_loc);
+                    line(me->d_loc).stind_(IlEmitter::I8);
                     break;
                 case Type::INTEGER:
                 case Type::SET:
-                    emitOpcode("conv.i4",0,me->d_loc);
-                    emitOpcode("stind.i4",-2, me->d_loc);
+                    line(me->d_loc).stind_(IlEmitter::I4);
                     break;
                 case Type::SHORTINT:
                 case Type::CHAR:
                 case Type::WCHAR:
-                    emitOpcode("conv.i2",0,me->d_loc);
-                    emitOpcode("stind.i2",-2, me->d_loc);
+                    line(me->d_loc).stind_(IlEmitter::I2);
                     break;
                 case Type::BYTE:
                 case Type::BOOLEAN:
-                    emitOpcode("conv.u1",0,me->d_loc);
-                    emitOpcode("stind.i1",-2, me->d_loc);
+                    line(me->d_loc).stind_(IlEmitter::I1);
                     break;
                 default:
                     Q_ASSERT(false);

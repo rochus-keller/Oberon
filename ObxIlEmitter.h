@@ -64,7 +64,7 @@ namespace Obx
 
         virtual void addMethod(const IlMethod& method ) {}
 
-        virtual void beginClass(const QByteArray& className, bool isPublic = true,
+        virtual void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
                          const QByteArray& superClassRef = QByteArray() ) {}
         virtual void endClass() {}
 
@@ -94,7 +94,7 @@ namespace Obx
                          bool isRuntime = false ); // runtime used for delegates
         void endMethod();
 
-        void beginClass(const QByteArray& className, bool isPublic = true,
+        void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
                          const QByteArray& superClassRef = QByteArray() );
         void endClass(); // classes can be nested
 
@@ -249,7 +249,7 @@ namespace Obx
 
         virtual void addMethod(const IlMethod& method );
 
-        virtual void beginClass(const QByteArray& className, bool isPublic = true,
+        virtual void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
                          const QByteArray& superClassRef = QByteArray() );
         virtual void endClass();
 
