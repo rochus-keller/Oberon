@@ -25,7 +25,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [ ] Complete built-in procedure and Oakwood library implementations
 - [ ] Write documentation and focus articles
 - [x] Implement a CIL/ECMA-335 compiler backend (done for IL assembly, pending for direct dll generator)
-- [ ] Use a minimal Mono runtime as an alternative to the LuaJIT VM
+- [x] Use a minimal Mono runtime as an alternative to the LuaJIT VM
 - [ ] Implement an LLVM compiler backend
 - [ ] Proceed with the programming language development (based on actual need and after careful consideration)
 
