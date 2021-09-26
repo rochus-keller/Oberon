@@ -1,4 +1,5 @@
 [General]
+BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
 BuiltInOakwood=false
 BuiltInObSysInner=false
 MainModule=@ByteArray()

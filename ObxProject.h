@@ -88,6 +88,8 @@ namespace Obx
         bool useBuiltInObSysInner() const { return d_useBuiltInObSysInner; }
         QString getWorkingDir(bool resolved = false) const;
         void setWorkingDir( const QString& );
+        QString getBuildDir(bool resolved = false) const;
+        void setBuildDir( const QString& );
 
         bool addFile(const QString& filePath, const VirtualPath& package = QByteArrayList() );
         bool removeFile( const QString& filePath );
@@ -125,9 +127,9 @@ namespace Obx
         FileHash d_files;
         ModuleHash d_modules;
         FileGroups d_groups;
-        QString d_filePath;
+        QString d_filePath; // path where the project file was loaded from or saved to
         QStringList d_suffixes;
-        QString d_workingDir;
+        QString d_workingDir, d_buildDir;
         ModProc d_main;
         bool d_dirty;
         bool d_useBuiltInOakwood;

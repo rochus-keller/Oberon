@@ -38,7 +38,8 @@ namespace Obx
     class CilGen
     {
     public:
-        static bool translateAll(Project*, bool ilasm, const QString& where );
+        enum How { Ilasm, Fastasm, IlOnly, Pelib };
+        static bool translateAll(Project*, How how, bool debug, const QString& where );
         static bool translate(Module*, IlEmitter* out, Ob::Errors* = 0 );
         static bool generateMain(IlEmitter* out, const QByteArray& name,
                                  const QByteArray& module = QByteArray(), const QByteArray& function = QByteArray());

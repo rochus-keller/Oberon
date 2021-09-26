@@ -22,6 +22,10 @@
 
 #include <Oberon/ObxIlEmitter.h>
 
+namespace DotNetPELib
+{
+    class PELib;
+}
 namespace Obx
 {
     class PelibGen : public IlRenderer
@@ -30,9 +34,12 @@ namespace Obx
         PelibGen();
         ~PelibGen();
 
+        static void printInstructionTable();
+
         void writeByteCode(const QByteArray& filePath );
         void writeAssembler( const QByteArray& filePath );
         void clear();
+        DotNetPELib::PELib* getPelib();
 
         virtual void beginModule( const QByteArray& moduleName, const QByteArrayList& imports,
                                   const QString& sourceFile, quint8 moduleKind );

@@ -206,7 +206,8 @@ namespace Obx
     {
         IL_invalid,
         IL_label,
-        IL_line,
+        IL_comment,
+        IL_line, // row ':' column
         IL_unused, // to sync with DotNetPELib::Instruction::iop
         IL_add, IL_add_ovf, IL_add_ovf_un, IL_and, IL_arglist, IL_beq, IL_beq_s, IL_bge,
         IL_bge_s, IL_bge_un, IL_bge_un_s, IL_bgt, IL_bgt_s, IL_bgt_un, IL_bgt_un_s, IL_ble,

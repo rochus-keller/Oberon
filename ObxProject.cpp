@@ -34,6 +34,22 @@ struct ObxHitTest : public AstVisitor
 {
     quint32 line; quint16 col;
     QList<Scope*> scopes;
+    Scope* scopeHit;
+
+    ObxHitTest():scopeHit(0){}
+
+    void test( Scope* s )
+    {
+        if( ( s->d_loc.d_row == line && s->d_loc.d_col <= col ) ||
+                ( s->d_loc.d_row < line && s->d_end.d_row > line ) ||
+                ( s->d_end.d_row == line && s->d_end.d_col >= col ) )
+        {
+            if( scopeHit == 0 )
+                scopeHit = s;
+            else if( scopeHit->d_end.d_row - scopeHit->d_loc.d_row >= s->d_end.d_row - s->d_loc.d_row )
+                scopeHit = s;
+        }
+    }
 
     void test(Expression* e)
     {
@@ -148,6 +164,7 @@ struct ObxHitTest : public AstVisitor
     void visit( Procedure* m)
     {
         scopes.push_back(m);
+        test(m);
         //if( m->d_type->d_ident == 0 )
         if( m->d_type )
             m->d_type->accept(this);
@@ -167,6 +184,7 @@ struct ObxHitTest : public AstVisitor
     void visit( Module* m )
     {
         scopes.push_back(m);
+        test(m);
         for( int i = 0; i < m->d_order.size(); i++ )
             m->d_order[i]->accept(this);
         for( int i = 0; i < m->d_body.size(); i++ )
@@ -974,7 +992,7 @@ Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, qu
 
     }
     if( scopePtr )
-        *scopePtr = 0;
+        *scopePtr = hit.scopeHit;
     return 0;
 }
 
@@ -1019,6 +1037,30 @@ QString Project::getWorkingDir(bool resolved) const
 void Project::setWorkingDir(const QString& wd)
 {
     d_workingDir = wd;
+    touch();
+}
+
+QString Project::getBuildDir(bool resolved) const
+{
+    if( d_buildDir.isEmpty() )
+    {
+        if( !d_filePath.isEmpty() )
+            return QFileInfo(d_filePath).dir().absoluteFilePath("build");
+        else
+            return QCoreApplication::applicationDirPath() + "/build";
+    }
+    else if( !resolved )
+        return d_buildDir;
+    // else
+    QString bd = d_buildDir;
+    bd.replace("%PRODIR%", QFileInfo(d_filePath).dir().path() );
+    bd.replace("%APPDIR%", QCoreApplication::applicationDirPath() );
+    return bd;
+}
+
+void Project::setBuildDir(const QString& bd)
+{
+    d_buildDir = bd;
     touch();
 }
 
@@ -1298,6 +1340,7 @@ bool Project::save()
     out.setValue("MainModule", d_main.first );
     out.setValue("MainProc", d_main.second );
     out.setValue("WorkingDir", d_workingDir );
+    out.setValue("BuildDir", d_buildDir );
 
     FileGroup root = getRootFileGroup();
     out.beginWriteArray("Modules", root.d_files.size() ); // nested arrays don't work
@@ -1356,6 +1399,7 @@ bool Project::loadFrom(const QString& filePath)
     d_main.first = in.value("MainModule").toByteArray();
     d_main.second = in.value("MainProc").toByteArray();
     d_workingDir = in.value("WorkingDir").toString();
+    d_buildDir = in.value("BuildDir").toString();
 
     int count = in.beginReadArray("Modules");
     for( int i = 0; i < count; i++ )

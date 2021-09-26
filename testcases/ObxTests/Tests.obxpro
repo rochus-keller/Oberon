@@ -1,4 +1,5 @@
 [General]
+BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
 BuiltInOakwood=true
 BuiltInObSysInner=false
 MainModule=@ByteArray()
@@ -10,12 +11,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ProcType2.obx
-1\RelPath=ProcType2.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Imported1a.obx
-2\RelPath=Imported1a.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Imported1b.obx
-3\RelPath=Imported1b.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Minimal.obx
+1\RelPath=Minimal.obx
 size=1
 
 [Packages]

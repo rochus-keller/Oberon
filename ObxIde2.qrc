@@ -1,0 +1,41 @@
+<RCC>
+    <qresource prefix="/">
+        <file>images/close.png</file>
+        <file>images/exclamation-circle.png</file>
+        <file>images/exclamation-red.png</file>
+        <file>oakwood/Files.Def</file>
+        <file>oakwood/In.Def</file>
+        <file>oakwood/Input.Def</file>
+        <file>oakwood/Math.Def</file>
+        <file>oakwood/Out.Def</file>
+        <file>oakwood/Strings.Def</file>
+        <file>oakwood/XYPlane.Def</file>
+        <file>oakwood/Coroutines.Def</file>
+        <file>images/class.png</file>
+        <file>images/func_priv.png</file>
+        <file>images/func.png</file>
+        <file>images/struct.png</file>
+        <file>images/var_priv.png</file>
+        <file>images/var_prot.png</file>
+        <file>images/var.png</file>
+        <file>images/folder.png</file>
+        <file>images/module.png</file>
+        <file>images/class_priv.png</file>
+        <file>images/struct_priv.png</file>
+        <file>scripts/obxlj.lua</file>
+        <file>images/definition.png</file>
+        <file>images/break-marker.png</file>
+        <file>images/breakpoint.png</file>
+        <file>images/marker.png</file>
+        <file>images/alias_priv.png</file>
+        <file>images/alias.png</file>
+        <file>font/DejaVuSansMono.ttf</file>
+        <file>oakwood/MathL.Def</file>
+        <file>scripts/Dll/In.dll</file>
+        <file>scripts/Dll/Input.dll</file>
+        <file>scripts/Dll/Math.dll</file>
+        <file>scripts/Dll/MathL.dll</file>
+        <file>scripts/Dll/OBX.Runtime.dll</file>
+        <file>scripts/Dll/Out.dll</file>
+    </qresource>
+</RCC>

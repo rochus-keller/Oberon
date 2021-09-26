@@ -845,6 +845,68 @@ PelibGen::~PelibGen()
     clear();
 }
 
+void PelibGen::printInstructionTable()
+{
+    struct Opcode
+    {
+        const char* symbol;
+        quint8 code;
+        quint8 len;
+        quint8 argtype;
+        Opcode():symbol(0),code(0),len(0),argtype(0){}
+    };
+
+    QMap<quint8,Opcode> main, fe;
+    Instruction::InstructionName* inst = Instruction::instructions_;
+    while(inst && inst->name)
+    {
+        if( inst->name != 0 )
+        {
+            Opcode op;
+            op.symbol = inst->name;
+            op.len = inst->bytes;
+            op.argtype = inst->operandType;
+            if( inst->op1 == 0xfe )
+            {
+                op.code = inst->op2;
+                fe[op.code] = op;
+            }else
+            {
+                op.code = inst->op1;
+                main[op.code] = op;
+            }
+        }
+        inst++;
+    }
+    QTextStream out(stdout);
+    out << "// main" << endl;
+    for( int i = 0; i < 256; i++ )
+    {
+        const Opcode op = main.value(i);
+        out << "{ ";
+        if( op.symbol )
+            out << "\"" << op.symbol << "\", ";
+        else
+            out << "0, ";
+        out << "0x" << QByteArray::number(op.code,16) << ", ";
+        out << QByteArray::number(op.len) << ", ";
+        out << QByteArray::number(op.argtype) << " }," << endl;
+    }
+    out << "// 0xfe" << endl;
+    for( int i = 0; i < 256; i++ )
+    {
+        const Opcode op = fe.value(i);
+        out << "{ ";
+        if( op.symbol )
+            out << "\"" << op.symbol << "\", ";
+        else
+            out << "0, ";
+        out << "0x" << QByteArray::number(op.code,16) << ", ";
+        out << QByteArray::number(op.len) << ", ";
+        out << QByteArray::number(op.argtype) << " }," << endl;
+    }
+}
+
 void PelibGen::writeByteCode(const QByteArray& filePath)
 {
     Q_ASSERT( d_imp && d_imp->level.isEmpty() );
@@ -868,6 +930,11 @@ void PelibGen::clear()
     }
 }
 
+PELib*PelibGen::getPelib()
+{
+    return d_imp;
+}
+
 static inline QByteArray unescape( const QByteArray& name )
 {
     if( name.contains('\'') ) // something like 'name' or 'a'.'b'.'c'
@@ -889,6 +956,7 @@ void PelibGen::beginModule(const QByteArray& moduleName, const QByteArrayList& i
 
     // TODO imports
 
+    d_imp->sourceFile = sourceFile.toUtf8().constData();
     SignatureParser::Node* module = new SignatureParser::Node(&d_imp->root,name);
     Class* cls = new Class(name.constData(), Qualifiers::Public, -1, -1);
     d_imp->WorkingAssembly()->Add(cls);
@@ -1013,6 +1081,7 @@ void PelibGen::addMethod(const IlMethod& m)
             break;
         case IL_line:
             d_imp->line = op.d_arg;
+            mm->AddInstruction(new Instruction(Instruction::i_line, op.d_arg.constData()));
             break;
         case IL_brinst:
         case IL_brtrue:

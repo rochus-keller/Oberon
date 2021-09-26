@@ -23,6 +23,7 @@
 #include "ObxProject.h"
 #include "ObxIlEmitter.h"
 #include "ObxPelibGen.h"
+#include <MonoTools/MonoMdbGen.h>
 #include <QtDebug>
 #include <QFile>
 #include <QDir>
@@ -1583,7 +1584,9 @@ struct ObxCilGenImp : public AstVisitor
             // doesn't work:
             //emitOpcode("ldstr \"trap hit\"",1,ae->d_loc); // TEST
             //emitOpcode("call void [mscorlib]System.Console::WriteLine(string)",-1,ae->d_loc);
-            line(ae->d_loc).break_();
+            // doesn't work either: line(ae->d_loc).break_(); // in this case when in debug agent mono goes to 150% cpu and no longer reacts
+
+            line(ae->d_loc).call_("void [mscorlib]System.Diagnostics.Debugger::Break()");
             break;
         case BuiltIn::TRAPIF:
             {
@@ -1591,7 +1594,8 @@ struct ObxCilGenImp : public AstVisitor
                 ae->d_args.first()->accept(this);
                 const int atEnd = emitter->newLabel();
                 line(ae->d_loc).brfalse_(atEnd);
-                line(ae->d_loc).break_();
+                // doesn't work: line(ae->d_loc).break_();
+                line(ae->d_loc).call_("void [mscorlib]System.Diagnostics.Debugger::Break()");
                 line(ae->d_loc).label_(atEnd);
             }
             break;
@@ -3364,7 +3368,7 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray
     return true;
 }
 
-static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream& cout )
+static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream* cout )
 {
     QFile f( QString(":/scripts/Dll/%1.dll" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
@@ -3379,11 +3383,12 @@ static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream& co
         return false;
     }
     out.write( f.readAll() );
-    cout << "rm \"" << name << ".dll\"" << endl;
+    if( cout )
+        *cout << "rm \"" << name << ".dll\"" << endl;
     return true;
 }
 
-bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
+bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& where)
 {
     Q_ASSERT( pro );
     if( where.isEmpty() )
@@ -3391,6 +3396,11 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
         qCritical() << "translateAll requires a path";
         return false;
     }
+#if 0
+    if( how == Pelib && debug )
+        qWarning() << "cannot generate debug files with the Pelib option";
+#endif
+
     QDir outDir(where);
 
     QByteArray buildStr;
@@ -3430,7 +3440,7 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
                     if( !generated.contains(inst) )
                     {
                         generated.insert(inst);
-                        if( ilasm )
+                        if( how == Ilasm || how == Fastasm || how == IlOnly )
                         {
                             QFile f(outDir.absoluteFilePath(inst->getName() + ".il"));
                             if( f.open(QIODevice::WriteOnly) )
@@ -3439,9 +3449,16 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
                                 IlAsmRenderer r(&f);
                                 IlEmitter e(&r);
                                 CilGen::translate(inst,&e,pro->getErrs());
-                                bout << "./ilasm /dll \"" << inst->getName() << ".il\"" << endl;
-                                cout << "rm \"" << inst->getName() << ".il\"" << endl;
-                                cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                                if( how == Ilasm )
+                                    bout << "./ilasm /dll " << ( debug ? "/debug ": "" ) << "\"" << inst->getName() << ".il\"" << endl;
+                                else if( how == Fastasm )
+                                    bout << "/dll " << ( debug ? "/debug ": "" ) << inst->getName() << ".il" << endl;
+                                if( how == Ilasm )
+                                {
+                                    cout << "rm \"" << inst->getName() << ".il\"" << endl;
+                                    cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                                }else if( how == Fastasm )
+                                    cout << inst->getName() << endl;
                             }else
                                 qCritical() << "could not open for writing" << f.fileName();
                         }else
@@ -3449,10 +3466,18 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
                             PelibGen r;
                             IlEmitter e(&r);
                             CilGen::translate(inst,&e,pro->getErrs());
+#if 0
+                            // no longer used
                             r.writeAssembler(outDir.absoluteFilePath(inst->getName() + ".il").toUtf8());
                             cout << "rm \"" << inst->getName() << ".il\"" << endl;
+#endif
                             r.writeByteCode(outDir.absoluteFilePath(inst->getName() + ".dll").toUtf8());
-                            cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                            // cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                            if( debug )
+                            {
+                                Mono::MdbGen mdb;
+                                mdb.write( outDir.absoluteFilePath(inst->getName() + ".dll.mdb" ), r.getPelib() );
+                            }
                         }
                     }
                 }
@@ -3485,7 +3510,7 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
         }
         if( roots.isEmpty() )
             roots.append(mods.last()->getName()); // shouldn't actually happenk
-        if( ilasm )
+        if( how == Ilasm || how == Fastasm || how == IlOnly )
         {
             QFile f(outDir.absoluteFilePath(name + ".il"));
             if( f.open(QIODevice::WriteOnly) )
@@ -3497,9 +3522,16 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
                     CilGen::generateMain(&e,name,roots);
                 else
                     CilGen::generateMain(&e, name,mp.first, mp.second);
-                bout << "./ilasm /exe \"" << name << ".il\"" << endl;
-                cout << "rm \"" << name << ".il\"" << endl;
-                cout << "rm \"" << name << ".exe\"" << endl;
+                if( how == Ilasm )
+                    bout << "./ilasm /exe " << ( debug ? "/debug ": "" ) << "\"" << name << ".il\"" << endl;
+                else if( how == Fastasm )
+                    bout << "/exe " << ( debug ? "/debug ": "" ) << name << ".il" << endl;
+                if( how == Ilasm )
+                {
+                    cout << "rm \"" << name << ".il\"" << endl;
+                    cout << "rm \"" << name << ".exe\"" << endl;
+                }else if( how == Fastasm )
+                    cout << name << endl;
             }else
                 qCritical() << "could not open for writing" << f.fileName();
         }else
@@ -3516,6 +3548,13 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
             cout << "rm \"" << name << ".il\"" << endl;
             r.writeByteCode(outDir.absoluteFilePath(name + ".exe").toUtf8());
             cout << "rm \"" << name << ".exe\"" << endl;
+#if 0 // no source file
+            if( debug )
+            {
+                MdbGen mdb;
+                mdb.write( outDir.absoluteFilePath(name + ".exe.mdb" ), r.getPelib() );
+            }
+#endif
         }
         QFile json(outDir.absoluteFilePath(name + ".runtimeconfig.json"));
         if( json.open(QIODevice::WriteOnly) )
@@ -3530,37 +3569,41 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
             qCritical() << "could not open for writing" << json.fileName();
     }
 
-    QFile run( outDir.absoluteFilePath("run.sh") );
-    if( !run.open(QIODevice::WriteOnly) )
+    if( how == Ilasm )
     {
-        qCritical() << "could not open for writing" << run.fileName();
-        return false;
-    }else
-    {
-        run.write("export MONO_PATH=.\n");
-        run.write("./mono Main#.exe\n");
+        QFile run( outDir.absoluteFilePath("run.sh") );
+        if( !run.open(QIODevice::WriteOnly) )
+        {
+            qCritical() << "could not open for writing" << run.fileName();
+            return false;
+        }else
+        {
+            run.write("export MONO_PATH=.\n");
+            run.write("./mono Main#.exe\n");
+        }
     }
 
     if( pro->useBuiltInOakwood() )
     {
-        copyLib(outDir,"In",cout);
-        copyLib(outDir,"Out",cout);
-        // TODO copyLib(outDir,"Files",cout);
-        copyLib(outDir,"Input",cout);
-        copyLib(outDir,"Math",cout);
-        copyLib(outDir,"MathL",cout);
-        // TODO copyLib(outDir,"Strings",cout);
-        // TODO copyLib(outDir,"Coroutines",cout);
-        // TODO copyLib(outDir,"XYPlane",cout);
+        const bool log = how == Ilasm;
+        copyLib(outDir,"In",log?&cout:0);
+        copyLib(outDir,"Out",log?&cout:0);
+        // TODO copyLib(outDir,"Files",log?&cout:0);
+        copyLib(outDir,"Input",log?&cout:0);
+        copyLib(outDir,"Math",log?&cout:0);
+        copyLib(outDir,"MathL",log?&cout:0);
+        // TODO copyLib(outDir,"Strings",log?&cout:0);
+        // TODO copyLib(outDir,"Coroutines",log?&cout:0);
+        // TODO copyLib(outDir,"XYPlane",log?&cout:0);
     }
-    copyLib(outDir,"OBX.Runtime",cout);
+    copyLib(outDir,"OBX.Runtime",log?&cout:0);
 
     bout.flush();
     cout.flush();
 
-    if( ilasm )
+    if( how == Ilasm || how == Fastasm )
     {
-        QFile build( outDir.absoluteFilePath("build.sh") );
+        QFile build( outDir.absoluteFilePath( how == Ilasm ? "build.sh" : "batch" ) );
         if( !build.open(QIODevice::WriteOnly) )
         {
             qCritical() << "could not open for writing" << build.fileName();
@@ -3568,13 +3611,16 @@ bool CilGen::translateAll(Project* pro, bool ilasm, const QString& where)
         }else
             build.write(buildStr);
     }
-    QFile clear( outDir.absoluteFilePath("clear.sh") );
-    if( !clear.open(QIODevice::WriteOnly) )
+    if( how == Ilasm || how == Fastasm )
     {
-        qCritical() << "could not open for writing" << clear.fileName();
-        return false;
-    }else
-        clear.write(clearStr);
+        QFile clear( outDir.absoluteFilePath( how == Ilasm ? "clean.sh" : "modules" ) );
+        if( !clear.open(QIODevice::WriteOnly) )
+        {
+            qCritical() << "could not open for writing" << clear.fileName();
+            return false;
+        }else
+            clear.write(clearStr);
+    }
 
     return pro->getErrs()->getErrCount() != errCount;
 }
