@@ -1160,8 +1160,15 @@ QByteArray Module::getName() const
     else
         return d_fullName.join('.') + "." + d_instSuffix;
 #else
-    return d_fullName.join('.') + formatMetaActuals();
+    return getFullName() + formatMetaActuals();
 #endif
+}
+
+QByteArray Module::getFullName() const
+{
+    if( d_fullName.isEmpty() )
+        return d_name;
+    return d_fullName.join('.');
 }
 
 QByteArray Module::formatMetaActuals() const

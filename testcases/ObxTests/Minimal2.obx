@@ -1,0 +1,20 @@
+module Minimal2
+
+	proc doit( in str: array of char )
+		proc inner( a,b: integer )
+		begin
+			println( a * b DIV 3 )
+		end inner
+		var str2: array 53 of char
+	begin
+		trap()
+		inner( 44, 55 )
+		str2 := str
+		println(str2)
+	end doit
+
+begin
+	println("Minimal start")
+	doit("Hello" + " World!")
+	println("Minimal done")
+end Minimal2

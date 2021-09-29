@@ -73,8 +73,9 @@ struct Model::CrossReferencer : public AstVisitor
                 s->accept(this);
         }
 
-        me->d_helper << new IdentLeaf( me, me->d_begin ,d_mod, 0, DeclRole);
-        d_mdl->d_xref[me].append( me->d_helper.back().data() );
+        // causes begin to highlight when module name is hit; not useful
+        //me->d_helper << new IdentLeaf( me, me->d_begin ,d_mod, 0, DeclRole);
+        //d_mdl->d_xref[me].append( me->d_helper.back().data() );
 
         stack.pop_back();
     }

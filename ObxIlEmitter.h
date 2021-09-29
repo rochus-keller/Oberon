@@ -59,7 +59,8 @@ namespace Obx
     class IlRenderer
     {
     public:
-        virtual void beginModule( const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind ) {}
+        virtual void beginModule( const QByteArray& assemblyName, const QByteArray& moduleName,
+                                  const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind ) {}
         virtual void endModule() {}
 
         virtual void addMethod(const IlMethod& method ) {}
@@ -84,7 +85,8 @@ namespace Obx
                             ConsoleApp, // .subsystem = 3
                           };
 
-        void beginModule( const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, ModuleKind = Library );
+        void beginModule( const QByteArray& assemblyName, const QByteArray& moduleName, const QByteArrayList& imports,
+                          const QString& sourceFile, ModuleKind = Library );
         void endModule();
 
         enum MethodKind { Static, Primary, Instance, Virtual };
@@ -187,7 +189,6 @@ namespace Obx
     protected:
         void delta(int d);
     private:
-        QByteArray d_module;
         quint8 d_methodKind;
         bool d_isPublic;
         bool d_isRuntime;
@@ -245,7 +246,8 @@ namespace Obx
     public:
         IlAsmRenderer(QIODevice*);
 
-        virtual void beginModule(const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind );
+        virtual void beginModule(const QByteArray& assemblyName, const QByteArray& moduleName,
+                                 const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind );
         virtual void endModule();
 
         virtual void addMethod(const IlMethod& method );

@@ -214,14 +214,10 @@ public:
 
         sum << d_link;
 
-        if( d_ide->d_debugging && d_ide->d_mode == Ide::Running &&
-                ( d_ide->d_rowColMode || d_ide->d_byteMode ) )
+        if( d_ide->d_debugging && d_ide->d_mode == Ide::Running && d_ide->d_byteCodeMode )
         {
-            if( d_ide->d_rowColMode )
-            {
-                dbgRow = d_ide->d_curRow-1;
-                dbgCol = d_ide->d_curCol-1;
-            }
+            dbgRow = d_ide->d_curRow-1;
+            dbgCol = d_ide->d_curCol-1;
             QTextEdit::ExtraSelection line;
             line.format.setBackground(QColor(Qt::yellow));
             line.format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
@@ -424,7 +420,7 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
-      d_lock2(false),d_lock3(false),d_lock4(false),d_byteMode(false),d_debugging(false),d_rowColMode(false),
+      d_lock2(false),d_lock3(false),d_lock4(false),d_byteCodeMode(false),d_debugging(false),d_rowColMode(false),
       d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_mode(Idle)
 {
     s_this = this;
@@ -591,7 +587,7 @@ void Ide::createIlView()
     d_ilTitle->setMargin(2);
     d_ilTitle->setWordWrap(true);
     vbox->addWidget(d_ilTitle);
-    d_il = new Mono::IlView(dock);
+    d_il = new Mono::IlView(dock, d_dbg);
     vbox->addWidget(d_il);
     dock->setWidget(pane);
     addDockWidget( Qt::RightDockWidgetArea, dock );
@@ -755,6 +751,7 @@ void Ide::createLocals()
     d_localsView->header()->setSectionResizeMode(1, QHeaderView::Stretch);
     dock->setWidget(d_localsView);
     addDockWidget( Qt::RightDockWidgetArea, dock );
+    connect( d_localsView, SIGNAL(itemExpanded(QTreeWidgetItem*)), this, SLOT(onLocalExpanded(QTreeWidgetItem*)));
 }
 
 void Ide::createMenu()
@@ -866,9 +863,9 @@ void Ide::createMenuBar()
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
     pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
-    pop->addCommand( "Row/Column mode", this, SLOT(onRowColMode()) );
     pop->addCommand( "Bytecode mode", this, SLOT(onByteMode()) );
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
+    pop->addCommand( "Remove all breakpoints", this, SLOT(onRemoveAllBreakpoints()));
     pop->addCommand( "Step in", this, SLOT(onStepIn()), tr(OBN_STEPIN_SC), false);
     pop->addCommand( "Step over", this, SLOT(onStepOver()), tr(OBN_STEPOVER_SC), false);
     pop->addCommand( "Step out", this, SLOT(onStepOut()), tr(OBN_STEPOUT_SC), false);
@@ -1136,35 +1133,195 @@ void Ide::onHierDblClicked(QTreeWidgetItem* item, int)
     d_lock4 = false;
 }
 
-void Ide::onStackDblClicked(QTreeWidgetItem* item, int) // TODO
+void Ide::onStackDblClicked(QTreeWidgetItem* item, int)
 {
-#if 0
-    if( item )
+    if( item == 0 )
+        return;
+
+    const QString source = item->data(3,Qt::UserRole).toString();
+    const quint32 line = item->data(2,Qt::UserRole).toUInt();
+    if( !source.isEmpty() )
     {
-        const QString source = item->data(3,Qt::UserRole).toString();
-        if( d_rt->getLua()->getMode() == Lua::Engine2::PcMode )
+        showEditor( source, RowCol::unpackRow2(line), RowCol::unpackCol2(line) );
+    }
+    d_curLevel = item->data(0,Qt::UserRole).toInt();
+    fillLocals();
+}
+
+static inline QString toString( const QVariantList& v )
+{
+    QString res;
+    for( int i = 0; i < v.size(); i++ )
+    {
+        const QChar ch = v[i].toChar();
+        if( ch.isNull() )
+            break;
+        res += ch;
+    }
+    return res;
+}
+
+static inline QByteArray escapeRecordName( QByteArray name )
+{
+    if( name.startsWith('#') )
+        return "<anonymous record>";
+    //else
+    name.replace('#','.');
+    return name;
+}
+
+static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg )
+{
+    if( var.canConvert<ObjectRef>() )
+    {
+        ObjectRef r = var.value<ObjectRef>();
+        switch(r.type)
         {
-            if( !source.isEmpty() )
+        case ObjectRef::Nil:
+            item->setText(1,"nil");
+            break;
+        case ObjectRef::String:
             {
-                const quint32 line = item->data(2,Qt::UserRole).toUInt();
-                const quint32 func = item->data(1,Qt::UserRole).toUInt();
-                showEditor(source, RowCol::unpackRow2(func), RowCol::unpackCol2(func), false );
-                d_bcv->parentWidget()->show();
-                d_bcv->gotoFuncPc(func,line, false, false);
+                const QString str = dbg->getString(r.id);
+                item->setToolTip(1,str);
+                if( str.length() > 32 )
+                    item->setText(1,"\"" + str.left(32) + "...");
+                else
+                    item->setText(1,"\"" + str + "\"");
             }
-        }else
-        {
-            if( !source.isEmpty() )
+            break;
+        case ObjectRef::Array:
+        case ObjectRef::SzArray:
             {
-                const quint32 line = item->data(2,Qt::UserRole).toUInt();
-                showEditor( source, RowCol::unpackRow(line), RowCol::unpackCol(line) );
+                const quint32 len = dbg->getArrayLength(r.id);
+                QVariantList vals;
+                if( len )
+                    vals = dbg->getArrayValues(r.id,1);
+                if( !vals.isEmpty() && vals.first().type() == QVariant::Char )
+                {
+                    QVariantList vals = dbg->getArrayValues(r.id,len);
+                    const QString str = toString(vals);
+                    item->setToolTip(1,str);
+                    if( str.length() > 32 )
+                        item->setText(1,"\"" + str.left(32) + "...");
+                    else
+                        item->setText(1,"\"" + str + "\"");
+                }else
+                {
+                    item->setText(1,QString("<array length %1>").arg(len) );
+                    item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
+                    item->setData(1,Qt::UserRole, var);
+                    item->setData(1,Qt::UserRole+1, len);
+                }
             }
+            break;
+        case ObjectRef::Class:
+            {
+                const quint32 type = dbg->getObjectType(r.id);
+                item->setData(1,Qt::UserRole, var);
+                item->setData(1,Qt::UserRole+1, type);
+                // class is indeed an object
+                if( type )
+                {
+                    const QByteArray name = dbg->getTypeInfo(type).spaceName();
+                    if( name.startsWith('@') )
+                    {
+                        item->setText(1,"<procedure pointer>");
+                        break;
+                    }
+                    item->setText(1,escapeRecordName(name));
+                }else
+                    item->setText(1,"<class>");
+                item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
+            }
+            break;
+        case ObjectRef::Object:
+            item->setText(1,"<object>");
+            item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
+            item->setData(1,Qt::UserRole, var);
+            break;
+        case ObjectRef::Type:
+            item->setText(1,"<type>");
+            break;
+        default:
+            item->setText(1,"<???>");
+            break;
         }
-        const int level = item->data(0,Qt::UserRole).toInt();
-        d_rt->getLua()->setActiveLevel(level);
-        fillLocals();
-   }
+    }else if( var.canConvert<IntPtr>() )
+        item->setText(1,"<native pointer>");
+    else if( var.canConvert<ValueType>() )
+    {
+        item->setData(1,Qt::UserRole, var);
+        item->setText(1,"<struct>");
+#if 0
+        ValueType v = var.value<ValueType>();
+        QString str = "struct{ ";
+        for( int i = 0; i < v.fields.size(); i++ )
+        {
+            if( i != 0 )
+                str += ", ";
+            str += toString(v.fields[i], dbg);
+        }
+        str += " }";
 #endif
+    }else if( var.isNull() )
+        item->setText(1,"nil");
+    else
+        item->setText(1,var.toString());
+}
+
+static void expand(QTreeWidgetItem* item, Debugger* dbg)
+{
+    const QVariant var = item->data(1,Qt::UserRole);
+
+    if( var.canConvert<ObjectRef>() )
+    {
+        ObjectRef r = var.value<ObjectRef>();
+        switch(r.type)
+        {
+        case ObjectRef::SzArray:
+        case ObjectRef::Array:
+            {
+                const int len = item->data(1,Qt::UserRole+1).toInt();
+                QVariantList vals = dbg->getArrayValues(r.id,qMin(len, 55) );
+                for( int i = 0; i < vals.size(); i++ )
+                {
+                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+                    sub->setText(0,QString("[%1]").arg(i) );
+                    setValue(sub,vals[i],dbg);
+                }
+                item->setExpanded(true);
+            }
+            break;
+        case ObjectRef::Class:
+        case ObjectRef::Object:
+            {
+                QList<Debugger::FieldInfo> fields = dbg->getFields(item->data(1,Qt::UserRole+1).toUInt());
+                QList<quint32> ids;
+                for( int i = 0; i < fields.size(); i++ )
+                    ids << fields[i].id;
+                QVariantList values = dbg->getValues(r.id,ids);
+                for( int i = 0; i < fields.size(); i++ )
+                {
+                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+                    sub->setText(0,fields[i].name );
+                    if( i < values.size() )
+                        setValue(sub,values[i],dbg);
+                    else
+                        sub->setText(1,"<???>");
+                }
+            }
+            break;
+        }
+    }
+}
+
+void Ide::onLocalExpanded(QTreeWidgetItem* item)
+{
+    if( item == 0 || item->childCount() > 0 )
+        return;
+
+    expand(item,d_dbg);
 }
 
 void Ide::onTabChanged()
@@ -1185,7 +1342,6 @@ void Ide::onTabChanged()
         }
     }
     // else
-    // d_bcv->clear();
     fillModule(0);
 }
 
@@ -1473,7 +1629,10 @@ void Ide::onEnableDebug()
 
 void Ide::onBreak()
 {
-    // TODO ENABLED_IF(!d_suspended && d_mode == Running && d_debugging);
+    ENABLED_IF(!d_suspended && d_mode == Running && d_debugging);
+
+    d_dbg->addBreakpoint(0,0);
+    // we cannot support break yet because Mono might stop at a place where a step command leads to a VM crash.
 }
 
 bool Ide::checkSaved(const QString& title)
@@ -1640,7 +1799,7 @@ bool Ide::run()
     if( d_debugging && buildDir.entryList(QStringList() << "*.mdb", QDir::Files ).isEmpty() )
     {
         logMessage("No debugging information found, using bytecode level debugger",SysInfo);
-        d_byteMode = true;
+        d_byteCodeMode = true;
     }
     logMessage("\nStarting application...\n\n",SysInfo,false);
     d_eng->init( d_debugging ? d_dbg->open() : 0 );
@@ -1771,12 +1930,9 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
 
         if( f.first && f.first->d_mod )
         {
-#if 0 // TODO
-            const Lua::Engine2::Breaks& br = d_rt->getLua()->getBreaks( f.first->d_mod->getName() );
-            Lua::Engine2::Breaks::const_iterator j;
-            for( j = br.begin(); j != br.end(); ++j )
-                edit->addBreakPoint((*j) - 1);
-#endif
+            const QSet<quint32> lines = d_breakPoints.value(f.first->d_mod->getName());
+            foreach( quint32 line, lines )
+                edit->addBreakPoint(line - 1);
         }
 
         d_tab->addDoc(edit,filePath);
@@ -1850,6 +2006,7 @@ void Ide::addDebugMenu(Gui::AutoMenu* pop)
     pop->addMenu(sub);
     sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
     sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
+    sub->addCommand( "Remove all breakpoints", this, SLOT(onRemoveAllBreakpoints()));
     sub->addCommand( "Step in", this, SLOT(onStepIn()), tr(OBN_STEPIN_SC), false);
     sub->addCommand( "Step over", this, SLOT(onStepOver()), tr(OBN_STEPOVER_SC), false);
     sub->addCommand( "Step out", this, SLOT(onStepOut()), tr(OBN_STEPOUT_SC), false);
@@ -2133,7 +2290,7 @@ void Ide::fillStack()
             item->setText(0,QString::number(level));
             item->setData(0,Qt::UserRole,level);
             item->setText(1,methodName.constData());
-            if( loc.valid && !d_byteMode )
+            if( loc.valid && !d_byteCodeMode )
             {
                 item->setText(2,QString("%1:%2").arg(loc.row).arg(loc.col));
                 item->setData(2, Qt::UserRole, RowCol(loc.row,loc.col).packed() );
@@ -2151,7 +2308,7 @@ void Ide::fillStack()
                 if( loc.valid )
                 {
                     Editor* edit = showEditor(info.sourceFile, loc.row, loc.col, true );
-                    if( d_rowColMode && edit )
+                    if( d_byteCodeMode && edit )
                     {
                         d_lock = true;
                         edit->dbgRow = loc.row - 1;
@@ -2172,171 +2329,65 @@ void Ide::fillStack()
     d_stackView->parentWidget()->show();
 }
 
-static inline QString toString( const QVariantList& v )
-{
-    QString res;
-    for( int i = 0; i < v.size(); i++ )
-    {
-        const QChar ch = v[i].toChar();
-        if( ch.isNull() )
-            break;
-        res += ch;
-    }
-    return res;
-}
-
-static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg )
-{
-    if( var.canConvert<ObjectRef>() )
-    {
-        ObjectRef r = var.value<ObjectRef>();
-        switch(r.type)
-        {
-        case ObjectRef::Nil:
-            item->setText(1,"nil");
-            break;
-        case ObjectRef::String:
-            {
-                const QString str = dbg->getString(r.id);
-                item->setToolTip(1,str);
-                if( str.length() > 32 )
-                    item->setText(1,"\"" + str.left(32) + "...");
-                else
-                    item->setText(1,"\"" + str + "\"");
-            }
-            break;
-        case ObjectRef::Array:
-        case ObjectRef::SzArray:
-            {
-                const quint32 len = dbg->getArrayLength(r.id);
-                QVariantList vals;
-                if( len )
-                    vals = dbg->getArrayValues(r.id,1);
-                if( !vals.isEmpty() && vals.first().type() == QVariant::Char )
-                {
-                    QVariantList vals = dbg->getArrayValues(r.id,len);
-                    const QString str = toString(vals);
-                    item->setToolTip(1,str);
-                    if( str.length() > 32 )
-                        item->setText(1,"\"" + str.left(32) + "...");
-                    else
-                        item->setText(1,"\"" + str + "\"");
-                }else
-                {
-                    item->setText(1,QString("<array length %1>").arg(len) );
-                    item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
-                    item->setData(1,Qt::UserRole, var);
-                    item->setData(1,Qt::UserRole+1, len);
-                }
-            }
-            break;
-        case ObjectRef::Class:
-            {
-                const quint32 type = dbg->getObjectType(r.id);
-                // class is indeed an object
-                item->setText(1,"<class> " + dbg->getTypeInfo(type).fullName);
-                item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
-                item->setData(1,Qt::UserRole, var);
-            }
-            break;
-        case ObjectRef::Object:
-            item->setText(1,"<object>");
-            item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
-            item->setData(1,Qt::UserRole, var);
-            break;
-        case ObjectRef::Type:
-            item->setText(1,"<type>");
-            break;
-        default:
-            item->setText(1,"<???>");
-            break;
-        }
-    }else if( var.canConvert<IntPtr>() )
-        item->setText(1,"<native pointer>");
-    else if( var.canConvert<ValueType>() )
-    {
-        item->setData(1,Qt::UserRole, var);
-        item->setText(1,"<struct>");
-#if 0
-        ValueType v = var.value<ValueType>();
-        QString str = "struct{ ";
-        for( int i = 0; i < v.fields.size(); i++ )
-        {
-            if( i != 0 )
-                str += ", ";
-            str += toString(v.fields[i], dbg);
-        }
-        str += " }";
-#endif
-    }else if( var.isNull() )
-        item->setText(1,"nil");
-    else
-        item->setText(1,var.toString());
-}
-
 void Ide::fillLocals()
 {
     d_localsView->clear();
+    d_il->clear();
 
-    if( d_curLevel >= 0 )
+    if( d_curLevel >= 0 && d_curLevel < d_stack.size() )
     {
-        const QByteArray bytecode = d_dbg->getMethodBody(d_stack[d_curLevel].method);
-        d_il->load(bytecode, d_stack[d_curLevel].il_offset );
+        if( d_byteCodeMode )
+            d_il->load(d_stack[d_curLevel].method, d_stack[d_curLevel].il_offset );
+
         const quint32 cls = d_dbg->getMethodOwner(d_stack[d_curLevel].method);
-        d_ilTitle->setText( d_dbg->getTypeInfo(cls).fullName + " " +
+        d_ilTitle->setText( d_dbg->getTypeInfo(cls).spaceName() + " " +
                             d_dbg->getMethodName(d_stack[d_curLevel].method) );
 
 
-        QVariantList params = d_dbg->getParamValues(d_curThread, d_stack[d_curLevel].id,
-                         !d_dbg->isMethodStatic(d_stack[d_curLevel].method),
-                         d_dbg->getParamCount(d_stack[d_curLevel].method) );
-        for( int i = 0; i < params.size(); i++ )
+        QByteArrayList names = d_dbg->getParamNames(d_stack[d_curLevel].method);
+        const bool isStatic = d_dbg->isMethodStatic(d_stack[d_curLevel].method);
+        const QVariantList params = d_dbg->getParamValues(d_curThread, d_stack[d_curLevel].id, !isStatic, names.size() );
+        if( isStatic )
+        {
+            for( int i = 0; i < params.size(); i++ )
+            {
+                QTreeWidgetItem* item = new QTreeWidgetItem(d_localsView);
+                if( i < names.size() && !names[i].isEmpty() )
+                    item->setText(0, names[i] );
+                else
+                    item->setText(0, tr("<param %1>").arg(i));
+                setValue(item, params[i], d_dbg);
+            }
+        }else
         {
             QTreeWidgetItem* item = new QTreeWidgetItem(d_localsView);
-            item->setText(0, tr("<param %1>").arg(i));
-            setValue(item, params[i], d_dbg);
+            item->setText(0, "<this>" );
+            setValue(item, params[0], d_dbg);
+            for( int i = 1; i < params.size(); i++ )
+            {
+                QTreeWidgetItem* item = new QTreeWidgetItem(d_localsView);
+                if( i-1 < names.size() && !names[i-1].isEmpty() )
+                    item->setText(0, names[i-1] );
+                else
+                    item->setText(0, tr("<param %1>").arg(i));
+                setValue(item, params[i], d_dbg);
+            }
         }
-        QVariantList locals = d_dbg->getLocalValues(d_curThread, d_stack[d_curLevel].id,
-                         d_dbg->getLocalsCount(d_stack[d_curLevel].method) );
+
+        names = d_dbg->getLocalNames(d_stack[d_curLevel].method);
+        const QVariantList locals = d_dbg->getLocalValues(d_curThread, d_stack[d_curLevel].id, names.size() );
         for( int i = 0; i < locals.size(); i++ )
         {
             QTreeWidgetItem* item = new QTreeWidgetItem(d_localsView);
-            item->setText(0, tr("<local %1>").arg(i));
+            if( i < names.size() && !names[i].isEmpty() )
+                item->setText(0, names[i] );
+            else
+                item->setText(0, tr("<local %1>").arg(i));
             setValue(item, locals[i], d_dbg);
         }
     }
 
 #if 0 // TODO
-    if( d_rt->getLua()->getMode() == Lua::Engine2::PcMode )
-    {
-        fillRawLocals(d_locals, d_rt->getLua());
-        d_locals->parentWidget()->show();
-        return;
-    }
-
-    lua_Debug ar;
-    const int level = d_rt->getLua()->getActiveLevel();
-    Scope* scope = d_scopes[ level ];
-    if( scope && lua_getstack( d_rt->getLua()->getCtx(), level, &ar ) )
-    {
-        foreach( const Ref<Named>& n, scope->d_order )
-        {
-            const int tag = n->getTag();
-            if( tag == Thing::T_Parameter || tag == Thing::T_LocalVar )
-            {
-                QTreeWidgetItem* item = new QTreeWidgetItem(d_locals);
-                const int before = lua_gettop(d_rt->getLua()->getCtx());
-                if( lua_getlocal( d_rt->getLua()->getCtx(), &ar, n->d_slot + 1 ) )
-                {
-                    item->setText(0,n->d_name);
-                    printLocalVal(item,n->d_type.data(), 0);
-                    lua_pop( d_rt->getLua()->getCtx(), 1 );
-                }else
-                    item->setText(0,"<invalid>");
-                Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
-            }
-        }
-#if 1
         Module* m = scope->getModule();
         QTreeWidgetItem* parent = new QTreeWidgetItem(d_locals);
         QString name = m->getName();
@@ -2367,9 +2418,6 @@ void Ide::fillLocals()
             parent->setText(1,"<???>");
         lua_pop( d_rt->getLua()->getCtx(), 1 ); // module
         Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
-#endif
-    }
-
 #endif
     d_localsView->parentWidget()->show();
 }
@@ -2405,272 +2453,6 @@ static inline void createArrayElems( QTreeWidgetItem* parent, const void* ptr,
             break;
         }
     }
-}
-
-static QString nameOf( Record* r, bool frame = false )
-{
-    QString name;
-    Named* decl = r->findDecl();
-    if( decl )
-        name = decl->d_name;
-    else if( frame )
-        name = "<record>";
-    else
-        name = "record";
-    return name;
-}
-
-void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
-{
-    static const int numOfFetchedElems = 55;
-    static const int numOfLevels = 5;
-
-    if( depth > numOfLevels )
-        return;
-#if 0 // TODO
-    lua_State* L = d_rt->getLua()->getCtx();
-    type = derefed(type);
-    Q_ASSERT( type );
-    int tag = type->getTag();
-    if( tag == Thing::T_Pointer )
-    {
-        type = derefed(cast<Pointer*>(type)->d_to.data());
-        tag = type->getTag();
-    }
-    if( tag == Thing::T_BaseType )
-    {
-        switch( type->getBaseType() )
-        {
-        case Type::CVOID:
-            item->setText(1,QString("0x%1").arg((ptrdiff_t)lua_topointer(L,-1),0,16));
-            return;
-        case Type::BOOLEAN:
-            if( lua_toboolean(L, -1) )
-                item->setText(1,"true");
-            else
-                item->setText(1,"false");
-            return;
-        case Type::CHAR:
-        case Type::WCHAR:
-            {
-                const ushort uc = lua_tointeger(L,-1);
-                const QString ch = QChar( uc );
-                item->setText(1,QString("'%1' %2x").arg(ch.simplified()).arg(uc,0,16));
-            }
-            return;
-        case Type::BYTE:
-            item->setText(1,QString("%1h").arg(lua_tointeger(L,-1),0,16));
-            return;
-        case Type::SHORTINT:
-        case Type::INTEGER:
-        case Type::LONGINT:
-            item->setText(1,QString::number(lua_tointeger(L,-1)));
-            return;
-        case Type::REAL:
-        case Type::LONGREAL:
-            item->setText(1,QString::number(lua_tonumber(L,-1)));
-            return;
-        case Type::SET:
-            item->setText(1,QString("{%1}").arg((quint32)lua_tointeger(L,-1),32,2,QChar('0')));
-            return;
-        case Type::ANY:
-            item->setText(1,QString("<any> %1").arg(lua_tostring(L,-1)));
-            return;
-        case Type::NIL:
-        case Type::STRING:
-        case Type::WSTRING:
-        case Type::BYTEARRAY:
-            Q_ASSERT( false );
-            break;
-        }
-    } // else
-    switch( tag )
-    {
-    case Thing::T_Array:
-        {
-            Array* a = cast<Array*>(type);
-            Type* at = derefed(a->d_type.data());
-            Q_ASSERT( at );
-            const int arr = lua_gettop(L);
-            const int luatype = lua_type(L, arr );
-            if( luatype == LUA_TNIL )
-                item->setText(1, QString("nil") );
-            else if( luatype == 10 ) // cdata
-            {
-                const void* ptr = lua_topointer(L, -1);
-                if( at->isChar() )
-                {
-                    QString str;
-                    if( at->getBaseType() == Type::CHAR )
-                    {
-                        const quint8* buf = (const quint8*)ptr;
-                        for(int i = 0; i < numOfFetchedElems; i++ )
-                        {
-                            quint8 ch = buf[i];
-                            if( ch == 0 )
-                                break;
-                            str += QChar((ushort) ch );
-                        }
-                    }else
-                    {
-                        const quint16* buf = (const quint16*)ptr;
-                        for(int i = 0; i < numOfFetchedElems; i++ )
-                        {
-                            quint16 ch = buf[i];
-                            if( ch == 0 )
-                                break;
-                            str += QChar((ushort) ch );
-                        }
-                    }
-                    item->setText(1,QString("\"%1\"").arg(str));
-                }else
-                {
-                    lua_getglobal(L, "obxlj");
-                    lua_rawgeti(L, -1, 26 ); // bytesize
-                    lua_pushvalue( L, arr );
-                    lua_pcall( L, 1, 1, 0 );
-                    const int bytesize = lua_tointeger( L, -1 );
-                    lua_pop( L, 2 ); // obxlj, count
-                    switch( at->getBaseType() )
-                    {
-                    case Type::BOOLEAN:
-                        createArrayElems<quint8>( item, ptr, bytesize, numOfFetchedElems, 'b');
-                        break;
-                    case Type::BYTE:
-                        createArrayElems<quint8>( item, ptr, bytesize, numOfFetchedElems);
-                        break;
-                    case Type::SHORTINT:
-                        createArrayElems<qint16>( item, ptr, bytesize, numOfFetchedElems);
-                        break;
-                    case Type::INTEGER:
-                        createArrayElems<qint32>( item, ptr, bytesize, numOfFetchedElems);
-                        break;
-                    case Type::LONGINT:
-                        createArrayElems<qint64>( item, ptr, bytesize, numOfFetchedElems);
-                        break;
-                    case Type::REAL:
-                        createArrayElems<float>( item, ptr, bytesize, numOfFetchedElems);
-                        break;
-                    case Type::LONGREAL:
-                        createArrayElems<double>( item, ptr, bytesize, numOfFetchedElems);
-                        break;
-                    case Type::SET:
-                        createArrayElems<quint32>( item, ptr, bytesize, numOfFetchedElems, 's');
-                        break;
-                    case Type::NIL:
-                    case Type::STRING:
-                    case Type::WSTRING:
-                    case Type::BYTEARRAY:
-                        Q_ASSERT( false );
-                        break;
-                    }
-                }
-            }else if( luatype != LUA_TTABLE )
-            {
-                item->setText(1, QString("<invalid array> %1").arg(lua_tostring(L, arr) ) );
-            }else
-            {
-                lua_getfield( L, arr, "count" );
-                const int count = lua_tointeger( L, -1 );
-                lua_pop( L, 1 );
-                item->setText(1, QString("<array length %1>").arg(count) );
-                for( int i = 0; i < qMin(count,numOfFetchedElems); i++ )
-                {
-                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
-                    sub->setText(0,QString::number(i));
-                    lua_rawgeti( L, arr, i );
-                    printLocalVal(sub,at,depth+1);
-                    lua_pop( L, 1 );
-                }
-            }
-        }
-        break;
-    case Thing::T_Enumeration:
-        {
-            const int e = lua_tointeger(L,-1);
-            Enumeration* et = cast<Enumeration*>(type);
-            if( e >= 0 && e < et->d_items.size() )
-                item->setText(1,et->d_items[e]->d_name);
-            else
-                item->setText(1,"<invalid enum value>");
-        }
-        break;
-    case Thing::T_ProcType:
-        if( lua_isnil( L, -1 ) )
-            item->setText(1,"nil");
-        else
-        {
-            const void* ptr = lua_topointer(L, -1);
-#if Q_PROCESSOR_WORDSIZE == 4
-            const quint32 ptr2 = (quint32)ptr;
-#else
-            const quint64 ptr2 = (quint64)ptr;
-#endif
-            item->setText(1,QString("<proc 0x%1>").arg(ptr2,0,16));
-        }
-        break;
-    case Thing::T_Record:
-        {
-            const int rec = lua_gettop(L);
-            Record* r = cast<Record*>(type);
-            const int type = lua_type( L, rec );
-            if( type == LUA_TNIL )
-            {
-                item->setText(1,"nil");
-                break;
-            }else if( type == 10 ) // ffi type
-            {
-                item->setText(1,nameOf(r,true));
-                QList<Field*> fs = r->getOrderedFields();
-                foreach( Field* f, fs )
-                {
-                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
-                    sub->setText(0,f->d_name);
-                    lua_getfield( L, rec, f->d_name );
-                    printLocalVal(sub,derefed(f->d_type.data()),depth+1);
-                    lua_pop( L, 1 );
-                }
-                break;
-            }else if( type != LUA_TTABLE )
-            {
-                item->setText(1,tr("<invalid %1>").arg(nameOf(r)));
-                // qWarning() << "wrong type, expecting table, got type" << type;
-                // happens when a procedure is entered before initialization code could run
-                break;
-            }
-            if( !r->d_subRecs.isEmpty() )
-            {
-                // look for the dynamic type
-                if( lua_getmetatable(L,rec) )
-                {
-                    lua_getfield(L, -1, "@cls");
-                    if( !lua_isnil( L, -1 ) )
-                    {
-                        Record* rd = r->findBySlot( lua_tointeger(L, -1) );
-                        if( rd )
-                            r = rd;
-                    }
-                    lua_pop(L,2); // meta + field
-                }
-            }
-            item->setText(1,nameOf(r,true));
-            QList<Field*> fs = r->getOrderedFields();
-            foreach( Field* f, fs )
-            {
-                QTreeWidgetItem* sub = new QTreeWidgetItem(item);
-                sub->setText(0,f->d_name);
-                lua_rawgeti( L, rec, f->d_slot );
-                printLocalVal(sub,derefed(f->d_type.data()),depth+1);
-                lua_pop( L, 1 );
-            }
-        }
-        break;
-    default:
-        qWarning() << "unexpected type" << type->getTagName();
-        Q_ASSERT(false);
-        break;
-    }
-#endif
 }
 
 static void fillModItems(QTreeWidgetItem* item, Named* n, Scope* p, Record* r, bool sort, QHash<Named*,QTreeWidgetItem*>& idx );
@@ -2945,6 +2727,7 @@ void Ide::removePosMarkers()
     {
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         e->setPositionMarker(-1);
+        e->updateExtraSelections();
     }
     //d_bcv->clearMarker();
 }
@@ -2989,6 +2772,33 @@ void Ide::onXrefDblClicked()
     }
 }
 
+QByteArray dottedName( Named* n )
+{
+    Q_ASSERT(n);
+    // this is a copy of CilGen dottedName
+    QByteArray name = n->d_name;
+    Named* scope = n->d_scope;
+    if( scope )
+    {
+        const int tag = scope->getTag();
+        if( tag != Thing::T_Module )
+        {
+            if( tag == Thing::T_Procedure )
+            {
+                Procedure* proc = cast<Procedure*>(scope);
+                if( proc->d_receiverRec )
+                {
+                    name = scope->d_name + "#" + name;
+                    scope = proc->d_receiverRec->findDecl();
+                    Q_ASSERT( scope );
+                }
+            }
+            return dottedName(scope) + "#" + name;
+        }
+    }
+    return name;
+}
+
 void Ide::onToggleBreakPt()
 {
     Editor* edit = static_cast<Editor*>( d_tab->getCurrentTab() );
@@ -2998,19 +2808,23 @@ void Ide::onToggleBreakPt()
     const bool on = edit->toggleBreakPoint(&line);
     Project::FileMod fm = d_pro->findFile(edit->getPath());
     Q_ASSERT( fm.first && fm.first->d_mod );
-#if 0 // TODO
     if( on )
-        d_rt->getLua()->addBreak( fm.first->d_mod->getName(), line + 1 );
+        d_breakPoints[fm.first->d_mod->getName()].insert(line + 1);
     else
-        d_rt->getLua()->removeBreak( fm.first->d_mod->getName(), line + 1 );
-#endif
+        d_breakPoints[fm.first->d_mod->getName()].remove(line + 1);
+    if( d_mode == Running && d_debugging )
+    {
+        const bool res = updateBreakpoint(fm.second,line+1,on);
+        if( !res )
+            qWarning() << "cannot change breakpoint at line" << line << "in" << fm.second->getName();
+    }
 }
 
 void Ide::onStepIn()
 {
     ENABLED_IF((!d_pro->getFiles().isEmpty() && d_mode == Idle) || (d_suspended && d_debugging));
     if( d_suspended && d_debugging )
-        d_dbg->stepIn(d_curThread, !d_byteMode && !d_rowColMode);
+        d_dbg->stepIn(d_curThread, !d_byteCodeMode);
     else
     {
         d_debugging = true;
@@ -3023,7 +2837,7 @@ void Ide::onStepOver()
 {
     ENABLED_IF((!d_pro->getFiles().isEmpty() && d_mode == Idle) || (d_suspended && d_debugging));
     if( d_suspended && d_debugging )
-        d_dbg->stepOver(d_curThread, !d_byteMode && !d_rowColMode );
+        d_dbg->stepOver(d_curThread, !d_byteCodeMode );
     else
     {
         d_debugging = true;
@@ -3035,7 +2849,7 @@ void Ide::onStepOver()
 void Ide::onStepOut()
 {
     ENABLED_IF(d_suspended && d_debugging);
-    d_dbg->stepOut(d_curThread, !d_byteMode && !d_rowColMode );
+    d_dbg->stepOut(d_curThread, !d_byteCodeMode );
 }
 
 void Ide::onContinue()
@@ -3127,6 +2941,88 @@ bool Ide::checkEngine(bool withFastasm)
     return true;
 }
 
+static QByteArray monoEscape( const QByteArray& name )
+{
+    QByteArray res = name;
+    //res.replace(',',"\\,");
+    //res.replace('.',"\\.");
+    return res;
+}
+
+quint32 Ide::getMonoModule(Module* m)
+{
+    quint32 assemblyId = d_loadedAssemblies.value(m);
+    if( assemblyId == 0 )
+        return 0;
+    // this is the class representing the Oberon+ module (don't mix up with the module term in Mono)
+
+    // NOTE: d_dbt->findType (both on VM and assembly level) doesn't find any type in the form of
+    // som.IdentityDictionary(DeltaBlue.Sym,DeltaBlue.Strength)
+    // som\.IdentityDictionary(DeltaBlue\.Sym\,DeltaBlue\.Strength)
+    // som.IdentityDictionary
+    // som\.IdentityDictionary
+    // but only as IdentityDictionary!!
+    // similarly nested classes are not found:
+    // not CD2+reduceCollisionSet.ForEachInterface
+    // not CD2+reduceCollisionSet\.ForEachInterface
+    // but CD2+CollisionDetector does work
+
+#if 0
+    // doesn't seem to work
+    QList<quint32> types = d_dbg->findType(monoEscape(m->getName())+","+monoEscape(m->getName()));
+    if( types.size() == 1 )
+        return types.first();
+    else
+        return 0;
+#else
+    // doesn't find types with (.,) in name, neither escaped nor unescaped, neither on VM nor assembly level
+    //const QByteArray escaped = monoEscape(m->getFullName());
+    const QByteArray escaped = m->d_name;
+    //qDebug() << "searching for" << escaped << "in" << m->getName();
+    return d_dbg->findType(escaped,assemblyId);
+#endif
+}
+
+bool Ide::updateBreakpoint(Module* m, quint32 line, bool add)
+{
+    if( d_mode != Running || !d_debugging )
+        return false;
+    const quint32 assemblyId = d_loadedAssemblies.value(m);
+    if( assemblyId == 0 )
+        return false;
+    Scope* scope;
+    d_pro->findSymbolBySourcePos(m,line,1, &scope );
+    if( scope == 0 || scope->getTag() != Thing::T_Procedure )
+        return false;
+    Procedure* proc = cast<Procedure*>(scope);
+    quint32 type;
+    QByteArray procName;
+    if( proc->d_receiverRec )
+    {
+        QByteArray name = dottedName(proc->d_receiverRec->findDecl());
+        name = m->d_name + "+" + name;
+        type = d_dbg->findType(name,assemblyId);
+        procName = proc->d_name;
+    }else
+    {
+        type = getMonoModule(m);
+        procName = dottedName(proc);
+    }
+    if( type == 0 )
+        return false;
+
+    QList<quint32> meth = d_dbg->getMethods(type,procName);
+    if( meth.size() != 1 )
+        return false;
+
+    Debugger::MethodDbgInfo info = d_dbg->getMethodInfo(meth.first());
+    const quint32 iloff = info.find(line,-1);
+    if( add )
+        return d_dbg->addBreakpoint(meth.first(),iloff);
+    else
+        return d_dbg->removeBreakpoint(meth.first(),iloff);
+}
+
 void Ide::onAbout()
 {
     ENABLED_IF(true);
@@ -3170,16 +3066,9 @@ void Ide::onExpMod()
 
 void Ide::onByteMode()
 {
-    CHECKED_IF( true, d_byteMode );
+    CHECKED_IF( true, d_byteCodeMode );
 
-    d_byteMode = !d_byteMode;
-}
-
-void Ide::onRowColMode()
-{
-    CHECKED_IF( true, d_rowColMode );
-
-    d_rowColMode = !d_rowColMode;
+    d_byteCodeMode = !d_byteCodeMode;
 }
 
 void Ide::onSetRunCommand()
@@ -3239,6 +3128,8 @@ void Ide::onFinished(int exitCode, bool normalExit)
             logMessage(tr("\nThe execution engine crashed\n\n"),LogError,false);
         if( d_debugging )
             d_dbg->close();
+        d_mode = Idle;
+        d_loadedAssemblies.clear();
         removePosMarkers();
         d_il->clear();
         d_ilTitle->clear();
@@ -3274,7 +3165,66 @@ void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
             fillStack();
         }
         break;
+    case Mono::DebuggerEvent::ASSEMBLY_LOAD:
+        {
+            QByteArray name = d_dbg->getAssemblyName(e.object);
+            // name is a string like "Harness, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+            const int pos = name.indexOf(", Version=");
+            if( pos != 0 )
+                name = name.left(pos);
+            Project::FileMod fm = d_pro->findFile(name);
+            if( fm.second )
+                d_loadedAssemblies[fm.second] = e.object;
+            else
+            {
+                // things like OBX.Runtime, Input, etc. are not found
+                break;
+            }
+            const QSet<quint32>& lines = d_breakPoints.value(name);
+            foreach( quint32 line, lines )
+            {
+                const bool res = updateBreakpoint(fm.second,line,true);
+                if( !res )
+                    qWarning() << "cannot set breakpoint at line" << line << "in" << name;
+            }
+#if 0 // TEST
+#if 1
+            // if it works then also when run without mdb files
+            const quint32 type = getMonoModule(fm.second);
+            if( type == 0 )
+                qWarning() << "module type not found for assembly" << name;
+            else
+                logMessage(tr("\nloaded '%1'\n").arg( name.constData() ), SysInfo, false );
+#else
+            // doesn't reliably work!
+            QList<quint32> types = d_dbg->getTypesOf(fm.second->d_file);
+            if( types.isEmpty() )
+                qWarning() << "no types in" << fm.second->d_file << name;
+            else
+                logMessage(tr("\nloaded '%1'\n").arg( name.constData() ), SysInfo, false );
+            foreach( quint32 type, types )
+            {
+                logMessage(tr("\ntype '%1'\n").arg( d_dbg->getTypeInfo(type).fullName.constData() ), SysInfo, false );
+            }
+
+#endif
+#endif
+        }
+        break;
     }
+}
+
+void Ide::onRemoveAllBreakpoints()
+{
+    ENABLED_IF(true);
+    d_breakPoints.clear();
+    for( int i = 0; i < d_tab->count(); i++ )
+    {
+        Editor* e = static_cast<Editor*>( d_tab->widget(i) );
+        e->clearBreakPoints();
+    }
+    if( d_mode == Running && d_debugging )
+        d_dbg->clearAllBreakpoints();
 }
 
 int main(int argc, char *argv[])
@@ -3283,7 +3233,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE II");
-    a.setApplicationVersion("0.1");
+    a.setApplicationVersion("0.2");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

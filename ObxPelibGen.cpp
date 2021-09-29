@@ -947,17 +947,18 @@ static inline QByteArray unescape( const QByteArray& name )
         return name;
 }
 
-void PelibGen::beginModule(const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind)
+void PelibGen::beginModule(const QByteArray& assemblyName, const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind)
 {
     clear();
-    const QByteArray name = unescape(moduleName);
-    d_imp = new Imp(name);
+    const QByteArray assembly = unescape(assemblyName);
+    d_imp = new Imp(assembly);
     d_imp->moduleKind = moduleKind;
 
     // TODO imports
 
+    const QByteArray name = unescape(moduleName);
     d_imp->sourceFile = sourceFile.toUtf8().constData();
-    SignatureParser::Node* module = new SignatureParser::Node(&d_imp->root,name);
+    SignatureParser::Node* module = new SignatureParser::Node(&d_imp->root,assembly);
     Class* cls = new Class(name.constData(), Qualifiers::Public, -1, -1);
     d_imp->WorkingAssembly()->Add(cls);
     module->thing = cls;

@@ -36,6 +36,7 @@ namespace Ob
 namespace Obx
 {
     class Model;
+    struct Module;
 
     class Project : public QObject
     {
@@ -107,6 +108,7 @@ namespace Obx
         Model* getMdl() const { return d_mdl; }
 
         Expression* findSymbolBySourcePos(const QString& file, quint32 line, quint16 col, Scope** = 0 ) const;
+        Expression* findSymbolBySourcePos(Module*, quint32 line, quint16 col, Scope** scopePtr) const;
         ExpList getUsage( Named* ) const;
         bool printTreeShaken( const QString& module, const QString& fileName );
 

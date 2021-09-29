@@ -28,18 +28,15 @@ IlEmitter::IlEmitter(IlRenderer* r):d_out(r)
     Q_ASSERT( r );
 }
 
-void IlEmitter::beginModule(const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, IlEmitter::ModuleKind k)
+void IlEmitter::beginModule(const QByteArray& assemblyName, const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, IlEmitter::ModuleKind k)
 {
-    Q_ASSERT( d_module.isEmpty() );
     Q_ASSERT( !moduleName.isEmpty() );
-    d_module = moduleName;
-    d_out->beginModule(moduleName,imports,sourceFile,k);
+    d_out->beginModule(assemblyName,moduleName,imports,sourceFile,k);
 }
 
 void IlEmitter::endModule()
 {
     d_out->endModule();
-    d_module.clear();
 }
 
 void IlEmitter::beginMethod(const QByteArray& methodName, bool isPublic, IlEmitter::MethodKind k, bool isRuntime)
@@ -1006,7 +1003,7 @@ IlAsmRenderer::IlAsmRenderer(QIODevice* dev):level(0)
     out.setDevice(dev);
 }
 
-void IlAsmRenderer::beginModule(const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind)
+void IlAsmRenderer::beginModule(const QByteArray& assemblyName, const QByteArray& moduleName, const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind)
 {
     levels.push_back(moduleName);
     source = sourceFile;
@@ -1016,8 +1013,8 @@ void IlAsmRenderer::beginModule(const QByteArray& moduleName, const QByteArrayLi
     out << ".language 'Oberon+'" << endl;
     out << ".line 1 '" << source << "'" << endl << endl;
 
-    out << ".assembly " << moduleName << " {}" << endl;
-    QByteArray name = moduleName;
+    out << ".assembly " << assemblyName << " {}" << endl;
+    QByteArray name = assemblyName;
     if( name.startsWith('\'') )
         name = name.mid(1, name.size() - 2 );
 

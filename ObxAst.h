@@ -500,6 +500,7 @@ namespace Obx
         int getTag() const { return T_Module; }
         void accept(AstVisitor* v) { v->visit(this); }
         QByteArray getName() const;
+        QByteArray getFullName() const;
         QByteArray formatMetaActuals() const;
         bool isFullyInstantiated() const;
         Import* findImport(Module*) const;

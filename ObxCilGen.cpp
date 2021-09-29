@@ -195,9 +195,10 @@ struct ObxCilGenImp : public AstVisitor
     QHash<QByteArray,ProcType*> delegates; // signature hash -> signature
     int exitJump; // TODO: nested LOOPs
     Procedure* scope;
+    int suppressLine;
 
     ObxCilGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
-        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false)
+        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),suppressLine(0)
     {
     }
 
@@ -208,13 +209,39 @@ struct ObxCilGenImp : public AstVisitor
         return "'" + name + "'";
     }
 
-    QByteArray dottedName( Named* n, bool doEscape = true )
+    QByteArray dottedName( Named* n )
     {
         // concatenate names up to but not including module
-        QByteArray name = doEscape ? escape(n->d_name) : n->d_name;
-        if( n->d_scope && n->d_scope->getTag() != Thing::T_Module )
-            return dottedName(n->d_scope,doEscape) + "." + name;
+        QByteArray name = n->d_name;
+        Named* scope = n->d_scope;
+        if( scope )
+        {
+            const int tag = scope->getTag();
+            if( tag != Thing::T_Module )
+            {
+                if( tag == Thing::T_Procedure )
+                {
+                    Procedure* proc = cast<Procedure*>(scope);
+                    if( proc->d_receiverRec )
+                    {
+                        // if the scope is a bound proc follow its receiver, but first use the proc name.
+                        // this is necessary because procs bound to different recs can have the same name and
+                        // even have the same name as ordinary procs, so there is a risk of duplicate names when
+                        // just following the normal scope
+                        name = scope->d_name + "#" + name;
+                        scope = proc->d_receiverRec->findDecl();
+                        Q_ASSERT( scope );
+                    }
+                }
+                return dottedName(scope) + "#" + name;
+            }
+        }
         return name;
+    }
+
+    QByteArray nestedPath(Named* n)
+    {
+        return escape(dottedName(n));
     }
 
     QByteArray formatMetaActuals(Module* m)
@@ -277,18 +304,23 @@ struct ObxCilGenImp : public AstVisitor
 
     QByteArray moduleRef( Named* modName )
     {
-        const QByteArray mod = escape(getName(modName));
+        Q_ASSERT( modName->getTag() == Thing::T_Module );
+        const QByteArray mod = escape(cast<Module*>(modName)->d_name);
         if( !forceAssemblyPrefix && modName == thisMod )
             return mod;
         else
-            return "[" + mod + "]" + mod;
+        {
+            const QByteArray ass = escape(getName(modName));
+            return "[" + ass + "]" + mod;
+        }
     }
 
     QByteArray classRef( Named* className )
     {
         Q_ASSERT( className && className->getTag() == Thing::T_NamedType );
         Module* m = className->getModule();
-        return moduleRef(m) + "/" + dottedName(className);
+        return moduleRef(m) + "/" + nestedPath(className); // dotted because also records nested in procs are lifted to module level
+                                       // TODO: there is a risk of duplicate names because procs bound to diff recs can share names
     }
 
     QByteArray classRef( Record* r )
@@ -350,7 +382,7 @@ struct ObxCilGenImp : public AstVisitor
         res += ma;
         res += "::";
         if( record == 0 ) // if module level
-            res += dottedName(member);
+            res += nestedPath(member); // because of nested procedures which are lifted to module level
         else
             res += escape(member->d_name);
         if( pt )
@@ -381,7 +413,7 @@ struct ObxCilGenImp : public AstVisitor
 #else
         const QByteArray sig = procTypeSignature(pt);
 #endif
-        const QByteArray name = delegateName(sig);
+        const QByteArray name = "@" + delegateName(sig);
         if( pt->declaredIn() == thisMod )
             delegates.insert(name,pt);
 
@@ -575,7 +607,7 @@ struct ObxCilGenImp : public AstVisitor
 #else
             r->d_byValue = false;
 #endif
-            className = dottedName(n);
+            className = nestedPath(n); // because of records declared in procedures are lifted to module level
             if( !r->d_base.isNull() )
                 superClassName = formatType(r->d_base.data());
         }
@@ -762,7 +794,7 @@ struct ObxCilGenImp : public AstVisitor
         }
 
         // NOTE: module name is always set in '' and thus doesn't have to be escaped
-        emitter->beginModule(escape(me->getName()),imports, thisMod->d_file);
+        emitter->beginModule(escape(me->getName()), escape(me->d_name), imports, thisMod->d_file);
 
         for( int i = 0; i < co.allProcTypes.size(); i++ )
             delegateRef(co.allProcTypes[i]);
@@ -811,11 +843,13 @@ struct ObxCilGenImp : public AstVisitor
         }
 #endif
 
+        suppressLine++;
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Variable )
                 emitInitializer(n.data());
         }
+        suppressLine--;
         foreach( const Ref<Statement>& s, me->d_body )
             s->accept(this);
 
@@ -832,7 +866,7 @@ struct ObxCilGenImp : public AstVisitor
         emitOpcode( "call void [mscorlib]System.Console::WriteLine (string)", -1, me->d_begin );
 #endif
 #endif
-        line(me->d_begin).ret_(false);
+        line(me->d_end).ret_(false);
 
         emitLocalVars();
 
@@ -1061,9 +1095,9 @@ struct ObxCilGenImp : public AstVisitor
 
         QByteArray name;
         if( me->d_receiverRec )
-            name = escape(me->d_name);
+            name = escape(me->d_name); // the method is directly in the receiver class
         else
-            name = dottedName(me);
+            name = nestedPath(me); // the method is lifted to module level
 
         IlEmitter::MethodKind k;
         if( me->d_receiver.isNull() )
@@ -1110,7 +1144,9 @@ struct ObxCilGenImp : public AstVisitor
             {
             case Thing::T_LocalVar:
             case Thing::T_Parameter:
+                suppressLine++;
                 emitInitializer(n.data());
+                suppressLine--;
                 break;
             }
         }
@@ -1736,7 +1772,9 @@ struct ObxCilGenImp : public AstVisitor
 
                 // we must pass t here (not ptr->d_to) because the pointer could be a named type defined in another module;
                 // if we deref the pointer we lose the module information
+                //suppressLine++;
                 emitInitializer(t, true, ae->d_loc, lengths );
+                //suppressLine--;
 
                 line(ae->d_loc).stind_(IlEmitter::Ref);
             }
@@ -2941,8 +2979,10 @@ struct ObxCilGenImp : public AstVisitor
         }else if( !pt->d_return.isNull() )
         {
             // a function with no body; return default value
+            //suppressLine++;
             if( !emitInitializer(pt->d_return.data(),false,loc) )
                 line(loc).ldnull_(); // only happens for pointer and proctype
+            //suppressLine--;
             line(loc).ret_(true);
         }else
         {
@@ -2966,10 +3006,13 @@ struct ObxCilGenImp : public AstVisitor
 
     IlEmitter& line(const RowCol& loc)
     {
-        if( !(loc == last) )
+        if( true ) // TODO has unwanted effects (some nested procs no longer have symbols): suppressLine <= 0 )
         {
-            emitter->line_(loc);
-            last = loc;
+            if( !(loc == last) )
+            {
+                emitter->line_(loc);
+                last = loc;
+            }
         }
         return *emitter;
     }
@@ -3324,7 +3367,7 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray
     QByteArray mod = ObxCilGenImp::escape(name);
     QByteArrayList imports;
     imports << mod;
-    e->beginModule(mod, imports,QString(),IlEmitter::ConsoleApp);
+    e->beginModule(mod, mod, imports,QString(),IlEmitter::ConsoleApp);
     //out << ".assembly extern mscorlib {}" << endl;
 
     e->beginMethod("main",false,IlEmitter::Primary);
@@ -3352,7 +3395,7 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray
     foreach( const QByteArray& mod, modules )
         imports << ObxCilGenImp::escape(mod);
 
-    e->beginModule(ObxCilGenImp::escape(name), imports,QString(),IlEmitter::ConsoleApp);
+    e->beginModule(ObxCilGenImp::escape(name),ObxCilGenImp::escape(name), imports,QString(),IlEmitter::ConsoleApp);
     //out << ".assembly extern mscorlib {}" << endl;
 
     e->beginMethod("main",false,IlEmitter::Primary);
@@ -3476,7 +3519,8 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                             if( debug )
                             {
                                 Mono::MdbGen mdb;
-                                mdb.write( outDir.absoluteFilePath(inst->getName() + ".dll.mdb" ), r.getPelib() );
+                                mdb.write( outDir.absoluteFilePath(inst->getName() + ".dll.mdb" ), r.getPelib(),
+                                           QByteArrayList() << ".ctor" << "#copy" );
                             }
                         }
                     }
@@ -3544,8 +3588,8 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
             else
                 CilGen::generateMain(&e, name,mp.first, mp.second);
 
-            r.writeAssembler(outDir.absoluteFilePath(name + ".il").toUtf8());
-            cout << "rm \"" << name << ".il\"" << endl;
+            //r.writeAssembler(outDir.absoluteFilePath(name + ".il").toUtf8());
+            //cout << "rm \"" << name << ".il\"" << endl;
             r.writeByteCode(outDir.absoluteFilePath(name + ".exe").toUtf8());
             cout << "rm \"" << name << ".exe\"" << endl;
 #if 0 // no source file

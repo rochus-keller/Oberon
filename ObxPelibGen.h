@@ -41,8 +41,8 @@ namespace Obx
         void clear();
         DotNetPELib::PELib* getPelib();
 
-        virtual void beginModule( const QByteArray& moduleName, const QByteArrayList& imports,
-                                  const QString& sourceFile, quint8 moduleKind );
+        virtual void beginModule( const QByteArray& assemblyName, const QByteArray& moduleName,
+                                  const QByteArrayList& imports, const QString& sourceFile, quint8 moduleKind );
         virtual void endModule();
 
         virtual void addMethod(const IlMethod& method );

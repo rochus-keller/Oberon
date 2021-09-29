@@ -44,6 +44,7 @@ namespace Obx
     class Project;
     struct Named;
     struct Module;
+    struct Record;
     struct Expression;
     struct Scope;
     struct Type;
@@ -109,6 +110,8 @@ namespace Obx
         void pushLocation( const Location& );
         void clear();
         bool checkEngine(bool withFastasm = false);
+        quint32 getMonoModule( Module* ); // returns typeId
+        bool updateBreakpoint(Module*, quint32 line, bool add );
 
     protected slots:
         void onParse();
@@ -129,6 +132,7 @@ namespace Obx
         void onModDblClicked(QTreeWidgetItem*,int);
         void onHierDblClicked(QTreeWidgetItem*,int);
         void onStackDblClicked(QTreeWidgetItem*,int);
+        void onLocalExpanded(QTreeWidgetItem*);
         void onTabChanged();
         void onTabClosing(int);
         void onEditorChanged();
@@ -159,12 +163,12 @@ namespace Obx
         void onQt();
         void onExpMod();
         void onByteMode();
-        void onRowColMode();
         void onSetRunCommand();
         void onConsole( const QString& msg, bool err );
         void onError( const QString& );
         void onFinished(int exitCode, bool normalExit);
         void onDbgEvent( const DebuggerEvent& );
+        void onRemoveAllBreakpoints();
     private:
         class DocTab;
         DocTab* d_tab;
@@ -192,7 +196,7 @@ namespace Obx
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
-        bool d_byteMode;
+        bool d_byteCodeMode;
         bool d_debugging;
         bool d_rowColMode;
         bool d_suspended; // we are in debugger but code is suspended
@@ -203,6 +207,8 @@ namespace Obx
         qint32 d_curRow;
         qint16 d_curCol;
         quint8 d_curLevel;
+        QHash<QByteArray, QSet<quint32> > d_breakPoints; // module name -> line number
+        QHash<Module*,quint32> d_loadedAssemblies; // -> assemblyId
     };
 }
 

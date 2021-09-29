@@ -975,12 +975,19 @@ Expression* Project::findSymbolBySourcePos(const QString& file, quint32 line, qu
     if( f.first == 0 )
         return 0;
 
+    return findSymbolBySourcePos(f.second,line,col, scopePtr);
+}
+
+Expression*Project::findSymbolBySourcePos(Module* m, quint32 line, quint16 col, Scope** scopePtr) const
+{
+    Q_ASSERT(m);
+
     ObxHitTest hit;
     hit.col = col;
     hit.line = line;
     try
     {
-        f.second->accept(&hit);
+        m->accept(&hit);
     }catch( Expression* e )
     {
         Q_ASSERT( !hit.scopes.isEmpty() );
@@ -1001,7 +1008,7 @@ Project::FileMod Project::findFile(const QString& file) const
     FileRef f = d_files.value(file);
     if( f.data() == 0 || f->d_mod.isNull() ) // || i.value().d_mod->d_hasErrors )
     {
-        FileMod fm = d_modules.value(file.toLatin1());
+        FileMod fm = d_modules.value(file.toLatin1()); // includes also generic instances
         if( fm.first == 0 || fm.second == 0 )
             return FileMod();
         else
