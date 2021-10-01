@@ -72,3 +72,10 @@ CONFIG(debug, debug|release) {
 RESOURCES += \
     ObxIde2.qrc
 
+CONFIG(static) {
+    message(static build)
+LIBS += -lQt5Network
+} else {
+    message(dynamic build)
+}
+
