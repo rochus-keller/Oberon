@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-09-12");
+    a.setApplicationVersion("2021-09-30");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
     bool genAsm = false;
     bool run = false;
     bool build = false;
+    bool debug = false;
     if( args.size() <= 1 )
     {
         // if there are no args look in the application directory for a file called obxljconfig which includes
@@ -104,15 +105,16 @@ int main(int argc, char *argv[])
         if(  args[i] == "-h" || args.size() == 1 )
         {
             out << "usage: OBXMC [options] files or directory" << endl;
-            out << "  reads Oberon+ source or project files and compiles them to IL assembler." << endl;
+            out << "  reads Oberon+ source or project files and compiles them to assemblies or IL assembler." << endl;
             out << "options:" << endl;
             out << "  -h            display this information" << endl;
             out << "  -out=path     path where to save generated files" << endl;
-            out << "  -asm          generate IL assembler (default binary assemblies)" << endl;
+            out << "  -asm          generate IL assembler (binary assemblies otherwise)" << endl;
+            out << "  -debug        generate debug information" << endl;
+            out << "  -build        run the generated build.sh script (Linux only)" << endl;
+            out << "  -run          run the generated run.sh script (Linux only)" << endl;
             out << "  the following options are overridden if a project file is loaded" << endl;
             out << "  -main=A[.B]   run module A or procedure B in module A and quit" << endl;
-            out << "  -build        run the generated build.sh script" << endl;
-            out << "  -run          run the generated run.sh script" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -obs          use built-in Oberon System backend definitions" << endl;
             return 0;
@@ -124,6 +126,8 @@ int main(int argc, char *argv[])
             genAsm = true;
         else if( args[i] == "-run" )
             run = true;
+        else if( args[i] == "-debug" )
+            debug = true;
         else if( args[i] == "-build" )
             build = true;
         else if( args[i].startsWith("-out=") )
@@ -221,7 +225,12 @@ int main(int argc, char *argv[])
         return -1;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     start = QTime::currentTime();
-    Obx::CilGen::translateAll(&pro, genAsm, outPath );
+    Obx::CilGen::How how;
+    if( genAsm )
+        how = Obx::CilGen::Ilasm;
+    else
+        how = Obx::CilGen::Pelib;
+    Obx::CilGen::translateAll(&pro, how, debug, outPath );
     qDebug() << "translated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     QDir::setCurrent(outPath);
     QDir dir(outPath);

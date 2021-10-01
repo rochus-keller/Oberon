@@ -3121,8 +3121,8 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
-    a.setApplicationName("Oberon+ IDE");
-    a.setApplicationVersion("0.8.17");
+    a.setApplicationName("Oberon+ IDE (LuaJIT)");
+    a.setApplicationVersion("0.8.18");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

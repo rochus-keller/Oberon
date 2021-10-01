@@ -192,7 +192,6 @@ namespace Obx
         QTreeWidget* d_errs;
         QList<Location> d_backHisto; // d_backHisto.last() ist aktuell angezeigtes Objekt
         QList<Location> d_forwardHisto;
-        QByteArray d_curBc;
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;

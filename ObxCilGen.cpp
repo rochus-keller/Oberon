@@ -3627,9 +3627,9 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
         }
     }
 
+    const bool log = how == Ilasm;
     if( pro->useBuiltInOakwood() )
     {
-        const bool log = how == Ilasm;
         copyLib(outDir,"In",log?&cout:0);
         copyLib(outDir,"Out",log?&cout:0);
         // TODO copyLib(outDir,"Files",log?&cout:0);
@@ -3640,7 +3640,7 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
         // TODO copyLib(outDir,"Coroutines",log?&cout:0);
         // TODO copyLib(outDir,"XYPlane",log?&cout:0);
     }
-    copyLib(outDir,"OBX.Runtime",log?&cout:0);
+    copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
 
     bout.flush();
     cout.flush();

@@ -7,7 +7,7 @@ module Minimal2
 		end inner
 		var str2: array 53 of char
 	begin
-		trap()
+		//trap()
 		inner( 44, 55 )
 		str2 := str
 		println(str2)

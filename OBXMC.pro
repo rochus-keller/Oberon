@@ -35,12 +35,14 @@ SOURCES += \
     ObxMcMain.cpp \
     ObxIlEmitter.cpp \
     ObxPelibGen.cpp \
-    ObxCilGen.cpp
+    ObxCilGen.cpp \
+    ../MonoTools/MonoMdbGen.cpp
 
 HEADERS += \
     ObxIlEmitter.h \
     ObxPelibGen.h \
-    ObxCilGen.h
+    ObxCilGen.h \
+    ../MonoTools/MonoMdbGen.h
 
 include( ../PeLib/PeLib.pri )
 include( ObxParser.pri )

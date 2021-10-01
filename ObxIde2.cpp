@@ -64,7 +64,7 @@ using namespace Mono;
 #define OBN_CONTINUE_SC "CTRL+Y"
 #define OBN_STEPIN_SC "CTRL+SHIFT+I"
 #define OBN_STEPOVER_SC "CTRL+SHIFT+O"
-#define OBN_STEPOUT_SC "SHIFT+F11" // TODO
+#define OBN_STEPOUT_SC "CTRL+SHIFT+T"
 #define OBN_ENDBG_SC "F4"
 #define OBN_TOGBP_SC "F8"
 #define OBN_GOBACK_SC "ALT+CTRL+Left"
@@ -346,49 +346,6 @@ public:
         return true;
     }
 };
-
-#if 0
-
-class Ide::Debugger : public Lua::DbgShell
-{
-public:
-    Ide* d_ide;
-    Debugger(Ide* ide):d_ide(ide){}
-    void handleBreak( Lua::Engine2* lua, const QByteArray& source, quint32 line )
-    {
-        QByteArray msg = lua->getValueString(1).simplified();
-
-        d_ide->enableDbgMenu();
-        d_ide->fillStack();
-        d_ide->fillLocals();
-
-        msg = msg.mid(1,msg.size()-2); // remove ""
-        if( !lua->isBreakHit() )
-        {
-            if( source == "=[C]" && !msg.startsWith('[') )
-                msg = "[\"=[C]\"]:" + QByteArray::number(RowCol::unpackRow2(line)) + ":" + msg;
-            if( d_ide->luaRuntimeMessage(msg,source) )
-                d_ide->onErrors();
-        }
-
-        while( lua->isWaiting() )
-        {
-            QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
-            QApplication::flush();
-        }
-        d_ide->removePosMarkers();
-        d_ide->enableDbgMenu();
-        d_ide->d_stack->clear();
-        d_ide->d_locals->clear();
-    }
-    void handleAliveSignal(Lua::Engine2* e)
-    {
-        QApplication::processEvents(QEventLoop::AllEvents | QEventLoop::WaitForMoreEvents );
-        QApplication::flush();
-    }
-};
-#endif
-
 
 static Ide* s_this = 0;
 static void report(QtMsgType type, const QString& message )
@@ -818,9 +775,9 @@ void Ide::createMenuBar()
     pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
     pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
     pop->addSeparator();
-    pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
-    pop->addCommand( "Export all bytecode...", this, SLOT(onExportAllBc()) );
-    pop->addSeparator();
+    //pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
+    //pop->addCommand( "Export all bytecode...", this, SLOT(onExportAllBc()) );
+    //pop->addSeparator();
     pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addAutoCommand( "Export PDF...", SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
     pop->addSeparator();
@@ -1209,6 +1166,7 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
                 }else
                 {
                     item->setText(1,QString("<array length %1>").arg(len) );
+                    item->setToolTip(1,item->text(1));
                     item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
                     item->setData(1,Qt::UserRole, var);
                     item->setData(1,Qt::UserRole+1, len);
@@ -1227,9 +1185,11 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
                     if( name.startsWith('@') )
                     {
                         item->setText(1,"<procedure pointer>");
+                        item->setToolTip(1,item->text(1));
                         break;
                     }
                     item->setText(1,escapeRecordName(name));
+                    item->setToolTip(1,item->text(1));
                 }else
                     item->setText(1,"<class>");
                 item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
@@ -1244,7 +1204,7 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
             item->setText(1,"<type>");
             break;
         default:
-            item->setText(1,"<???>");
+            item->setText(1,"<unknown typeref>");
             break;
         }
     }else if( var.canConvert<IntPtr>() )
@@ -1267,7 +1227,10 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
     }else if( var.isNull() )
         item->setText(1,"nil");
     else
+    {
         item->setText(1,var.toString());
+        item->setToolTip(1,item->text(1));
+    }
 }
 
 static void expand(QTreeWidgetItem* item, Debugger* dbg)
@@ -1296,7 +1259,7 @@ static void expand(QTreeWidgetItem* item, Debugger* dbg)
         case ObjectRef::Class:
         case ObjectRef::Object:
             {
-                QList<Debugger::FieldInfo> fields = dbg->getFields(item->data(1,Qt::UserRole+1).toUInt());
+                QList<Debugger::FieldInfo> fields = dbg->getFields(item->data(1,Qt::UserRole+1).toUInt(),true,false);
                 QList<quint32> ids;
                 for( int i = 0; i < fields.size(); i++ )
                     ids << fields[i].id;
@@ -1308,10 +1271,29 @@ static void expand(QTreeWidgetItem* item, Debugger* dbg)
                     if( i < values.size() )
                         setValue(sub,values[i],dbg);
                     else
-                        sub->setText(1,"<???>");
+                        sub->setText(1,"<no value>");
                 }
+                item->sortChildren(0,Qt::AscendingOrder);
             }
             break;
+        case ObjectRef::Type:
+            {
+                QList<Debugger::FieldInfo> fields = dbg->getFields(r.id, false, true);
+                QList<quint32> ids;
+                for( int i = 0; i < fields.size(); i++ )
+                    ids << fields[i].id;
+                QVariantList values = dbg->getValues(r.id,ids,true);
+                for( int i = 0; i < fields.size(); i++ )
+                {
+                    QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+                    sub->setText(0,fields[i].name );
+                    if( i < values.size() )
+                        setValue(sub,values[i],dbg);
+                    else
+                        sub->setText(1,"<no value>");
+                }
+                item->sortChildren(0,Qt::AscendingOrder);
+            }
         }
     }
 }
@@ -1975,8 +1957,8 @@ void Ide::createMenu(Ide::Editor* edit)
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     pop->addSeparator();
-    pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
-    pop->addSeparator();
+    //pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
+    //pop->addSeparator();
     pop->addCommand( "Undo", edit, SLOT(handleEditUndo()), tr("CTRL+Z"), true );
     pop->addCommand( "Redo", edit, SLOT(handleEditRedo()), tr("CTRL+Y"), true );
     pop->addSeparator();
@@ -2385,40 +2367,29 @@ void Ide::fillLocals()
                 item->setText(0, tr("<local %1>").arg(i));
             setValue(item, locals[i], d_dbg);
         }
+
+        d_localsView->sortItems(0,Qt::AscendingOrder);
+
+        Q_ASSERT( d_curLevel < d_scopes.size());
+        Module* m = d_scopes[d_curLevel] ? d_scopes[d_curLevel]->getModule() : 0;
+        const quint32 type = getMonoModule(m);
+        if( m && type )
+        {
+            QTreeWidgetItem* item = new QTreeWidgetItem(d_localsView);
+            QString name = m->getName();
+            item->setToolTip(1,name);
+            if( name.size() > 20 )
+                name = name.left(20) + "...";
+            item->setText(1,name);
+            item->setText(0,"<module>");
+            QVariant var = QVariant::fromValue(ObjectRef(ObjectRef::Type,type));
+            //QVariant var = QVariant::fromValue(ObjectRef(ObjectRef::Class,d_dbg->getTypeObject(type)));
+            item->setData(1,Qt::UserRole, var);
+            item->setData(1,Qt::UserRole+1, type);
+            item->setChildIndicatorPolicy(QTreeWidgetItem::ShowIndicator);
+        }
     }
 
-#if 0 // TODO
-        Module* m = scope->getModule();
-        QTreeWidgetItem* parent = new QTreeWidgetItem(d_locals);
-        QString name = m->getName();
-        parent->setToolTip(0,name);
-        if( name.size() > 20 )
-            name = name.left(20) + "...";
-        parent->setText(0,name);
-        parent->setText(1,"<module>");
-        const int before = lua_gettop(d_rt->getLua()->getCtx());
-        lua_getglobal( d_rt->getLua()->getCtx(), m->getName() );
-        if( !lua_isnil( d_rt->getLua()->getCtx(), -1 ) )
-        {
-            const int mod = lua_gettop( d_rt->getLua()->getCtx() );
-            foreach( const Ref<Named>& n, m->d_order )
-            {
-                if( n->getTag() == Thing::T_Variable )
-                {
-                    QTreeWidgetItem* item = new QTreeWidgetItem(parent);
-                    item->setText(0,n->d_name);
-                    const int before = lua_gettop(d_rt->getLua()->getCtx());
-                    lua_rawgeti( d_rt->getLua()->getCtx(), mod, n->d_slot );
-                    printLocalVal(item,n->d_type.data(), 0);
-                    lua_pop( d_rt->getLua()->getCtx(), 1 );
-                    Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
-                }
-            }
-        }else
-            parent->setText(1,"<???>");
-        lua_pop( d_rt->getLua()->getCtx(), 1 ); // module
-        Q_ASSERT( before == lua_gettop(d_rt->getLua()->getCtx()) );
-#endif
     d_localsView->parentWidget()->show();
 }
 
@@ -2857,8 +2828,12 @@ void Ide::onContinue()
     ENABLED_IF( (!d_pro->getFiles().isEmpty() && d_mode == Idle) || (d_suspended && d_debugging) );
 
     if( d_suspended && d_debugging )
+    {
         d_dbg->resume();
-    else
+        removePosMarkers();
+        d_stackView->clear();
+        d_localsView->clear();
+    }else
     {
         d_debugging = true;
         if( run() )
@@ -2992,12 +2967,22 @@ bool Ide::updateBreakpoint(Module* m, quint32 line, bool add)
         return false;
     Scope* scope;
     d_pro->findSymbolBySourcePos(m,line,1, &scope );
-    if( scope == 0 || scope->getTag() != Thing::T_Procedure )
+    if( scope == 0 )
         return false;
-    Procedure* proc = cast<Procedure*>(scope);
+    Procedure* proc = 0;
+    switch( scope->getTag() )
+    {
+    case Thing::T_Procedure:
+        proc = cast<Procedure*>(scope);
+        break;
+    case Thing::T_Module:
+        break;
+    default:
+        return false;
+    }
     quint32 type;
     QByteArray procName;
-    if( proc->d_receiverRec )
+    if( proc && proc->d_receiverRec )
     {
         QByteArray name = dottedName(proc->d_receiverRec->findDecl());
         name = m->d_name + "+" + name;
@@ -3006,7 +2991,10 @@ bool Ide::updateBreakpoint(Module* m, quint32 line, bool add)
     }else
     {
         type = getMonoModule(m);
-        procName = dottedName(proc);
+        if( proc )
+            procName = dottedName(proc);
+        else
+            procName = ".cctor";
     }
     if( type == 0 )
         return false;
@@ -3142,7 +3130,7 @@ void Ide::onFinished(int exitCode, bool normalExit)
 
 void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
 {
-    qDebug() << "event arrived" << Mono::DebuggerEvent::s_event[e.event] << e.thread << e.object;
+    //qDebug() << "event arrived" << Mono::DebuggerEvent::s_event[e.event] << e.thread << e.object;
     switch( e.event )
     {
     case Mono::DebuggerEvent::VM_START:
@@ -3172,6 +3160,7 @@ void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
             const int pos = name.indexOf(", Version=");
             if( pos != 0 )
                 name = name.left(pos);
+            qDebug() << "loaded assembly" << name;
             Project::FileMod fm = d_pro->findFile(name);
             if( fm.second )
                 d_loadedAssemblies[fm.second] = e.object;
@@ -3187,28 +3176,6 @@ void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
                 if( !res )
                     qWarning() << "cannot set breakpoint at line" << line << "in" << name;
             }
-#if 0 // TEST
-#if 1
-            // if it works then also when run without mdb files
-            const quint32 type = getMonoModule(fm.second);
-            if( type == 0 )
-                qWarning() << "module type not found for assembly" << name;
-            else
-                logMessage(tr("\nloaded '%1'\n").arg( name.constData() ), SysInfo, false );
-#else
-            // doesn't reliably work!
-            QList<quint32> types = d_dbg->getTypesOf(fm.second->d_file);
-            if( types.isEmpty() )
-                qWarning() << "no types in" << fm.second->d_file << name;
-            else
-                logMessage(tr("\nloaded '%1'\n").arg( name.constData() ), SysInfo, false );
-            foreach( quint32 type, types )
-            {
-                logMessage(tr("\ntype '%1'\n").arg( d_dbg->getTypeInfo(type).fullName.constData() ), SysInfo, false );
-            }
-
-#endif
-#endif
         }
         break;
     }
@@ -3232,8 +3199,8 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
-    a.setApplicationName("Oberon+ IDE II");
-    a.setApplicationVersion("0.2");
+    a.setApplicationName("Oberon+ IDE (Mono)");
+    a.setApplicationVersion("0.9");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

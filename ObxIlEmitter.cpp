@@ -95,6 +95,7 @@ quint32 IlEmitter::addLocal(const QByteArray& typeRef, QByteArray name)
     Q_ASSERT( !d_method.isEmpty() );
     Q_ASSERT( !typeRef.isEmpty() );
     d_locals.append(qMakePair(typeRef,name));
+    return 0;
 }
 
 quint32 IlEmitter::addArgument(const QByteArray& typeRef, QByteArray name)
@@ -102,6 +103,7 @@ quint32 IlEmitter::addArgument(const QByteArray& typeRef, QByteArray name)
     Q_ASSERT( !d_method.isEmpty() );
     Q_ASSERT( !typeRef.isEmpty() );
     d_args.append(qMakePair(typeRef,name));
+    return 0;
 }
 
 void IlEmitter::setReturnType(const QByteArray& typeRef)
