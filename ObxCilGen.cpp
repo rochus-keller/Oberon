@@ -418,6 +418,7 @@ struct ObxCilGenImp : public AstVisitor
 
         forceAssemblyPrefix = true;
 
+
 #ifndef _MY_GENERICS_
         const bool old = forceFormalIndex;
         forceFormalIndex = true;
@@ -1562,6 +1563,22 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
+    void assureInteger(Type* t, const RowCol& loc )
+    {
+        t = derefed(t);
+        if( t == 0 )
+            return;
+        switch( t->getBaseType() )
+        {
+        case Type::LONGREAL:
+            convertTo(Type::LONGINT,t,loc);
+            break;
+        case Type::REAL:
+            convertTo(Type::INTEGER,t,loc);
+            break;
+        }
+    }
+
     void emitBuiltIn( BuiltIn* bi, ArgExpr* ae )
     {
         switch( bi->d_func )
@@ -1857,10 +1874,17 @@ struct ObxCilGenImp : public AstVisitor
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
                 Type* t = derefed(ae->d_args.first()->d_type.data() );
-                if( t && ( t->isString() || t->isStructured() ) )
+                if( t && ( t->isText() && !t->isChar() ) )
                 {
                     line(ae->d_loc).ldc_i4(0);
                     line(ae->d_loc).ldelem_("char");
+                }
+                else if( t && ( t->getBaseType() == Type::REAL || t->getBaseType() == Type::LONGREAL ) )
+                    assureInteger(t,ae->d_loc);
+                else if( t && t->getTag() == Thing::T_Pointer )
+                {
+                    line(ae->d_loc).pop_();
+                    line(ae->d_loc).ldc_i4(0);
                 }
             }
             break;
@@ -1925,19 +1949,25 @@ struct ObxCilGenImp : public AstVisitor
         case BuiltIn::LSL:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
+            assureInteger(ae->d_args.last()->d_type.data(),ae->d_loc);
             line(ae->d_loc).shl_();
             break;
         case BuiltIn::ASR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
+            assureInteger(ae->d_args.last()->d_type.data(),ae->d_loc);
             line(ae->d_loc).shr_();
             break;
         case BuiltIn::ROR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
+            assureInteger(ae->d_args.last()->d_type.data(),ae->d_loc);
             line(ae->d_loc).shr_(true);
             break;
         case BuiltIn::BITAND:
@@ -2169,6 +2199,7 @@ struct ObxCilGenImp : public AstVisitor
         {
             const QByteArray what = formatType(pt->d_return.data()) + " class " + delegateRef(pt) + "::Invoke"
                 + formatFormals(pt->d_formals,false);
+
             line(me->d_loc).callvirt_(what, pt->d_formals.size(),!pt->d_return.isNull());
         }
     }

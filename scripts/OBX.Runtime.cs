@@ -246,14 +246,27 @@ namespace OBX
 			d = mantissa;
 			e = exponent;
 		}
+		private static string toString(char[] str)
+		{
+			int i = 0;
+			while( i < str.Length && str[i] != 0 )
+				i++;
+			return new string(str,0,i);
+		}
 		public static bool loadModule( char[] name )
 		{
 			try
 			{
-				string n = new string(name);
+				string n = toString(name);
 				System.Reflection.Assembly a = System.Reflection.Assembly.Load(n);
+				if( a == null )
+					return false;
 				System.Type t = a.GetType(n);
+				if( t == null )
+					return false;
 				System.Reflection.MethodInfo m = t.GetMethod("ping#");
+				if( m == null )
+					return false;
 				m.Invoke(null,null);
 				return true;
 			}catch
@@ -265,10 +278,19 @@ namespace OBX
 		{
 			try
 			{
-				string m = new string(module);
+				string m = toString(module);
 				System.Reflection.Assembly a = System.Reflection.Assembly.Load(m);
+				if( a == null )
+					return null;
 				System.Type t = a.GetType(m);
-				System.Reflection.MethodInfo p = t.GetMethod(new string(proc));
+				if( t == null )
+					return null;
+				string n = toString(proc);
+				System.Reflection.MethodInfo p = t.GetMethod(n);
+				if( p == null )
+					return null;
+				// else
+				// System.Console.WriteLine("found "+new string(module)+"::"+new string(proc)); // TEST
 				return (Command)System.Delegate.CreateDelegate(typeof(Command),p);
 			}catch
 			{

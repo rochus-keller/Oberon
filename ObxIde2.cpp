@@ -1007,7 +1007,8 @@ void Ide::onExportIl()
     if (dirPath.isEmpty())
         return;
 
-    CilGen::translateAll(d_pro, CilGen::IlOnly, d_debugging, dirPath );
+    if( compile(false) ) // otherwise allocated flag is already set after one generator run
+        CilGen::translateAll(d_pro, CilGen::IlOnly, d_debugging, dirPath );
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -1097,9 +1098,9 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
                 const QString str = dbg->getString(r.id);
                 item->setToolTip(1,str);
                 if( str.length() > 32 )
-                    item->setText(1,"\"" + str.left(32) + "...");
+                    item->setText(1,"\"" + str.left(32).simplified() + "...");
                 else
-                    item->setText(1,"\"" + str + "\"");
+                    item->setText(1,"\"" + str.simplified() + "\"");
             }
             break;
         case ObjectRef::Array:
@@ -1115,9 +1116,9 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
                     const QString str = toString(vals);
                     item->setToolTip(1,str);
                     if( str.length() > 32 )
-                        item->setText(1,"\"" + str.left(32) + "...");
+                        item->setText(1,"\"" + str.left(32).simplified() + "...");
                     else
-                        item->setText(1,"\"" + str + "\"");
+                        item->setText(1,"\"" + str.simplified() + "\"");
                 }else
                 {
                     item->setText(1,QString("<array length %1>").arg(len) );
@@ -1183,7 +1184,17 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
         item->setText(1,"nil");
     else
     {
-        item->setText(1,var.toString());
+        if( var.type() == QVariant::Char )
+        {
+            const QChar ch = var.toChar();
+            QString str;
+            if( ch.isPrint() )
+                str = QString("'%1' ").arg(ch);
+            const quint32 code = ch.unicode();
+            str += QString("%1x %2").arg(code,2,16,QChar('0')).arg(code).toUpper();
+            item->setText(1,str);
+        }else
+            item->setText(1,var.toString());
         item->setToolTip(1,item->text(1));
     }
 }
@@ -1669,7 +1680,7 @@ bool Ide::generate()
     // the same code which issues a runtime exception runs without problems when compiled with
     // ILASM or Pelib; so somehow fastasm seems to generate wrong code or meta for the same IL.
     // Anyway we can do well without fastasm because neither fastasm nor ILASM generate useful MDBs.
-    const CilGen::How how = CilGen::Pelib; // CilGen::Fastasm;
+    const CilGen::How how = CilGen::Pelib; // CilGen::Fastasm; CilGen::Ilasm
     // Pelib is factor 1.4 faster than Fastasm for generating the IL and factor ~3 incl. IL to assembly compilation;
     // compared to ilasm.exe for compilation (instead of fastasm.exe) Pelib is even a factor 29 faster.
 
@@ -3156,7 +3167,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.1");
+    a.setApplicationVersion("0.9.2");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

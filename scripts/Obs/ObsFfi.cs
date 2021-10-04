@@ -42,7 +42,30 @@ public class ObsFfi
 	static int s_lastUpdate = 0;
 	static int s_sleepTime = 0;
 	static bool s_left = false, s_mid = false, s_right = false;
-	//static Queue<string> s_chars = new Queue<string>();
+	//static Queue<string> s_chars = new Queue<string>(); // causes runtime exception on Mono3
+	static char[] queue = new char[100];
+	static int head = 0, tail = 0, count = 0;
+	
+	private static void enqueue(char ch)
+	{
+		if( count == queue.Length )
+		{
+			Console.WriteLine("buffer overflow");
+			return;
+		}
+		count++;
+		queue[head] = ch;
+		head = (head + 1) % queue.Length;
+	}
+	private static char dequeue()
+	{
+		if( count == 0 )
+			return '\0';
+		count--;
+		char res = queue[tail]; 
+		tail = (tail + 1) % queue.Length;
+		return res;
+	}
 
 	static ObsFfi()
 	{
@@ -186,6 +209,7 @@ public class ObsFfi
 	{
 		s_sleepTime = sleep;
         SDL.SDL_Event e;
+        bool down = false;
         if( SDL.SDL_WaitEventTimeout(out e,sleep) == 1)
         {
             switch (e.type)
@@ -196,10 +220,18 @@ public class ObsFfi
             	s_x = e.motion.x;
             	s_y = e.motion.y;
             	SDL.SDL_ShowCursor( ( s_x >= 0 && s_x < WIDTH ) || ( s_y >= 0 && s_y < HEIGHT ) ? SDL.SDL_DISABLE : SDL.SDL_ENABLE );
+            	if( s_x < 0 )
+            		s_x = 0;
+            	if( s_x >= WIDTH )
+            		s_x = WIDTH - 1;
+            	if( s_y < 0 )
+            		s_y = 0;
+            	if( s_y >= HEIGHT )
+            		s_y = HEIGHT - 1;
             	break;
-		    case SDL.SDL_EventType.SDL_MOUSEBUTTONDOWN:
+		    case SDL.SDL_EventType.SDL_MOUSEBUTTONDOWN: // SDL_MouseButtonEvent
 		    case SDL.SDL_EventType.SDL_MOUSEBUTTONUP:
-				bool down = e.button.state == SDL.SDL_PRESSED;
+				down = e.button.state == SDL.SDL_PRESSED;
 				switch( (uint)e.button.button )
 				{
 				case SDL.SDL_BUTTON_LEFT:
@@ -220,9 +252,39 @@ public class ObsFfi
 				}
         		string ch = fromUtf8(arr);
         		if( !String.IsNullOrEmpty(ch) )
-        			; // s_chars.Enqueue(ch[0]);
+        			enqueue(ch[0]); 
         		break;
-            }
+		    case SDL.SDL_EventType.SDL_KEYDOWN:
+		    case SDL.SDL_EventType.SDL_KEYUP: 
+				down = e.key.state == SDL.SDL_PRESSED;
+				switch( e.key.keysym.sym )
+				{
+				case SDL.SDL_Keycode.SDLK_LALT:
+					s_mid = down;
+					break;
+				case SDL.SDL_Keycode.SDLK_q:
+					if( down && ( e.key.keysym.mod & SDL.SDL_Keymod.KMOD_CTRL ) != 0 )
+						return true;
+					break;
+				case SDL.SDL_Keycode.SDLK_RETURN:
+					if( down )
+						enqueue('\r');
+					break;
+				case SDL.SDL_Keycode.SDLK_BACKSPACE:
+					if( down )
+						enqueue('\b');
+					break;
+				case SDL.SDL_Keycode.SDLK_TAB:
+					if( down )
+						enqueue('\t');
+					break;
+				case SDL.SDL_Keycode.SDLK_ESCAPE:
+					if( down )
+						enqueue('\u001B');
+					break;
+				}
+				break;   
+		    }       
         }
 
 		int time = getTime();
@@ -441,9 +503,6 @@ public class ObsFfi
 	
 	public static char nextKey()
 	{
-		//if( s_chars.Count > 0 )
-		//	return s_chars.Dequeue();
-		//else
-			return '\0';
+		return dequeue();
 	}
 }
