@@ -1,0 +1,14 @@
+module Load1
+
+var
+	p : proc
+begin
+	println("begin Load1")
+	if LDMOD("Imported1a") then
+		p := LDCMD("Imported1a","Do")
+		if p # nil then
+			p
+		end
+	end
+	println("end Load1")
+end Load1

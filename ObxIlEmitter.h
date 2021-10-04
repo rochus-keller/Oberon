@@ -267,6 +267,7 @@ namespace Obx
         int level;
         QString source;
         QByteArrayList levels;
+        bool sourceRendered;
     };
 
 }

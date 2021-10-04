@@ -79,7 +79,8 @@ struct ObxCilGenCollector : public AstVisitor
         case Thing::T_ProcType:
             {
                 ProcType* pt = cast<ProcType*>(t);
-                allProcTypes.append(pt);
+                if( !( pt->d_formals.isEmpty() && pt->d_return.isNull() ) ) // proc types with no params are mapped to OBX.Command
+                    allProcTypes.append(pt);
                 foreach( const Ref<Parameter>& p, pt->d_formals )
                     collect(p->d_type.data());
                 if( pt->d_return )
@@ -189,6 +190,7 @@ struct ObxCilGenImp : public AstVisitor
     bool ownsErr;
     bool forceAssemblyPrefix;
     bool forceFormalIndex;
+    bool debug;
     RowCol last;
     CilGenTempPool temps;
     QHash<QByteArray, QPair<Array*,int> > copiers; // type string -> array, max dim count
@@ -198,7 +200,7 @@ struct ObxCilGenImp : public AstVisitor
     int suppressLine;
 
     ObxCilGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
-        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),suppressLine(0)
+        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),suppressLine(0),debug(false)
     {
     }
 
@@ -304,6 +306,10 @@ struct ObxCilGenImp : public AstVisitor
 
     QByteArray moduleRef( Named* modName )
     {
+#if 0
+        if( modName == 0 )
+            return "<no module>";
+#endif
         Q_ASSERT( modName->getTag() == Thing::T_Module );
         const QByteArray mod = escape(cast<Module*>(modName)->d_name);
         if( !forceAssemblyPrefix && modName == thisMod )
@@ -319,8 +325,12 @@ struct ObxCilGenImp : public AstVisitor
     {
         Q_ASSERT( className && className->getTag() == Thing::T_NamedType );
         Module* m = className->getModule();
-        return moduleRef(m) + "/" + nestedPath(className); // dotted because also records nested in procs are lifted to module level
-                                       // TODO: there is a risk of duplicate names because procs bound to diff recs can share names
+#if 0
+        if( m == 0 && className->d_type && className->d_type->derefed()->d_anyRec )
+            return "object";
+        else
+#endif
+            return moduleRef(m) + "/" + nestedPath(className); // dotted because also records nested in procs are lifted to module level
     }
 
     QByteArray classRef( Record* r )
@@ -402,6 +412,9 @@ struct ObxCilGenImp : public AstVisitor
     {
         if( pt == 0 )
             return "?";
+
+        if( pt->d_formals.isEmpty() && pt->d_return.isNull() )
+            return "[OBX.Runtime]OBX.Command";
 
         forceAssemblyPrefix = true;
 
@@ -726,7 +739,7 @@ struct ObxCilGenImp : public AstVisitor
         // formatMetaParams(thisMod)
         emitter->beginMethod(".ctor",true,IlEmitter::Instance,true);
         emitter->addArgument("object","MethodsClass");
-        emitter->addArgument("native unsigned int", "MethodPtr");
+        emitter->addArgument("native int", "MethodPtr");
         emitter->endMethod();
         emitter->beginMethod("Invoke",true,IlEmitter::Instance,true);
         if( !sig->d_return.isNull() )
@@ -1553,6 +1566,21 @@ struct ObxCilGenImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::LDMOD:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+                line(ae->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::loadModule(char[])",1,true);
+            }
+            break;
+        case BuiltIn::LDCMD:
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+                ae->d_args.first()->accept(this);
+                ae->d_args.last()->accept(this);
+                line(ae->d_loc).call_("[OBX.Runtime]OBX.Command [OBX.Runtime]OBX.Runtime::getCommand(char[],char[])",2,true);
+            }
+            break;
         case BuiltIn::PRINTLN:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
@@ -2176,13 +2204,13 @@ struct ObxCilGenImp : public AstVisitor
                     // for this purpose we create a delegate instance on the stack
                     line(loc).dup_(); // stack: this, this
                     line(loc).ldvirtftn_(memberRef(n)); // stack: this, fn
-                    line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native unsigned int)", 2 );
+                    line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native int)", 2 );
                 }else
                 {
                     // assign a normal procedure to a normal proc type variable
                     line(loc).ldnull_();
                     line(loc).ldftn_(memberRef(n));
-                    line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native unsigned int)",2);
+                    line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native int)",2);
                 }
             }//else: we copy a proc type variable, i.e. delegate already exists
         }
@@ -3006,7 +3034,7 @@ struct ObxCilGenImp : public AstVisitor
 
     IlEmitter& line(const RowCol& loc)
     {
-        if( true ) // TODO has unwanted effects (some nested procs no longer have symbols): suppressLine <= 0 )
+        if( debug ) // TODO has unwanted effects (some nested procs no longer have symbols): suppressLine <= 0 )
         {
             if( !(loc == last) )
             {
@@ -3323,7 +3351,7 @@ struct ObxCilGenImp : public AstVisitor
     void visit( Import* ) { Q_ASSERT( false ); }
 };
 
-bool CilGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
+bool CilGen::translate(Module* m, IlEmitter* e, bool debug, Ob::Errors* errs)
 {
     Q_ASSERT( m != 0 && e != 0 );
 
@@ -3336,6 +3364,7 @@ bool CilGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
     ObxCilGenImp imp;
     imp.thisMod = m;
     imp.emitter = e;
+    imp.debug = debug;
 
     if( errs == 0 )
     {
@@ -3359,22 +3388,21 @@ bool CilGen::translate(Module* m, IlEmitter* e, Ob::Errors* errs)
     return hasErrs;
 }
 
-bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray& module, const QByteArray& function)
+bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteArray& callMod, const QByteArray& callFunc)
 {
-    if( module.isEmpty() )
+    if( callMod.isEmpty() )
         return false;
 
-    QByteArray mod = ObxCilGenImp::escape(name);
+    QByteArray mod = ObxCilGenImp::escape(thisMod);
     QByteArrayList imports;
-    imports << mod;
+    imports << ObxCilGenImp::escape(callMod);
     e->beginModule(mod, mod, imports,QString(),IlEmitter::ConsoleApp);
-    //out << ".assembly extern mscorlib {}" << endl;
 
     e->beginMethod("main",false,IlEmitter::Primary);
-    if( !function.isEmpty() )
-        e->call_("void ['" + mod + "']'" + mod + "'::'" + function + "'()");
+    if( !callFunc.isEmpty() )
+        e->call_("void ['" + callMod + "']'" + callMod + "'::'" + callFunc + "'()");
     else
-        e->call_("void ['" + mod + "']'" + mod + "'::'ping#'()");
+        e->call_("void ['" + callMod + "']'" + callMod + "'::'ping#'()");
 #if 0 // TEST
     out << "    ldstr \"this is " << name << ".main\"" << endl;
     out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
@@ -3385,21 +3413,20 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArray
     return true;
 }
 
-bool CilGen::generateMain(IlEmitter* e, const QByteArray& name, const QByteArrayList& modules)
+bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteArrayList& callMods)
 {
     Q_ASSERT( e );
-    if( modules.isEmpty() )
+    if( callMods.isEmpty() )
         return false;
 
     QByteArrayList imports;
-    foreach( const QByteArray& mod, modules )
+    foreach( const QByteArray& mod, callMods )
         imports << ObxCilGenImp::escape(mod);
 
-    e->beginModule(ObxCilGenImp::escape(name),ObxCilGenImp::escape(name), imports,QString(),IlEmitter::ConsoleApp);
-    //out << ".assembly extern mscorlib {}" << endl;
+    e->beginModule(ObxCilGenImp::escape(thisMod),ObxCilGenImp::escape(thisMod), imports,QString(),IlEmitter::ConsoleApp);
 
     e->beginMethod("main",false,IlEmitter::Primary);
-    foreach( const QByteArray& mod, modules )
+    foreach( const QByteArray& mod, callMods )
         e->call_("void ['" + mod + "']'" + mod + "'::'ping#'()");
 #if 0 // TEST
     out << "    ldstr \"this is " << name << ".main\"" << endl;
@@ -3479,7 +3506,6 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                 result.append(m);
                 foreach( Module* inst, result )
                 {
-                    // instances must be generated after the modules using them, otherwise we get !slotValid assertions
                     if( !generated.contains(inst) )
                     {
                         generated.insert(inst);
@@ -3491,7 +3517,7 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                                 //qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
                                 IlAsmRenderer r(&f);
                                 IlEmitter e(&r);
-                                CilGen::translate(inst,&e,pro->getErrs());
+                                CilGen::translate(inst,&e, debug, pro->getErrs());
                                 if( how == Ilasm )
                                     bout << "./ilasm /dll " << ( debug ? "/debug ": "" ) << "\"" << inst->getName() << ".il\"" << endl;
                                 else if( how == Fastasm )
@@ -3508,7 +3534,7 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                         {
                             PelibGen r;
                             IlEmitter e(&r);
-                            CilGen::translate(inst,&e,pro->getErrs());
+                            CilGen::translate(inst,&e,debug,pro->getErrs());
 #if 0
                             // no longer used
                             r.writeAssembler(outDir.absoluteFilePath(inst->getName() + ".il").toUtf8());
@@ -3600,17 +3626,20 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
             }
 #endif
         }
-        QFile json(outDir.absoluteFilePath(name + ".runtimeconfig.json"));
-        if( json.open(QIODevice::WriteOnly) )
+        if( how != IlOnly )
         {
-            cout << "rm \"" << name << ".runtimeconfig.json\"" << endl;
-            json.write("{\n\"runtimeOptions\": {\n"
-                       "\"framework\": {\n"
-                       "\"name\": \"Microsoft.NETCore.App\",\n"
-                       "\"version\": \"3.1.0\"\n" // TODO: replace version number depending on the used CoreCLR runtime version
-                       "}}}");
-        }else
-            qCritical() << "could not open for writing" << json.fileName();
+            QFile json(outDir.absoluteFilePath(name + ".runtimeconfig.json"));
+            if( json.open(QIODevice::WriteOnly) )
+            {
+                cout << "rm \"" << name << ".runtimeconfig.json\"" << endl;
+                json.write("{\n\"runtimeOptions\": {\n"
+                           "\"framework\": {\n"
+                           "\"name\": \"Microsoft.NETCore.App\",\n"
+                           "\"version\": \"3.1.0\"\n" // TODO: replace version number depending on the used CoreCLR runtime version
+                           "}}}");
+            }else
+                qCritical() << "could not open for writing" << json.fileName();
+        }
     }
 
     if( how == Ilasm )
@@ -3627,20 +3656,23 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
         }
     }
 
-    const bool log = how == Ilasm;
-    if( pro->useBuiltInOakwood() )
+    if( how != IlOnly )
     {
-        copyLib(outDir,"In",log?&cout:0);
-        copyLib(outDir,"Out",log?&cout:0);
-        // TODO copyLib(outDir,"Files",log?&cout:0);
-        copyLib(outDir,"Input",log?&cout:0);
-        copyLib(outDir,"Math",log?&cout:0);
-        copyLib(outDir,"MathL",log?&cout:0);
-        // TODO copyLib(outDir,"Strings",log?&cout:0);
-        // TODO copyLib(outDir,"Coroutines",log?&cout:0);
-        // TODO copyLib(outDir,"XYPlane",log?&cout:0);
+        const bool log = how == Ilasm;
+        if( pro->useBuiltInOakwood() )
+        {
+            copyLib(outDir,"In",log?&cout:0);
+            copyLib(outDir,"Out",log?&cout:0);
+            // TODO copyLib(outDir,"Files",log?&cout:0);
+            copyLib(outDir,"Input",log?&cout:0);
+            copyLib(outDir,"Math",log?&cout:0);
+            copyLib(outDir,"MathL",log?&cout:0);
+            // TODO copyLib(outDir,"Strings",log?&cout:0);
+            // TODO copyLib(outDir,"Coroutines",log?&cout:0);
+            // TODO copyLib(outDir,"XYPlane",log?&cout:0);
+        }
+        copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
     }
-    copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
 
     bout.flush();
     cout.flush();

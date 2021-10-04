@@ -19,6 +19,7 @@
 
 namespace OBX
 {
+	public delegate void Command();
 	public class Runtime
 	{
 		public static int DIV( int a, int b )
@@ -244,6 +245,35 @@ namespace OBX
 			}
 			d = mantissa;
 			e = exponent;
+		}
+		public static bool loadModule( char[] name )
+		{
+			try
+			{
+				string n = new string(name);
+				System.Reflection.Assembly a = System.Reflection.Assembly.Load(n);
+				System.Type t = a.GetType(n);
+				System.Reflection.MethodInfo m = t.GetMethod("ping#");
+				m.Invoke(null,null);
+				return true;
+			}catch
+			{
+				return false;
+			}
+		}
+		public static Command getCommand( char[] module, char[] proc )
+		{
+			try
+			{
+				string m = new string(module);
+				System.Reflection.Assembly a = System.Reflection.Assembly.Load(m);
+				System.Type t = a.GetType(m);
+				System.Reflection.MethodInfo p = t.GetMethod(new string(proc));
+				return (Command)System.Delegate.CreateDelegate(typeof(Command),p);
+			}catch
+			{
+				return null;
+			}
 		}
 	}
 }

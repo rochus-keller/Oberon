@@ -126,8 +126,7 @@ namespace Obx
         void onCaption();
         void onFullScreen();
         void onCursor();
-        void onExportBc();
-        void onExportAllBc();
+        void onExportIl();
         void onModsDblClicked(QTreeWidgetItem*,int);
         void onModDblClicked(QTreeWidgetItem*,int);
         void onHierDblClicked(QTreeWidgetItem*,int);
@@ -140,7 +139,6 @@ namespace Obx
         void onErrors();
         void onOpenFile();
         void onOakwood();
-        void onObSysInner();
         void onAddFiles();
         void onNewModule();
         void onAddDir();

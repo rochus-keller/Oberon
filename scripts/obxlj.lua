@@ -270,7 +270,12 @@ function module.min_size(lhs,rhs)
 		return r
 	end
 end
+local firstLock = true
 function module.ldmod(name)
+	if firstLock then
+		firstLock = false
+		return false
+	end
 	local m = require(ffi.string(name))
 	-- print("LDMOD "..ffi.string(name).." "..tostring(m ~= nil)) 
 	return m ~= nil

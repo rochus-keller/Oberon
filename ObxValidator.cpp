@@ -843,7 +843,7 @@ struct ValidatorImp : public AstVisitor
                 if( !t->isText(&wide,true) || wide )
                     error( args->d_args.last()->d_loc, Validator::tr("expecting string or char array"));
             }else
-                error( args->d_loc, Validator::tr("expecting one argument"));
+                error( args->d_loc, Validator::tr("expecting two arguments"));
             break;
         case BuiltIn::PRINTLN:
             if( args->d_args.size() == 1 )

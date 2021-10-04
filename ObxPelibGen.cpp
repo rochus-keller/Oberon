@@ -806,6 +806,7 @@ struct PelibGen::Imp : public PELib
     void addFieldOp( Method* m, quint8 op, SignatureParser::MemberHint hint, const QByteArray& fieldRef )
     {
         SignatureParser::Node* node = find(hint,fieldRef);
+        Q_ASSERT(node);
         Field* f = dynamic_cast<Field*>(node->thing);
         Q_ASSERT( f );
         m->AddInstruction( new Instruction((Instruction::iop)op, new Operand( new FieldName(f))));

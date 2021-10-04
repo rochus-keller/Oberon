@@ -548,18 +548,6 @@ void Ide::createIlView()
     vbox->addWidget(d_il);
     dock->setWidget(pane);
     addDockWidget( Qt::RightDockWidgetArea, dock );
-#if 0
-    connect(d_bcv,SIGNAL(sigGotoLine(quint32)),this,SLOT(onGotoLnr(quint32)));
-
-    Gui::AutoMenu* pop = new Gui::AutoMenu( d_bcv, true );
-    pop->addCommand( "Run on LuaJIT", this, SLOT(onRun()), tr("CTRL+R"), false );
-    addDebugMenu(pop);
-    pop->addSeparator();
-    pop->addCommand( "Show low level bytecode", this, SLOT(onShowLlBc()) );
-    pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
-    pop->addCommand( "Show bytecode file...", this, SLOT(onShowBcFile()) );
-    addTopCommands(pop);
-#endif
 }
 
 void Ide::createMods()
@@ -732,7 +720,6 @@ void Ide::createMenu()
     pop->addSeparator();
     pop->addCommand( "Set Build Directory...", this, SLOT( onBuildDir() ) );
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
-    pop->addCommand( "Built-in Oberon Sys. Inner Mod.", this, SLOT(onObSysInner()) );
     pop->addCommand( "Set Oberon File System Root...", this, SLOT( onWorkingDir() ) );
     pop->addSeparator();
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
@@ -775,9 +762,6 @@ void Ide::createMenuBar()
     pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
     pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
     pop->addSeparator();
-    //pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
-    //pop->addCommand( "Export all bytecode...", this, SLOT(onExportAllBc()) );
-    //pop->addSeparator();
     pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addAutoCommand( "Export PDF...", SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
     pop->addSeparator();
@@ -809,13 +793,13 @@ void Ide::createMenuBar()
     pop->addSeparator();
     pop->addCommand( "Set Build Directory...", this, SLOT( onBuildDir() ) );
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
-    pop->addCommand( "Built-in Oberon System Inner Modules", this, SLOT(onObSysInner()) );
     pop->addCommand( "Set Oberon File System Root...", this, SLOT( onWorkingDir() ) );
 
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
+    pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
@@ -1014,45 +998,16 @@ void Ide::onCursor()
     d_lock = false;
 }
 
-void Ide::onExportBc() // TODO
+void Ide::onExportIl()
 {
-    ENABLED_IF(d_tab->getCurrentTab() != 0 );
+    ENABLED_IF( d_pro->getErrs()->getErrCount() == 0 );
 
-    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Binary") );
+    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save IL"), d_pro->getBuildDir(true) );
 
     if (dirPath.isEmpty())
         return;
 
-    QDir dir(dirPath);
-
-    const QString curPath = d_tab->getCurrentDoc().toString();
-
-#if 0
-    LjRuntime::BytecodeList l = d_rt->findByteCode(curPath);
-    for( int i = 0; i < l.size(); i++ )
-    {
-        QString path = dir.absoluteFilePath(l[i].first->getName() + ".lua");
-        QFile out(path);
-        out.open(QIODevice::WriteOnly);
-        out.write(l[i].second);
-    }
-    if( l.isEmpty() )
-        QMessageBox::warning(this,tr("Export Bytecode"), tr("No bytecode was found for given module") );
-#endif
-}
-
-void Ide::onExportAllBc() // TODO
-{
-#if 0
-    ENABLED_IF( d_rt->hasBytecode() && !d_rt->hasBuildErrors() );
-
-    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save Bytecode") );
-
-    if (dirPath.isEmpty())
-        return;
-
-    d_rt->saveBytecode(dirPath,".lua");
-#endif
+    CilGen::translateAll(d_pro, CilGen::IlOnly, d_debugging, dirPath );
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -1436,15 +1391,6 @@ void Ide::onOakwood()
         d_pro->setUseBuiltInObSysInner(false);
 }
 
-void Ide::onObSysInner()
-{
-    CHECKED_IF( true, d_pro->useBuiltInObSysInner() );
-
-    d_pro->setUseBuiltInObSysInner( !d_pro->useBuiltInObSysInner() );
-    if( d_pro->useBuiltInObSysInner() )
-        d_pro->setUseBuiltInOakwood(false);
-}
-
 void Ide::onAddFiles()
 {
     ENABLED_IF(true);
@@ -1611,10 +1557,12 @@ void Ide::onEnableDebug()
 
 void Ide::onBreak()
 {
-    ENABLED_IF(!d_suspended && d_mode == Running && d_debugging);
+    //ENABLED_IF(!d_suspended && d_mode == Running && d_debugging);
 
-    d_dbg->addBreakpoint(0,0);
+    //d_dbg->addBreakpoint(0,0);
     // we cannot support break yet because Mono might stop at a place where a step command leads to a VM crash.
+    //d_suspended = true;
+    //d_dbg->suspend();
 }
 
 bool Ide::checkSaved(const QString& title)
@@ -1717,8 +1665,12 @@ bool Ide::generate()
     if( d_mode != Idle )
         return false;
 
+    // NOTE fastasm seems still to make problems, maybe related to the mscorelib.dll version;
+    // the same code which issues a runtime exception runs without problems when compiled with
+    // ILASM or Pelib; so somehow fastasm seems to generate wrong code or meta for the same IL.
+    // Anyway we can do well without fastasm because neither fastasm nor ILASM generate useful MDBs.
     const CilGen::How how = CilGen::Pelib; // CilGen::Fastasm;
-    // Pelib is factor 1.4 faster than Fastasm for generating the IL and factor ~3 incl. IL to assembly compilation
+    // Pelib is factor 1.4 faster than Fastasm for generating the IL and factor ~3 incl. IL to assembly compilation;
     // compared to ilasm.exe for compilation (instead of fastasm.exe) Pelib is even a factor 29 faster.
 
     const QString buildPath = d_pro->getBuildDir();
@@ -1786,6 +1738,7 @@ bool Ide::run()
     logMessage("\nStarting application...\n\n",SysInfo,false);
     d_eng->init( d_debugging ? d_dbg->open() : 0 );
     d_eng->setAssemblySearchPaths( QStringList() << d_pro->getBuildDir(), true );
+    d_eng->setEnv( "OBERON_FILE_SYSTEM_ROOT", d_pro->getWorkingDir(true) );
     d_eng->run( buildDir.absoluteFilePath("Main#.exe"));
     d_mode = Running;
     return true;
@@ -1954,11 +1907,10 @@ void Ide::createMenu(Ide::Editor* edit)
     pop->addCommand( "Save", this, SLOT(onSaveFile()), tr("CTRL+S"), false );
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     pop->addSeparator();
-    //pop->addCommand( "Export current bytecode...", this, SLOT(onExportBc()) );
-    //pop->addSeparator();
     pop->addCommand( "Undo", edit, SLOT(handleEditUndo()), tr("CTRL+Z"), true );
     pop->addCommand( "Redo", edit, SLOT(handleEditRedo()), tr("CTRL+Y"), true );
     pop->addSeparator();
@@ -3076,7 +3028,8 @@ void Ide::onSetRunCommand()
     else
     {
         m.first = tmp.first().toUtf8();
-        m.second = tmp.last().toUtf8();
+        if( tmp.size() == 2 )
+            m.second = tmp.last().toUtf8();
         d_pro->setMain(m);
     }
 }
@@ -3143,12 +3096,15 @@ void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
     case Mono::DebuggerEvent::STEP:
     case Mono::DebuggerEvent::BREAKPOINT:
     case Mono::DebuggerEvent::USER_BREAK:
+    case Mono::DebuggerEvent::EXCEPTION:
         {
             d_suspended = true;
             if( e.event == Mono::DebuggerEvent::USER_BREAK )
                 logMessage("\ntrap hit\n", SysInfo, false );
             else if( e.event == Mono::DebuggerEvent::BREAKPOINT )
                 logMessage("\nbreakpoint hit\n", SysInfo, false );
+            else if( e.event == Mono::DebuggerEvent::EXCEPTION )
+                logMessage("\nexception hit\n", SysInfo, false );
 
             fillStack();
         }
@@ -3200,7 +3156,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9");
+    a.setApplicationVersion("0.9.1");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

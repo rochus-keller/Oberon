@@ -40,10 +40,10 @@ namespace Obx
     public:
         enum How { Ilasm, Fastasm, IlOnly, Pelib };
         static bool translateAll(Project*, How how, bool debug, const QString& where );
-        static bool translate(Module*, IlEmitter* out, Ob::Errors* = 0 );
-        static bool generateMain(IlEmitter* out, const QByteArray& name,
-                                 const QByteArray& module = QByteArray(), const QByteArray& function = QByteArray());
-        static bool generateMain(IlEmitter* out, const QByteArray& name, const QByteArrayList& modules );
+        static bool translate(Module*, IlEmitter* out, bool debug, Ob::Errors* = 0 );
+        static bool generateMain(IlEmitter* out, const QByteArray& thisMod,
+                                 const QByteArray& callMod = QByteArray(), const QByteArray& callFunc = QByteArray());
+        static bool generateMain(IlEmitter* out, const QByteArray& thisMod, const QByteArrayList& callMods );
     private:
         CilGen();
     };
