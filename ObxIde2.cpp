@@ -3107,17 +3107,46 @@ void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
     case Mono::DebuggerEvent::STEP:
     case Mono::DebuggerEvent::BREAKPOINT:
     case Mono::DebuggerEvent::USER_BREAK:
-    case Mono::DebuggerEvent::EXCEPTION:
         {
             d_suspended = true;
             if( e.event == Mono::DebuggerEvent::USER_BREAK )
                 logMessage("\ntrap hit\n", SysInfo, false );
             else if( e.event == Mono::DebuggerEvent::BREAKPOINT )
                 logMessage("\nbreakpoint hit\n", SysInfo, false );
-            else if( e.event == Mono::DebuggerEvent::EXCEPTION )
-                logMessage("\nexception hit\n", SysInfo, false );
 
             fillStack();
+        }
+        break;
+    case Mono::DebuggerEvent::EXCEPTION:
+        {
+            //d_dbg->suspend(); // SUSPEND_POLICY_ALL instead
+            d_stack = d_dbg->getStack(d_curThread);
+            if( !d_stack.isEmpty() )
+            {
+                Debugger::MethodDbgInfo ex = d_dbg->getMethodInfo(d_stack[0].method);
+                if( !ex.sourceFile.isEmpty() )
+                {
+                    logMessage("\nexception hit\n", SysInfo, false );
+                    d_suspended = true;
+                    fillStack();
+                    break;
+                }
+#if 1
+                else
+                {
+                    const QByteArray name = d_dbg->getMethodName(d_stack[0].method);
+                    const quint32 owner = d_dbg->getMethodOwner(d_stack[0].method);
+                    const Debugger::TypeInfo info = d_dbg->getTypeInfo(owner);
+                    logMessage(tr("\nexception hit at %1::%2\n").arg(info.fullName.constData()).
+                               arg(name.constData()), SysInfo, false );
+                    d_suspended = true;
+                    fillStack();
+                    break;
+                }
+#endif
+            }
+            // else
+            d_dbg->resume();
         }
         break;
     case Mono::DebuggerEvent::ASSEMBLY_LOAD:
@@ -3167,7 +3196,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.2");
+    a.setApplicationVersion("0.9.3");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

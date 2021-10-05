@@ -297,5 +297,21 @@ namespace OBX
 				return null;
 			}
 		}
+		public static bool pcall(OBX.Command cmd, bool report)
+		{
+			try
+			{
+				cmd.Invoke();
+				return true;
+			}catch( System.Exception e )
+			{
+				if( report )
+				{
+					System.IO.TextWriter errorWriter = System.Console.Error;
+					errorWriter.WriteLine(e.ToString());
+				}
+				return false;
+			}
+		}
 	}
 }

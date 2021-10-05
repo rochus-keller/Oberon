@@ -1129,7 +1129,6 @@ void PelibGen::addMethod(const IlMethod& m)
         case IL_ldfld:
         case IL_ldflda:
         case IL_stfld:
-            // TODO: PElib doesn't seem to handle the argument offset in the presence of an implicit this parameter.
             d_imp->addFieldOp(mm,op.d_ilop,SignatureParser::Instance,op.d_arg);
             break;
         case IL_ldsfld:

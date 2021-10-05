@@ -41,7 +41,7 @@ public class ObsFfi
 	static int s_x = 0, s_y = 0;
 	static int s_lastUpdate = 0;
 	static int s_sleepTime = 0;
-	static bool s_left = false, s_mid = false, s_right = false;
+	static bool s_left = false, s_mid = false, s_right = false, s_ctrl = false;
 	//static Queue<string> s_chars = new Queue<string>(); // causes runtime exception on Mono3
 	static char[] queue = new char[100];
 	static int head = 0, tail = 0, count = 0;
@@ -235,15 +235,23 @@ public class ObsFfi
 				switch( (uint)e.button.button )
 				{
 				case SDL.SDL_BUTTON_LEFT:
-					s_left = down;
+					if( s_ctrl )
+						s_mid = down;
+					else
+						s_left = down;
 					break;
 				case SDL.SDL_BUTTON_MIDDLE:
 					s_mid = down;
 					break;
 				case SDL.SDL_BUTTON_RIGHT:
-					s_right = down;
+					if( s_ctrl )
+						s_mid = down;
+					else
+						s_right = down;
 					break;
 				}
+				if( !down )
+					s_mid = false;
 				break;
         	case SDL.SDL_EventType.SDL_TEXTINPUT: // SDL_TextInputEvent
         		byte[] arr = new byte[SDL.SDL_TEXTINPUTEVENT_TEXT_SIZE];
@@ -259,8 +267,8 @@ public class ObsFfi
 				down = e.key.state == SDL.SDL_PRESSED;
 				switch( e.key.keysym.sym )
 				{
-				case SDL.SDL_Keycode.SDLK_LALT:
-					s_mid = down;
+				case SDL.SDL_Keycode.SDLK_LCTRL:
+					s_ctrl = down;
 					break;
 				case SDL.SDL_Keycode.SDLK_q:
 					if( down && ( e.key.keysym.mod & SDL.SDL_Keymod.KMOD_CTRL ) != 0 )
@@ -433,6 +441,8 @@ public class ObsFfi
 		{
 			try
 			{	
+				if( pos < 0 )
+					pos = 0;
 				return buf.Seek(pos, SeekOrigin.Begin) == pos;
 			}catch
 			{

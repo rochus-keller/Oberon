@@ -541,7 +541,7 @@ struct ObxCilGenImp : public AstVisitor
                     QByteArray type = formatType(r2);
                     if( r2->d_byValue )
                         type += "&";
-                    emitter->callvirt_("void class " + classRef(r2) + formatMetaActuals(r2) +
+                    emitter->callvirt_("void " + classRef(r2) + formatMetaActuals(r2) +
                                         "::'#copy'(" + type + ")", 1 );
                }
                 break;
@@ -691,7 +691,7 @@ struct ObxCilGenImp : public AstVisitor
                     line(r->d_loc).ldarg_(1);
                     line(r->d_loc).ldfld_(memberRef(fields[i]));
                     Record* r2 = cast<Record*>(ft);
-                    QByteArray what = "void class " + classRef(r2) + formatMetaActuals(r2) + "::'#copy'(";
+                    QByteArray what = "void " + classRef(r2) + formatMetaActuals(r2) + "::'#copy'(";
                     type = formatType(r2);
                     if( r2->d_byValue )
                         type += "&";
@@ -1595,7 +1595,7 @@ struct ObxCilGenImp : public AstVisitor
                 Q_ASSERT( ae->d_args.size() == 2 );
                 ae->d_args.first()->accept(this);
                 ae->d_args.last()->accept(this);
-                line(ae->d_loc).call_("[OBX.Runtime]OBX.Command [OBX.Runtime]OBX.Runtime::getCommand(char[],char[])",2,true);
+                line(ae->d_loc).call_("class [OBX.Runtime]OBX.Command [OBX.Runtime]OBX.Runtime::getCommand(char[],char[])",2,true);
             }
             break;
         case BuiltIn::PRINTLN:
@@ -2197,7 +2197,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).call_(memberRef(func),pt->d_formals.size(),!pt->d_return.isNull());
         }else
         {
-            const QByteArray what = formatType(pt->d_return.data()) + " class " + delegateRef(pt) + "::Invoke"
+            const QByteArray what = formatType(pt->d_return.data()) + " " + delegateRef(pt) + "::Invoke"
                 + formatFormals(pt->d_formals,false);
 
             line(me->d_loc).callvirt_(what, pt->d_formals.size(),!pt->d_return.isNull());
@@ -2783,7 +2783,7 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     // stack: lhs record, rhs record
                     Record* r = cast<Record*>(lhsT);
-                    QByteArray what = "void class " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
+                    QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
                     what += formatType(r);
                     if( r->d_byValue )
                         what += "&";
@@ -3012,7 +3012,7 @@ struct ObxCilGenImp : public AstVisitor
                     {
                         // stack: new record, new record, rhs record
                         Record* r = cast<Record*>(ltd);
-                        QByteArray what = "void class " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
+                        QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
                         what += formatType(r);
                         if( r->d_byValue )
                             what += "&";
@@ -3344,7 +3344,7 @@ struct ObxCilGenImp : public AstVisitor
                         {
                             // stack: lhs record, lhs record, rhs record
                             Record* r = cast<Record*>(t);
-                            QByteArray what = "void class " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
+                            QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
                             what += formatType(r);
                             if( r->d_byValue )
                                 what += "&";
@@ -3427,9 +3427,26 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
     QByteArray mod = ObxCilGenImp::escape(thisMod);
     QByteArrayList imports;
     imports << ObxCilGenImp::escape(callMod);
+    imports.append( "mscorlib" );
+    imports.append( "OBX.Runtime" );
     e->beginModule(mod, mod, imports,QString(),IlEmitter::ConsoleApp);
-
     e->beginMethod("main",false,IlEmitter::Primary);
+#if 1
+    // call indirectly so that every exception is caught (Mono 3 & 5 debugger doesn't handle uncaught exceptions)
+    e->ldnull_();
+    QByteArray func;
+    if( !callFunc.isEmpty() )
+        func = "void ['" + callMod + "']'" + callMod + "'::'" + callFunc + "'()";
+    else
+        func = "void ['" + callMod + "']'" + callMod + "'::'ping#'()";
+    e->ldftn_(func);
+    e->newobj_("void class [OBX.Runtime]OBX.Command::'.ctor'(object, native int)");
+    //e->callvirt_("void [OBX.Runtime]OBX.Command::Invoke()",0);
+    e->ldc_i4(1);
+    e->call_("bool [OBX.Runtime]OBX.Runtime::pcall(class [OBX.Runtime]OBX.Command,bool)",2,true);
+    // NOTE: this is delicate code an mishaps happen quickly leading to Mono runtime crashes!
+    e->pop_();
+#else
     if( !callFunc.isEmpty() )
         e->call_("void ['" + callMod + "']'" + callMod + "'::'" + callFunc + "'()");
     else
@@ -3437,6 +3454,7 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
 #if 0 // TEST
     out << "    ldstr \"this is " << name << ".main\"" << endl;
     out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
+#endif
 #endif
     e->ret_();
     e->endMethod();
@@ -3453,15 +3471,30 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
     QByteArrayList imports;
     foreach( const QByteArray& mod, callMods )
         imports << ObxCilGenImp::escape(mod);
+    imports.append( "mscorlib" );
+    imports.append( "OBX.Runtime" );
 
     e->beginModule(ObxCilGenImp::escape(thisMod),ObxCilGenImp::escape(thisMod), imports,QString(),IlEmitter::ConsoleApp);
 
     e->beginMethod("main",false,IlEmitter::Primary);
+#if 1
+    foreach( const QByteArray& mod, callMods )
+    {
+        e->ldnull_();
+        const QByteArray func = "void ['" + mod + "']'" + mod + "'::'ping#'()";
+        e->ldftn_(func);
+        e->newobj_("void class [OBX.Runtime]OBX.Command::'.ctor'(object, native int)");
+        e->ldc_i4(1);
+        e->call_("bool [OBX.Runtime]OBX.Runtime::pcall(class [OBX.Runtime]OBX.Command,bool)",2,true);
+        e->pop_();
+    }
+#else
     foreach( const QByteArray& mod, callMods )
         e->call_("void ['" + mod + "']'" + mod + "'::'ping#'()");
 #if 0 // TEST
     out << "    ldstr \"this is " << name << ".main\"" << endl;
     out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
+#endif
 #endif
     e->ret_();
     e->endMethod();
