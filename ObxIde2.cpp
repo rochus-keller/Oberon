@@ -378,7 +378,7 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
       d_lock2(false),d_lock3(false),d_lock4(false),d_byteCodeMode(false),d_debugging(false),d_rowColMode(false),
-      d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_mode(Idle)
+      d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_mode(Idle),d_breakOnExceptions(false)
 {
     s_this = this;
 
@@ -805,15 +805,17 @@ void Ide::createMenuBar()
     pop = new Gui::AutoMenu( tr("Debug"), this );
     pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
     pop->addCommand( "Bytecode mode", this, SLOT(onByteMode()) );
+    pop->addSeparator();
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     pop->addCommand( "Remove all breakpoints", this, SLOT(onRemoveAllBreakpoints()));
+    pop->addCommand( "Break on (all) exceptions", this, SLOT(onBreakOnExceptions()));
+    pop->addSeparator();
     pop->addCommand( "Step in", this, SLOT(onStepIn()), tr(OBN_STEPIN_SC), false);
     pop->addCommand( "Step over", this, SLOT(onStepOver()), tr(OBN_STEPOVER_SC), false);
     pop->addCommand( "Step out", this, SLOT(onStepOut()), tr(OBN_STEPOUT_SC), false);
     pop->addCommand( "Break", this, SLOT(onBreak()), tr(OBN_BREAK_SC), false);
     pop->addCommand( "Continue", this, SLOT(onContinue()), tr(OBN_CONTINUE_SC), false);
     pop->addCommand( "Abort", this, SLOT(onAbort()), tr(OBN_ABORT_SC), false);
-
 
     pop = new Gui::AutoMenu( tr("Window"), this );
     pop->addCommand( tr("Next Tab"), d_tab, SLOT(onDocSelect()), tr(OBN_NEXTDOC_SC) );
@@ -3120,30 +3122,35 @@ void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
     case Mono::DebuggerEvent::EXCEPTION:
         {
             //d_dbg->suspend(); // SUSPEND_POLICY_ALL instead
-            d_stack = d_dbg->getStack(d_curThread);
-            if( !d_stack.isEmpty() )
+            if( d_breakOnExceptions )
             {
-                Debugger::MethodDbgInfo ex = d_dbg->getMethodInfo(d_stack[0].method);
-                if( !ex.sourceFile.isEmpty() )
+                // unfortunatedly mono does not break on uncaught exceptions!
+                // so this breaks on all exceptions, even caught ones!
+                d_stack = d_dbg->getStack(d_curThread);
+                if( !d_stack.isEmpty() )
                 {
-                    logMessage("\nexception hit\n", SysInfo, false );
-                    d_suspended = true;
-                    fillStack();
-                    break;
-                }
+                    Debugger::MethodDbgInfo ex = d_dbg->getMethodInfo(d_stack[0].method);
+                    if( !ex.sourceFile.isEmpty() )
+                    {
+                        logMessage("\nexception hit\n", SysInfo, false );
+                        d_suspended = true;
+                        fillStack();
+                        break;
+                    }
 #if 1
-                else
-                {
-                    const QByteArray name = d_dbg->getMethodName(d_stack[0].method);
-                    const quint32 owner = d_dbg->getMethodOwner(d_stack[0].method);
-                    const Debugger::TypeInfo info = d_dbg->getTypeInfo(owner);
-                    logMessage(tr("\nexception hit at %1::%2\n").arg(info.fullName.constData()).
-                               arg(name.constData()), SysInfo, false );
-                    d_suspended = true;
-                    fillStack();
-                    break;
-                }
+                    else
+                    {
+                        const QByteArray name = d_dbg->getMethodName(d_stack[0].method);
+                        const quint32 owner = d_dbg->getMethodOwner(d_stack[0].method);
+                        const Debugger::TypeInfo info = d_dbg->getTypeInfo(owner);
+                        logMessage(tr("\nexception hit at %1::%2\n").arg(info.fullName.constData()).
+                                   arg(name.constData()), SysInfo, false );
+                        d_suspended = true;
+                        fillStack();
+                        break;
+                    }
 #endif
+                }
             }
             // else
             d_dbg->resume();
@@ -3190,13 +3197,20 @@ void Ide::onRemoveAllBreakpoints()
         d_dbg->clearAllBreakpoints();
 }
 
+void Ide::onBreakOnExceptions()
+{
+    CHECKED_IF(true, d_breakOnExceptions);
+
+    d_breakOnExceptions = !d_breakOnExceptions;
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.3");
+    a.setApplicationVersion("0.9.4");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

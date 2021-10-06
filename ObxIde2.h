@@ -167,6 +167,7 @@ namespace Obx
         void onFinished(int exitCode, bool normalExit);
         void onDbgEvent( const DebuggerEvent& );
         void onRemoveAllBreakpoints();
+        void onBreakOnExceptions();
     private:
         class DocTab;
         DocTab* d_tab;
@@ -197,6 +198,7 @@ namespace Obx
         bool d_debugging;
         bool d_rowColMode;
         bool d_suspended; // we are in debugger but code is suspended
+        bool d_breakOnExceptions;
         quint32 d_curThread;
         enum Mode { Idle, Compiling, Generating, Running };
         Mode d_mode;
