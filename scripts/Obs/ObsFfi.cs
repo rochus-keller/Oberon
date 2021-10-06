@@ -21,7 +21,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Reflection;
 using System;
-using SDL2;
+using SDL2CLI;
 using System.Runtime.InteropServices;
 
 public class ObsFfi
