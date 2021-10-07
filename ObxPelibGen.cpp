@@ -955,7 +955,13 @@ void PelibGen::beginModule(const QByteArray& assemblyName, const QByteArray& mod
     d_imp = new Imp(assembly);
     d_imp->moduleKind = moduleKind;
 
-    // TODO imports
+#if 0
+    // not necessary because all external assemblies are determined by the refs on the fly;
+    // anyway here the same steps as in fetchAssembly would have to be conducted; directly calling
+    // AddExternalAssembly would not work.
+    foreach( const QByteArray& import, imports )
+        d_imp->AddExternalAssembly(unescape(import).constData());
+#endif
 
     const QByteArray name = unescape(moduleName);
     d_imp->sourceFile = sourceFile.toUtf8().constData();
@@ -1008,6 +1014,7 @@ void PelibGen::addMethod(const IlMethod& m)
     switch(m.d_methodKind)
     {
     case IlEmitter::Static:
+    case IlEmitter::Primary:
         hint = SignatureParser::Static;
         break;
     case IlEmitter::Virtual:
@@ -1039,6 +1046,8 @@ void PelibGen::addMethod(const IlMethod& m)
         q |= Qualifiers::Virtual;
         break;
     }
+    // NOTE: Mono doesn't care if static and instance appear in the same method definition; static is stronger;
+    // CoreCLR instead just says "System.TypeLoadException: The signature is incorrect" and halts.
 
     if( true ) // isPublic )
         q |= Qualifiers::Public;

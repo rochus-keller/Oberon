@@ -3471,8 +3471,8 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
     QByteArrayList imports;
     foreach( const QByteArray& mod, callMods )
         imports << ObxCilGenImp::escape(mod);
-    imports.append( "mscorlib" );
-    imports.append( "OBX.Runtime" );
+    imports.append( "'mscorlib'" );
+    imports.append( "'OBX.Runtime'" );
 
     e->beginModule(ObxCilGenImp::escape(thisMod),ObxCilGenImp::escape(thisMod), imports,QString(),IlEmitter::ConsoleApp);
 

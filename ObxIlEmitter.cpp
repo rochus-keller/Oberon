@@ -1036,9 +1036,14 @@ void IlAsmRenderer::beginModule(const QByteArray& assemblyName, const QByteArray
     if( !imports.isEmpty() )
         out << endl;
 
+#if 0
     out << ".class public sealed " << moduleName
         // << formatMetaParams(me)
         << " extends [mscorlib]System.ValueType {" << endl; // MODULE
+#else
+    out << ".class public " << moduleName
+        << " extends [mscorlib]System.Object {" << endl; // MODULE
+#endif
     level++;
 }
 

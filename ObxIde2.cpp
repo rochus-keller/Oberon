@@ -1010,7 +1010,7 @@ void Ide::onExportIl()
         return;
 
     if( compile(false) ) // otherwise allocated flag is already set after one generator run
-        CilGen::translateAll(d_pro, CilGen::IlOnly, d_debugging, dirPath );
+        CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging, dirPath );
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -3210,7 +3210,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.4");
+    a.setApplicationVersion("0.9.5");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
