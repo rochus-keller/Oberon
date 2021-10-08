@@ -253,14 +253,23 @@ namespace OBX
 				i++;
 			return new string(str,0,i);
 		}
+		private static string assemblyPath( string name )
+		{
+			return System.AppDomain.CurrentDomain.BaseDirectory + name + ".dll";
+		}
 		public static bool loadModule( char[] name )
 		{
 			try
 			{
 				string n = toString(name);
-				System.Reflection.Assembly a = System.Reflection.Assembly.Load(n);
+				// System.Reflection.Assembly a = System.Reflection.Assembly.Load(n); looks at the wrong place with CoreCLR (but ok with .NET)
+				string path = assemblyPath(n);
+				System.Reflection.Assembly a = System.Reflection.Assembly.LoadFile(path);
 				if( a == null )
+				{
+					System.Console.WriteLine("cannot load "+ path);
 					return false;
+				}
 				System.Type t = a.GetType(n);
 				if( t == null )
 					return false;
@@ -279,9 +288,13 @@ namespace OBX
 			try
 			{
 				string m = toString(module);
-				System.Reflection.Assembly a = System.Reflection.Assembly.Load(m);
+				string path = assemblyPath(m);
+				System.Reflection.Assembly a = System.Reflection.Assembly.LoadFile(path);
 				if( a == null )
+				{
+					System.Console.WriteLine("cannot load "+ path);
 					return null;
+				}
 				System.Type t = a.GetType(m);
 				if( t == null )
 					return null;
