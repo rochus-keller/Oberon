@@ -759,7 +759,14 @@ struct PelibGen::Imp : public PELib
         return p.parse(hint,moduleName,line);
     }
 
-    Imp( const QByteArray& moduleName):PELib( moduleName.constData() ),moduleKind(0)
+    Imp( const QByteArray& moduleName):PELib( moduleName.constData(), PELib::ilonly ),moduleKind(0)
+      // NOTE: if PELib::bits32 is set then it doesn't run with the x64 version of CoreCLR (but with the x86 version).
+      // Mono ILASM doesn't set PELib::bits32, but COFF characteristics 0x0100 (IMAGE_FILE_32BIT_MACHINE),
+      // which causes .NET to run a 32 bit process even on a 64 bit Windows; Pelib instead sets characteristics
+      // to only to IMAGE_FILE_EXECUTABLE_IMAGE which gives PELib::bits32 full control (i.e. if set
+      // .NET runs 32 bit, if not set .NET runs 64 bit if the OS is 64 bit).
+      // CoreCLR doesn't seem to care of IMAGE_FILE_32BIT_MACHINE (but of PELib::bits32), and Mono
+      // neither seems to care PELib::bits32 nor IMAGE_FILE_32BIT_MACHINE.
     {
         this->moduleName = moduleName;
         root.thing = WorkingAssembly();
