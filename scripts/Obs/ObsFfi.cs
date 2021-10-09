@@ -41,7 +41,7 @@ public class ObsFfi
 	static int s_x = 0, s_y = 0;
 	static int s_lastUpdate = 0;
 	static int s_sleepTime = 0;
-	static bool s_left = false, s_mid = false, s_right = false, s_ctrl = false;
+	static bool s_left = false, s_mid = false, s_right = false, s_ctrl = false, s_shift = false;
 	//static Queue<string> s_chars = new Queue<string>(); // causes runtime exception on Mono3
 	static char[] queue = new char[100];
 	static int head = 0, tail = 0, count = 0;
@@ -235,7 +235,9 @@ public class ObsFfi
 				switch( (uint)e.button.button )
 				{
 				case SDL.SDL_BUTTON_LEFT:
-					if( s_ctrl )
+					if( s_ctrl && s_shift )
+						s_right = down;
+					else if( s_ctrl )
 						s_mid = down;
 					else
 						s_left = down;
@@ -251,7 +253,7 @@ public class ObsFfi
 					break;
 				}
 				if( !down )
-					s_mid = false;
+					s_left = s_mid = s_right = false;
 				break;
         	case SDL.SDL_EventType.SDL_TEXTINPUT: // SDL_TextInputEvent
         		byte[] arr = new byte[SDL.SDL_TEXTINPUTEVENT_TEXT_SIZE];
@@ -269,6 +271,9 @@ public class ObsFfi
 				{
 				case SDL.SDL_Keycode.SDLK_LCTRL:
 					s_ctrl = down;
+					break;
+				case SDL.SDL_Keycode.SDLK_LSHIFT:
+					s_shift = down;
 					break;
 				case SDL.SDL_Keycode.SDLK_q:
 					if( down && ( e.key.keysym.mod & SDL.SDL_Keymod.KMOD_CTRL ) != 0 )
@@ -322,7 +327,13 @@ public class ObsFfi
 
 	public static char[] fileName(int i)
 	{
-		return System.IO.Path.GetFileName(s_files[i]).ToCharArray();
+		string name = System.IO.Path.GetFileName(s_files[i]);
+		// String.ToCharArray returns a non zero-terminated array
+		char[] str = new char[name.Length + 1];
+		for( i = 0; i < name.Length; i++ )
+			str[i] = name [i];
+		str[i] = '\0';	
+		return str;
 	}
 	
 	private static string getPath()
