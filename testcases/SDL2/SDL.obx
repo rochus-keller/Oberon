@@ -442,11 +442,11 @@ definition SDL [extern 'C', dll 'SDL2', prefix 'SDL_']
         GameControllerButtonBind = cstruct
                 bindType: GameControllerBindType
                 value: cunion
-    button: integer
-    axis: integer
-    hat: cstruct
-    hat: integer
-    hat_mask: integer end end end
+						    button: integer
+						    axis: integer
+						    hat: cstruct
+						    hat: integer
+						    hat_mask: integer end end end
         JoystickGUID = cstruct
                 data: carray 16 of byte end
         GameControllerAxis = integer

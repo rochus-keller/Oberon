@@ -1,0 +1,13 @@
+module Unsafe1
+	import I := UnsafeImport1
+
+var
+	t : I.T
+	//a : pointer to array of char
+	//aa : cpointer to carray of char
+begin
+	t.a := 33
+	//t.b := 44
+	//aa^ := a^
+	//println(t.a+t.b)
+end Unsafe1

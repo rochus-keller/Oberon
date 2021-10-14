@@ -746,6 +746,14 @@ bool QualiType::hasByteSize() const
         return false;
 }
 
+qint32 QualiType::getByteSize() const
+{
+    if( !d_quali->d_type.isNull() )
+        return d_quali->d_type->getByteSize();
+    else
+        return -1;
+}
+
 Type*QualiType::derefed()
 {
     Q_ASSERT( !d_quali.isNull() );
@@ -890,6 +898,21 @@ bool Array::hasByteSize() const
         return false;
 }
 
+qint32 Array::getByteSize() const
+{
+    if( d_lenExpr.isNull() )
+        return -1;
+    else if( d_type )
+    {
+        const qint32 bs = d_type->getByteSize();
+        if( bs < 0 )
+            return -1;
+        else
+            return d_len * bs;
+    }else
+        return -1;
+}
+
 Type*Array::getTypeDim(int& dims, bool openOnly) const
 {
     Type* t = d_type.isNull() ? 0 : d_type->derefed();
@@ -993,6 +1016,7 @@ Const::Const(const QByteArray& name, Literal* lit)
     }
 }
 
+quint8 Pointer::s_pointerByteSize = sizeof(void*);
 
 QString Pointer::pretty() const
 {
@@ -1069,6 +1093,29 @@ QVariant BaseType::minVal() const
         return std::numeric_limits<double>::min();
     }
     return QVariant();
+}
+
+qint32 BaseType::getByteSize() const
+{
+    switch( d_baseType )
+    {
+    case BOOLEAN:
+    case CHAR:
+    case BYTE:
+        return 1;
+    case WCHAR:
+    case SHORTINT:
+        return 2;
+    case SET:
+    case INTEGER:
+    case REAL:
+    case ENUMINT:
+        return 4;
+    case LONGINT:
+    case LONGREAL:
+        return 8;
+    }
+    return -1;
 }
 
 Named*Type::findDecl(bool recursive) const
@@ -1254,4 +1301,10 @@ quint8 UnExpr::visibilityFor(Module* m) const
 bool BinExpr::isArithRelation() const
 {
     return ( d_op >= EQ && d_op <= GEQ ) || ( d_op >= ADD && d_op <= SUB ) || ( d_op >= MUL && d_op <= MOD );
+}
+
+
+qint32 Enumeration::getByteSize() const
+{
+    return BaseType(BaseType::ENUMINT).getByteSize();
 }

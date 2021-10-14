@@ -1,0 +1,9 @@
+definition UnsafeImport1 [ extern "C" ]
+
+type 
+	T = cstruct 
+			a,b: integer
+			end
+
+
+end UnsafeImport1

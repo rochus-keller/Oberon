@@ -1233,14 +1233,6 @@ struct ObxCilGenImp : public AstVisitor
                 str.replace("\"","\\\"");
                 line(loc).ldstr_("\"" + str + "\\0" + "\""); // without explicit \0 the resulting char[] has no trailing zero!
                 line(loc).callvirt_("char[] [mscorlib]System.String::ToCharArray()",0,true);
-#if 0 // TEST
-                line(loc).dup_();
-                line(loc).ldlen_();
-                line(loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
-                line(loc).dup_();
-                line(loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
-                line(loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
-#endif
             }
             break;
         case Type::BYTEARRAY:
@@ -3559,7 +3551,10 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
             return false;
         }else if( m->d_isDef )
         {
-            // NOP, TODO
+            if( m->d_externC )
+            {
+                qWarning() << "TODO: implement pinvoke of" << m->getName();
+            } // else NOP
         }else
         {
 #ifdef _MY_GENERICS_

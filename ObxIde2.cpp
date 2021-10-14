@@ -1659,10 +1659,8 @@ bool Ide::compile(bool doGenerate )
     d_mode = Compiling;
     const bool res = d_pro->reparse();
     d_mode = Idle;
-    if( !res )
-        return false;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
-    if( doGenerate )
+    if( res && doGenerate )
        generate();
     onErrors();
     fillMods();
@@ -3210,7 +3208,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.7");
+    a.setApplicationVersion("0.9.8");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

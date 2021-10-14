@@ -162,8 +162,9 @@ struct ValidatorImp : public AstVisitor
             error( me->d_receiver->d_loc, Validator::tr("the receiver must be of record or pointer to record type") );
             return;
         }
-#if 0
+#if 1
         // yes, they can, but there is no virtual method table and no type pointer for such in Oberon+ (but it can be in C)
+        // but not yet
         if( t->d_unsafe )
         {
             error( me->d_receiver->d_loc, Validator::tr("CSTRUCT and CUNION cannot have type-bound procedures") );
@@ -881,6 +882,45 @@ struct ValidatorImp : public AstVisitor
         return false;
     }
 
+    void checkRecordUse( Type* t, bool isVarParam = false )
+    {
+        Type* td = derefed(t);
+        bool isPointer = false;
+        if( td && td->getTag() == Thing::T_Pointer )
+        {
+            td = derefed( cast<Pointer*>(td)->d_to.data() );
+            isPointer = true;
+        }
+
+        if( td && td->getTag() == Thing::T_Record )
+        {
+            Record* r = cast<Record*>(td);
+            bool changed = false;
+            if( ( isPointer && !isVarParam ) || ( !isPointer && isVarParam ) )
+            {
+                changed = !r->d_usedByRef;
+                r->d_usedByRef = true;
+            }else
+            {
+                changed = !r->d_usedByVal;
+                r->d_usedByVal = true;
+            }
+#if 1
+            // SDL has no record which is used both by val and by ref
+            if( changed && mod->d_externC )
+            {
+                Named* n = r->findDecl();
+                if( n && r->d_usedByRef && r->d_usedByVal )
+                    qDebug() << n->d_name << "used by ref and by val" << n->d_loc.d_row << mod->getName();
+                else if( n && r->d_usedByRef )
+                    qDebug() << n->d_name << "used by ref" << n->d_loc.d_row << mod->getName();
+                else if( n && r->d_usedByVal )
+                    qDebug() << n->d_name << "used by val" << n->d_loc.d_row << mod->getName();
+            }
+#endif
+        }
+    }
+
     void checkCallArg( ProcType* pt, Parameter* formal, Ref<Expression>& actual )
     {
         Type* tf = derefed(formal->d_type.data());
@@ -894,6 +934,7 @@ struct ValidatorImp : public AstVisitor
             error( actual->d_loc, Validator::tr("this expression cannot be used as actual parameter"));
             return;
         }
+
 
         const int tftag = tf->getTag();
         Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
@@ -1671,6 +1712,7 @@ struct ValidatorImp : public AstVisitor
 #if 0
             // maybe too strong; we need to be able to allocate carray e.g. on the stack; we still can do it using imported named types
             // but actually it doesn't harm; otherwise we would have to declare carray in library module for all required lengths
+            // this is mostly about anonymous local type definitions in variable declarations, not in named type declarations
             if( !mod->d_externC )
                 error(me->d_loc, Validator::tr("CARRAY only supported in external library modules; use ARRAY or [] instead") );
 #endif
@@ -1728,9 +1770,10 @@ struct ValidatorImp : public AstVisitor
             me->d_flag->accept(this);
 #endif
 
-#if 0
+#if 1
         // maybe too strong; we need to be able to allocate cstruct e.g. on the stack; we still can import named types
         // but it doesn't harm; we can only use them by value, and we can take their address by passing/assigning to a *type
+        // but we should not support declaring cstruct types throughout the app; using the types in var decls is ok though.
         if( !mod->d_externC && me->d_unsafe )
         {
             if( me->d_union )
@@ -1743,10 +1786,10 @@ struct ValidatorImp : public AstVisitor
             error(me->d_loc, Validator::tr("RECORD not supported in external library modules; use CSTRUCT instead") );
 
 
-#if 0
+#if 1
         if( !me->d_base.isNull() && me->d_unsafe )
             error( me->d_base->d_loc, Validator::tr("A cstruct cannot have a base type") );
-            // not true; many cstruct in BBOX inherit from COM.IUnknown etc.
+            // some cstruct in BBOX inherit from COM.IUnknown, fixed
         else
 #endif
         if( !me->d_base.isNull() )
@@ -1787,6 +1830,7 @@ struct ValidatorImp : public AstVisitor
             }
 
 #if 0
+            // cstruct cannot have base type so we don't need this
             if( me->d_baseRec && me->d_baseRec->d_unsafe != me->d_unsafe )
                 error( me->d_base->d_loc, Validator::tr("cstruct cannot inherit from record and vice versa") );
                 // in BBOX regular records inherit from COM cstructs
@@ -1856,11 +1900,15 @@ struct ValidatorImp : public AstVisitor
 #if 0 // TEST
             checkUnsafePointer(me->d_return.data(), true, me->d_loc);
 #endif
+            checkRecordUse(me->d_return.data());
 
         }
         checkNoAnyRecType(me->d_return.data());
         foreach( const Ref<Parameter>& p, me->d_formals )
+        {
             p->accept(this);
+            checkRecordUse(p->d_type.data(), p->d_var);
+        }
     }
 
     //////// Others
@@ -2472,6 +2520,7 @@ struct ValidatorImp : public AstVisitor
             if( !me->d_type->hasByteSize() )
                 error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
             checkNoAnyRecType(me->d_type.data());
+            // checkRecordUse(me->d_type.data());
         }
     }
 
@@ -2673,6 +2722,14 @@ struct ValidatorImp : public AstVisitor
             return false;
         lhs = derefed(lhs);
         rhs = derefed(rhs);
+
+#if 0 // TODO
+        // added because of pinvoke which tends to make copies anyway so it's less implicit if we
+        // copy ourselves from safe to unsafe and back if necessary
+        if( lhs->d_unsafe != rhs->d_unsafe )
+            return false;
+#endif
+
         const int lhstag = lhs->getTag();
         const int rhstag = rhs->getTag();
         if( lhstag == Thing::T_Array )

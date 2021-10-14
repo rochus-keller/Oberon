@@ -199,16 +199,20 @@ namespace Obx
         uint d_byValue : 1;   // used to mark a Record which can be represented as CLI struct
         uint d_selfRef : 1;  // true if legally referencing self (i.e. via pointer)
         uint d_metaActual : 1;  // true if this is an actual type replacing ANY in instantiation
+        uint d_usedByVal : 1; // true if record is used by value as a formal parameter, return, field or variable
+        uint d_usedByRef : 1; // true if record is used as pointer base type in a formal param, return, field or variable or VAR param
 
         // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
 
         Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),
-            d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false),d_metaActual(false) {}
+            d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false),d_metaActual(false),
+            d_usedByVal(false), d_usedByRef(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
         virtual bool hasByteSize() const { return true; }
+        virtual qint32 getByteSize() const { return -1; }
         Named* findDecl(bool recursive = false) const;
         int getBaseType() const { return d_baseType; }
         bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
@@ -231,6 +235,7 @@ namespace Obx
         BaseType(quint8 t = NIL ) { d_baseType = t; }
         QVariant maxVal() const;
         QVariant minVal() const;
+        qint32 getByteSize() const;
         int getTag() const { return T_BaseType; }
         void accept(AstVisitor* v) { v->visit(this); }
         const char* getTypeName() const { return s_typeName[d_baseType]; }
@@ -243,7 +248,9 @@ namespace Obx
         int getTag() const { return T_Pointer; }
         bool isStructured(bool withPtrAndProcType = false) const { return withPtrAndProcType; }
         void accept(AstVisitor* v) { v->visit(this); }
+        qint32 getByteSize() const { return s_pointerByteSize; }
         QString pretty() const;
+        static quint8 s_pointerByteSize;
     };
 
     struct Array : public Type
@@ -256,6 +263,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured(bool withPtrAndProcType = false) const { return true; }
         bool hasByteSize() const;
+        qint32 getByteSize() const;
         Type* getTypeDim(int& dims , bool openOnly = false) const;
         QString pretty() const;
         QList<Array*> getDims();
@@ -272,8 +280,9 @@ namespace Obx
         QList< Ref<Field> > d_fields;
         QList< Ref<Procedure> > d_methods;
         quint16 d_fieldCount, d_methCount;
+        qint32 d_byteSize;
 
-        Record():d_baseRec(0),d_fieldCount(0),d_methCount(0) {}
+        Record():d_baseRec(0),d_fieldCount(0),d_methCount(0),d_byteSize(-1) {}
         int getTag() const { return T_Record; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured(bool withPtrAndProcType = false) const { return true; }
@@ -281,6 +290,7 @@ namespace Obx
         QString pretty() const { return d_unsafe ? ( d_union ? "CUNION" : "CSTRUCT" ) : "RECORD"; }
         QList<Field*> getOrderedFields() const;
         Record* findBySlot(int) const;
+        qint32 getByteSize() const { return d_byteSize; }
     };
 
     struct ProcType : public Type
@@ -300,6 +310,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
         QString pretty() const { return d_typeBound ? "PROC^" : "PROC"; }
+        qint32 getByteSize() const { return Pointer::s_pointerByteSize; }
     };
 
     struct QualiType : public Type
@@ -313,6 +324,7 @@ namespace Obx
         QByteArrayList getQualiString() const;
         int getTag() const { return T_QualiType; }
         bool hasByteSize() const;
+        qint32 getByteSize() const;
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;
@@ -360,6 +372,7 @@ namespace Obx
     {
         Record* d_owner; // the record owning the field
         Field* d_super; // the field of the super class this field overrides, or zero
+        // slots are used for byte offsets of the field in the record
         Field():d_super(0),d_owner(0){}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Field; }
@@ -407,6 +420,7 @@ namespace Obx
         int getTag() const { return T_Enumeration; }
         void accept(AstVisitor* v) { v->visit(this); }
         QString pretty() const { return "enumeration"; }
+        qint32 getByteSize() const;
     };
 
     struct Import : public Named
