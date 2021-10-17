@@ -28,17 +28,18 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
 
 struct EvalVisitor : public AstVisitor
 {
-    Module* mod;
+    Scope* mod;
     Ob::Errors* errs;
+    bool supportVla;
     Evaluator::Result val;
 
-    EvalVisitor(Module* m, Ob::Errors* e):mod(m),errs(e){}
+    EvalVisitor(Scope* m, bool b, Ob::Errors* e):mod(m),errs(e),supportVla(b){}
 
     void error( Expression* e, const QString& msg )
     {
         if( errs )
-            errs->error( Errors::Semantics, Loc(e->d_loc,mod->d_file), msg );
-        throw msg;
+            errs->error( Errors::Semantics, Loc(e->d_loc,mod->getModule()->d_file), msg );
+        throw "";
     }
 
     void push( const QVariant& value, quint8 vtype, bool wide = false, quint16 strlen = 0 )
@@ -343,7 +344,14 @@ struct EvalVisitor : public AstVisitor
         Named* n = me->getIdent();
         if( n && n->getTag() == Thing::T_Const )
             evalConst( cast<Const*>(n) );
-        else
+        else if( n && n->getTag() == Thing::T_Parameter && supportVla )
+        {
+            Parameter* p = cast<Parameter*>(n);
+            if( p->d_scope == mod )
+                throw 0;
+            else
+                error( me, Evaluator::tr("non-local access to parameter not supported") );
+        }else
             error( me, Evaluator::tr("operation not supported in constant expressions") );
     }
 
@@ -429,6 +437,7 @@ struct EvalVisitor : public AstVisitor
                 error( me, Evaluator::tr("invalid number of arguments") );
             break;
         case BuiltIn::LEN:
+        case BuiltIn::STRLEN:
             if( me->d_args.size() == 1 )
             {
                 Type* t = derefed(me->d_args.first()->d_type.data());
@@ -438,6 +447,19 @@ struct EvalVisitor : public AstVisitor
                 if( tag == Thing::T_Array )
                 {
                     Array* a = cast<Array*>(t);
+                    if( f->d_func == BuiltIn::STRLEN )
+                    {
+                        t = derefed(a->d_type.data());
+                        if( t && t->isChar() )
+                        {
+                            if( supportVla )
+                                throw 0;
+                            else
+                                error( me, Evaluator::tr("cannot determine string length in a const expression") );
+                        }else
+                            error( me, Evaluator::tr("incompatible argument type") );
+                    }// else
+
                     if( !a->d_lenExpr.isNull() )
                     {
                         val.d_value = a->d_len;
@@ -467,9 +489,9 @@ struct EvalVisitor : public AstVisitor
                             return;
                         }
                     }
-                    error( me, Evaluator::tr("cannot determine length this argument in a const expression") );
+                    error( me, Evaluator::tr("cannot determine the length of this argument in a const expression") );
                 }else
-                    error( me, Evaluator::tr("invalid argument for LEN() in a const expression") );
+                    error( me, Evaluator::tr("invalid argument in a const expression") );
             }else
                 error( me, Evaluator::tr("invalid number of arguments") );
             break;
@@ -674,8 +696,8 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::SYS_PUTREG:
         case BuiltIn::SYS_TYP:
         case BuiltIn::VAL:
-        case BuiltIn::STRLEN:
         case BuiltIn::WCHR:
+        default:
             // TODO: some should be implemented!
             error( me, Evaluator::tr("built-in procedure not supported in const expressions") );
             break;
@@ -749,16 +771,22 @@ struct EvalVisitor : public AstVisitor
     }
 };
 
-Evaluator::Result Evaluator::eval(Expression* e, Module* m, Errors* err)
+Evaluator::Result Evaluator::eval(Expression* e, Scope* m, bool supportVla, Errors* err)
 {
     Q_ASSERT( m != 0 && e != 0 );
-    EvalVisitor ev(m,err);
+    EvalVisitor ev(m, supportVla,err);
     try
     {
         e->accept( &ev );
         return ev.val;
-    }catch(...)
+    }catch(int)
     {
-        return Evaluator::Result();
+        Result r;
+        r.d_vtype = Literal::Integer;
+        r.d_dyn = true;
+        return r;
+    }catch(const char*)
+    { 
+        return Result();
     }
 }

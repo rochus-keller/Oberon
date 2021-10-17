@@ -120,7 +120,7 @@ struct ValidatorImp : public AstVisitor
             for( int j = 0; j < i.value()->d_valExpr.size(); j++ )
             {
                 i.value()->d_valExpr[j]->accept(this);
-                Evaluator::Result res = Evaluator::eval(i.value()->d_valExpr[j].data(), mod, err);
+                Evaluator::Result res = Evaluator::eval(i.value()->d_valExpr[j].data(), mod, false, err);
                 i.value()->d_values.append(res.d_value);
             }
         }
@@ -162,7 +162,7 @@ struct ValidatorImp : public AstVisitor
             error( me->d_receiver->d_loc, Validator::tr("the receiver must be of record or pointer to record type") );
             return;
         }
-#if 1
+#ifndef _OBX_USE_NEW_FFI_
         // yes, they can, but there is no virtual method table and no type pointer for such in Oberon+ (but it can be in C)
         // but not yet
         if( t->d_unsafe )
@@ -235,7 +235,7 @@ struct ValidatorImp : public AstVisitor
             for( int j = 0; j < i.value()->d_valExpr.size(); j++ )
             {
                 i.value()->d_valExpr[j]->accept(this);
-                Evaluator::Result res = Evaluator::eval(i.value()->d_valExpr[j].data(), mod, err);
+                Evaluator::Result res = Evaluator::eval(i.value()->d_valExpr[j].data(), levels.back().scope, false, err);
                 i.value()->d_values.append(res.d_value);
             }
         }
@@ -956,15 +956,18 @@ struct ValidatorImp : public AstVisitor
 
 #if 1
         // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters,
-        // implicit address of only supported in Oberon+ in calls to external library module procedures,
-        // but not in calls of normal procedures nor in assignments
+        // implicit address of only supported in Oberon+ in calls to external library module procedures
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
-                                           || ta == bt.d_stringType || ta == bt.d_wstringType  ) )
+                                           || ta == bt.d_stringType || ta == bt.d_wstringType ) )
         {
-            Pointer* p = cast<Pointer*>(tf);
-            if( pt->d_unsafe && p->d_unsafe &&
-                    isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private &&
-                    ( ta->d_unsafe || !ta->isStructured(true) || isArrayOfUnstructuredType(ta) ) ) // see BuiltIn::ADR
+#ifdef _OBX_USE_NEW_FFI_
+            if( pt->d_unsafe && tf->d_unsafe &&
+                   isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private && ta->d_unsafe )
+#else
+            if( pt->d_unsafe && tf->d_unsafe &&
+                isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private &&
+                ( ta->d_unsafe || !ta->isStructured(true) || isArrayOfUnstructuredType(ta) ) ) // see BuiltIn::ADR
+#endif
             {
                 Ref<UnExpr> ue = new UnExpr();
                 ue->d_loc = actual->d_loc;
@@ -1511,7 +1514,8 @@ struct ValidatorImp : public AstVisitor
             }else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
-            else if( me->d_op == BinExpr::ADD && lhsT->isText(&lwchar) && rhsT->isText(&rwchar) )
+            else if( me->d_op == BinExpr::ADD && lhsT->isText(&lwchar) && rhsT->isText(&rwchar)
+                     && !lhsT->d_unsafe && !rhsT->d_unsafe )
             {
                 // NOTE: because of Blackbox we had isTextual(str,true) so far, but there is actually only one place
                 // in BB minimal where a pointer is added; added a deref, case closed.
@@ -1687,17 +1691,33 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_lenExpr->d_loc, Validator::tr("expression doesn't evaluate to an integer") );
             else
             {
-                bool ok;
-                Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), mod,err);
-                const int len = res.d_value.toInt(&ok);
-                if( res.d_vtype != Literal::Integer || !ok || len <= 0 )
-                    error( me->d_lenExpr->d_loc, Validator::tr("expecting positive non-zero integer for array length") );
-                me->d_len = len;
+                Scope* scope = levels.back().scope;
+#if 0 // VLA support not ready yet
+                Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), scope, scope != mod,err);
+#else
+                Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), scope, false,err);
+#endif
+                if( res.d_dyn )
+                {
+                    me->d_len = 0;
+
+                }else
+                {
+                    bool ok;
+                    const int len = res.d_value.toInt(&ok);
+                    if( res.d_vtype != Literal::Integer || !ok || len <= 0 )
+                    {
+                        me->d_len = -1;
+                        error( me->d_lenExpr->d_loc, Validator::tr("expecting positive non-zero integer for array length") );
+                    }else
+                        me->d_len = len;
+                }
             }
         }
         if( me->d_type )
             me->d_type->accept(this);
         checkNoAnyRecType(me->d_type.data());
+        checkNoBooleanTypeInUnsafe(me->d_type.data(),me->d_unsafe, me->d_loc);
         checkSelfRef(me);
         if( me->d_type && me->d_type->getTag() == Thing::T_Array && !me->d_lenExpr.isNull() )
         {
@@ -1770,7 +1790,7 @@ struct ValidatorImp : public AstVisitor
             me->d_flag->accept(this);
 #endif
 
-#if 1
+#ifdef _OBX_USE_NEW_FFI_
         // maybe too strong; we need to be able to allocate cstruct e.g. on the stack; we still can import named types
         // but it doesn't harm; we can only use them by value, and we can take their address by passing/assigning to a *type
         // but we should not support declaring cstruct types throughout the app; using the types in var decls is ok though.
@@ -1786,7 +1806,7 @@ struct ValidatorImp : public AstVisitor
             error(me->d_loc, Validator::tr("RECORD not supported in external library modules; use CSTRUCT instead") );
 
 
-#if 1
+#ifdef _OBX_USE_NEW_FFI_
         if( !me->d_base.isNull() && me->d_unsafe )
             error( me->d_base->d_loc, Validator::tr("A cstruct cannot have a base type") );
             // some cstruct in BBOX inherit from COM.IUnknown, fixed
@@ -1896,6 +1916,7 @@ struct ValidatorImp : public AstVisitor
             me->d_return->accept(this);
             if( !me->d_return->hasByteSize() )
                 error(me->d_return->d_loc, Validator::tr("this type cannot be used here") );
+            checkNoBooleanTypeInUnsafe(me->d_return.data(), me->d_unsafe, me->d_loc);
 
 #if 0 // TEST
             checkUnsafePointer(me->d_return.data(), true, me->d_loc);
@@ -1919,6 +1940,7 @@ struct ValidatorImp : public AstVisitor
         if( me->d_type )
             me->d_type->accept(this);
         checkNoAnyRecType(me->d_type.data());
+        checkNoBooleanTypeInUnsafe(me->d_type.data(), me->d_unsafe, me->d_loc);
         curTypeDecl = 0;
     }
 
@@ -1928,7 +1950,7 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_constExpr->accept(this);
         me->d_type = me->d_constExpr->d_type.data();
-        Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, err);
+        Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, false, err);
         me->d_val = res.d_value;
         me->d_vtype = res.d_vtype;
         me->d_wide = res.d_wide;
@@ -1959,6 +1981,7 @@ struct ValidatorImp : public AstVisitor
         if( !me->d_var )
             checkNoAnyRecType(me->d_type.data());
 
+        checkNoBooleanTypeInUnsafe(me->d_type.data(), me->d_unsafe, me->d_loc);
         if( mod->d_externC && me->d_var )
         {
 #if 1
@@ -2155,15 +2178,13 @@ struct ValidatorImp : public AstVisitor
             me->d_rhs->d_type = p->d_to.data();
         }
 
-#if 0
-        // no longer supported in Oberon+; use explicit addrof operator instead of this implicit operation
-        if( lhsTag == Thing::T_Pointer && ( rhsTag == Thing::T_Record || rhsTag == Thing::T_Array
-                                            || rhsT == bt.d_stringType || rhsT == bt.d_wstringType ) )
+#if 1
+        if( lhsTag == Thing::T_Pointer && ( rhsTag == Thing::T_Record || rhsTag == Thing::T_Array ) )
         {
             // in BBOX the assignment of a structured value to an unsafe pointer is an "address of" operation
-            Pointer* p = cast<Pointer*>(lhsT);
-            if( p->d_unsafe && ( rhsT->d_unsafe || !rhsT->isStructured(true) || rhsT->isText() ) )
-                // don't allow taking the address of safe structured types besides text arrays
+            // in Oberon+ this is only allowed for unsafe types
+            if( lhsT->d_unsafe && rhsT->d_unsafe )
+                // don't allow taking the address of safe structured types
             {
                 Ref<UnExpr> ue = new UnExpr();
                 ue->d_loc = me->d_rhs->d_loc;
@@ -2351,15 +2372,15 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
             else
             {
-                Evaluator::Result res = Evaluator::eval(me->d_by.data(), mod, err);
+                Evaluator::Result res = Evaluator::eval(me->d_by.data(), mod, false, err);
                 if( res.d_vtype != Literal::Integer )
                     error( me->d_by->d_loc, Validator::tr("expecting an integer as the step value of the for loop"));
                 me->d_byVal = res.d_value;
             }
         }else if( enumType )
         {
-            Evaluator::Result from = Evaluator::eval(me->d_from.data(), mod, err);
-            Evaluator::Result to = Evaluator::eval(me->d_to.data(), mod, err);
+            Evaluator::Result from = Evaluator::eval(me->d_from.data(), mod, false, err);
+            Evaluator::Result to = Evaluator::eval(me->d_to.data(), mod, false, err);
             const int val = from.d_value <= to.d_value ? 1 : -1;
             me->d_by = new Literal( Literal::Integer, me->d_loc, val, enumType);
             me->d_byVal = val;
@@ -2521,14 +2542,31 @@ struct ValidatorImp : public AstVisitor
                 error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
             checkNoAnyRecType(me->d_type.data());
             // checkRecordUse(me->d_type.data());
+            checkNoBooleanTypeInUnsafe(me->d_type.data(),me->d_unsafe, me->d_loc);
         }
     }
 
-    inline void checkNoAnyRecType( Type* t )
+    void checkNoAnyRecType( Type* t )
     {
         Type* td = derefed(t);
         if( td == bt.d_anyRec || td == bt.d_voidType )
             error(t->d_loc, Validator::tr("this type cannot be used here") );
+    }
+
+    inline void checkNoBooleanTypeInUnsafe( Type* t, bool unsafe, const RowCol& loc )
+    {
+#ifdef _OBX_USE_NEW_FFI_
+        if( !mod->d_externC && !unsafe )
+            return;
+        Type* td = derefed(t);
+        if( td == bt.d_boolType )
+        {
+            if( unsafe )
+                error(loc, Validator::tr("BOOLEAN type not supported in CARRAY, CSTRUCT or CUNION") );
+            else
+                error(loc, Validator::tr("BOOLEAN type not supported in external library modules") );
+        }
+#endif
     }
 
     void visitStats( const StatSeq& ss )
@@ -2723,7 +2761,7 @@ struct ValidatorImp : public AstVisitor
         lhs = derefed(lhs);
         rhs = derefed(rhs);
 
-#if 0 // TODO
+#ifdef _OBX_USE_NEW_FFI_// TODO
         // added because of pinvoke which tends to make copies anyway so it's less implicit if we
         // copy ourselves from safe to unsafe and back if necessary
         if( lhs->d_unsafe != rhs->d_unsafe )
@@ -3015,6 +3053,11 @@ struct ValidatorImp : public AstVisitor
 
         lhsT = derefed(lhsT);
         rhsT = derefed(rhsT);
+
+#ifdef _OBX_USE_NEW_FFI_
+        if( lhsT && rhsT && lhsT->d_unsafe != rhsT->d_unsafe )
+            return false;
+#endif
 
         const int ltag = lhsT->getTag();
         Array* la = ltag == Thing::T_Array ? cast<Array*>(lhsT) : 0 ;

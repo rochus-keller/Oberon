@@ -130,7 +130,7 @@ ArrayType ::= ( ARRAY
 
 LengthList ::= length {',' length}
 
-length* ::= ConstExpression
+length* ::= ConstExpression // TODO: allow VLA for local vars where length is dependent on param or module variable
 
 #ifdef BBOX
 SysFlag ::=  '[' ConstExpression ']' 

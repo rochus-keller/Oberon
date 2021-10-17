@@ -3,10 +3,16 @@ module Unsafe1
 
 var
 	t : I.T
+	s : carray 32 of char
+	r : integer
 	//a : pointer to array of char
 	//aa : cpointer to carray of char
 begin
 	t.a := 33
+	s := "gugus"
+	r := I.doit(s,22)
+	println(r)
+	println(s)
 	//t.b := 44
 	//aa^ := a^
 	//println(t.a+t.b)

@@ -72,7 +72,11 @@ namespace Obx
         virtual void addField( const QByteArray& fieldName, // on top level or in class
                        const QByteArray& typeRef,
                        bool isPublic = true,
-                       bool isStatic = false ) {}
+                       bool isStatic = false,
+                       int explicitOffset = -1,
+                       const QByteArray& marshalAs = QByteArray() ) {}
+        // marshalAs syntax like ILASM nativeType production, i.e. the contents of marshal() predicate,
+        // e.g. "fixed array [128]", see ISO 23271 p. 502 (526)
     };
 
     class IlEmitter
@@ -103,7 +107,9 @@ namespace Obx
         void addField( const QByteArray& fieldName, // on top level or in class
                        const QByteArray& typeRef,
                        bool isPublic = true,
-                       bool isStatic = false );
+                       bool isStatic = false,
+                       int explicitOffset = -1,
+                       const QByteArray& marshalAs = QByteArray() );
 
         quint32 addLocal( const QByteArray& typeRef, QByteArray name = QByteArray() );
         quint32 addArgument(const QByteArray& typeRef, QByteArray name = QByteArray() );
@@ -259,7 +265,9 @@ namespace Obx
         virtual void addField( const QByteArray& fieldName,
                        const QByteArray& typeRef,
                        bool isPublic = true,
-                       bool isStatic = false );
+                       bool isStatic = false,
+                       int explicitOffset = -1,
+                       const QByteArray& marshalAs = QByteArray() );
     protected:
         inline QByteArray ws() { return QByteArray(level*4,' '); }
     private:

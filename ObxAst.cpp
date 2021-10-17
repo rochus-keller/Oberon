@@ -836,7 +836,7 @@ quint8 IdentLeaf::visibilityFor(Module*) const
 
 QSet<Thing*> Thing::insts;
 
-Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false)
+Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false),d_unsafe(false)
 {
     insts.insert(this);
 }

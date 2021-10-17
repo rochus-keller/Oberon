@@ -1219,7 +1219,7 @@ void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byVal
     SignatureParser::Node* me = d_imp->level.back()->subs.value(name);
     Qualifiers flags = Qualifiers::Public;
     if( byValue )
-        flags |= Qualifiers::Sealed;
+        flags |= Qualifiers::Sealed | Qualifiers::Sequential | Qualifiers::Ansi;
     Class* cls = 0;
     if( me == 0 )
     {
@@ -1254,7 +1254,7 @@ void PelibGen::endClass()
     d_imp->level.pop_back();
 }
 
-void PelibGen::addField(const QByteArray& fieldName, const QByteArray& typeRef, bool isPublic, bool isStatic)
+void PelibGen::addField(const QByteArray& fieldName, const QByteArray& typeRef, bool isPublic, bool isStatic, int explicitOffset, const QByteArray& marshalAs)
 {
     SignatureParser::MemberHint hint;
     if( isStatic )
@@ -1262,8 +1262,13 @@ void PelibGen::addField(const QByteArray& fieldName, const QByteArray& typeRef, 
     else
         hint = SignatureParser::Instance;
 
+    // TODO: marshalAs, see MonoMarshalSpec, MONO_NATIVE_BYVALARRAY
+    // this features is acutally missing in the ECMA-335 issue 3 to 5, but not in Lidins book, see p. 142 there.
     SignatureParser::Node* field = SignatureParser::findOrCreateField(d_imp->level.back(),unescape(fieldName),
                                        d_imp->find(SignatureParser::TypeRef,typeRef), hint);
+    if( explicitOffset >= 0 && field->thing )
+        static_cast<Field*>(field->thing)->ExplicitOffset(explicitOffset);
 }
 
+// TODO: A-w-f-y Json fails when generated with Pelib, but not when generating IL and then running ILASM
 

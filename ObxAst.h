@@ -70,13 +70,14 @@ namespace Obx
         uint d_slotValid : 1;
         uint d_slotAllocated : 1;
         uint d_visited : 1;
+        uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array, or fields of cstruct/cunion
 
     #ifdef _DEBUG
         static QSet<Thing*> insts;
         Thing();
         virtual ~Thing();
     #else
-        Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false) {}
+        Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false),d_unsafe(false) {}
         virtual ~Thing() {}
     #endif
         virtual bool isScope() const { return false; }
@@ -192,7 +193,6 @@ namespace Obx
         Type* d_binding; // points back to pointer or array type in case of anonymous type
 
         uint d_baseType : 5;    // used by BaseType
-        uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array
         uint d_union : 1;   // used by Record (CUNION)
         uint d_typeBound : 1; // used by ProcType
         uint d_varargs : 1; // used by ProcType
@@ -204,7 +204,7 @@ namespace Obx
 
         // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
 
-        Type():d_decl(0),d_binding(0),d_baseType(0),d_unsafe(false),d_union(false),
+        Type():d_decl(0),d_binding(0),d_baseType(0),d_union(false),
             d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false),d_metaActual(false),
             d_usedByVal(false), d_usedByRef(false) {}
         typedef QList< Ref<Type> > List;
@@ -255,8 +255,8 @@ namespace Obx
 
     struct Array : public Type
     {
-        quint32 d_len;  // zero for open arrays
-        Ref<Expression> d_lenExpr;
+        qint32 d_len;  // zero if dynamic, -1 if error
+        Ref<Expression> d_lenExpr; // null for open arrays
         Ref<Type> d_type;
         Array():d_len(0) {}
         int getTag() const { return T_Array; }
@@ -347,12 +347,11 @@ namespace Obx
         uint d_hasErrors : 1;
         uint d_liveTo : 20;
         uint d_noBody : 1; // Procedure
-        uint d_unsafe : 1; // e.g. fields of cstruct/cunion
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
             d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
             d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
-            d_hasErrors(0),d_noBody(0),d_unsafe(0) {}
+            d_hasErrors(0),d_noBody(0) {}
         virtual QByteArray getName() const { return d_name; }
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }

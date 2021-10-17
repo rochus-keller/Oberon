@@ -85,9 +85,9 @@ void IlEmitter::endClass()
     d_out->endClass();
 }
 
-void IlEmitter::addField(const QByteArray& fieldName, const QByteArray& typeRef, bool isPublic, bool isStatic)
+void IlEmitter::addField(const QByteArray& fieldName, const QByteArray& typeRef, bool isPublic, bool isStatic, int explicitOffset, const QByteArray& marshalAs)
 {
-    d_out->addField(fieldName, typeRef, isPublic, isStatic );
+    d_out->addField(fieldName, typeRef, isPublic, isStatic, explicitOffset, marshalAs );
 }
 
 quint32 IlEmitter::addLocal(const QByteArray& typeRef, QByteArray name)
@@ -1205,7 +1205,7 @@ void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool 
         out << "assembly ";
 
     if( byValue )
-        out << "sealed ";
+        out << "sealed sequential ansi ";
 
     out << className;
     // << formatMetaParams(thisMod)
@@ -1227,9 +1227,11 @@ void IlAsmRenderer::endClass()
     out << ws() << "}" << endl;
 }
 
-void IlAsmRenderer::addField(const QByteArray& fieldName, const QByteArray& typeRef, bool isPublic, bool isStatic)
+void IlAsmRenderer::addField(const QByteArray& fieldName, const QByteArray& typeRef, bool isPublic, bool isStatic, int explicitOffset, const QByteArray& marshalAs)
 {
     out << ws() << ".field ";
+    if( explicitOffset >= 0 )
+        out << "[" << explicitOffset << "] ";
     if( true ) // just make everything public: isPublic )
         out << "public ";
     else
@@ -1237,5 +1239,7 @@ void IlAsmRenderer::addField(const QByteArray& fieldName, const QByteArray& type
     if( isStatic )
         out << "static ";
     out << typeRef;
+    if( !marshalAs.isEmpty() )
+        out << " marshal(" << marshalAs << ")";
     out << " " << fieldName << endl;
 }

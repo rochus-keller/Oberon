@@ -32,13 +32,14 @@ namespace Obx
         struct Result
         {
             QVariant d_value;
-            uint d_vtype : 8; // Literal::ValueType
+            uint d_vtype : 7; // Literal::ValueType
             uint d_strLen : 23;
             uint d_wide : 1; // mark WSTRING and WCHAR
-            Result():d_vtype(Literal::Invalid),d_wide(false),d_strLen(0){}
+            uint d_dyn : 1;
+            Result():d_vtype(Literal::Invalid),d_wide(false),d_strLen(0),d_dyn(0){}
         };
 
-        static Result eval( Expression*, Module*, Ob::Errors* = 0 );
+        static Result eval( Expression*, Scope*, bool supportVla = false, Ob::Errors* = 0 );
 
     private:
         Evaluator();

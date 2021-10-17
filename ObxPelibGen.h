@@ -54,7 +54,9 @@ namespace Obx
         virtual void addField( const QByteArray& fieldName, // on top level or in class
                        const QByteArray& typeRef,
                        bool isPublic = true,
-                       bool isStatic = false );
+                       bool isStatic = false,
+                       int explicitOffset = -1,
+                       const QByteArray& marshalAs = QByteArray() );
     private:
         struct Imp;
         Imp* d_imp;

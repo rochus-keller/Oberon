@@ -1767,7 +1767,10 @@ int Parser::procedureHeading(Procedure* p, Scope* scope)
     p->d_type = t.data();
     t->d_loc = p->d_loc;
     if(d_mod->d_externC )
+    {
         t->d_unsafe = true;
+        p->d_unsafe = true;
+    }
     if( d_la == Tok_Lpar )
     {
         formalParameters(p, t.data());
@@ -1980,6 +1983,7 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
         p->d_loc = name.toRowCol();
         p->d_var = var;
         p->d_const = in;
+        p->d_unsafe = pt->d_unsafe;
         if( pt->find( p->d_name ) != 0 )
             semanticError(p->d_loc,tr("name is not unique in parameter list") );
         pt->d_formals.append(p);

@@ -1,9 +1,11 @@
-definition UnsafeImport1 [ extern "C" ]
+definition UnsafeImport1 [ extern 'C', dll 'Test' ]
 
 type 
 	T = cstruct 
 			a,b: integer
+			s: carray 32 of char
 			end
 
+	proc doit(str: *[]char; a: integer): integer
 
 end UnsafeImport1
