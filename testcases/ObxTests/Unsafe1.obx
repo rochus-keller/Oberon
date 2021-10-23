@@ -1,19 +1,120 @@
 module Unsafe1
 	import I := UnsafeImport1
 
+	proc test(): I.T
+		var t: I.T
+	begin
+		t.a := 44
+		return t
+	end test
+	
+	proc test2( t: I.T )
+	begin
+		println(t.b)
+		assert(t.b=55)
+	end test2
+		
+	proc test3(s: *I.T):integer
+	begin
+		println(s.s)
+		return s.d
+	end test3
 var
-	t : I.T
-	s : carray 32 of char
+	t, t2 : I.T
+	at : carray 1 of *I.T
+	pt : *I.T
+	s, s2 : carray 32 of char
+	ss: array 32 of char
+	sp: cpointer to carray of char
+	ii: carray 10 of integer
+	i: integer
+	point: I.P
+
+	// TODO: crash in pelib while generating: a: array 10 of cpointer to I.T
 	r : integer
 	//a : pointer to array of char
 	//aa : cpointer to carray of char
 begin
+	println("begin Unsafe1")
 	t.a := 33
+	t2 := t
+	assert(t.a=33)
+	assert(t2.a=33)
+	assert(test().a=44)
+	t2 := test()
+	assert(t2.a=44)
+	t2.b := 55
+	test2(t2)
+	
+	s[0] := "g"
+	s[1] := "u"
+	s[2] := "g"
+	s[3] := 0x
+	assert(s[0]="g")
+	assert(s[1]="u")
+	assert(s[2]="g")
+
 	s := "gugus"
+	s2 := s
+	assert(s2=s)
+	ss := s2
+	
+	assert(s="gugus")
+	assert("gugus"=s)
+	assert(ss="gugus")
+	
 	r := I.doit(s,22)
+	assert(r=66)
+	assert(s="gandalf")
+	
+	r := I.hello()
+	assert(r=42)
+
+	t.s := "welcome to cli"
+	t.a := 123
+	t.b := 456
+	t.d := 123456
+	t.e := 789
+	r := I.doit2(adr(t)) // with or without adr()
+	assert(t.s="gandalf")
+	t.s[1] := "u"
+	assert(r=66)
+	assert(t.s="gundalf")
+	
+	r := I.doit3(ii,len(ii))
+	assert(r=77)
+	for i := 0 to len(ii)-1 do
+		println(ii[i])
+	end
+
+	r := I.doit6( at )
+	assert(r=123)
+	assert(at[0].a=1234567)
+	assert(at[0].b=89012345)
+	assert(at[0].s="static struct")
+	assert(at[0].d=678910)
+	assert(at[0].e=456)
+
+	pt := I.doit7()
+	assert(pt.a=678910)
+	assert(pt.b=9012345)
+	assert(pt.s="static struct 2")
+	assert(pt.d=1234567)
+	assert(pt.e=789)
+	
+	point.x := 33
+	point.y := 44
+	point.z := 55
+	r := I.doit8(point)
+	assert(r=234)
+	
+	point := I.doit9(66,77,88)
+	assert(point.x=66)
+	assert(point.y=77)
+	assert(point.z=88)
+	
+	r := I.doit10(test3)
 	println(r)
-	println(s)
-	//t.b := 44
-	//aa^ := a^
-	//println(t.a+t.b)
+	
+	println("end Unsafe1")
 end Unsafe1

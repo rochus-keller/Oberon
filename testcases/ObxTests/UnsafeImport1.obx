@@ -4,8 +4,22 @@ type
 	T = cstruct 
 			a,b: integer
 			s: carray 32 of char
+			d: integer
+			e: shortint
 			end
+	P = cstruct x,y,z: integer end
+	CB = proc(s: *T):integer
 
 	proc doit(str: *[]char; a: integer): integer
+	proc hello(): integer [ prefix 'SDL_' ]
+	
+	proc doit2( t: *T ): integer
+	proc doit3( i: *[]integer; count: integer ): integer
+	proc doit6( out: *[]*T ): integer // cpointer to carray 1 of cpointer to T
+	proc doit7():*T
+	proc doit8(p:P):integer
+	proc doit9(x,y,z:integer):P
+	
+	proc doit10(cb: CB):integer
 
 end UnsafeImport1

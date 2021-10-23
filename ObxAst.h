@@ -209,10 +209,12 @@ namespace Obx
             d_usedByVal(false), d_usedByRef(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
+        virtual bool isPointer() const { return false; }
         virtual Type* derefed() { return this; }
         virtual QString pretty() const { return QString(); }
         virtual bool hasByteSize() const { return true; }
-        virtual qint32 getByteSize() const { return -1; }
+        virtual quint32 getByteSize() const { return 0; }
+        virtual quint32 getAlignment() const { return getByteSize(); }
         Named* findDecl(bool recursive = false) const;
         int getBaseType() const { return d_baseType; }
         bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
@@ -235,7 +237,7 @@ namespace Obx
         BaseType(quint8 t = NIL ) { d_baseType = t; }
         QVariant maxVal() const;
         QVariant minVal() const;
-        qint32 getByteSize() const;
+        quint32 getByteSize() const;
         int getTag() const { return T_BaseType; }
         void accept(AstVisitor* v) { v->visit(this); }
         const char* getTypeName() const { return s_typeName[d_baseType]; }
@@ -248,8 +250,9 @@ namespace Obx
         int getTag() const { return T_Pointer; }
         bool isStructured(bool withPtrAndProcType = false) const { return withPtrAndProcType; }
         void accept(AstVisitor* v) { v->visit(this); }
-        qint32 getByteSize() const { return s_pointerByteSize; }
+        quint32 getByteSize() const { return s_pointerByteSize; }
         QString pretty() const;
+        bool isPointer() const { return true; }
         static quint8 s_pointerByteSize;
     };
 
@@ -263,7 +266,8 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured(bool withPtrAndProcType = false) const { return true; }
         bool hasByteSize() const;
-        qint32 getByteSize() const;
+        quint32 getByteSize() const;
+        quint32 getAlignment() const;
         Type* getTypeDim(int& dims , bool openOnly = false) const;
         QString pretty() const;
         QList<Array*> getDims();
@@ -280,9 +284,10 @@ namespace Obx
         QList< Ref<Field> > d_fields;
         QList< Ref<Procedure> > d_methods;
         quint16 d_fieldCount, d_methCount;
-        qint32 d_byteSize;
+        uint d_alignment : 4;
+        uint d_byteSize : 28;
 
-        Record():d_baseRec(0),d_fieldCount(0),d_methCount(0),d_byteSize(-1) {}
+        Record():d_baseRec(0),d_fieldCount(0),d_methCount(0),d_byteSize(0),d_alignment(0) {}
         int getTag() const { return T_Record; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isStructured(bool withPtrAndProcType = false) const { return true; }
@@ -290,7 +295,8 @@ namespace Obx
         QString pretty() const { return d_unsafe ? ( d_union ? "CUNION" : "CSTRUCT" ) : "RECORD"; }
         QList<Field*> getOrderedFields() const;
         Record* findBySlot(int) const;
-        qint32 getByteSize() const { return d_byteSize; }
+        quint32 getByteSize() const;
+        quint32 getAlignment() const { return d_alignment; }
     };
 
     struct ProcType : public Type
@@ -306,11 +312,12 @@ namespace Obx
         ProcType(){}
         int getTag() const { return T_ProcType; }
         bool isStructured(bool withPtrAndProcType = false) const { return withPtrAndProcType; }
+        bool isPointer() const { return true; }
         Parameter* find( const QByteArray& ) const;
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
         QString pretty() const { return d_typeBound ? "PROC^" : "PROC"; }
-        qint32 getByteSize() const { return Pointer::s_pointerByteSize; }
+        quint32 getByteSize() const { return Pointer::s_pointerByteSize; }
     };
 
     struct QualiType : public Type
@@ -324,7 +331,7 @@ namespace Obx
         QByteArrayList getQualiString() const;
         int getTag() const { return T_QualiType; }
         bool hasByteSize() const;
-        qint32 getByteSize() const;
+        quint32 getByteSize() const;
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;
@@ -419,7 +426,7 @@ namespace Obx
         int getTag() const { return T_Enumeration; }
         void accept(AstVisitor* v) { v->visit(this); }
         QString pretty() const { return "enumeration"; }
-        qint32 getByteSize() const;
+        quint32 getByteSize() const;
     };
 
     struct Import : public Named

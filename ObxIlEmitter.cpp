@@ -66,6 +66,8 @@ void IlEmitter::endMethod()
     meth.d_methodKind = d_methodKind;
     meth.d_name = d_method;
     meth.d_retType = d_retType;
+    meth.d_library = d_library;
+    meth.d_origName = d_origName;
     meth.d_stackDepth = d_maxStackDepth;
     d_out->addMethod(meth);
     d_method.clear();
@@ -73,11 +75,13 @@ void IlEmitter::endMethod()
     d_retType.clear();
     d_args.clear();
     d_locals.clear();
+    d_library.clear();
+    d_origName.clear();
 }
 
-void IlEmitter::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef)
+void IlEmitter::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef, int byteSize)
 {
-    d_out->beginClass(className,isPublic, byValue, superClassRef);
+    d_out->beginClass(className,isPublic, byValue, superClassRef, byteSize);
 }
 
 void IlEmitter::endClass()
@@ -111,6 +115,14 @@ void IlEmitter::setReturnType(const QByteArray& typeRef)
     Q_ASSERT( !d_method.isEmpty() );
     Q_ASSERT( d_retType.isEmpty() );
     d_retType = typeRef;
+}
+
+void IlEmitter::setPinvoke(const QByteArray& lib, const QByteArray& origName)
+{
+    Q_ASSERT( !d_method.isEmpty() );
+    Q_ASSERT( d_library.isEmpty() );
+    d_library = lib;
+    d_origName = origName;
 }
 
 quint32 IlEmitter::newLabel()
@@ -309,6 +321,13 @@ void IlEmitter::clt_(bool withUnsigned)
     delta(-2+1);
 }
 
+void IlEmitter::cpblk_()
+{
+    Q_ASSERT( !d_method.isEmpty() );
+    d_body.append(IlOperation(IL_cpblk));
+    delta(-3);
+}
+
 void IlEmitter::conv_(IlEmitter::ToType t, bool withOverflow, bool withUnsignedOverflow)
 {
     Q_ASSERT( !d_method.isEmpty() );
@@ -406,6 +425,13 @@ void IlEmitter::dup_()
     Q_ASSERT( !d_method.isEmpty() );
     d_body.append(IlOperation(IL_dup ) );
     delta(+1);
+}
+
+void IlEmitter::initblk_()
+{
+    Q_ASSERT( !d_method.isEmpty() );
+    d_body.append(IlOperation(IL_initblk ) );
+    delta(-3);
 }
 
 void IlEmitter::initobj_(const QByteArray& typeRef)
@@ -618,6 +644,9 @@ void IlEmitter::ldind_(IlEmitter::IndType t)
     case Ref:
         i = IL_ldind_ref;
         break;
+    case IntPtr:
+        i = IL_ldind_i;
+        break;
     default:
         Q_ASSERT( false );
     }
@@ -709,6 +738,13 @@ void IlEmitter::ldvirtftn_(const QByteArray& methodRef)
 {
     Q_ASSERT( !d_method.isEmpty() );
     d_body.append(IlOperation(IL_ldvirtftn,methodRef));
+    delta(-1+1);
+}
+
+void IlEmitter::localloc_()
+{
+    Q_ASSERT( !d_method.isEmpty() );
+    d_body.append(IlOperation(IL_localloc));
     delta(-1+1);
 }
 
@@ -870,6 +906,9 @@ void IlEmitter::stind_(IlEmitter::IndType t)
         break;
     case Ref:
         i = IL_stind_ref;
+        break;
+    case IntPtr:
+        i = IL_stind_i;
         break;
     default:
         Q_ASSERT( false );
@@ -1069,6 +1108,14 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
     case IlEmitter::Primary:
         out << "static final ";
         break;
+    case IlEmitter::Pinvoke:
+        out << "static pinvokeimpl(";
+        if( !m.d_library.isEmpty() )
+            out << "\"" << m.d_library << "\"";
+        if( !m.d_origName.isEmpty() )
+            out << " as \"" << m.d_origName << "\"";
+        out << ") ";
+        break;
     case IlEmitter::Virtual:
         out << "virtual "; // a virtual instance method
         break;
@@ -1104,7 +1151,7 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
     else
         out << "cil ";
     out << "managed {";
-    if( m.d_isRuntime )
+    if( m.d_isRuntime || m.d_methodKind == IlEmitter::Pinvoke )
     {
         out << "}" << endl;
         return;
@@ -1194,7 +1241,7 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
     out << ws() << "}" << endl;
 }
 
-void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef)
+void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef, int byteSize)
 {
     levels.push_back(className);
 
@@ -1218,6 +1265,10 @@ void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool 
         out << "[mscorlib]System.Object";
     out << " {" << endl;
     level++;
+    if( byteSize >= 0 )
+        out << ws() << ".size " << byteSize << endl;
+    if( byValue )
+        out << ws() << ".pack 0" << endl;
 }
 
 void IlAsmRenderer::endClass()

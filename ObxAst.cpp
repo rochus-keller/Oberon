@@ -746,12 +746,12 @@ bool QualiType::hasByteSize() const
         return false;
 }
 
-qint32 QualiType::getByteSize() const
+quint32 QualiType::getByteSize() const
 {
     if( !d_quali->d_type.isNull() )
         return d_quali->d_type->getByteSize();
     else
-        return -1;
+        return 0;
 }
 
 Type*QualiType::derefed()
@@ -888,6 +888,56 @@ Record*Record::findBySlot(int slot) const
     return 0;
 }
 
+quint32 Record::getByteSize() const
+{
+    if( d_alignment > 0 )
+        return d_byteSize;
+
+    Record* r = const_cast<Record*>(this);
+    // http://www.catb.org/esr/structure-packing/#_structure_alignment_and_padding
+    if( d_union )
+    {
+        r->d_byteSize = 0;
+        r->d_alignment = 1;
+        for( int i = 0; i < d_fields.size(); i++ )
+        {
+            const int size = d_fields[i]->d_type->getByteSize();
+            const int alig = d_fields[i]->d_type->getAlignment();
+            if( size > r->d_byteSize )
+                r->d_byteSize = size;
+            if( alig > r->d_alignment )
+                r->d_alignment = alig;
+            d_fields[i]->d_slot = 0;
+            d_fields[i]->d_slotValid = true;
+        }
+    }else
+    {
+        int off = 0;
+        int maxAlig = 1;
+        for( int i = 0; i < d_fields.size(); i++ )
+        {
+            const int size = d_fields[i]->d_type->getByteSize();
+            const int alig = d_fields[i]->d_type->getAlignment();
+            if( alig > maxAlig )
+                maxAlig = alig;
+            if( i != 0 )
+            {
+                // https://en.wikipedia.org/wiki/Data_structure_alignment#Computing_padding
+                const int padding = (alig - (off % alig)) % alig;
+                off += padding;
+            }
+            d_fields[i]->d_slot = off;
+            d_fields[i]->d_slotValid = true;
+            // qDebug() << i << "off" << off << "size" << size;
+            off += size;
+        }
+        r->d_alignment = maxAlig;
+        r->d_byteSize = off + (maxAlig - (off % maxAlig)) % maxAlig;
+        // qDebug() << "struct size" << r->d_byteSize << "alig" << r->d_alignment;
+    }
+    return d_byteSize;
+}
+
 bool Array::hasByteSize() const
 {
     if( d_lenExpr.isNull() )
@@ -898,19 +948,22 @@ bool Array::hasByteSize() const
         return false;
 }
 
-qint32 Array::getByteSize() const
+quint32 Array::getByteSize() const
 {
     if( d_lenExpr.isNull() )
-        return -1;
+        return 0;
     else if( d_type )
-    {
-        const qint32 bs = d_type->getByteSize();
-        if( bs < 0 )
-            return -1;
-        else
-            return d_len * bs;
-    }else
-        return -1;
+        return d_len * d_type->getByteSize();
+    else
+        return 0;
+}
+
+quint32 Array::getAlignment() const
+{
+    if( d_type )
+        return d_type->getAlignment();
+    else
+        return 1;
 }
 
 Type*Array::getTypeDim(int& dims, bool openOnly) const
@@ -1095,7 +1148,7 @@ QVariant BaseType::minVal() const
     return QVariant();
 }
 
-qint32 BaseType::getByteSize() const
+quint32 BaseType::getByteSize() const
 {
     switch( d_baseType )
     {
@@ -1115,7 +1168,7 @@ qint32 BaseType::getByteSize() const
     case LONGREAL:
         return 8;
     }
-    return -1;
+    return 0;
 }
 
 Named*Type::findDecl(bool recursive) const
@@ -1304,7 +1357,7 @@ bool BinExpr::isArithRelation() const
 }
 
 
-qint32 Enumeration::getByteSize() const
+quint32 Enumeration::getByteSize() const
 {
     return BaseType(BaseType::ENUMINT).getByteSize();
 }

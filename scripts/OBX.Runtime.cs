@@ -19,6 +19,12 @@
 
 namespace OBX
 {
+	using System.Runtime.InteropServices;
+	using System.Collections;
+	using System.Reflection;
+	using System.IO;
+	using System;
+	
 	public delegate void Command();
 	public class Runtime
 	{
@@ -85,6 +91,25 @@ namespace OBX
 			}
 			return false;
 		}
+		public static bool relOp( string l, string r, int op )
+		{
+			switch( op )
+			{
+			case 1: // EQ
+				return String.Compare(l,r) == 0;
+			case 2: // NEQ
+				return String.Compare(l,r) != 0;
+			case 3: // LT
+				return String.Compare(l,r) < 0;
+			case 4: // LEQ
+				return String.Compare(l,r) <= 0;
+			case 5: // GT
+				return String.Compare(l,r) > 0;
+			case 6: // GEQ
+				return String.Compare(l,r) >= 0;
+			}
+			return false;
+		}
 		public static bool relOp( char l, char r, int op )
 		{
 			switch( op )
@@ -123,6 +148,33 @@ namespace OBX
 			ll[0] = l;
 			ll[1] = '\0';
 			return relOp(ll,r,op);
+		}
+		internal static string ptrToStr( IntPtr ptr, bool wide )
+		{
+			if( wide )
+				return Marshal.PtrToStringUni(ptr);
+			else
+				return Marshal.PtrToStringAnsi(ptr);
+		}
+		public static bool relOp( IntPtr l, IntPtr r, int op, bool lwide, bool rwide )
+		{
+			return relOp( ptrToStr(l,lwide), ptrToStr(r,rwide), op );
+		}
+		public static bool relOp( IntPtr l, char r, int op, bool lwide, bool rwide )
+		{
+			return relOp( ptrToStr(l,lwide), toString(toString(r)), op );
+		}
+		public static bool relOp( IntPtr l, char[] r, int op, bool lwide, bool rwide )
+		{
+			return relOp( ptrToStr(l,lwide), toString(r), op );
+		}
+		public static bool relOp( char l, IntPtr r, int op, bool lwide, bool rwide )
+		{
+			return relOp( toString(toString(l)), ptrToStr(r,rwide), op );
+		}
+		public static bool relOp( char[] l, IntPtr r, int op, bool lwide, bool rwide )
+		{
+			return relOp( toString(l), ptrToStr(r,rwide), op );
 		}
 		public static int strlen( char[] str )
 		{
@@ -193,7 +245,7 @@ namespace OBX
 		}
 		public static void PACK(ref float x, int n)
 		{
-			x = x * (float)System.Math.Pow(2, n);
+			x = x * (float)Math.Pow(2, n);
 		}
 		public static void UNPACK(ref float x, ref int n)
 		{
@@ -206,7 +258,7 @@ namespace OBX
 		{
 			// source: https://stackoverflow.com/questions/389993/extracting-mantissa-and-exponent-from-double-in-c-sharp/390072#390072
 			// Translate the double into sign, exponent and mantissa.
-			long bits = System.BitConverter.DoubleToInt64Bits(d);
+			long bits = BitConverter.DoubleToInt64Bits(d);
 			// Note that the shift is sign-extended, hence the test against -1 not 1
 			bool negative = (bits & (1L << 63)) != 0;
 			int exponent = (int) ((bits >> 52) & 0x7ffL);
@@ -255,25 +307,25 @@ namespace OBX
 		}
 		private static string assemblyPath( string name )
 		{
-			return System.AppDomain.CurrentDomain.BaseDirectory + name + ".dll";
+			return AppDomain.CurrentDomain.BaseDirectory + name + ".dll";
 		}
 		public static bool loadModule( char[] name )
 		{
 			try
 			{
 				string n = toString(name);
-				// System.Reflection.Assembly a = System.Reflection.Assembly.Load(n); looks at the wrong place with CoreCLR (but ok with .NET)
+				// Assembly a = Assembly.Load(n); looks at the wrong place with CoreCLR (but ok with .NET)
 				string path = assemblyPath(n);
-				System.Reflection.Assembly a = System.Reflection.Assembly.LoadFile(path);
+				Assembly a = Assembly.LoadFile(path);
 				if( a == null )
 				{
-					System.Console.WriteLine("cannot load "+ path);
+					Console.WriteLine("cannot load "+ path);
 					return false;
 				}
-				System.Type t = a.GetType(n);
+				Type t = a.GetType(n);
 				if( t == null )
 					return false;
-				System.Reflection.MethodInfo m = t.GetMethod("ping#");
+				MethodInfo m = t.GetMethod("ping#");
 				if( m == null )
 					return false;
 				m.Invoke(null,null);
@@ -289,22 +341,22 @@ namespace OBX
 			{
 				string m = toString(module);
 				string path = assemblyPath(m);
-				System.Reflection.Assembly a = System.Reflection.Assembly.LoadFile(path);
+				Assembly a = Assembly.LoadFile(path);
 				if( a == null )
 				{
-					System.Console.WriteLine("cannot load "+ path);
+					Console.WriteLine("cannot load "+ path);
 					return null;
 				}
-				System.Type t = a.GetType(m);
+				Type t = a.GetType(m);
 				if( t == null )
 					return null;
 				string n = toString(proc);
-				System.Reflection.MethodInfo p = t.GetMethod(n);
+				MethodInfo p = t.GetMethod(n);
 				if( p == null )
 					return null;
 				// else
-				// System.Console.WriteLine("found "+new string(module)+"::"+new string(proc)); // TEST
-				return (Command)System.Delegate.CreateDelegate(typeof(Command),p);
+				// Console.WriteLine("found "+new string(module)+"::"+new string(proc)); // TEST
+				return (Command)Delegate.CreateDelegate(typeof(Command),p);
 			}catch
 			{
 				return null;
@@ -316,15 +368,95 @@ namespace OBX
 			{
 				cmd.Invoke();
 				return true;
-			}catch( System.Exception e )
+			}catch( Exception e )
 			{
 				if( report )
 				{
-					System.IO.TextWriter errorWriter = System.Console.Error;
+					TextWriter errorWriter = Console.Error;
 					errorWriter.WriteLine(e.ToString());
 				}
 				return false;
 			}
+		}
+		public static void copy( char[] lhs, char[] rhs )
+		{
+			int i = 0; 
+			while( rhs[i] != '\0' )
+			{
+				lhs[i] = rhs[i];
+				i++;
+			}
+			lhs[i] = '\0';
+		}
+		public static void copy( IntPtr lhs, char[] rhs, bool wide )
+		{
+			int i = 0; 
+			while( rhs[i] != '\0' )
+			{
+				if( wide )
+					Marshal.WriteInt16(lhs, i * 2, rhs[i]);
+				else
+					Marshal.WriteByte(lhs, i, (byte)rhs[i]);
+				i++;
+			}
+			if( wide )
+				Marshal.WriteInt16(lhs, i * 2, 0);
+			else
+				Marshal.WriteByte(lhs, i, 0);
+		}
+		public static void copy( char[] lhs, IntPtr rhs, bool wide )
+		{
+			int i = 0; 
+			while( true )
+			{
+				uint ch;
+				if( wide )
+					ch = (ushort)Marshal.ReadInt16(rhs, i * 2);
+				else
+					ch = Marshal.ReadByte(rhs, i);
+				lhs[i] = (char)ch;
+				if( ch == 0 )
+					break;
+				i++;
+			}
+		}
+		public static void copy( IntPtr lhs, IntPtr rhs, bool lwide, bool rwide )
+		{
+			int i = 0; 
+			while( true )
+			{
+				uint ch;
+				if( rwide )
+					ch = (ushort)Marshal.ReadInt16(rhs, i * 2);
+				else
+					ch = Marshal.ReadByte(rhs, i);
+				if( lwide )
+					Marshal.WriteInt16(lhs, i * 2, (short)(ushort)ch);
+				else if( ch > 255 )
+					Marshal.WriteByte(lhs, i, 0x20); // TODO
+				else
+					Marshal.WriteByte(lhs, i, (byte)ch);
+				if( ch == 0 )
+					break;
+				i++;
+			}
+		}
+		public static void checkPtrSize(int s)
+		{
+			if( s != IntPtr.Size )
+			{
+				throw new Exception(string.Format("This assembly only works in a {0} bit process", s * 8));
+			}
+		}
+		
+		private static Hashtable staticDelegs = new Hashtable();
+		// TODO public static Delegate
+		
+		private static ArrayList keepRefs = new ArrayList();
+		public static void addRef( object o )
+		{
+			if( !keepRefs.Contains(o) )
+				keepRefs.Add(o);
 		}
 	}
 }

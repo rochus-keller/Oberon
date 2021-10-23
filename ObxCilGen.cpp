@@ -36,7 +36,8 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
 #endif
 
 #define _MY_GENERICS_ // using my own generics implementation instead of the dotnet generics;
-                      // TODO there is an architectural value type initialization issue with dotnet generics!
+                      // there is an architectural value type initialization issue with dotnet generics!
+                      // NOTE that disabling this define most likely leads to errors, since no longer maintained
 
 // NOTE: mono (and .Net 4) ILASM and runtime error messages are of very little use, or even counter productive in that
 // they often point in the wrong direction.
@@ -148,26 +149,33 @@ struct CilGenTempPool
 {
     enum { MAX_TEMP = 32 };
     std::bitset<MAX_TEMP> d_slots;
+    QList<QByteArray> d_types;
     quint16 d_start;
-    qint16 d_max; // max used slot
-    CilGenTempPool():d_start(0),d_max(-1){}
+    CilGenTempPool():d_start(0){}
     void reset(quint16 start)
     {
         d_slots.reset();
         d_start = start;
-        d_max = -1;
+        d_types.clear();
     }
-    int buy()
+    int buy(const QByteArray& type)
     {
-        for( int i = 0; i < MAX_TEMP; i++ )
+        int i = 0;
+        while( i < d_types.size() && i < MAX_TEMP )
         {
-            if( !d_slots.test(i) )
+            if( d_types[i] == type && !d_slots.test(i) )
             {
                 d_slots.set(i);
-                if( i > d_max )
-                    d_max = i;
                 return i + d_start;
             }
+            i++;
+        }
+        if( i < MAX_TEMP )
+        {
+            d_types.append(type);
+            Q_ASSERT( !d_slots.test(i) );
+            d_slots.set(i);
+            return i + d_start;
         }
         Q_ASSERT( false );
         return -1;
@@ -176,6 +184,10 @@ struct CilGenTempPool
     {
         Q_ASSERT( i >= d_start );
         d_slots.set(i-d_start,false);
+    }
+    void sellAll()
+    {
+        d_slots.reset();
     }
 };
 
@@ -191,6 +203,8 @@ struct ObxCilGenImp : public AstVisitor
     bool forceAssemblyPrefix;
     bool forceFormalIndex;
     bool debug;
+    bool inUnsafeRecord;
+    bool checkPtrSize;
     RowCol last;
     CilGenTempPool temps;
     QHash<QByteArray, QPair<Array*,int> > copiers; // type string -> array, max dim count
@@ -200,7 +214,8 @@ struct ObxCilGenImp : public AstVisitor
     int suppressLine;
 
     ObxCilGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
-        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),suppressLine(0),debug(false)
+        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),
+        suppressLine(0),debug(false),inUnsafeRecord(false),checkPtrSize(false)
     {
     }
 
@@ -384,7 +399,7 @@ struct ObxCilGenImp : public AstVisitor
             res = formatType(member->d_type.data());
         res += " ";
         if( !ma.isEmpty() )
-            res += "class ";
+            res += "class "; // only if not my generics
         if( record == 0 ) // if module level
             res += moduleRef(member->getModule());
         else
@@ -456,13 +471,11 @@ struct ObxCilGenImp : public AstVisitor
 
     void emitArrayCopier( Array* a, const RowCol& loc )
     {
+        // this is no longer for array of char
+
         Q_ASSERT(a);
         Type* et = derefed(a->d_type.data());
         Q_ASSERT(et);
-
-        // the generated procedure is used for both multi- and onedimensional arrays.
-        // the multi-dim code is only generated if there is a multi-dim used in code (i.e. dims > 1)
-        // the generated procedure assumes array of array if dim > 0 and array of non-array if dim == 0
 
         emitter->beginMethod("'#copy'", true, IlEmitter::Static );
         const QByteArray type = formatType(a);
@@ -471,7 +484,7 @@ struct ObxCilGenImp : public AstVisitor
         beginBody();
 
         line(loc); // the same line for the whole method
-        const int len = temps.buy();
+        const int len = temps.buy("int32");
         Q_ASSERT( len >= 0 );
         emitter->ldarg_(0);
         emitter->ldlen_();
@@ -489,9 +502,8 @@ struct ObxCilGenImp : public AstVisitor
         emitter->ldlen_();
         emitter->label_(storeLen);
         emitter->stloc_(len); // len = qMin(lenLhs,lenRhs)
-        // TODO: only up to and including \0 for char arrays?
 
-        const int idx = temps.buy();
+        const int idx = temps.buy("int32");
         Q_ASSERT( idx >= 0 );
         emitter->ldc_i4(0);
         emitter->stloc_(idx);
@@ -517,7 +529,8 @@ struct ObxCilGenImp : public AstVisitor
             emitter->ldelem_(formatType(et));
 
             // stack: lhs array, rhs array
-            emitter->call_(formatArrayCopierRef(cast<Array*>(et)),2);
+            emitCopyArray(et,et,loc);
+            // emitter->call_(formatArrayCopierRef(cast<Array*>(et)),2);
 
             emitter->br_(addLbl);
         }else
@@ -625,107 +638,117 @@ struct ObxCilGenImp : public AstVisitor
             if( !r->d_base.isNull() )
                 superClassName = formatType(r->d_base.data());
         }
-        emitter->beginClass(className, isPublic, false, superClassName);
+        emitter->beginClass(className, isPublic, r->d_unsafe, superClassName, r->d_unsafe ? r->getByteSize() : -1 );
 
         foreach( const Ref<Field>& f, r->d_fields )
             f->accept(this);
         foreach( const Ref<Procedure>& p, r->d_methods )
             p->accept(this);
 
-        // default constructor
-        emitter->beginMethod(".ctor",true);
-        beginBody();
-        line(r->d_loc).ldarg_(0);
-        QByteArray what;
-        if( r->d_baseRec )
-            what = "void class " + classRef(r->d_baseRec) + formatMetaActuals(r->d_baseRec) + "::.ctor()";
-        else if( r->d_byValue )
-            what = "void [mscorlib]System.ValueType::.ctor()";
-        else
-            what = "void [mscorlib]System.Object::.ctor()";
-        line(r->d_loc).call_(what,1,false,true);
-
-        // initialize fields of current record
         QList<Field*> fields = r->getOrderedFields();
-        for( int i = 0; i < fields.size(); i++ )
+        // default constructor
+        if( !r->d_unsafe ) // unsafe records use initobj; no constructor is called for unsafe records
         {
-            // oberon system expects all vars to be initialized
-            line(fields[i]->d_loc).ldarg_(0);
-            if( emitInitializer(fields[i]->d_type.data(), false, fields[i]->d_loc ) )
-                emitStackToVar( fields[i], fields[i]->d_loc );
+            emitter->beginMethod(".ctor",true);
+            beginBody();
+            line(r->d_loc).ldarg_(0);
+            QByteArray what;
+            if( r->d_baseRec )
+            {
+                Q_ASSERT( !r->d_unsafe );
+                what = "void class " + classRef(r->d_baseRec) + formatMetaActuals(r->d_baseRec) + "::.ctor()";
+            }else if( r->d_byValue )
+                what = "void [mscorlib]System.ValueType::.ctor()";
             else
-                line(fields[i]->d_loc).pop_();
+                what = "void [mscorlib]System.Object::.ctor()";
+            line(r->d_loc).call_(what,1,false,true);
+
+            // initialize fields of current record
+            // NOTE safe records cannot have fields of unsafe structured types by value; thus no destructor required
+            for( int i = 0; i < fields.size(); i++ )
+            {
+                // oberon system expects all vars to be initialized
+                line(fields[i]->d_loc).ldarg_(0);
+                if( emitInitializer(fields[i]->d_type.data(), false, fields[i]->d_loc ) )
+                    emitStackToVar( fields[i], fields[i]->d_loc );
+                else
+                    line(fields[i]->d_loc).pop_();
+            }
+            line(r->d_loc).ret_();
+            emitLocalVars();
+            emitter->endMethod();
+            // end default constructor
         }
-        line(r->d_loc).ret_();
-        emitLocalVars();
-        emitter->endMethod();
-        // end default constructor
 
         // copy
-        emitter->beginMethod("'#copy'",true, IlEmitter::Virtual);
-        QByteArray type = formatType(r);
-        if( r->d_byValue )
-            type += "&";
-        emitter->addArgument(type, "rhs");
-        beginBody();
-        if( r->d_baseRec )
+        if( !r->d_unsafe )
         {
-            line(r->d_loc).ldarg_(0);
-            line(r->d_loc).ldarg_(1);
-            QByteArray what = "void class " + classRef(r->d_baseRec) + formatMetaActuals(r->d_baseRec) + "::'#copy'(";
-            type = formatType(r->d_baseRec);
+            emitter->beginMethod("'#copy'",true, IlEmitter::Virtual);
+            QByteArray type = formatType(r);
             if( r->d_byValue )
                 type += "&";
-            what += type + ")";
-            line(r->d_loc).call_(what,1,false,true);
-        }
-        for( int i = 0; i < fields.size(); i++ )
-        {
-            Type* ft = derefed(fields[i]->d_type.data());
-            switch( ft->getTag() )
+            emitter->addArgument(type, "rhs");
+            beginBody();
+            if( r->d_baseRec )
             {
-            case Thing::T_Record:
-                {
-                    line(r->d_loc).ldarg_(0);
-                    line(r->d_loc).ldfld_(memberRef(fields[i]));
-                    line(r->d_loc).ldarg_(1);
-                    line(r->d_loc).ldfld_(memberRef(fields[i]));
-                    Record* r2 = cast<Record*>(ft);
-                    QByteArray what = "void " + classRef(r2) + formatMetaActuals(r2) + "::'#copy'(";
-                    type = formatType(r2);
-                    if( r2->d_byValue )
-                        type += "&";
-                    what += type + ")";
-                    line(r->d_loc).callvirt_(what,1);
-                }
-                break;
-            case Thing::T_Array:
-                {
-                    line(r->d_loc).ldarg_(0);
-                    line(r->d_loc).ldfld_(memberRef(fields[i]));
-
-                    line(r->d_loc).ldarg_(1);
-                    line(r->d_loc).ldfld_(memberRef(fields[i]));
-
-                    // stack: lhs array, rhs array
-                    line(r->d_loc).call_(formatArrayCopierRef(cast<Array*>(ft)),2);
-                }
-                break;
-            case Thing::T_BaseType:
-            case Thing::T_Enumeration:
-            case Thing::T_Pointer:
-            case Thing::T_ProcType:
                 line(r->d_loc).ldarg_(0);
                 line(r->d_loc).ldarg_(1);
-                line(r->d_loc).ldfld_(memberRef(fields[i]));
-                line(r->d_loc).stfld_(memberRef(fields[i]));
-                break;
+                QByteArray what = "void class " + classRef(r->d_baseRec) + formatMetaActuals(r->d_baseRec) + "::'#copy'(";
+                type = formatType(r->d_baseRec);
+                if( r->d_byValue )
+                    type += "&";
+                what += type + ")";
+                line(r->d_loc).call_(what,1,false,true);
             }
+            for( int i = 0; i < fields.size(); i++ )
+            {
+                Type* ft = derefed(fields[i]->d_type.data());
+                switch( ft->getTag() )
+                {
+                case Thing::T_Record:
+                    {
+                        line(r->d_loc).ldarg_(0);
+                        line(r->d_loc).ldfld_(memberRef(fields[i]));
+                        line(r->d_loc).ldarg_(1);
+                        line(r->d_loc).ldfld_(memberRef(fields[i]));
+                        Record* r2 = cast<Record*>(ft);
+                        QByteArray what = "void " + classRef(r2) + formatMetaActuals(r2) + "::'#copy'(";
+                        type = formatType(r2);
+                        if( r2->d_byValue )
+                            type += "&";
+                        what += type + ")";
+                        line(r->d_loc).callvirt_(what,1);
+                    }
+                    break;
+                case Thing::T_Array:
+                    {
+                        line(r->d_loc).ldarg_(0);
+                        line(r->d_loc).ldfld_(memberRef(fields[i]));
+
+                        line(r->d_loc).ldarg_(1);
+                        line(r->d_loc).ldfld_(memberRef(fields[i]));
+
+                        // stack: lhs array, rhs array
+                        emitCopyArray(ft,ft,r->d_loc);
+                        //line(r->d_loc).call_(formatArrayCopierRef(cast<Array*>(ft)),2);
+                    }
+                    break;
+                case Thing::T_BaseType:
+                case Thing::T_Enumeration:
+                case Thing::T_Pointer:
+                case Thing::T_ProcType:
+                    line(r->d_loc).ldarg_(0);
+                    line(r->d_loc).ldarg_(1);
+                    line(r->d_loc).ldfld_(memberRef(fields[i]));
+                    line(r->d_loc).stfld_(memberRef(fields[i]));
+                    break;
+                }
+            }
+            line(r->d_loc).ret_();
+            emitLocalVars();
+            emitter->endMethod();
+            // end copy
         }
-        line(r->d_loc).ret_();
-        emitLocalVars();
-        emitter->endMethod();
-        // end copy
 
         emitter->endClass();
     }
@@ -736,7 +759,7 @@ struct ObxCilGenImp : public AstVisitor
         // TypeRef ResolutionScope not yet handled (3) for .48b15Qezth5ae11+xOqLVw in image GenericTest6.dll
         // * Assertion at class.c:5695, condition `!mono_loader_get_last_error ()' not met
 
-        emitter->beginClass(escape(name),true,true,"[mscorlib]System.MulticastDelegate");
+        emitter->beginClass(escape(name),true,false,"[mscorlib]System.MulticastDelegate");
         // formatMetaParams(thisMod)
         emitter->beginMethod(".ctor",true,IlEmitter::Instance,true);
         emitter->addArgument("object","MethodsClass");
@@ -838,56 +861,73 @@ struct ObxCilGenImp : public AstVisitor
         foreach( Procedure* p, co.allProcs )
             p->accept(this);
 
-        emitter->beginMethod(".cctor", false, IlEmitter::Static ); // MODULE BEGIN
-        beginBody();
-#ifndef _MY_GENERICS_
-        if( !me->d_metaParams.isEmpty() && me->d_metaActuals.isEmpty() )
+        if( !me->d_externC )
         {
-            foreach( const Ref<GenericName>& n, me->d_metaParams ) // generate default values
+            emitter->beginMethod(".cctor", false, IlEmitter::Static ); // MODULE BEGIN
+            beginBody();
+
+#ifndef _MY_GENERICS_
+            if( !me->d_metaParams.isEmpty() && me->d_metaActuals.isEmpty() )
             {
-                // NOTE: this doesn't initialize OBX value types; e.g. in GenericTest3 l1.value is initialized to null instead
-                // of an empty array 20 of char; to get around a default constructor for all possible types, especially
-                // fixed size arrays, would be needed.
-                emitOpcode2("ldsflda ",  1, me->d_begin );
-                Q_ASSERT(n->d_slotValid);
-                out << "!" << QByteArray::number(n->d_slot) << " class " << moduleRef(me) << formatMetaActuals(me)
-                    << "::'##" << n->d_slot << "'" << endl;
-                emitOpcode("initobj !"+escape(n->d_name),-1, me->d_begin);
+                foreach( const Ref<GenericName>& n, me->d_metaParams ) // generate default values
+                {
+                    // NOTE: this doesn't initialize OBX value types; e.g. in GenericTest3 l1.value is initialized to null instead
+                    // of an empty array 20 of char; to get around a default constructor for all possible types, especially
+                    // fixed size arrays, would be needed.
+                    emitOpcode2("ldsflda ",  1, me->d_begin );
+                    Q_ASSERT(n->d_slotValid);
+                    out << "!" << QByteArray::number(n->d_slot) << " class " << moduleRef(me) << formatMetaActuals(me)
+                        << "::'##" << n->d_slot << "'" << endl;
+                    emitOpcode("initobj !"+escape(n->d_name),-1, me->d_begin);
+                }
             }
-        }
 #endif
 
-        suppressLine++;
-        foreach( const Ref<Named>& n, me->d_order )
-        {
-            if( n->getTag() == Thing::T_Variable )
-                emitInitializer(n.data());
-        }
-        suppressLine--;
-        foreach( const Ref<Statement>& s, me->d_body )
-            s->accept(this);
+            suppressLine++;
+            foreach( const Ref<Named>& n, me->d_order )
+            {
+                if( n->getTag() == Thing::T_Variable )
+                    emitInitializer(n.data());
+            }
+            suppressLine--;
+
+            emitCheckPtrSize(me->d_begin); // after declarations
+
+            foreach( const Ref<Statement>& s, me->d_body )
+            {
+                temps.sellAll();
+                s->accept(this);
+            }
 
 #if 0  // TEST
-        foreach( Import* imp, me->d_imports )
-        {
-            if( imp->d_mod->d_synthetic || imp->d_mod->d_isDef )
-                continue;
-            emitOpcode("call void class ['" + getName(imp->d_mod.data()) + "']'" +
-                       getName(imp->d_mod.data()) + "'" + formatMetaActuals(imp->d_mod.data()) + "::'ping#'()",0, me->d_begin );
-        }
+            foreach( Import* imp, me->d_imports )
+            {
+                if( imp->d_mod->d_synthetic || imp->d_mod->d_isDef )
+                    continue;
+                emitOpcode("call void class ['" + getName(imp->d_mod.data()) + "']'" +
+                           getName(imp->d_mod.data()) + "'" + formatMetaActuals(imp->d_mod.data()) + "::'ping#'()",0, me->d_begin );
+            }
 #if 0
-        emitOpcode( "ldstr \"this is " + me->getName() + "\"", 1, me->d_begin );
-        emitOpcode( "call void [mscorlib]System.Console::WriteLine (string)", -1, me->d_begin );
+            emitOpcode( "ldstr \"this is " + me->getName() + "\"", 1, me->d_begin );
+            emitOpcode( "call void [mscorlib]System.Console::WriteLine (string)", -1, me->d_begin );
 #endif
 #endif
-        line(me->d_end).ret_(false);
+            line(me->d_end).ret_(false);
 
-        emitLocalVars();
+            emitLocalVars();
 
-        emitter->endMethod();
+            emitter->endMethod();
+        }else if( checkPtrSize )
+        {
+            emitter->beginMethod(".cctor", false, IlEmitter::Static ); // MODULE BEGIN
+            beginBody();
+            emitCheckPtrSize(me->d_begin);
+            line(me->d_end).ret_(false);
+            emitter->endMethod();
+        }
 
-#if 1 // TEST
-        emitter->beginMethod("'ping#'", true, IlEmitter::Static ); // NOP, just to wakeup the assembly
+#if 1 // NOP, can be removed later
+        emitter->beginMethod("'ping#'", true, IlEmitter::Static );
         line(me->d_end).ret_();
         emitter->endMethod();
 #endif
@@ -912,6 +952,15 @@ struct ObxCilGenImp : public AstVisitor
         emitter->endModule();
     }
 
+    void emitCheckPtrSize(const RowCol& loc)
+    {
+        if( checkPtrSize )
+        {
+            line(loc).ldc_i4(Pointer::s_pointerByteSize);
+            line(loc).call_("void [OBX.Runtime]OBX.Runtime::checkPtrSize(int32)",1);
+        }
+    }
+
     QByteArray procTypeSignature(ProcType* pt)
     {
         QByteArray str;
@@ -924,7 +973,7 @@ struct ObxCilGenImp : public AstVisitor
         return str;
     }
 
-    QByteArray formatType( Type* t )
+    QByteArray formatType( Type* t, bool unsafe = false )
     {
         if( t == 0 )
             return "void";
@@ -934,16 +983,26 @@ struct ObxCilGenImp : public AstVisitor
         {
         case Thing::T_Array:
             {
-                Array* me = cast<Array*>(t);
+                Array* a = cast<Array*>(t);
                 // we only support CLI vectors; multi dim are vectors of vectors
                 // arrays are constructed types, i.e. all qualis are resolved up to their original module
                 // arrays are always dynamic in CLI; the size of an array is an attribute of the instance
-                if( me->d_type )
-                    return formatType(me->d_type.data()) + "[]";
+                if( a->d_type )
+                {
+                    if( a->d_unsafe )
+                    {
+                        Type* et = derefed(a->d_type.data());
+                        if( et && et->isPointer() && !a->d_lenExpr.isNull() )
+                            checkPtrSize = true; // pointer size in unsafe array elements is platform dependent
+                    }
+                    // in unsafe records the array is implicit by explicit position and size, and the field
+                    // represents the first element; otherwise unsafe arrays are just a pointer to the base type.
+                    return formatType(a->d_type.data(), a->d_unsafe) + ( inUnsafeRecord ? "" : ( a->d_unsafe ? "*" : "[]" ) );
+                }
             }
             break;
         case Thing::T_BaseType:
-            return formatBaseType(t->getBaseType());
+            return formatBaseType(t->getBaseType(), unsafe || inUnsafeRecord );
         case Thing::T_Enumeration:
             return "int32";
         case Thing::T_Pointer:
@@ -952,13 +1011,22 @@ struct ObxCilGenImp : public AstVisitor
                 // this is a CLI object reference; since all objects and arrays in CLI are dynamic,
                 // a field of type object or array is always a pointer, whereas implicit;
                 if( me->d_to )
-                    return formatType(me->d_to.data());
+                {
+                    QByteArray type = formatType(me->d_to.data());
+                    Type* td = derefed(me->d_to.data());
+                    if( me->d_unsafe && td && td->getTag() != Thing::T_Array )
+                        type += "*";
+                    return type;
+                }
             }
             break;
         case Thing::T_ProcType:
             {
                 ProcType* pt = cast<ProcType*>(t);
-                return "class " + delegateRef(pt);
+                if( unsafe || inUnsafeRecord )
+                    return "native int";
+                else
+                    return "class " + delegateRef(pt);
             }
             break;
         case Thing::T_QualiType:
@@ -986,11 +1054,11 @@ struct ObxCilGenImp : public AstVisitor
                 }
 #endif
                 else
-                    return formatType(me->d_quali->d_type.data());
+                    return formatType(me->d_quali->d_type.data(),unsafe);
             }
             break;
         case Thing::T_Record:
-            return "class " + classRef(cast<Record*>(t))
+            return ( t->d_unsafe ? "valuetype " : "class " ) + classRef(cast<Record*>(t))
                     + formatMetaActuals(t)
                     ;
         default:
@@ -1029,13 +1097,17 @@ struct ObxCilGenImp : public AstVisitor
         Q_ASSERT(false);
     }
 
-    static inline QByteArray formatBaseType(int t)
+    inline static QByteArray formatBaseType(int t, bool unsafe)
     {
         switch( t )
         {
         case Type::BOOLEAN:
             return "bool";
         case Type::CHAR:
+            if( unsafe )
+                return "uint8";
+            else
+                return "char";
         case Type::WCHAR:
             return "char";
         case Type::BYTE:
@@ -1062,21 +1134,24 @@ struct ObxCilGenImp : public AstVisitor
         Q_ASSERT(false);
     }
 
-    void emitVar( Named* me, bool isStatic )
-    {
-        emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
-                         me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly, isStatic );
-    }
-
     void visit( Variable* me)
     {
-        emitVar(me,true);
+        emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
+                         me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly, true );
         // initializer is emitted in module .cctor
     }
 
     void visit( Field* me )
     {
-        emitVar(me,false);
+        Q_ASSERT(!inUnsafeRecord);
+        inUnsafeRecord = me->d_owner->d_unsafe;
+        Type* td = derefed(me->d_type.data());
+        if( inUnsafeRecord && td && td->isPointer() )
+            checkPtrSize = true;
+        emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
+                         me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly,
+                          false, inUnsafeRecord ? me->d_slot : -1 );
+        inUnsafeRecord = false;
     }
 
     QByteArray formatFormals( const ProcType::Formals& formals, bool withName = true )
@@ -1098,8 +1173,8 @@ struct ObxCilGenImp : public AstVisitor
 
     void emitLocalVars()
     {
-        for( int i = 0; i <= temps.d_max; i++ )
-            emitter->addLocal( "int32", escape("#temp" + QByteArray::number(i) ) ); // before was natural int
+        for( int i = 0; i < temps.d_types.size(); i++ )
+            emitter->addLocal( temps.d_types[i], escape("#temp" + QByteArray::number(i) ) );
     }
 
     void visit( Procedure* me )
@@ -1114,7 +1189,9 @@ struct ObxCilGenImp : public AstVisitor
             name = nestedPath(me); // the method is lifted to module level
 
         IlEmitter::MethodKind k;
-        if( me->d_receiver.isNull() )
+        if( thisMod->d_externC )
+            k = IlEmitter::Pinvoke;
+        else if( me->d_receiver.isNull() )
             k = IlEmitter::Static;
         else if( me->d_receiverRec && !me->d_receiverRec->d_byValue )
             k = IlEmitter::Virtual;
@@ -1122,6 +1199,24 @@ struct ObxCilGenImp : public AstVisitor
             k = IlEmitter::Instance;
 
         emitter->beginMethod(name,me->d_visibility != Named::Private,k);
+
+        if( thisMod->d_externC )
+        {
+            QByteArray dll, prefix;
+            SysAttr* a = thisMod->d_sysAttrs.value("dll").data();
+            if( a && a->d_values.size() == 1 )
+                dll = a->d_values.first().toByteArray() + ".dll";
+            a = thisMod->d_sysAttrs.value("prefix").data();
+            if( a && a->d_values.size() == 1 )
+                prefix = a->d_values.first().toByteArray();
+            a = me->d_sysAttrs.value("prefix").data();
+            if( a && a->d_values.size() == 1 )
+                prefix = a->d_values.first().toByteArray();
+            QByteArray origName;
+            if( !prefix.isEmpty() )
+                origName = prefix + me->d_name;
+            emitter->setPinvoke(dll,origName);
+        }
 
         ProcType* pt = me->getProcType();
         if( !pt->d_return.isNull() )
@@ -1165,9 +1260,15 @@ struct ObxCilGenImp : public AstVisitor
             }
         }
         foreach( const Ref<Statement>& s, me->d_body )
+        {
+            temps.sellAll(); // no temp var kept from one statement to next
             s->accept(this);
+        }
         if( me->d_body.isEmpty() || me->d_body.last()->getTag() != Thing::T_Return )
+        {
+            temps.sellAll();
             emitReturn( pt, 0, me->d_end );
+        }
 
         emitLocalVars();
 
@@ -1313,6 +1414,70 @@ struct ObxCilGenImp : public AstVisitor
         Q_ASSERT( false );
     }
 
+    void emitValueFromAdrToStack(Type* t, bool unsafe, const RowCol& loc )
+    {
+#ifdef _USE_LDSTOBJ
+        line(me->d_loc).ldobj_(formatType(t));
+#else
+        // NOTE: _USE_LDSTOBJ on or off has practically no influence on performance, geomean 0.40 vs 0.39
+        Type* td = derefed(t);
+        switch( td->getTag() )
+        {
+        case Thing::T_Array:
+        case Thing::T_Record:
+        default:
+            Q_ASSERT( false ); // never happens because no passByRef for structured types
+            break;
+        case Thing::T_Pointer:
+        case Thing::T_ProcType:
+            if( unsafe )
+                line(loc).ldind_(IlEmitter::IntPtr);
+            else
+                line(loc).ldind_(IlEmitter::Ref);
+            break;
+        case Thing::T_Enumeration:
+            line(loc).ldind_(IlEmitter::I4);
+            break;
+        case Thing::T_BaseType:
+            switch(td->getBaseType())
+            {
+            case Type::LONGREAL:
+                line(loc).ldind_(IlEmitter::R8);
+                break;
+            case Type::REAL:
+                line(loc).ldind_(IlEmitter::R4);
+                break;
+            case Type::LONGINT:
+                line(loc).ldind_(IlEmitter::I8);
+                break;
+            case Type::INTEGER:
+                line(loc).ldind_(IlEmitter::I4);
+                break;
+            case Type::SET:
+                line(loc).ldind_(IlEmitter::U4);
+                break;
+            case Type::SHORTINT:
+                line(loc).ldind_(IlEmitter::I2);
+                break;
+            case Type::CHAR:
+                if( unsafe )
+                    line(loc).ldind_(IlEmitter::U1);
+                else
+                    line(loc).ldind_(IlEmitter::U2);
+                break;
+            case Type::WCHAR:
+                line(loc).ldind_(IlEmitter::U2);
+                break;
+            case Type::BYTE:
+            case Type::BOOLEAN: // bool is 1 byte in RAM but 4 bytes on stack
+                line(loc).ldind_(IlEmitter::U1);
+                break;
+            }
+            break;
+        }
+#endif
+    }
+
     void visit( IdentLeaf* me)
     {
         Named* id = me->getIdent();
@@ -1340,60 +1505,7 @@ struct ObxCilGenImp : public AstVisitor
                 Parameter* p = cast<Parameter*>(id);
                 emitVarToStack(id,me->d_loc);
                 if( passByRef(p) ) // the value on the stack is a &, so we need to fetch the value first
-                {
-#ifdef _USE_LDSTOBJ
-                    line(me->d_loc).ldobj_(formatType(p->d_type.data()));
-#else
-                    // NOTE: _USE_LDSTOBJ on or off has practically no influence on performance, geomean 0.40 vs 0.39
-                    Type* td = derefed(p->d_type.data());
-                    switch( td->getTag() )
-                    {
-                    case Thing::T_Array:
-                    case Thing::T_Record:
-                    default:
-                        Q_ASSERT( false ); // never happens because no passByRef for structured types
-                        break;
-                    case Thing::T_Pointer:
-                    case Thing::T_ProcType:
-                        line(me->d_loc).ldind_(IlEmitter::Ref);
-                        break;
-                    case Thing::T_Enumeration:
-                        line(me->d_loc).ldind_(IlEmitter::I4);
-                        break;
-                    case Thing::T_BaseType:
-                        switch(td->getBaseType())
-                        {
-                        case Type::LONGREAL:
-                            line(me->d_loc).ldind_(IlEmitter::R8);
-                            break;
-                        case Type::REAL:
-                            line(me->d_loc).ldind_(IlEmitter::R4);
-                            break;
-                        case Type::LONGINT:
-                            line(me->d_loc).ldind_(IlEmitter::I8);
-                            break;
-                        case Type::INTEGER:
-                            line(me->d_loc).ldind_(IlEmitter::I4);
-                            break;
-                        case Type::SET:
-                            line(me->d_loc).ldind_(IlEmitter::U4);
-                            break;
-                        case Type::SHORTINT:
-                            line(me->d_loc).ldind_(IlEmitter::I2);
-                            break;
-                        case Type::CHAR:
-                        case Type::WCHAR:
-                            line(me->d_loc).ldind_(IlEmitter::U2);
-                            break;
-                        case Type::BYTE:
-                        case Type::BOOLEAN: // bool is 1 byte in RAM but 4 bytes on stack
-                            line(me->d_loc).ldind_(IlEmitter::U1);
-                            break;
-                        }
-                        break;
-                    }
-#endif
-                }
+                    emitValueFromAdrToStack(p->d_type.data(),false,me->d_loc);
             }
             return;
         case Thing::T_NamedType:
@@ -1471,10 +1583,21 @@ struct ObxCilGenImp : public AstVisitor
         Type* et = derefed(cast<Array*>(subT)->d_type.data());
         if( et == 0 )
             return; // already reported
-        line(me->d_loc).ldelem_(formatType(et));
+        if( subT->d_unsafe )
+        {
+            const int len = et->getByteSize();
+            if( len > 1 )
+            {
+                line(me->d_loc).ldc_i4(len);
+                line(me->d_loc).mul_();
+            }
+            line(me->d_loc).add_();
+            emitValueFromAdrToStack(et,true,me->d_loc);
+        }else
+            line(me->d_loc).ldelem_(formatType(et));
     }
 
-    void emitFetchDesigAddr(Expression* desig, bool omitParams = true )
+    bool emitFetchDesigAddr(Expression* desig, bool omitParams = true )
     {
         const int unop = desig->getUnOp();
         const int tag = desig->getTag();
@@ -1491,7 +1614,14 @@ struct ObxCilGenImp : public AstVisitor
                 line(desig->d_loc).ldsflda_(memberRef(id));
                 break;
             case Thing::T_Field:
-                line(desig->d_loc).ldflda_(memberRef(id));
+                if( id->d_unsafe )
+                {
+                    // ldflda_(memberRef(id)) doesn't seem to work on Mono 3 and 5 for fields after embedded arrays
+                    Q_ASSERT(id->d_slotValid);
+                    line(desig->d_loc).ldc_i4(id->d_slot);
+                    line(desig->d_loc).add_();
+                }else
+                    line(desig->d_loc).ldflda_(memberRef(id));
                 break;
             default:
                 Q_ASSERT( false );
@@ -1501,9 +1631,21 @@ struct ObxCilGenImp : public AstVisitor
             Q_ASSERT( desig->getTag() == Thing::T_ArgExpr );
             ArgExpr* args = cast<ArgExpr*>( desig );
             Q_ASSERT( args->d_args.size() == 1 );
-            args->d_sub->accept(this); // stack: array
-            args->d_args.first()->accept(this); // stack: array, index
-            line(desig->d_loc).ldelema_(formatType(desig->d_type.data()));
+            args->d_sub->accept(this);
+            Type* td = derefed(args->d_sub->d_type.data());
+            if( td && td->d_unsafe )
+            {
+                // stack: pointer to array
+                args->d_args.first()->accept(this);
+                // stack: pointer to array, index
+                line(desig->d_loc).add_();
+                return true;
+            }else
+            {
+                // stack: array
+                args->d_args.first()->accept(this); // stack: array, index
+                line(desig->d_loc).ldelema_(formatType(desig->d_type.data()));
+            }
         }else if( unop == UnExpr::CAST )
         {
             Q_ASSERT( desig->getTag() == Thing::T_ArgExpr );
@@ -1553,6 +1695,7 @@ struct ObxCilGenImp : public AstVisitor
             qDebug() << "ERR" << desig->getUnOp() << desig->getTag() << thisMod->getName() << desig->d_loc.d_row << desig->d_loc.d_col;
             Q_ASSERT( false );
         }
+        return false;
     }
 
     void assureInteger(Type* t, const RowCol& loc )
@@ -1594,28 +1737,36 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
-                Type* t = derefed(ae->d_args.first()->d_type.data());
-                if( t->isText() )
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                bool wide = false;
+                if( td->isText(&wide) )
                 {
-                    if( t->isChar() )
+                    if( td->isChar() )
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(char)",1);
-                    else
+                    else if( td->d_unsafe )
+                    {
+                        if( wide )
+                            line(ae->d_loc).call_("string [mscorlib]System.Runtime.InteropServices.Marshal::PtrToStringUni(native int)",1,true);
+                        else
+                            line(ae->d_loc).call_("string [mscorlib]System.Runtime.InteropServices.Marshal::PtrToStringAnsi(native int)",1,true);
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
+                    }else
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(char[])",1);
-                }else if( t->isInteger() )
+                }else if( td->isInteger() )
                 {
-                    if( t->getBaseType() <= Type::INTEGER )
+                    if( td->getBaseType() <= Type::INTEGER )
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
                     else
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int64)",1);
-                }else if( t->isReal() )
+                }else if( td->isReal() )
                     line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(float64)",1);
-                else if( t->isSet() )
+                else if( td->isSet() )
                     line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(uint32)",1);
-                else if( t->getBaseType() == Type::BOOLEAN )
+                else if( td->getBaseType() == Type::BOOLEAN )
                     line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(bool)",1);
                 else
                 {
-                    switch(t->getTag())
+                    switch(td->getTag())
                     {
                     case Thing::T_Enumeration:
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
@@ -1799,7 +1950,7 @@ struct ObxCilGenImp : public AstVisitor
                 for( int i = 1; i < ae->d_args.size(); i++ )
                 {
                     ae->d_args[i]->accept(this);
-                    const int len = temps.buy();
+                    const int len = temps.buy("int32");
                     lengths.append(len);
                     line(ae->d_loc).stloc_(len);
                 }
@@ -1866,10 +2017,18 @@ struct ObxCilGenImp : public AstVisitor
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
                 Type* t = derefed(ae->d_args.first()->d_type.data() );
-                if( t && ( t->isText() && !t->isChar() ) )
+                bool wide;
+                if( t && ( t->isText(&wide) && !t->isChar() ) )
                 {
-                    line(ae->d_loc).ldc_i4(0);
-                    line(ae->d_loc).ldelem_("char");
+                    if( t->d_unsafe && wide )
+                        line(ae->d_loc).ldind_(IlEmitter::U2);
+                    else if( t->d_unsafe && !wide )
+                        line(ae->d_loc).ldind_(IlEmitter::U1);
+                    else
+                    {
+                        line(ae->d_loc).ldc_i4(0);
+                        line(ae->d_loc).ldelem_("char");
+                    }
                 }
                 else if( t && ( t->getBaseType() == Type::REAL || t->getBaseType() == Type::LONGREAL ) )
                     assureInteger(t,ae->d_loc);
@@ -2154,7 +2313,8 @@ struct ObxCilGenImp : public AstVisitor
 
             if( passByRef(p) )
             {
-                if( tf->getTag() == Thing::T_Array )
+                const int tag = tf->getTag();
+                if( tag == Thing::T_Array )
                 {
                     Array* la = cast<Array*>(tf);
                     Type* ta = derefed(me->d_args[i]->d_type.data());
@@ -2168,7 +2328,8 @@ struct ObxCilGenImp : public AstVisitor
                         continue;
                     }
                 }
-                emitFetchDesigAddr(me->d_args[i].data());
+                if( !( tag == Thing::T_Record && tf->d_unsafe ) ) // check if we already have an address
+                    emitFetchDesigAddr(me->d_args[i].data());
             }else
             {
                 // 1) a structured arg (record, array) passed by val
@@ -2194,32 +2355,42 @@ struct ObxCilGenImp : public AstVisitor
 
             line(me->d_loc).callvirt_(what, pt->d_formals.size(),!pt->d_return.isNull());
         }
+        Type* rt = derefed(pt->d_return.data());
+        if( rt && rt->d_unsafe && rt->getTag() == Thing::T_Record )
+        {
+            // we need the address of the value so we need to store it in a temp
+            const int temp = temps.buy(formatType(pt->d_return.data()));
+            line(me->d_loc).stloc_(temp);
+            line(me->d_loc).ldloca_(temp);
+        }
     }
 
     void inline prepareRhs(Type* tf, Expression* ea, const RowCol& loc)
     {
         Q_ASSERT(ea);
-        tf = derefed(tf);
-        Q_ASSERT( tf != 0 );
+        Type* td = derefed(tf);
+        Q_ASSERT( td != 0 );
         Type* ta = derefed(ea->d_type.data());
         if( ta == 0 )
             return; // error already reported
 
-        if( tf->isChar() && !ta->isChar() )
+        const int tag = td->getTag();
+        if( td->isChar() && !ta->isChar() )
         {
             // convert len-1-string to char
             Q_ASSERT( ta->isString() || ta->isStructured() );
             line(loc).ldc_i4(0);
             line(loc).ldelem_("char");
-        }else if( tf->isText() && !tf->isChar() && ta->isChar() )
+        }else if( td->isText() && !td->isChar() && ta->isChar() )
         {
-            line(loc).call_("char[] [OBX.Runtime]OBX.Runtime::toString(char)", 1, true );
-        }else if( tf->getTag() == Thing::T_ProcType )
+            line(loc).call_("char[] [OBX.Runtime]OBX.Runtime::toString(char)", 1, true ); // works for both char and wchar
+        }else if( tag == Thing::T_ProcType )
         {
             Named* n = ea->getIdent();
-            if( n && n->getTag() == Thing::T_Procedure )
+            const bool rhsIsProc = n && n->getTag() == Thing::T_Procedure;
+            if( rhsIsProc )
             {
-                ProcType* pt = cast<ProcType*>(tf);
+                ProcType* pt = cast<ProcType*>(td);
 
                 if( ta->d_typeBound )
                 {
@@ -2236,6 +2407,18 @@ struct ObxCilGenImp : public AstVisitor
                     line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native int)",2);
                 }
             }//else: we copy a proc type variable, i.e. delegate already exists
+
+            if( td && td->d_unsafe && ( rhsIsProc && !ta->d_unsafe ) )
+            {
+                // we assign a newly created or existing deleg to an unsafe proc pointer
+                // add a reference to it so the GC doesn't collect it while in callback
+                // TODO: more selective and consider to remove if no longer needed
+                line(loc).dup_();
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::addRef(object)",1);
+            }
+        }else if( td->d_unsafe && tag == Thing::T_Record )
+        {
+            line(loc).ldobj_(formatType(tf));
         }
     }
 
@@ -2255,17 +2438,42 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
-    void stringOp( bool lhsChar, bool rhsChar, int op, const RowCol& loc )
+    void stringOp( Type* lhs, Type* rhs, bool lwide, bool rwide, int op, const RowCol& loc )
     {
-        line(loc).ldc_i4(op);
-        if( lhsChar && rhsChar )
-            line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char,char,int32)",3,true);
-        else if( lhsChar && !rhsChar )
-            line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char,char[],int32)",3,true);
-        else if( !lhsChar && rhsChar )
-            line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char[],char,int32)",3,true);
-        else
-            line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int32)",3,true);
+        const bool lhsChar = lhs->isChar();
+        const bool rhsChar = rhs->isChar();
+        if( !lhs->d_unsafe && !rhs->d_unsafe )
+        {
+            line(loc).ldc_i4(op);
+            if( lhsChar && rhsChar )
+                line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char,char,int32)",3,true);
+            else if( lhsChar && !rhsChar )
+                line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char,char[],int32)",3,true);
+            else if( !lhsChar && rhsChar )
+                line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char[],char,int32)",3,true);
+            else
+                line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char[],char[],int32)",3,true);
+        }else
+        {
+            line(loc).ldc_i4(op);
+            line(loc).ldc_i4(lwide);
+            line(loc).ldc_i4(rwide);
+            if( lhs->d_unsafe && rhs->d_unsafe )
+                line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(native int,native int,int32,bool,bool)",5,true);
+            else if( lhs->d_unsafe )
+            {
+                if( rhsChar )
+                    line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(native int,char,int32,bool,bool)",5,true);
+                else
+                    line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(native int,char[],int32,bool,bool)",5,true);
+            }else
+            {
+                if( rhsChar )
+                    line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char,native int,int32,bool,bool)",5,true);
+                else
+                    line(loc).call_("bool [OBX.Runtime]OBX.Runtime::relOp(char[],native int,int32,bool,bool)",5,true);
+            }
+        }
     }
 
     void convertTo( quint8 toBaseType, Type* from, const RowCol& loc )
@@ -2349,7 +2557,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).add_();
             else if( lhsT->isSet() && rhsT->isSet() )
                 line(me->d_loc).or_();
-            else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
             {
                 if( lhsT->isChar() && rhsT->isChar() )
                     line(me->d_loc).call_("char[] [OBX.Runtime]OBX.Runtime::join(char,char)", 2, true );
@@ -2378,9 +2586,9 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).div_();
             else if( lhsT->isSet() && rhsT->isSet() )
             {
-                const int rhs = temps.buy();
+                const int rhs = temps.buy("int32");
                 line(me->d_loc).stloc_(rhs);
-                const int lhs = temps.buy();
+                const int lhs = temps.buy("int32");
                 line(me->d_loc).stloc_(lhs);
                 line(me->d_loc).ldloc_(lhs);
                 line(me->d_loc).ldloc_(rhs);
@@ -2474,7 +2682,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).ceq_();
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                stringOp(lhsT->isChar(), rhsT->isChar(), 1, me->d_loc );
+                stringOp(lhsT, rhsT, lwide, rwide, 1, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2492,7 +2700,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).ceq_();
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                stringOp(lhsT->isChar(), rhsT->isChar(), 2, me->d_loc );
+                stringOp(lhsT, rhsT, lwide, rwide, 2, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2504,7 +2712,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).clt_();
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                stringOp(lhsT->isChar(), rhsT->isChar(), 3, me->d_loc );
+                stringOp(lhsT, rhsT, lwide, rwide, 3, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2518,7 +2726,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).ceq_();
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                stringOp(lhsT->isChar(), rhsT->isChar(), 4, me->d_loc );
+                stringOp(lhsT, rhsT, lwide, rwide, 4, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2530,7 +2738,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).cgt_();
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                stringOp(lhsT->isChar(), rhsT->isChar(), 5, me->d_loc );
+                stringOp(lhsT, rhsT, lwide, rwide, 5, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2544,7 +2752,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).ceq_();
             }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
             {
-                stringOp(lhsT->isChar(), rhsT->isChar(), 6, me->d_loc );
+                stringOp(lhsT, rhsT, lwide, rwide, 6, me->d_loc );
             }else
                 Q_ASSERT(false);
             break;
@@ -2752,6 +2960,50 @@ struct ObxCilGenImp : public AstVisitor
         // no, it is legal and not known here how many values are pushed in the body: Q_ASSERT( before == stackDepth );
     }
 
+    void emitCopyArray( Type* lhs, Type* rhs, const RowCol& loc )
+    {
+        Type* tl = derefed(lhs);
+        Type* tr = derefed(rhs);
+        Q_ASSERT( tl && tr );
+        bool lwide, rwide;
+        if( tl->isText(&lwide) && tr->isText(&rwide) )
+        {
+            if( !tl->d_unsafe && !tr->d_unsafe )
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::copy(char[],char[])",2);
+            else if( tl->d_unsafe && !tr->d_unsafe )
+            {
+                line(loc).ldc_i4(lwide);
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::copy(native int,char[],bool)",3);
+            }
+            else if( !tl->d_unsafe && tr->d_unsafe )
+            {
+                line(loc).ldc_i4(rwide);
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::copy(char[],native int,bool)",3);
+            }else
+            {
+                line(loc).ldc_i4(lwide);
+                line(loc).ldc_i4(rwide);
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::copy(native int,native int,bool,bool)",4);
+            }
+        }else if( tl->d_unsafe && tr->d_unsafe )
+        {
+            Q_ASSERT( tl->getTag() == Thing::T_Array && tr->getTag() == Thing::T_Array );
+            Array* la = cast<Array*>(tl);
+            Array* ra = cast<Array*>(tr);
+            if( la->d_lenExpr.isNull() || ra->d_lenExpr.isNull() )
+                err->error(Errors::Generator, Loc(loc,thisMod->d_file),"copying of unsafe open arrays not supported");
+            else
+            {
+                const quint32 len = qMin(la->d_len,ra->d_len) * la->d_type->getByteSize();
+                line(loc).ldc_i4(len);
+                line(loc).cpblk_();
+            }
+        }else if( !tl->d_unsafe && !tr->d_unsafe )
+            line(loc).call_(formatArrayCopierRef(cast<Array*>(tl)),2);
+        else
+            err->error(Errors::Generator, Loc(loc,thisMod->d_file),"operation not supported");
+    }
+
     void visit( Assign* me )
     {
         Q_ASSERT( me->d_rhs );
@@ -2766,27 +3018,45 @@ struct ObxCilGenImp : public AstVisitor
 
         if( lhsT->isStructured() )
         {
-            me->d_lhs->accept(this);
-            me->d_rhs->accept(this);
-            prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
             switch(lhsT->getTag())
             {
             case Thing::T_Record:
                 {
                     // stack: lhs record, rhs record
                     Record* r = cast<Record*>(lhsT);
-                    QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
-                    what += formatType(r);
-                    if( r->d_byValue )
-                        what += "&";
-                    what += ")";
-                    line(me->d_loc).callvirt_(what,1);
+                    if( r->d_unsafe )
+                    {
+#if 1
+                        emitFetchDesigAddr(me->d_lhs.data());
+                        me->d_rhs->accept(this);
+                        line(me->d_loc).ldc_i4(lhsT->getByteSize());
+                        line(me->d_loc).cpblk_();
+#else
+                        me->d_rhs->accept(this); // TODO rhs kann funktion sein die value zurückgibt
+                        line(me->d_loc).ldobj_( formatType(me->d_rhs->d_type.data()) );
+                        // TODO emitStackToVar();
+#endif
+                    }else
+                    {
+                        me->d_lhs->accept(this);
+                        me->d_rhs->accept(this);
+                        prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
+                        QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
+                        what += formatType(r);
+                        if( r->d_byValue )
+                            what += "&";
+                        what += ")";
+                        line(me->d_loc).callvirt_(what,1);
+                    }
                 }
                 break;
             case Thing::T_Array:
                 {
+                    me->d_lhs->accept(this);
+                    me->d_rhs->accept(this);
+                    prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
                     // stack: lhs array, lhs array, rhs array
-                    line(me->d_loc).call_(formatArrayCopierRef(cast<Array*>(lhsT)),2);
+                    emitCopyArray(me->d_lhs->d_type.data(),me->d_rhs->d_type.data(), me->d_loc);
                 }
                 break;
             default:
@@ -2794,7 +3064,7 @@ struct ObxCilGenImp : public AstVisitor
             }
         }else
         {
-            emitFetchDesigAddr(me->d_lhs.data());
+            const bool unsafe = emitFetchDesigAddr(me->d_lhs.data());
             me->d_rhs->accept(this);
             prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
             convertTo(lhsT->getBaseType(),me->d_rhs->d_type.data(), me->d_loc); // required, otherwise crash when LONGREAL
@@ -2805,7 +3075,10 @@ struct ObxCilGenImp : public AstVisitor
             {
             case Thing::T_Pointer:
             case Thing::T_ProcType:
-                line(me->d_loc).stind_(IlEmitter::Ref);
+                if( lhsT->d_unsafe )
+                    line(me->d_loc).stind_(IlEmitter::IntPtr);
+                else
+                    line(me->d_loc).stind_(IlEmitter::Ref);
                 break;
             case Thing::T_Enumeration:
                 //line(me->d_loc).stobj_(formatType(me->d_lhs->d_type.data()));
@@ -2827,8 +3100,13 @@ struct ObxCilGenImp : public AstVisitor
                 case Type::SET:
                     line(me->d_loc).stind_(IlEmitter::I4);
                     break;
-                case Type::SHORTINT:
                 case Type::CHAR:
+                    if( unsafe )
+                        line(me->d_loc).stind_(IlEmitter::I1);
+                    else
+                        line(me->d_loc).stind_(IlEmitter::I2);
+                    break;
+                case Type::SHORTINT:
                 case Type::WCHAR:
                     line(me->d_loc).stind_(IlEmitter::I2);
                     break;
@@ -2995,25 +3273,40 @@ struct ObxCilGenImp : public AstVisitor
             Type* ltd = derefed(lt);
             if( ltd && ltd->isStructured() )
             {
-                emitInitializer(lt,false,loc); // create new record or array
-                line(loc).dup_();
-                what->accept(this);
                 switch(ltd->getTag())
                 {
                 case Thing::T_Record:
                     {
-                        // stack: new record, new record, rhs record
                         Record* r = cast<Record*>(ltd);
-                        QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
-                        what += formatType(r);
-                        if( r->d_byValue )
-                            what += "&";
-                        what += ")";
-                        line(loc).callvirt_(what,1);
+                        if( r->d_unsafe )
+                        {
+                            what->accept(this);
+                            line(loc).ldobj_(formatType(r));
+                        }else
+                        {
+                            emitInitializer(lt,false,loc); // create new record or array
+                            line(loc).dup_();
+                            what->accept(this);
+                            // stack: new record, new record, rhs record
+                            QByteArray what = "void " + classRef(r) + formatMetaActuals(r) + "::'#copy'(";
+                            what += formatType(r);
+                            if( r->d_byValue )
+                                what += "&";
+                            what += ")";
+                            line(loc).callvirt_(what,1);
+                        }
                     }
                     break;
                 case Thing::T_Array:
                     {
+                        if( ltd && ltd->d_unsafe )
+                        {
+                            err->error(Errors::Generator, Loc(loc,thisMod->d_file), "returning unsafe arrays by value not supported");
+                            break;
+                        }
+                        emitInitializer(lt,false,loc); // create new record or array
+                        line(loc).dup_();
+                        what->accept(this);
                         // stack: new array, new array, rhs array
                         line(loc).call_(formatArrayCopierRef(cast<Array*>(ltd)),2);
                     }
@@ -3134,15 +3427,35 @@ struct ObxCilGenImp : public AstVisitor
             break;
 #endif
         case Thing::T_Record:
+            if( !td->d_unsafe )
             {
                 Record* r = cast<Record*>(td);
                 Q_ASSERT( !r->d_byValue );
 
                 line(loc).newobj_("void class " + classRef(r) + formatMetaActuals(r)
                     + "::.ctor()"); // initializes fields incl. superclasses
+                return true;
             }
-            return true;
+            break;
         case Thing::T_Array:
+            if( td->d_unsafe )
+            {
+                Array* a = cast<Array*>(td);
+                Type* td = derefed(a->d_type.data());
+
+                Q_ASSERT( !a->d_lenExpr.isNull() );
+                const quint32 len = a->d_len * td->getByteSize();
+                line(loc).ldc_i4( len );
+                if( scope )
+                    line(loc).localloc_(); // we're in a procedure
+                else
+                    // we're on module level TODO: someone to call Marshal.FreeHGlobal()
+                    line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::AllocHGlobal(int32)",1,true);
+                line(loc).dup_();
+                line(loc).ldc_i4(0);
+                line(loc).ldc_i4(len);
+                line(loc).initblk_();
+            }else
             {
                 Array* a = cast<Array*>(td);
                 Type* td = derefed(a->d_type.data());
@@ -3159,7 +3472,7 @@ struct ObxCilGenImp : public AstVisitor
                     line(loc).ldc_i4(a->d_len);
                     if( td->isStructured() )
                     {
-                        len = temps.buy();
+                        len = temps.buy("int32");
                         line(loc).dup_();
                         line(loc).stloc_(len);
                     }
@@ -3169,7 +3482,7 @@ struct ObxCilGenImp : public AstVisitor
 
                 if( td->isStructured() )
                 {
-                    const int i = temps.buy();
+                    const int i = temps.buy("int32");
                     Q_ASSERT( i >= 0 );
                     line(loc).ldc_i4(0);
                     line(loc).stloc_(i);
@@ -3248,6 +3561,7 @@ struct ObxCilGenImp : public AstVisitor
         switch( me->getTag() )
         {
         case Thing::T_Field:
+            Q_ASSERT( !me->d_unsafe );
             line(loc).stfld_(memberRef(me));
             break;
         case Thing::T_Variable:
@@ -3266,19 +3580,55 @@ struct ObxCilGenImp : public AstVisitor
 
     void emitVarToStack( Named* me, const RowCol& loc )
     {
+        Type* td = derefed(me->d_type.data());
+        const bool getAddr = td && td->getTag() == Thing::T_Record && td->d_unsafe;
         switch( me->getTag() )
         {
         case Thing::T_Field:
-            line(loc).ldfld_(memberRef(me));
+#if 1
+            if( me->d_unsafe )
+            {
+                // ldfld_(memberRef(me)) and ldflda_(memberRef(me)) don't properly work with explicit
+                // layout for fields after embedded arrays, neither in Mono 3 nor 5
+                Q_ASSERT(me->d_slotValid);
+                line(loc).ldc_i4(me->d_slot);
+                line(loc).add_();
+                if( !getAddr && !td->isStructured() )
+                    emitValueFromAdrToStack(td,true,loc);
+            }
+#else
+            if( me->d_unsafe && td && td->getTag() == Thing::T_Array )
+            {
+                // an array member of an unsafe record is just the first element by value with reserved space afterwards
+                // so we take the address of the first element
+                Q_ASSERT(!inUnsafeRecord);
+                inUnsafeRecord = true;
+                line(loc).ldflda_(memberRef(me));
+                inUnsafeRecord = false;
+            }
+#endif
+            else if( getAddr )
+                line(loc).ldflda_(memberRef(me));
+            else
+                line(loc).ldfld_(memberRef(me));
             break;
         case Thing::T_Variable:
-            line(loc).ldsfld_(memberRef(me));
+            if( getAddr )
+                line(loc).ldsflda_(memberRef(me));
+            else
+                line(loc).ldsfld_(memberRef(me));
             break;
         case Thing::T_LocalVar:
-            line(loc).ldloc_(me->d_slot);
+            if( getAddr )
+                line(loc).ldloca_(me->d_slot);
+            else
+                line(loc).ldloc_(me->d_slot);
             break;
         case Thing::T_Parameter:
-            line(loc).ldarg_(me->d_slot);
+            if( getAddr )
+                line(loc).ldarga_(me->d_slot);
+            else
+                line(loc).ldarg_(me->d_slot);
             break;
         }
     }
@@ -3292,7 +3642,7 @@ struct ObxCilGenImp : public AstVisitor
             // array is on the stack
             line(loc).dup_();
             line(loc).ldlen_();
-            const int len = temps.buy();
+            const int len = temps.buy("int32");
             lengths.append(len);
             line(loc).stloc_(len);
             line(loc).ldc_i4(0);
@@ -3304,18 +3654,31 @@ struct ObxCilGenImp : public AstVisitor
 
     void emitInitializer( Named* me )
     {
-        switch( me->getTag() )
+        const int tag = me->getTag();
+        switch( tag )
         {
         case Thing::T_Variable:
         case Thing::T_LocalVar:
-            if( emitInitializer( me->d_type.data(), false, me->d_loc ) )
-                emitStackToVar( me, me->d_loc );
+            {
+                Type* t = derefed(me->d_type.data());
+                if( t && t->d_unsafe && t->getTag() == Thing::T_Record )
+                {
+                    if( tag == Thing::T_LocalVar )
+                    {
+                        Q_ASSERT( me->d_slotValid );
+                        line(me->d_loc).ldloca_(me->d_slot);
+                    }else
+                        line(me->d_loc).ldsflda_(memberRef(me));
+                    line(me->d_loc).initobj_(formatType(me->d_type.data()));
+                }else if( emitInitializer( me->d_type.data(), false, me->d_loc ) )
+                    emitStackToVar( me, me->d_loc );
+            }
             break;
         case Thing::T_Parameter:
             {
                 Parameter* p = cast<Parameter*>(me);
                 Type* t = derefed(p->d_type.data());
-                if( !p->d_var && t && t->isStructured() )
+                if( !p->d_var && t && t->isStructured() && !t->d_unsafe ) // TODO: unsafe arrays
                 {
                     // make a copy if a structured value is not passed by VAR or IN
                     const int tag = t->getTag();
@@ -3381,7 +3744,7 @@ bool CilGen::translate(Module* m, IlEmitter* e, bool debug, Ob::Errors* errs)
     if( m->d_hasErrors || !m->d_isValidated ) //  not validated can happen if imports cannot be resolved
         return false;
 
-    if( m->d_isDef )
+    if( m->d_isDef && !m->d_externC )
         return true;
 
     ObxCilGenImp imp;
@@ -3549,12 +3912,13 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
         {
             qDebug() << "terminating because of errors in" << m->d_name;
             return false;
-        }else if( m->d_isDef )
+        }else if( m->d_isDef
+#ifdef _OBX_USE_NEW_FFI_
+                  && !m->d_externC
+#endif
+                  )
         {
-            if( m->d_externC )
-            {
-                qWarning() << "TODO: implement pinvoke of" << m->getName();
-            } // else NOP
+            // NOP
         }else
         {
 #ifdef _MY_GENERICS_

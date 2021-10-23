@@ -905,7 +905,7 @@ struct ValidatorImp : public AstVisitor
                 changed = !r->d_usedByVal;
                 r->d_usedByVal = true;
             }
-#if 1
+#if 0
             // SDL has no record which is used both by val and by ref
             if( changed && mod->d_externC )
             {

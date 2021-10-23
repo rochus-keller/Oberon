@@ -30,7 +30,7 @@ class SignatureLexer
 {
 public:
     enum TokenType { Invalid, Done, ID, QSTRING, CLASS, VALUETYPE, LBRACK, RBRACK, ARR,
-                     DBLCOLON, SLASH, LPAR, RPAR, AMPERS, COMMA, DOT };
+                     DBLCOLON, SLASH, LPAR, RPAR, AMPERS, COMMA, DOT, STAR };
     struct Token
     {
         quint8 d_tt; // TokenType
@@ -100,6 +100,8 @@ protected:
                 return Token(RPAR,d_off-1);
             case '&':
                 return Token(AMPERS,d_off-1);
+            case '*':
+                return Token(STAR,d_off-1);
             case ',':
                 return Token(COMMA,d_off-1);
             case '.':
@@ -173,7 +175,7 @@ class SignatureParser
 {
 public:
     // ref      ::= typeRef | membRef
-    // typeRef  ::= [ 'class' | 'valuetype' ] [ assembly ] path { '[]' } | primType { '[]' }
+    // typeRef  ::= [ 'class' | 'valuetype' ] [ assembly ] path {'*'} {'[]'} | primType {'*'} {'[]'}
     // primType ::= [ 'native' ][ 'unsigned' ] ID
     // membRef  ::= typeRef [ 'class' | 'valuetype' ] [ assembly ] path '::' dottedNm [ params ]
     // assembly ::= '[' dottedNm ']'
@@ -309,10 +311,17 @@ public:
         return createMethod(cls,name,pars,ret,hint);
     }
 
-    static void createClassFor( Node* node )
+    static void createClassFor( Node* node, bool isValueType )
     {
         Q_ASSERT( node->thing == 0 );
-        Class* cls = new Class(node->name.constData(),Qualifiers::Public,-1,-1);
+        Qualifiers flags = Qualifiers::Public;
+
+        if( isValueType )
+            flags |= Qualifiers::Value; // this is indeed required, otherwise type exception
+            // not necessary: | Qualifiers::Sealed | Qualifiers::Sequential | Qualifiers::Ansi;
+
+        Class* cls = new Class(node->name.constData(),flags,-1,-1);
+
         Q_ASSERT( node->parent );
         DataContainer* dc = dynamic_cast<DataContainer*>(node->parent->thing);
         Q_ASSERT(dc);
@@ -380,12 +389,15 @@ public:
             return suffix;
         }
     }
+
 protected:
     Node* typeRef()
     {
         SignatureLexer::Token t = lex.peek();
+        bool isValueType = false;
         if( t.d_tt == SignatureLexer::CLASS || t.d_tt == SignatureLexer::VALUETYPE )
         {
+            isValueType = t.d_tt == SignatureLexer::VALUETYPE;
             lex.next();
             t = lex.peek();
         }
@@ -397,23 +409,63 @@ protected:
         {
             if( t.d_tt == SignatureLexer::LBRACK )
                 ass = assembly();
-            node = path( ass ? ass : &root );
+            node = path( ass ? ass : &root, isValueType );
         }
         Q_ASSERT( node != 0 );
         if( node->thing == 0 )
-            createClassFor(node);
+            createClassFor(node,isValueType);
+
+        QByteArray pointer;
+        int pointerLevel = 0;
+        while( lex.peek().d_tt == SignatureLexer::STAR )
+        {
+            lex.next();
+            pointer += "*";
+            pointerLevel++;
+        }
+        if( pointerLevel )
+        {
+            // TODO: combinations of * and []
+            if( Type* primitive = dynamic_cast<Type*>(node->thing) )
+            {
+                Node* suffix = node->subs.value(pointer);
+                if( suffix == 0 )
+                {
+                    suffix = new Node(node,pointer);
+                    node->subs.insert(pointer,suffix);
+                    Type* t = new Type(primitive->GetBasicType());
+                    t->PointerLevel(pointerLevel);
+                    suffix->thing = t;
+                }
+                node = suffix;
+            }else
+            {
+                DataContainer* dc = dynamic_cast<DataContainer*>(node->thing);
+                Q_ASSERT(dc);
+                Node* suffix = node->subs.value(pointer); // sub "" is the plain type associated with the given class
+                if( suffix == 0 )
+                {
+                    suffix = new Node(node,pointer);
+                    node->subs.insert(pointer,suffix);
+                    Type* t = new Type(dc);
+                    t->PointerLevel(pointerLevel);
+                    suffix->thing = t;
+                }
+                node = suffix;
+            }
+        }
 
         QByteArray array;
-        int level = 0;
+        int arrayLevel = 0;
         while( lex.peek().d_tt == SignatureLexer::ARR )
         {
             lex.next();
             array += "[]";
-            level++;
+            arrayLevel++;
         }
         if( Type* primitive = dynamic_cast<Type*>(node->thing) )
         {
-            if( level == 0 )
+            if( arrayLevel == 0 )
                 return node;
             // else
             Node* suffix = node->subs.value(array);
@@ -422,7 +474,7 @@ protected:
                 suffix = new Node(node,array);
                 node->subs.insert(array,suffix);
                 Type* t = new Type(primitive->GetBasicType());
-                t->ArrayLevel(level);
+                t->ArrayLevel(arrayLevel);
                 suffix->thing = t;
             }
             return suffix;
@@ -436,7 +488,7 @@ protected:
                 suffix = new Node(node,array);
                 node->subs.insert(array,suffix);
                 Type* t = new Type(dc);
-                t->ArrayLevel(level);
+                t->ArrayLevel(arrayLevel);
                 suffix->thing = t;
             }
             return suffix;
@@ -521,22 +573,24 @@ protected:
     Node* memberRef(MemberHint hint)
     {
         Node* type = typeRef();
+        bool isValueType = false;
         SignatureLexer::Token t = lex.peek();
         if( t.d_tt == SignatureLexer::CLASS || t.d_tt == SignatureLexer::VALUETYPE )
         {
+            isValueType = t.d_tt == SignatureLexer::VALUETYPE;
             lex.next();
             t = lex.peek();
         }
         Node* a = 0;
         if( t.d_tt == SignatureLexer::LBRACK )
             a = assembly();
-        Node* node = path( a ? a : &root );
+        Node* node = path( a ? a : &root, isValueType );
         t = lex.next();
         if( t.d_tt != SignatureLexer::DBLCOLON )
             throw "member ref without ::";
 
         if( node->thing == 0 )
-            createClassFor(node);
+            createClassFor(node, isValueType);
         else if( dynamic_cast<Class*>(node->thing) == 0 )
             throw "member ref must point to a class";
 
@@ -606,7 +660,7 @@ protected:
         return a;
     }
 
-    Node* path(Node* scope)
+    Node* path(Node* scope, bool isValueType )
     {
         QByteArrayList name;
         SignatureLexer::Token t = lex.next();
@@ -628,29 +682,29 @@ protected:
         if( name.size() == 1 && scope == &root && isPrimitive(name.first()))
             return fetchPrimitive(name.first());
 
-        Node* node = 0;
-        for( int i = 0; i < name.size() - 1; i++ )
+        Node* clsNode = 0;
+        for( int i = 0; i < name.size() - 1; i++ ) // all names in the chain before the last one are namespaces
         {
-            Node* node = scope->subs.value( name[i] );
-            if( node == 0 )
+            Node* nsNode = scope->subs.value( name[i] );
+            if( nsNode == 0 )
             {
                 Namespace* ns = new Namespace(name[i].constData());
                 DataContainer* dc = dynamic_cast<DataContainer*>(scope->thing);
                 Q_ASSERT( dc );
                 dc->Add(ns);
-                node = new Node(scope,name[i]);
-                node->thing = ns;
-                scope->subs.insert(name[i],node);
+                nsNode = new Node(scope,name[i]);
+                nsNode->thing = ns;
+                scope->subs.insert(name[i],nsNode);
             }
-            scope = node;
+            scope = nsNode;
         }
 
-        node = scope->subs.value( name.last() );
-        if( node == 0 )
+        clsNode = scope->subs.value( name.last() ); // the last name in the chain is expected to be a class
+        if( clsNode == 0 )
         {
-            node = new Node(scope,name.last());
+            clsNode = new Node(scope,name.last());
             // thing is not yet known here
-            scope->subs.insert(name.last(),node);
+            scope->subs.insert(name.last(),clsNode);
         }
 
         QByteArrayList nested;
@@ -676,30 +730,30 @@ protected:
         }
 
         if( nested.isEmpty() )
-            return node;
+            return clsNode;
 
         // else
         // node must be a class
-        if( node->thing == 0 )
-            createClassFor(node);
-        else if( dynamic_cast<Class*>(node->thing) == 0 )
+        if( clsNode->thing == 0 )
+            createClassFor(clsNode, nested.isEmpty() && isValueType);
+        else if( dynamic_cast<Class*>(clsNode->thing) == 0 )
             throw "cannot nest class in given scope";
-        scope = node;
+        scope = clsNode;
 
         for( int i = 0; i < nested.size(); i++ )
         {
-            node = scope->subs.value( nested[i] );
-            if( node == 0 )
+            clsNode = scope->subs.value( nested[i] );
+            if( clsNode == 0 )
             {
-                node = new Node(scope,nested[i]);
-                scope->subs.insert(nested[i],node);
-                createClassFor(node);
-            }else if( dynamic_cast<Class*>(node->thing) == 0 )
+                clsNode = new Node(scope,nested[i]);
+                scope->subs.insert(nested[i],clsNode);
+                createClassFor(clsNode, i == nested.size()-1 && isValueType );
+            }else if( dynamic_cast<Class*>(clsNode->thing) == 0 )
                 throw "cannot nest class in given scope";
 
-            scope = node;
+            scope = clsNode;
         }
-        return node;
+        return clsNode;
     }
 
     Par param()
@@ -1024,6 +1078,9 @@ void PelibGen::addMethod(const IlMethod& m)
     case IlEmitter::Primary:
         hint = SignatureParser::Static;
         break;
+    case IlEmitter::Pinvoke:
+        hint = SignatureParser::Static;
+        break;
     case IlEmitter::Virtual:
         hint = SignatureParser::Virtual;
         break;
@@ -1037,10 +1094,14 @@ void PelibGen::addMethod(const IlMethod& m)
     Q_ASSERT(mm);
     mm->HasEntryPoint(m.d_methodKind == IlEmitter::Primary );
 
+    if( m.d_methodKind == IlEmitter::Pinvoke )
+        mm->SetPInvoke(m.d_library.constData(), Method::Stdcall, m.d_origName.constData() );
+
     Qualifiers q = Qualifiers::Managed;
     switch( m.d_methodKind )
     {
     case IlEmitter::Static:
+    case IlEmitter::Pinvoke:
         q |= Qualifiers::Static;
         break;
     case IlEmitter::Primary:
@@ -1212,14 +1273,14 @@ void PelibGen::addMethod(const IlMethod& m)
     mm->Optimize();
 }
 
-void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef)
+void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef, int byteSize)
 {
     Q_ASSERT( d_imp && !d_imp->level.isEmpty() );
     const QByteArray name = unescape(className);
     SignatureParser::Node* me = d_imp->level.back()->subs.value(name);
     Qualifiers flags = Qualifiers::Public;
     if( byValue )
-        flags |= Qualifiers::Sealed | Qualifiers::Sequential | Qualifiers::Ansi;
+        flags |= Qualifiers::Value | Qualifiers::Sealed | Qualifiers::Sequential | Qualifiers::Ansi;
     Class* cls = 0;
     if( me == 0 )
     {
@@ -1245,6 +1306,9 @@ void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byVal
         Q_ASSERT( scls );
         cls->Extends(scls);
     }
+    if( byteSize >= 0 )
+        cls->size(byteSize);
+
     d_imp->level.push_back(me);
 }
 
@@ -1264,8 +1328,9 @@ void PelibGen::addField(const QByteArray& fieldName, const QByteArray& typeRef, 
 
     // TODO: marshalAs, see MonoMarshalSpec, MONO_NATIVE_BYVALARRAY
     // this features is acutally missing in the ECMA-335 issue 3 to 5, but not in Lidins book, see p. 142 there.
-    SignatureParser::Node* field = SignatureParser::findOrCreateField(d_imp->level.back(),unescape(fieldName),
-                                       d_imp->find(SignatureParser::TypeRef,typeRef), hint);
+    SignatureParser::Node* type = d_imp->find(SignatureParser::TypeRef,typeRef);
+    Q_ASSERT( type );
+    SignatureParser::Node* field = SignatureParser::findOrCreateField(d_imp->level.back(),unescape(fieldName), type, hint);
     if( explicitOffset >= 0 && field->thing )
         static_cast<Field*>(field->thing)->ExplicitOffset(explicitOffset);
 }

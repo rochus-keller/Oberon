@@ -26,7 +26,7 @@ TEMPLATE = app
 
 INCLUDEPATH += .. 
 
-DEFINES += _MONO_ENGINE_EXT_ #_OBX_USE_NEW_FFI_
+DEFINES += _MONO_ENGINE_EXT_ _OBX_USE_NEW_FFI_
 
 SOURCES += ObxIde2.cpp \
     ../GuiTools/CodeEditor.cpp \

@@ -45,7 +45,7 @@ namespace Obx
 
     struct IlMethod
     {
-        uint d_methodKind : 2;
+        uint d_methodKind : 3;
         uint d_isPublic : 1;
         uint d_isRuntime : 1;
         uint d_stackDepth: 16;
@@ -54,6 +54,7 @@ namespace Obx
         QList< QPair<QByteArray,QByteArray> > d_args; // idx, type, name
         QList< QPair<QByteArray,QByteArray> > d_locals; // idx, type, name
         QByteArray d_retType;
+        QByteArray d_library, d_origName; // pinvoke
     };
 
     class IlRenderer
@@ -66,7 +67,7 @@ namespace Obx
         virtual void addMethod(const IlMethod& method ) {}
 
         virtual void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
-                         const QByteArray& superClassRef = QByteArray() ) {}
+                         const QByteArray& superClassRef = QByteArray(), int byteSize = -1 ) {}
         virtual void endClass() {}
 
         virtual void addField( const QByteArray& fieldName, // on top level or in class
@@ -93,7 +94,7 @@ namespace Obx
                           const QString& sourceFile, ModuleKind = Library );
         void endModule();
 
-        enum MethodKind { Static, Primary, Instance, Virtual };
+        enum MethodKind { Static, Primary, Instance, Virtual, Pinvoke };
         void beginMethod(const QByteArray& methodName, // can be on top level or in a class/struct; cannot be in a method
                          bool isPublic = true,
                          MethodKind = Instance,
@@ -101,7 +102,7 @@ namespace Obx
         void endMethod();
 
         void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
-                         const QByteArray& superClassRef = QByteArray() );
+                         const QByteArray& superClassRef = QByteArray(), int byteSize = -1 );
         void endClass(); // classes can be nested
 
         void addField( const QByteArray& fieldName, // on top level or in class
@@ -114,6 +115,7 @@ namespace Obx
         quint32 addLocal( const QByteArray& typeRef, QByteArray name = QByteArray() );
         quint32 addArgument(const QByteArray& typeRef, QByteArray name = QByteArray() );
         void setReturnType(const QByteArray& typeRef);
+        void setPinvoke( const QByteArray& lib, const QByteArray& origName = QByteArray() );
 
         quint32 newLabel();
         void label_(quint32); // inserts artificial label command
@@ -141,10 +143,12 @@ namespace Obx
         void ceq_();
         void cgt_(bool withUnsigned = false);
         void clt_(bool withUnsigned = false);
+        void cpblk_();
         enum ToType { ToI1, ToI2, ToI4, ToI8, ToR4, ToR8, ToU1, ToU2, ToU4, ToU8 };
         void conv_( ToType, bool withOverflow = false, bool withUnsignedOverflow = false );
         void div_(bool withUnsigned = false);
         void dup_();
+        void initblk_();
         void initobj_(const QByteArray& typeRef);
         void isinst_(const QByteArray& typeRef);
         void ldarg_(quint16 arg);
@@ -158,7 +162,7 @@ namespace Obx
         void ldfld_(const QByteArray& fieldRef);
         void ldflda_(const QByteArray& fieldRef);
         void ldftn_(const QByteArray& methodRef);
-        enum IndType { I1, I2, I4, I8, R4, R8, Ref, U1, U2, U4, U8 };
+        enum IndType { I1, I2, I4, I8, R4, R8, Ref, U1, U2, U4, U8, IntPtr };
         void ldind_(IndType);
         void ldlen_();
         void ldloc_(quint16);
@@ -169,6 +173,7 @@ namespace Obx
         void ldsflda_(const QByteArray& fieldRef);
         void ldstr_(const QByteArray& utf8);
         void ldvirtftn_(const QByteArray& methodRef);
+        void localloc_();
         void mul_(bool withOverflow = false, bool withUnsignedOverflow = false);
         void neg_();
         void newarr_(const QByteArray& typeRef);
@@ -206,6 +211,7 @@ namespace Obx
         QList< QPair<QByteArray,QByteArray> > d_args; // idx, type, name
         QList< QPair<QByteArray,QByteArray> > d_locals; // idx, type, name
         QByteArray d_retType;
+        QByteArray d_library, d_origName;
         IlRenderer* d_out;
     };
 
@@ -259,7 +265,7 @@ namespace Obx
         virtual void addMethod(const IlMethod& method );
 
         virtual void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
-                         const QByteArray& superClassRef = QByteArray() );
+                         const QByteArray& superClassRef = QByteArray(), int byteSize = -1 );
         virtual void endClass();
 
         virtual void addField( const QByteArray& fieldName,
