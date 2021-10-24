@@ -297,6 +297,7 @@ namespace Obx
         Record* findBySlot(int) const;
         quint32 getByteSize() const;
         quint32 getAlignment() const { return d_alignment; }
+        Field* nextField(Field*) const;
     };
 
     struct ProcType : public Type
@@ -332,6 +333,7 @@ namespace Obx
         int getTag() const { return T_QualiType; }
         bool hasByteSize() const;
         quint32 getByteSize() const;
+        virtual quint32 getAlignment() const;
         void accept(AstVisitor* v) { v->visit(this); }
         Type* derefed();
         QString pretty() const;

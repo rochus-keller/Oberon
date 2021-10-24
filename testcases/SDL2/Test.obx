@@ -9,7 +9,7 @@ module Test
 		running: boolean
 		event: SDL.Event
 		v: SDL.version
-		x,y: [1]integer
+		x,y: carray 1 of integer
 		
 	(*
 	proc filter(userdata: *void; event: *SDL.Event): integer
@@ -22,23 +22,29 @@ module Test
 	proc tick( time: integer )
 	begin
 		println(time)
-		SDL.Log("time: %d\n", time)	
+		// TODO SDL.Log("time: %d\n", time)	
 	end tick
-		
+
+var
+	tmp1,tmp2 : carray 16 of char
 begin
+	//trap()
 	SDL.GetVersion(v)
 	Out.String("Loaded SDL version: ")
 	Out.Int(v.major,0) Out.String(".") Out.Int(v.minor,0) 
 	Out.String(".") Out.Int(v.patch,0) Out.Ln
 
-	SDL.Log("hello from log %d.%d.%d %f %s", v.major, v.minor, v.patch, 123.45, "test" )
+	// TODO SDL.Log("hello from log %d.%d.%d %f %s", v.major, v.minor, v.patch, 123.45, "test" )
 	
 	// SDL.SetEventFilter( filter, nil ) // crashes after some time, likely because of different thread
 	
-	window := SDL.CreateWindow("Hello SDL!", 20, 20, 512, 512, SDL.WINDOW_SHOWN )
+	tmp1 := "Hello SDL!"
+	window := SDL.CreateWindow(tmp1, 20, 20, 512, 512, SDL.WINDOW_SHOWN )
 	surface := SDL.GetWindowSurface(window)
 
-	image := SDL.LoadBMP_RW(SDL.RWFromFile("lena.bmp", "rb"), 1)
+	tmp1 := "lena.bmp"
+	tmp2 := "rb"
+	image := SDL.LoadBMP_RW(SDL.RWFromFile(tmp1, tmp2), 1)
 	res := SDL.UpperBlit(image, nil, surface, nil)
 	
 	res := SDL.UpdateWindowSurface(window)
@@ -46,7 +52,7 @@ begin
    
    running := true
    while running do
-	   while SDL.PollEvent(event) # 0 do
+	   while SDL.WaitEvent(event) # 0 do
 	      if event.type_ = SDL.QUIT then
 	         running := false
 	      end

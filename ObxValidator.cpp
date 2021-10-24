@@ -1730,7 +1730,7 @@ struct ValidatorImp : public AstVisitor
         if( me->d_unsafe )
         {
 #if 0
-            // maybe too strong; we need to be able to allocate carray e.g. on the stack; we still can do it using imported named types
+            // too strong; we need to be able to allocate carray e.g. on the stack; we still can do it using imported named types
             // but actually it doesn't harm; otherwise we would have to declare carray in library module for all required lengths
             // this is mostly about anonymous local type definitions in variable declarations, not in named type declarations
             if( !mod->d_externC )
@@ -1739,7 +1739,7 @@ struct ValidatorImp : public AstVisitor
             Type* t = derefed(me->d_type.data());
             if( t && t->isStructured(true) && !t->d_unsafe )
                 error( me->d_loc, Validator::tr("CARRAY cannot have safe non-basic element types") );
-#if 0 // not useful
+#if 1
             if( t && t->getTag() == Thing::T_Array )
                 error( me->d_loc, Validator::tr("CARRAY can only have one dimension") );
 #endif
@@ -1791,6 +1791,8 @@ struct ValidatorImp : public AstVisitor
 #endif
 
 #ifdef _OBX_USE_NEW_FFI_
+#if 0 // no, we need this feature because the debugger cannot display unsafe arrays, so we can at least use local records
+      // with embedded arrays
         // maybe too strong; we need to be able to allocate cstruct e.g. on the stack; we still can import named types
         // but it doesn't harm; we can only use them by value, and we can take their address by passing/assigning to a *type
         // but we should not support declaring cstruct types throughout the app; using the types in var decls is ok though.
@@ -1801,6 +1803,7 @@ struct ValidatorImp : public AstVisitor
             else
                 error(me->d_loc, Validator::tr("CSTRUCT only supported in external library modules; use RECORD instead") );
         }else
+#endif
 #endif
         if( mod->d_externC && !me->d_unsafe )
             error(me->d_loc, Validator::tr("RECORD not supported in external library modules; use CSTRUCT instead") );

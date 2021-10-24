@@ -1165,38 +1165,83 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
             item->setText(1,"<unknown typeref>");
             break;
         }
-    }else if( var.canConvert<IntPtr>() )
-        item->setText(1,"<native pointer>");
-    else if( var.canConvert<ValueType>() )
+    }else if( var.canConvert<UnmanagedPtr>() )
     {
-        item->setData(1,Qt::UserRole, var);
-        item->setText(1,"<struct>");
-#if 0
+        UnmanagedPtr ptr = var.value<UnmanagedPtr>();
+#if 1
+        if( Pointer::s_pointerByteSize == 4 )
+            item->setText(1,QString("<pointer> 0x%1").arg(quint32(ptr.ptr&0xffffffff),0,16));
+        else
+            item->setText(1,QString("<pointer> 0x%1").arg(ptr.ptr,0,16));
+#else
+        if( ptr.ptr )
+            item->setText(1,QString("<pointer>"));
+        else
+            item->setText(1,QString("<null>"));
+#endif
+        item->setToolTip(1,item->text(1));
+    }else if( var.canConvert<ValueType>() )
+    {
+        //item->setData(1,Qt::UserRole, var);
+#if 1
         ValueType v = var.value<ValueType>();
-        QString str = "struct{ ";
+        const QByteArray name = dbg->getTypeInfo(v.cls).spaceName();
+        if( !name.isEmpty() )
+        {
+            item->setText(1,escapeRecordName(name));
+            item->setToolTip(1,item->text(1));
+        }else
+            item->setText(1,"<cstruct>");
+
+        QList<Mono::Debugger::FieldInfo> names = dbg->getFields(v.cls,true,false);
         for( int i = 0; i < v.fields.size(); i++ )
         {
-            if( i != 0 )
-                str += ", ";
-            str += toString(v.fields[i], dbg);
+            QTreeWidgetItem* sub = new QTreeWidgetItem(item);
+            if( i < names.size() )
+                sub->setText(0,names[i].name);
+            setValue(sub,v.fields[i],dbg);
+            // TODO: also here the issue applies for unsafe records with embedded arrays
+            // the values of fields after the array are wrong
         }
-        str += " }";
+#else
+        item->setText(1,"<cstruct>");
 #endif
     }else if( var.isNull() )
         item->setText(1,"nil");
     else
     {
-        if( var.type() == QVariant::Char )
+        int w = 2;
+        switch( int(var.type()) )
         {
-            const QChar ch = var.toChar();
-            QString str;
-            if( ch.isPrint() )
-                str = QString("'%1' ").arg(ch);
-            const quint32 code = ch.unicode();
-            str += QString("%1x %2").arg(code,2,16,QChar('0')).arg(code).toUpper();
-            item->setText(1,str);
-        }else
+        case QMetaType::Char:
+            {
+                const QChar ch = var.toChar();
+                QString str;
+                if( ch.isPrint() )
+                    str = QString("'%1' ").arg(ch);
+                const quint32 code = ch.unicode();
+                str += QString("%1x %2").arg(code,2,16,QChar('0')).arg(code).toUpper();
+                item->setText(1,str);
+            }
+            break;
+        case QMetaType::Short:
+        case QMetaType::UShort:
+            w = 4;
+        case QMetaType::SChar:
+        case QMetaType::UChar:
+            {
+                const int v = var.toInt();
+                const QChar ch(qAbs(v));
+                QString str;
+                str += QString("%1\t%2h").arg(v).arg(v,w,16,QChar('0'));
+                if( ch.isPrint() )
+                    str += QString(" '%1'").arg(ch);
+                item->setText(1,str);
+            }
+            break;
+        default:
             item->setText(1,var.toString());
+        }
         item->setToolTip(1,item->text(1));
     }
 }
@@ -3208,7 +3253,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.10");
+    a.setApplicationVersion("0.9.11");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

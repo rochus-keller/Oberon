@@ -113,7 +113,7 @@ definition SDL [extern 'C', dll 'SDL2', prefix 'SDL_']
     proc GetAudioDeviceStatus(dev: integer): AudioStatus
     proc PauseAudio(pause_on: integer)
     proc PauseAudioDevice(dev: integer; pause_on: integer)
-    proc LoadWAV_RW(src: *RWops; freesrc: integer; spec: *AudioSpec; audio_buf: *[][]byte; audio_len: *[]integer): *AudioSpec
+    proc LoadWAV_RW(src: *RWops; freesrc: integer; spec: *AudioSpec; audio_buf: *[]*[]byte; audio_len: *[]integer): *AudioSpec
     proc FreeWAV(audio_buf: *[]byte)
     proc BuildAudioCVT(cvt: *AudioCVT; src_format: shortint; src_channels: byte; src_rate: integer; dst_format: shortint; dst_channels: byte; dst_rate: integer): integer
     proc ConvertAudio(cvt: *AudioCVT): integer
@@ -1313,11 +1313,11 @@ definition SDL [extern 'C', dll 'SDL2', prefix 'SDL_']
     proc ulltoa(value: integer; str: *[]char; radix: integer): *[]char
     proc atoi(str: *[]char): integer
     proc atof(str: *[]char): longreal
-    proc strtol(str: *[]char; endp: *[][]char; base: integer): integer
-    proc strtoul(str: *[]char; endp: *[][]char; base: integer): integer
-    proc strtoll(str: *[]char; endp: *[][]char; base: integer): integer
-    proc strtoull(str: *[]char; endp: *[][]char; base: integer): integer
-    proc strtod(str: *[]char; endp: *[][]char): longreal
+    proc strtol(str: *[]char; endp: *[]*[]char; base: integer): integer
+    proc strtoul(str: *[]char; endp: *[]*[]char; base: integer): integer
+    proc strtoll(str: *[]char; endp: *[]*[]char; base: integer): integer
+    proc strtoull(str: *[]char; endp: *[]*[]char; base: integer): integer
+    proc strtod(str: *[]char; endp: *[]*[]char): longreal
     proc strcmp(str1: *[]char; str2: *[]char): integer
     proc strncmp(str1: *[]char; str2: *[]char; maxlen: integer): integer
     proc strcasecmp(str1: *[]char; str2: *[]char): integer
@@ -1344,7 +1344,7 @@ definition SDL [extern 'C', dll 'SDL2', prefix 'SDL_']
     proc sqrt(x: longreal): longreal
     proc iconv_open(tocode: *[]char; fromcode: *[]char): iconv_t
     proc iconv_close(cd: iconv_t): integer
-    proc iconv(cd: iconv_t; inbuf: *[][]char; inbytesleft: *[]integer; outbuf: *[][]char; outbytesleft: *[]integer): integer
+    proc iconv(cd: iconv_t; inbuf: *[]*[]char; inbytesleft: *[]integer; outbuf: *[]*[]char; outbytesleft: *[]integer): integer
     proc iconv_string(tocode: *[]char; fromcode: *[]char; inbuf: *[]char; inbytesleft: integer): *[]char
 
     // from SDL_surface.h

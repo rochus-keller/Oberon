@@ -19,6 +19,7 @@ module Unsafe1
 		println(s.s)
 		return s.d
 	end test3
+
 var
 	t, t2 : I.T
 	at : carray 1 of *I.T
@@ -94,7 +95,8 @@ begin
 	assert(at[0].s="static struct")
 	assert(at[0].d=678910)
 	assert(at[0].e=456)
-
+	t2 := at[0]
+	
 	pt := I.doit7()
 	assert(pt.a=678910)
 	assert(pt.b=9012345)
@@ -115,6 +117,6 @@ begin
 	
 	r := I.doit10(test3)
 	println(r)
-	
+			
 	println("end Unsafe1")
 end Unsafe1

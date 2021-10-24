@@ -458,5 +458,14 @@ namespace OBX
 			if( !keepRefs.Contains(o) )
 				keepRefs.Add(o);
 		}
+		
+		public static string toHex(uint adr)
+		{
+			return String.Format("0x{0:x}",adr);
+		}
+		public static string toHex(ulong adr)
+		{
+			return String.Format("0x{0:x}",adr);
+		}
 	}
 }

@@ -21,7 +21,7 @@ struct Struct
 
 TESTSHARED_EXPORT int doit2( Struct* test )
 {
-    qDebug() << "hello from Test.dll" << test->a << test->b << test->str << test->d << test->e;
+    qDebug() << "hello from Test.dll" << test->a << test->b << test->str << test->d << test->e << test;
     ::strcpy(test->str, "gandalf");
     return 66;
 }
@@ -92,7 +92,8 @@ TESTSHARED_EXPORT Struct* doit7()
              << offsetof(Struct,b)
              << offsetof(Struct,str)
             << offsetof(Struct,d)
-            << offsetof(Struct,e);
+            << offsetof(Struct,e)
+            << sizeof(Struct);
     return &ss;
 }
 
@@ -101,9 +102,15 @@ struct Struct3
     int x,y,z;
 };
 
+struct Struct4
+{
+	Struct3 a,b;
+	float w;
+};
+
 TESTSHARED_EXPORT int doit8( Struct3 in )
 {
-    qDebug() << "hello from doit8" << in.x << in.y << in.z;
+    qDebug() << "hello from doit8" << in.x << in.y << in.z << sizeof(Struct4);
     return 234;
 }
 

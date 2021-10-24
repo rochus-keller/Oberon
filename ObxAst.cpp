@@ -754,6 +754,14 @@ quint32 QualiType::getByteSize() const
         return 0;
 }
 
+quint32 QualiType::getAlignment() const
+{
+    if( !d_quali->d_type.isNull() )
+        return d_quali->d_type->getAlignment();
+    else
+        return 0;
+}
+
 Type*QualiType::derefed()
 {
     Q_ASSERT( !d_quali.isNull() );
@@ -916,8 +924,9 @@ quint32 Record::getByteSize() const
         int maxAlig = 1;
         for( int i = 0; i < d_fields.size(); i++ )
         {
-            const int size = d_fields[i]->d_type->getByteSize();
-            const int alig = d_fields[i]->d_type->getAlignment();
+            Type* t = d_fields[i]->d_type.data();
+            const int size = t->getByteSize();
+            const int alig = t->getAlignment();
             if( alig > maxAlig )
                 maxAlig = alig;
             if( i != 0 )
@@ -936,6 +945,20 @@ quint32 Record::getByteSize() const
         // qDebug() << "struct size" << r->d_byteSize << "alig" << r->d_alignment;
     }
     return d_byteSize;
+}
+
+Field*Record::nextField(Field* f) const
+{
+    for( int i = 0; i < d_fields.size(); i++ )
+    {
+        if( d_fields[i].data() == f )
+        {
+            if( i+1 < d_fields.size() )
+                return d_fields[i+1].data();
+            break;
+        }
+    }
+    return 0;
 }
 
 bool Array::hasByteSize() const

@@ -1252,7 +1252,7 @@ void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool 
         out << "assembly ";
 
     if( byValue )
-        out << "sealed sequential ansi ";
+        out << "sealed explicit ansi ";
 
     out << className;
     // << formatMetaParams(thisMod)

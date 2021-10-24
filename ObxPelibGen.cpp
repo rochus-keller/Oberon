@@ -1280,7 +1280,7 @@ void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byVal
     SignatureParser::Node* me = d_imp->level.back()->subs.value(name);
     Qualifiers flags = Qualifiers::Public;
     if( byValue )
-        flags |= Qualifiers::Value | Qualifiers::Sealed | Qualifiers::Sequential | Qualifiers::Ansi;
+        flags |= Qualifiers::Value | Qualifiers::Sealed | Qualifiers::Explicit | Qualifiers::Ansi;
     Class* cls = 0;
     if( me == 0 )
     {

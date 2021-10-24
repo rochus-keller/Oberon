@@ -3,11 +3,12 @@ definition UnsafeImport1 [ extern 'C', dll 'Test' ]
 type 
 	T = cstruct 
 			a,b: integer
-			s: carray 32 of char
+			s: carray 29 of char
 			d: integer
 			e: shortint
 			end
 	P = cstruct x,y,z: integer end
+	L = cstruct a,b: P; w: real end
 	CB = proc(s: *T):integer
 
 	proc doit(str: *[]char; a: integer): integer

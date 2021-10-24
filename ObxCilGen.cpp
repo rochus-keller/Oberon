@@ -39,8 +39,7 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
                       // there is an architectural value type initialization issue with dotnet generics!
                       // NOTE that disabling this define most likely leads to errors, since no longer maintained
 
-// NOTE: mono (and .Net 4) ILASM and runtime error messages are of very little use, or even counter productive in that
-// they often point in the wrong direction.
+// #define _CLI_USE_PTR_TO_MEMBER_ // access struct members by native int + offset instead of memberref
 
 // NOTE: even though CoreCLR replaced mscorlib by System.Private.CoreLib the generated code still runs with "dotnet Main.exe",
 // but the directory with the OBX assemblies requires a Main.runtimeconfig.json file as generated below
@@ -645,6 +644,9 @@ struct ObxCilGenImp : public AstVisitor
         foreach( const Ref<Procedure>& p, r->d_methods )
             p->accept(this);
 
+        // NOTE: I verified that in case of unsafe structs there is really no marshalling; the struct address in
+        // the dll is the same as in the Mono engine.
+
         QList<Field*> fields = r->getOrderedFields();
         // default constructor
         if( !r->d_unsafe ) // unsafe records use initobj; no constructor is called for unsafe records
@@ -1014,7 +1016,8 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     QByteArray type = formatType(me->d_to.data());
                     Type* td = derefed(me->d_to.data());
-                    if( me->d_unsafe && td && td->getTag() != Thing::T_Array )
+                    Array* a = td->getTag() == Thing::T_Array ? cast<Array*>(td) : 0;
+                    if( me->d_unsafe && td && ( a == 0 || a->d_lenExpr.isNull() ) )
                         type += "*";
                     return type;
                 }
@@ -1124,6 +1127,8 @@ struct ObxCilGenImp : public AstVisitor
             return "float64";
         case Type::SET:
             return "int32";
+        case Type::CVOID:
+            return "uint8";
         default:
             return "?";
         }
@@ -1151,6 +1156,23 @@ struct ObxCilGenImp : public AstVisitor
         emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
                          me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly,
                           false, inUnsafeRecord ? me->d_slot : -1 );
+        if( inUnsafeRecord && td->getTag() == Thing::T_Array && debug )
+        {
+            // this is a work-around for the debugger (otherwise only the first element is shown)
+            Array* a = cast<Array*>(td);
+            const int size = a->d_type->getByteSize();
+            for( int i = 1; i < a->d_len; i++ )
+                emitter->addField(escape(me->d_name+"#"+QByteArray::number(i)),formatType(me->d_type.data()),
+                                  true,false,me->d_slot+i*size);
+#if 0
+            Field* next = me->d_owner->nextField(me);
+            const int nextOff = next ? next->d_slot : me->d_owner->d_byteSize;
+            const int padding = ( ( nextOff - me->d_slot ) - a->d_len * size ) / size;
+            for( int i = 0; i < padding; i++ )
+                emitter->addField(escape("("+me->d_name+"#"+QByteArray::number(i+a->d_len)+")"),formatType(me->d_type.data()),
+                                  true,false,me->d_slot+i*size);
+#endif
+        }
         inUnsafeRecord = false;
     }
 
@@ -1614,13 +1636,15 @@ struct ObxCilGenImp : public AstVisitor
                 line(desig->d_loc).ldsflda_(memberRef(id));
                 break;
             case Thing::T_Field:
+#ifdef _CLI_USE_PTR_TO_MEMBER_
                 if( id->d_unsafe )
                 {
-                    // ldflda_(memberRef(id)) doesn't seem to work on Mono 3 and 5 for fields after embedded arrays
+                    // explicit pointer arithmentic instead of memberref access
                     Q_ASSERT(id->d_slotValid);
                     line(desig->d_loc).ldc_i4(id->d_slot);
                     line(desig->d_loc).add_();
                 }else
+#endif
                     line(desig->d_loc).ldflda_(memberRef(id));
                 break;
             default:
@@ -1764,7 +1788,24 @@ struct ObxCilGenImp : public AstVisitor
                     line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(uint32)",1);
                 else if( td->getBaseType() == Type::BOOLEAN )
                     line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(bool)",1);
-                else
+                else if( td->isStructured(true) )
+                {
+                    if( td->d_unsafe )
+                    {
+                        checkPtrSize = true;
+                        if( Pointer::s_pointerByteSize == 8 )
+                        {
+                            line(ae->d_loc).conv_(IlEmitter::ToU8);
+                            line(ae->d_loc).call_("string [OBX.Runtime]OBX.Runtime::toHex(uint64)",1,true);
+                        }else
+                        {
+                            line(ae->d_loc).conv_(IlEmitter::ToU4);
+                            line(ae->d_loc).call_("string [OBX.Runtime]OBX.Runtime::toHex(uint32)",1,true);
+                        }
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
+                    }else
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(object)",1);
+                }else
                 {
                     switch(td->getTag())
                     {
@@ -3585,11 +3626,10 @@ struct ObxCilGenImp : public AstVisitor
         switch( me->getTag() )
         {
         case Thing::T_Field:
-#if 1
+#ifdef _CLI_USE_PTR_TO_MEMBER_
             if( me->d_unsafe )
             {
-                // ldfld_(memberRef(me)) and ldflda_(memberRef(me)) don't properly work with explicit
-                // layout for fields after embedded arrays, neither in Mono 3 nor 5
+                // pointer arithmetic instead of ldfld/ldflda
                 Q_ASSERT(me->d_slotValid);
                 line(loc).ldc_i4(me->d_slot);
                 line(loc).add_();

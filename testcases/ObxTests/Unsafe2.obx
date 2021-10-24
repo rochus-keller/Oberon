@@ -1,0 +1,49 @@
+module Unsafe2
+	import I := UnsafeImport1
+	
+	proc test4()
+		var l: I.L
+			p: *I.P
+	begin
+		l.a.x := 1
+		l.a.y := 2
+		l.a.z := 3
+		l.b.x := 4
+		l.b.y := 5
+		l.b.z := 6
+		l.w := 123.456
+		p := l.a
+		println(p)
+		//trap()
+		I.doit8(p)
+		println(l.a.x)
+		println(l.b.y)
+		println(l.w)
+	end test4
+	
+	proc test5()
+		var s: carray 10 of char
+	begin
+		s := "gugus"
+		//trap()
+		println(s)
+	end test5
+var
+	t: I.T
+begin
+	test4
+	test5
+	//(*
+	t.a := 1
+	t.s := "gugus"
+	t.d := 2
+	t.e := 3
+	//trap()
+	println(t)
+	I.doit2(t)
+	println(t.a)
+	println(t.s)
+	println(t.d)
+	println(t.e)
+	//*)
+end Unsafe2
