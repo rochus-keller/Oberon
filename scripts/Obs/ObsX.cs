@@ -24,7 +24,7 @@ using System;
 using SDL2CLI;
 using System.Runtime.InteropServices;
 
-public class ObsFfi
+public class ObsX
 {
 	static List<MemoryStream> s_buffers = new List<MemoryStream>();
 	static readonly long s_start;
@@ -67,7 +67,7 @@ public class ObsFfi
 		return res;
 	}
 
-	static ObsFfi()
+	static ObsX()
 	{
 		s_start = System.DateTime.Now.Ticks;
         if( SDL.SDL_Init(SDL.SDL_INIT_VIDEO) < 0 )

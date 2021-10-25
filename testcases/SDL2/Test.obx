@@ -6,11 +6,9 @@ module Test
 		window: *SDL.Window
 		surface, image: *SDL.Surface
 		res, timer: integer
-		running: boolean
-		event: SDL.Event
 		v: SDL.version
-		x,y: carray 1 of integer
-		
+		x,y: carray 1 of integer // no pinning needed because global alloc
+	   event: SDL.Event	
 	(*
 	proc filter(userdata: *void; event: *SDL.Event): integer
 	begin
@@ -25,6 +23,22 @@ module Test
 		// TODO SDL.Log("time: %d\n", time)	
 	end tick
 
+(*
+	proc checkEvents(): boolean
+	var
+		//event: SDL.Event
+		tmp: integer
+	begin
+	   if SDL.WaitEventTimeout(event,30) # 0 then
+	      if event.type_ = SDL.QUIT then
+	         return true
+	      end
+	      SDL.GetMouseState(x,y)
+	      Out.String("mouse x=") Out.Int(x[0],0) Out.String(" y=") Out.Int(y[0],0) Out.Ln
+	   end
+	   return false
+	end checkEvents
+*)
 var
 	tmp1,tmp2 : carray 16 of char
 begin
@@ -50,15 +64,17 @@ begin
 	res := SDL.UpdateWindowSurface(window)
    SDL.FreeSurface(image)
    
-   running := true
-   while running do
-	   while SDL.WaitEvent(event) # 0 do
+   loop
+	   //if checkEvents() then exit end
+	   //(*
+	   if SDL.WaitEventTimeout(event,30) # 0 then
 	      if event.type_ = SDL.QUIT then
-	         running := false
+	         exit
 	      end
-	      res := SDL.GetMouseState(x,y)
+	      SDL.GetMouseState(x,y)
 	      Out.String("mouse x=") Out.Int(x[0],0) Out.String(" y=") Out.Int(y[0],0) Out.Ln
 	   end
+	   //*)
    end
 	
 	SDL.DestroyWindow(window)

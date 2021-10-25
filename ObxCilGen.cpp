@@ -39,7 +39,16 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
                       // there is an architectural value type initialization issue with dotnet generics!
                       // NOTE that disabling this define most likely leads to errors, since no longer maintained
 
-// #define _CLI_USE_PTR_TO_MEMBER_ // access struct members by native int + offset instead of memberref
+// #define _CLI_USE_PTR_TO_MEMBER_ // access struct members by native int + offset instead of memberref (no advantage so far)
+
+// #define _CLI_DYN_STRUCT_VARIABLES_ // unsafe structs in module variables are dynamically allocated on heap
+                                   // TODO: this doesnt seem to resolve the issue; still random crashes in SDL test;
+                                   // the issue vanishes if either a) we use Mono 5, or b) the SDL function using the
+                                   // address of the struct is called in a method (not on top level of the .cctor), regardless
+                                   // whether the struct is a module or local variable, or c) we compile with ILASM instead
+                                   // of Pelib ; this might be the urgent reason to switch to Mono5 also on Linux and
+                                   // just accept the 30% speed-down; but it's likely a pelib issue
+
 
 // NOTE: even though CoreCLR replaced mscorlib by System.Private.CoreLib the generated code still runs with "dotnet Main.exe",
 // but the directory with the OBX assemblies requires a Main.runtimeconfig.json file as generated below
@@ -1063,6 +1072,9 @@ struct ObxCilGenImp : public AstVisitor
         case Thing::T_Record:
             return ( t->d_unsafe ? "valuetype " : "class " ) + classRef(cast<Record*>(t))
                     + formatMetaActuals(t)
+#ifdef _CLI_DYN_STRUCT_VARIABLES_
+                    + ( t->d_unsafe && inUnsafeRecord ? "*" : "" ) // NOTE: we can misuse inUnsafeRecord here because there are no by value struct fields in records
+#endif
                     ;
         default:
             Q_ASSERT(false);
@@ -1141,9 +1153,18 @@ struct ObxCilGenImp : public AstVisitor
 
     void visit( Variable* me)
     {
+#ifdef  _CLI_DYN_STRUCT_VARIABLES_
+        // NOTE: we need GCHandle.Alloc() for vars used for pinvoke.
+        // Mono 3 (not 5) produces random crashes with struct module variables passed to SDL.WaitEventTimeout otherwise
+        Q_ASSERT(!inUnsafeRecord);
+        Type* td = derefed(me->d_type.data());
+        if( td && td->getTag() == Thing::T_Record && td->d_unsafe )
+            inUnsafeRecord = true;
+#endif
         emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
                          me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly, true );
         // initializer is emitted in module .cctor
+        inUnsafeRecord = false;
     }
 
     void visit( Field* me )
@@ -1165,6 +1186,7 @@ struct ObxCilGenImp : public AstVisitor
                 emitter->addField(escape(me->d_name+"#"+QByteArray::number(i)),formatType(me->d_type.data()),
                                   true,false,me->d_slot+i*size);
 #if 0
+            // padding is not required
             Field* next = me->d_owner->nextField(me);
             const int nextOff = next ? next->d_slot : me->d_owner->d_byteSize;
             const int padding = ( ( nextOff - me->d_slot ) - a->d_len * size ) / size;
@@ -1630,9 +1652,19 @@ struct ObxCilGenImp : public AstVisitor
             Named* id = sel->getIdent();
             Q_ASSERT( id );
             sel->d_sub->accept(this);
+            Type* td = derefed(id->d_type.data());
             switch( id->getTag() )
             {
             case Thing::T_Variable:
+#ifdef _CLI_DYN_STRUCT_VARIABLES_
+                if( td && td->d_unsafe && td->getTag() == Thing::T_Record )
+                {
+                    Q_ASSERT(!inUnsafeRecord);
+                    inUnsafeRecord = true; // trick to get the "*" behind the type
+                    line(desig->d_loc).ldsfld_(memberRef(id)); // it's already a pointer
+                    inUnsafeRecord = false;
+                }else
+#endif
                 line(desig->d_loc).ldsflda_(memberRef(id));
                 break;
             case Thing::T_Field:
@@ -1683,9 +1715,19 @@ struct ObxCilGenImp : public AstVisitor
         }else if( tag == Thing::T_IdentLeaf )
         {
             Named* n = desig->getIdent();
+            Type* td = derefed(n->d_type.data());
             switch( n->getTag() )
             {
             case Thing::T_Variable:
+#ifdef _CLI_DYN_STRUCT_VARIABLES_
+                if( td && td->d_unsafe && td->getTag() == Thing::T_Record )
+                {
+                    Q_ASSERT(!inUnsafeRecord);
+                    inUnsafeRecord = true;
+                    line(desig->d_loc).ldsfld_(memberRef(n)); // it's already a pointer
+                    inUnsafeRecord = false;
+                }else
+#endif
                 line(desig->d_loc).ldsflda_(memberRef(n));
                 break;
             case Thing::T_Parameter:
@@ -2455,7 +2497,7 @@ struct ObxCilGenImp : public AstVisitor
                 // add a reference to it so the GC doesn't collect it while in callback
                 // TODO: more selective and consider to remove if no longer needed
                 line(loc).dup_();
-                line(loc).call_("void [OBX.Runtime]OBX.Runtime::addRef(object)",1);
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::addRef(object)",1); // TODO: consider GC.KeepAlive()
             }
         }else if( td->d_unsafe && tag == Thing::T_Record )
         {
@@ -3653,10 +3695,18 @@ struct ObxCilGenImp : public AstVisitor
                 line(loc).ldfld_(memberRef(me));
             break;
         case Thing::T_Variable:
+#ifndef _CLI_DYN_STRUCT_VARIABLES_
             if( getAddr )
                 line(loc).ldsflda_(memberRef(me));
             else
                 line(loc).ldsfld_(memberRef(me));
+#else
+            Q_ASSERT(!inUnsafeRecord);
+            if( getAddr )
+                inUnsafeRecord = true; // trick to get the "*" behind the type
+            line(me->d_loc).ldsfld_(memberRef(me)); // it's already a pointer
+            inUnsafeRecord = false;
+#endif
             break;
         case Thing::T_LocalVar:
             if( getAddr )
@@ -3698,6 +3748,25 @@ struct ObxCilGenImp : public AstVisitor
         switch( tag )
         {
         case Thing::T_Variable:
+#ifdef _CLI_DYN_STRUCT_VARIABLES_
+            {
+                Type* t = derefed(me->d_type.data());
+                if( t && t->d_unsafe && t->getTag() == Thing::T_Record )
+                {
+                    const quint32 len = t->getByteSize();
+                    line(me->d_loc).ldc_i4( len );
+                    line(me->d_loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::AllocHGlobal(int32)",1,true);
+                    line(me->d_loc).dup_();
+                    line(me->d_loc).initobj_(formatType(me->d_type.data())); // here we dont want the star
+                    Q_ASSERT( !inUnsafeRecord );
+                    inUnsafeRecord = true;
+                    line(me->d_loc).stsfld_(memberRef(me)); // here we want the star
+                    inUnsafeRecord = false;
+                }else if( emitInitializer( me->d_type.data(), false, me->d_loc ) )
+                    line(me->d_loc).stsfld_(memberRef(me));
+            }
+            break;
+#endif
         case Thing::T_LocalVar:
             {
                 Type* t = derefed(me->d_type.data());
