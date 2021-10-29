@@ -1,6 +1,8 @@
 #include "Test.h"
 #include <QtDebug>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 extern "C" {
 
@@ -140,4 +142,17 @@ TESTSHARED_EXPORT int doit10(Callback cb)
     }
     return res;
 }
+
+TESTSHARED_EXPORT void doit11(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    QByteArray buffer(1000,'\0');
+    vsnprintf(buffer.data(), buffer.size(),fmt, args);
+    va_end(args);
+
+    qDebug() << "hello from doit11" << buffer;
+}
+
 }

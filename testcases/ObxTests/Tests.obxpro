@@ -17,7 +17,9 @@ size=0
 2\RelPath=Unsafe2.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Unsafe1.obx
 3\RelPath=Unsafe1.obx
-size=2
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/UnsafeImport2.obx
+4\RelPath=UnsafeImport2.obx
+size=3
 
 [Packages]
 1\Name=@ByteArray()

@@ -53,6 +53,10 @@ void IlEmitter::beginMethod(const QByteArray& methodName, bool isPublic, IlEmitt
     d_locals.clear();
     d_stackDepth = 0;
     d_maxStackDepth = 0;
+    d_retType.clear();
+    d_library.clear();
+    d_origName.clear();
+    d_isVararg = false;
 }
 
 void IlEmitter::endMethod()
@@ -62,6 +66,7 @@ void IlEmitter::endMethod()
     meth.d_body = d_body;
     meth.d_isPublic = d_isPublic;
     meth.d_isRuntime = d_isRuntime;
+    meth.d_isVararg = d_isVararg;
     meth.d_locals = d_locals;
     meth.d_methodKind = d_methodKind;
     meth.d_name = d_method;
@@ -123,6 +128,12 @@ void IlEmitter::setPinvoke(const QByteArray& lib, const QByteArray& origName)
     Q_ASSERT( d_library.isEmpty() );
     d_library = lib;
     d_origName = origName;
+}
+
+void IlEmitter::setVararg()
+{
+    Q_ASSERT( !d_method.isEmpty() );
+    d_isVararg = true;
 }
 
 quint32 IlEmitter::newLabel()
@@ -1128,6 +1139,9 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
 
     if( m.d_name == ".ctor" || m.d_name == ".cctor" )
         out << "specialname rtspecialname ";
+
+    if( m.d_isVararg )
+        out << "vararg ";
 
     if( m.d_retType.isEmpty() )
         out << "void";

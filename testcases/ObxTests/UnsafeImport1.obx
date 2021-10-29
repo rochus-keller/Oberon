@@ -22,5 +22,8 @@ type
 	proc doit9(x,y,z:integer):P
 	
 	proc doit10(cb: CB):integer
+	
+	proc doit11( format: *[]char) [ varargs ]
+	proc doit11_int( format: *[]char; i: integer) [ alias "doit11" ]
 
 end UnsafeImport1

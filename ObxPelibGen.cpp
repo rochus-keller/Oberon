@@ -30,7 +30,7 @@ class SignatureLexer
 {
 public:
     enum TokenType { Invalid, Done, ID, QSTRING, CLASS, VALUETYPE, LBRACK, RBRACK, ARR,
-                     DBLCOLON, SLASH, LPAR, RPAR, AMPERS, COMMA, DOT, STAR };
+                     DBLCOLON, SLASH, LPAR, RPAR, AMPERS, COMMA, DOT, STAR, VARARG, SENTINEL };
     struct Token
     {
         quint8 d_tt; // TokenType
@@ -105,9 +105,18 @@ protected:
             case ',':
                 return Token(COMMA,d_off-1);
             case '.':
-                if( peek(&ch) && ch == 'c' )
-                    return ident('.');
-                else
+                if( peek(&ch) && ( ch == 'c' || ch == '.' ) )
+                {
+                    if( ch == 'c' ) // .ctor, .cctor
+                        return ident('.');
+                    get(&ch);
+                    if( peek(&ch) && ch == '.' )
+                    {
+                        get(&ch);
+                        return Token(SENTINEL,d_off-3);
+                    }else
+                        return Token(Invalid,d_off-2);
+                }else
                     return Token(DOT,d_off-1);
             default:
                 return Token(Invalid,d_off-1);
@@ -145,6 +154,8 @@ protected:
             return Token(CLASS,pos);
         if( str == "valuetype")
             return Token(VALUETYPE,pos);
+        if( str == "vararg" )
+            return Token(VARARG,pos);
         return Token(ID,pos,str);
     }
     bool get( char* ch )
@@ -177,7 +188,7 @@ public:
     // ref      ::= typeRef | membRef
     // typeRef  ::= [ 'class' | 'valuetype' ] [ assembly ] path {'*'} {'[]'} | primType {'*'} {'[]'}
     // primType ::= [ 'native' ][ 'unsigned' ] ID
-    // membRef  ::= typeRef [ 'class' | 'valuetype' ] [ assembly ] path '::' dottedNm [ params ]
+    // membRef  ::= [ 'vararg' ] typeRef [ 'class' | 'valuetype' ] [ assembly ] path '::' dottedNm [ params ]
     // assembly ::= '[' dottedNm ']'
     // path     ::= dottedNm { '/' dottedNm }
     // params   ::= '(' [ param { ',' param } ] ')'
@@ -185,7 +196,7 @@ public:
     // dottedNm ::= name { '.' name }
     // name     ::= ID | QSTRING
 
-    enum MemberHint { TypeRef, Instance, Static, Virtual };
+    enum MemberHint { TypeRef, Instance, Static, Virtual, Vararg };
     struct Node
     {
         typedef QMultiMap<QByteArray,Node*> Subs;
@@ -254,17 +265,52 @@ public:
         return true;
     }
 
-    static Node* createMethod( Node* cls, const QByteArray& name, const Pars& pars, Node* ret, MemberHint hint )
+    static Node* createMethod( Node* cls, const QByteArray& name, const Pars& pars, Node* ret, MemberHint hint,
+                               Node* parentMeth = 0 )
     {
-        Node* member = new Node(cls,name);
-        cls->subs.insert(name,member);
+        Node* super = parentMeth ? parentMeth : cls;
+        Node* member = new Node( super,name);
+        super->subs.insert(name,member);
         DataContainer* dc = dynamic_cast<DataContainer*>(cls->thing);
         Q_ASSERT(dc);
+
+        MethodSignature* sig = new MethodSignature( name.constData(),
+                                                    parentMeth ? MethodSignature::Vararg : MethodSignature::Managed, dc );
+        sig->ReturnType( dynamic_cast<Type*>(ret->thing) );
+
+        bool varargPart = false;
+        for( int i = 0; i < pars.size(); i++ )
+        {
+            const int index = ( hint == Instance || hint == Virtual ) ? i+1 : i;
+            if( pars[i].d_type == 0 )
+            {
+                Q_ASSERT( pars[i].d_typeStr == "..." );
+                varargPart = true;
+                continue;
+            }
+            Param* p = new Param( pars[i].d_name.constData(), dynamic_cast<Type*>(pars[i].d_type->thing), index );
+            p->typeCompare = pars[i].d_typeStr.constData();
+            if( varargPart )
+                sig->AddVarargParam(p);
+            else
+                sig->AddParam( p );
+        }
+
+        if( hint == Vararg )
+            sig->SetVarargFlag();
+
+        if( parentMeth )
+        {
+            sig->SignatureParent( static_cast<Method*>(parentMeth->thing)->Signature() );
+            member->thing = sig;
+            return member;
+        }
 
         Qualifiers q = Qualifiers::CIL | Qualifiers::Managed |  Qualifiers::Public;
         switch( hint )
         {
         case Static:
+        case Vararg:
             q |= Qualifiers::Static;
             break;
         case Instance:
@@ -279,25 +325,14 @@ public:
         if( name == ".ctor" || name == ".cctor" )
             q |= Qualifiers::SpecialName | Qualifiers::RTSpecialName;
 
-        MethodSignature* sig = new MethodSignature( name.constData(), MethodSignature::Managed, dc );
-        sig->ReturnType( dynamic_cast<Type*>(ret->thing) );
-
-        for( int i = 0; i < pars.size(); i++ )
-        {
-            const int index = ( hint == Instance || hint == Virtual ) ? i+1 : i;
-            Param* p = new Param( pars[i].d_name.constData(), dynamic_cast<Type*>(pars[i].d_type->thing), index );
-            p->typeCompare = pars[i].d_typeStr.constData();
-            sig->AddParam( p );
-        }
         Method* meth = new Method(sig,q,false);
         member->thing = meth;
         dc->Add(meth);
         return member;
     }
 
-    static Node* findOrCreateMethod(Node* cls, const QByteArray& name, const Pars& pars, Node* ret, MemberHint hint)
+    static Node* findMethod(const QList<Node*>& members, const Pars& pars )
     {
-        QList<Node*> members = cls->subs.values( name );
         for( int i = 0; i < members.size(); i++ )
         {
             Method* meth = dynamic_cast<Method*>(members[i]->thing);
@@ -307,8 +342,61 @@ public:
             if( equalParams(sig,pars ) )
                 return members[i];
         }
-        // else
-        return createMethod(cls,name,pars,ret,hint);
+        return 0;
+    }
+
+    static Node* findSignature(const QList<Node*>& members, const Pars& pars )
+    {
+        for( int i = 0; i < members.size(); i++ )
+        {
+            MethodSignature* sig = dynamic_cast<MethodSignature*>(members[i]->thing);
+            if( sig == 0 )
+                throw "this is not a signature";
+            if( equalParams(sig,pars ) )
+                return members[i];
+        }
+        return 0;
+    }
+
+    static Node* findOrCreateMethod(Node* cls, const QByteArray& name, const Pars& pars, Node* ret, MemberHint hint)
+    {
+#if 1
+        Pars formals, extras;
+        if( hint == Vararg )
+        {
+            int pos = pars.size();
+            for( int i = 0; i < pars.size(); i++ )
+            {
+                if( pars[i].d_type == 0 )
+                {
+                    pos = i;
+                    break;
+                }
+            }
+            formals = pars.mid(0,pos);
+            extras = pars.mid(pos+1);
+        }else
+            formals = pars;
+#endif
+        QList<Node*> members = cls->subs.values( name );
+#if 0 // this doesn't seem to work yet; need further research how Pelib works; but varargs are not supported on Linux anyway
+        Node* meth = findMethod(members,formals);
+        if( meth == 0 )
+            meth = createMethod(cls,name,formals,ret,hint);
+        if( meth && !extras.isEmpty() )
+        {
+            members = meth->subs.values(name); // vararg signatures are subs of methods
+            Node* sub = findSignature(members,pars);
+            if( sub == 0 )
+                sub = createMethod(cls,name,pars,ret,hint,meth); // sub is a signature, not a method!
+            meth = sub;
+        }
+#else
+        Node* meth = findMethod(members,pars);
+        if( meth == 0 )
+            meth = createMethod(cls,name,pars,ret,hint);
+#endif
+        return meth;
     }
 
     static void createClassFor( Node* node, bool isValueType )
@@ -572,9 +660,15 @@ protected:
 
     Node* memberRef(MemberHint hint)
     {
+        SignatureLexer::Token t = lex.peek();
+        if( t.d_tt == SignatureLexer::VARARG )
+        {
+            hint = Vararg;
+            lex.next();
+        }
         Node* type = typeRef();
         bool isValueType = false;
-        SignatureLexer::Token t = lex.peek();
+        t = lex.peek();
         if( t.d_tt == SignatureLexer::CLASS || t.d_tt == SignatureLexer::VALUETYPE )
         {
             isValueType = t.d_tt == SignatureLexer::VALUETYPE;
@@ -759,6 +853,13 @@ protected:
     Par param()
     {
         Par res;
+        if( lex.peek().d_tt == SignatureLexer::SENTINEL )
+        {
+            lex.next();
+            res.d_type = 0;
+            res.d_typeStr = "...";
+            return res;
+        }
         const int start = lex.peek().d_pos;
         res.d_type = typeRef();
         if( lex.peek().d_tt == SignatureLexer::AMPERS )
@@ -858,10 +959,14 @@ struct PelibGen::Imp : public PELib
     void addMethodOp( Method* m, quint8 op, SignatureParser::MemberHint hint, const QByteArray& methodRef )
     {
         SignatureParser::Node* node = find(hint,methodRef);
-        Method* meth = dynamic_cast<Method*>(node->thing);
-        Q_ASSERT( meth );
-        m->AddInstruction(new Instruction((Instruction::iop)op, // TODO: how about instance specifier?
-                                          new Operand( new MethodName( meth->Signature() ))));
+        Q_ASSERT(node);
+        MethodSignature* sig = 0;
+        if( Method* meth = dynamic_cast<Method*>(node->thing) )
+            sig = meth->Signature();
+        else
+            sig = dynamic_cast<MethodSignature*>(node->thing); // happens only for vararg signatures
+        Q_ASSERT( sig );
+        m->AddInstruction(new Instruction((Instruction::iop)op, new Operand( new MethodName( sig ))));
     }
 
     void addFieldOp( Method* m, quint8 op, SignatureParser::MemberHint hint, const QByteArray& fieldRef )
@@ -1088,6 +1193,9 @@ void PelibGen::addMethod(const IlMethod& m)
         hint = SignatureParser::Instance;
         break;
     }
+
+    if( m.d_isVararg )
+        hint = SignatureParser::Vararg;
 
     SignatureParser::Node* meth = SignatureParser::findOrCreateMethod(d_imp->level.back(),name,pars,ret,hint);
     Method* mm = dynamic_cast<Method*>(meth->thing);

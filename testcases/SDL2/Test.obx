@@ -7,15 +7,18 @@ module Test
 		surface, image: *SDL.Surface
 		res, timer: integer
 		v: SDL.version
-		x,y: carray 1 of integer // no pinning needed because global alloc
+		x,y: carray 1 of integer 
 	   event: SDL.Event	
-	(*
+	
 	proc filter(userdata: *void; event: *SDL.Event): integer
+		var str : carray 16 of char
 	begin
-		SDL.Log("event: %d\n", event.type_)		
+		str := "event: %d"+0dx
+		SDL.Log(str, event.type_)		
+		//Out.String("event: ") Out.Int(event.type_,0) Out.Ln
 		return 1
 	end filter
-	*)
+	
 	
 	proc tick( time: integer )
 	begin
@@ -40,7 +43,7 @@ module Test
 	end checkEvents
 *)
 var
-	tmp1,tmp2 : carray 16 of char
+	tmp1,tmp2 : carray 32 of char
 begin
 	//trap()
 	SDL.GetVersion(v)
@@ -48,9 +51,11 @@ begin
 	Out.Int(v.major,0) Out.String(".") Out.Int(v.minor,0) 
 	Out.String(".") Out.Int(v.patch,0) Out.Ln
 
-	// TODO SDL.Log("hello from log %d.%d.%d %f %s", v.major, v.minor, v.patch, 123.45, "test" )
+	tmp1 := "hello from log %d.%d.%d %f %s"
+	tmp2 := "test"
+	SDL.Log(tmp1, v.major, v.minor, v.patch, long(123.45), tmp2 )
 	
-	// SDL.SetEventFilter( filter, nil ) // crashes after some time, likely because of different thread
+	SDL.SetEventFilter( filter, nil ) 
 	
 	tmp1 := "Hello SDL!"
 	window := SDL.CreateWindow(tmp1, 20, 20, 512, 512, SDL.WINDOW_SHOWN )

@@ -49,6 +49,9 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
                                    // of Pelib ; this might be the urgent reason to switch to Mono5 also on Linux and
                                    // just accept the 30% speed-down; but it's likely a pelib issue
 
+#define _CLI_VARARG_SUBST_PROCS_ // generated local substitution methods with the required signature instead of relying on
+                                 // CLI pinvoke vararg implementation (which apparently doesn't work on all platforms/architectures).
+
 
 // NOTE: even though CoreCLR replaced mscorlib by System.Private.CoreLib the generated code still runs with "dotnet Main.exe",
 // but the directory with the OBX assemblies requires a Main.runtimeconfig.json file as generated below
@@ -211,19 +214,24 @@ struct ObxCilGenImp : public AstVisitor
     bool forceAssemblyPrefix;
     bool forceFormalIndex;
     bool debug;
-    bool inUnsafeRecord;
+    bool arrayAsElementType;
+    bool structAsPointer;
     bool checkPtrSize;
     RowCol last;
     CilGenTempPool temps;
     QHash<QByteArray, QPair<Array*,int> > copiers; // type string -> array, max dim count
     QHash<QByteArray,ProcType*> delegates; // signature hash -> signature
+#ifdef _CLI_VARARG_SUBST_PROCS_
+    QHash<Module*,QHash<Procedure*,QHash<QByteArray, QList<Type*> > > > substitutes; // replace vararg by overloads
+#endif
     int exitJump; // TODO: nested LOOPs
     Procedure* scope;
     int suppressLine;
 
     ObxCilGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
         exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),
-        suppressLine(0),debug(false),inUnsafeRecord(false),checkPtrSize(false)
+        suppressLine(0),debug(false),checkPtrSize(false),
+        arrayAsElementType(false),structAsPointer(false)
     {
     }
 
@@ -373,7 +381,7 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
-    QByteArray memberRef( Named* member )
+    QByteArray memberRef( Named* member, const QList<Type*>& varargs = QList<Type*>())
     {
         QByteArray res;
         Record* record = 0;
@@ -394,6 +402,16 @@ struct ObxCilGenImp : public AstVisitor
                 if( p->d_receiverRec )
                     record = p->d_receiverRec;
                 pt = p->getProcType();
+#ifdef _CLI_VARARG_SUBST_PROCS_
+                if( !varargs.isEmpty() && pt->d_varargs )
+                {
+                    // substitute vararg function with local non-vararg function
+                    const QByteArray sig = formatFormals(pt,false,varargs,false);
+                    substitutes[member->getModule()][p][sig] = varargs;
+                    return formatType(pt->d_return.data(),pt->d_unsafe) + " " +
+                            moduleRef(thisMod) + "::" + escape( p->getModule()->getName() + "#" + p->d_name ) + sig;
+                }
+#endif
             }
             break;
         default:
@@ -402,9 +420,12 @@ struct ObxCilGenImp : public AstVisitor
         const QByteArray ma = formatMetaActuals(record);
         forceFormalIndex = !ma.isEmpty();
         if( pt )
-            res = formatType(pt->d_return.data());
-        else
-            res = formatType(member->d_type.data());
+        {
+            if( !varargs.isEmpty() )
+                res = "vararg ";
+            res += formatType(pt->d_return.data(),pt->d_unsafe);
+        }else
+            res = formatType(member->d_type.data(),member->d_unsafe);
         res += " ";
         if( !ma.isEmpty() )
             res += "class "; // only if not my generics
@@ -419,7 +440,7 @@ struct ObxCilGenImp : public AstVisitor
         else
             res += escape(member->d_name);
         if( pt )
-            res += formatFormals(pt->d_formals);
+            res += formatFormals(pt,varargs.isEmpty(),varargs);
         forceFormalIndex = false;
         return res;
     }
@@ -644,7 +665,7 @@ struct ObxCilGenImp : public AstVisitor
 #endif
             className = nestedPath(n); // because of records declared in procedures are lifted to module level
             if( !r->d_base.isNull() )
-                superClassName = formatType(r->d_base.data());
+                superClassName = formatType(r->d_base.data()); // unsafe rec has no basetype
         }
         emitter->beginClass(className, isPublic, r->d_unsafe, superClassName, r->d_unsafe ? r->getByteSize() : -1 );
 
@@ -778,10 +799,10 @@ struct ObxCilGenImp : public AstVisitor
         emitter->endMethod();
         emitter->beginMethod("Invoke",true,IlEmitter::Instance,true);
         if( !sig->d_return.isNull() )
-            emitter->setReturnType(formatType(sig->d_return.data()));
+            emitter->setReturnType(formatType(sig->d_return.data(),sig->d_unsafe));
         for( int i = 0; i < sig->d_formals.size(); i++ )
         {
-            QByteArray type = formatType(sig->d_formals[i]->d_type.data());
+            QByteArray type = formatType(sig->d_formals[i]->d_type.data(),sig->d_unsafe);
             if( passByRef(sig->d_formals[i].data()) )
                 type += "&";
 
@@ -960,6 +981,24 @@ struct ObxCilGenImp : public AstVisitor
         for( i = delegates.begin(); i != delegates.end(); ++i )
             emitDelegDecl( i.value(), i.key() );
 
+
+#ifdef _CLI_VARARG_SUBST_PROCS_
+        QHash<Module*,QHash<Procedure*,QHash<QByteArray,QList<Type*> > > >::const_iterator s;
+        for( s = substitutes.begin(); s != substitutes.end(); ++s )
+        {
+            QHash<Procedure*,QHash<QByteArray,QList<Type*> > >::const_iterator p;
+            for( p = s.value().begin(); p != s.value().end(); ++p )
+            {
+                QHash<QByteArray,QList<Type*> >::const_iterator t;
+                for( t = p.value().begin(); t != p.value().end(); ++t )
+                    emitProcedure(p.key(), s.key()->getName() + "#", t.value() );
+                // for each combination of parameters a local version of the imported external lib function
+                // is created; this for one part avoids the issue that varargs in Mono (and CoreCLR?) are not
+                // supported on all patforms/architectures and for the other part the unknows with Pelib
+            }
+        }
+#endif
+
         emitter->endModule();
     }
 
@@ -978,12 +1017,19 @@ struct ObxCilGenImp : public AstVisitor
         if( pt->d_return.isNull() )
             str = "void";
         else
-            str = formatType(pt->d_return.data());
+            str = formatType(pt->d_return.data(),pt->d_unsafe);
         str += "*";
-        str += formatFormals(pt->d_formals,false);
+        str += formatFormals(pt,false);
         return str;
     }
 
+    // special rules
+    // - an array in an unsafe struct declaration is the element type
+    // - an unsafe array is always a "*" to the element type
+    // - a cpointer to an unsafe array is still a "*" to the element type (not "**")
+    // - in an unsafe array we have to differ char and wchar as uint8 and uint16
+    // - a cstruct is a valuetype, not a class)
+    // - in a signature of an unsafe proc a proc type is a native int, not a delegate
     QByteArray formatType( Type* t, bool unsafe = false )
     {
         if( t == 0 )
@@ -995,25 +1041,26 @@ struct ObxCilGenImp : public AstVisitor
         case Thing::T_Array:
             {
                 Array* a = cast<Array*>(t);
+                if( a->d_type.isNull() )
+                    return QByteArray(); // already reported
                 // we only support CLI vectors; multi dim are vectors of vectors
                 // arrays are constructed types, i.e. all qualis are resolved up to their original module
                 // arrays are always dynamic in CLI; the size of an array is an attribute of the instance
-                if( a->d_type )
+                if( a->d_unsafe )
                 {
-                    if( a->d_unsafe )
-                    {
-                        Type* et = derefed(a->d_type.data());
-                        if( et && et->isPointer() && !a->d_lenExpr.isNull() )
-                            checkPtrSize = true; // pointer size in unsafe array elements is platform dependent
-                    }
-                    // in unsafe records the array is implicit by explicit position and size, and the field
-                    // represents the first element; otherwise unsafe arrays are just a pointer to the base type.
-                    return formatType(a->d_type.data(), a->d_unsafe) + ( inUnsafeRecord ? "" : ( a->d_unsafe ? "*" : "[]" ) );
+                    Type* et = derefed(a->d_type.data());
+                    if( et && et->isPointer() && !a->d_lenExpr.isNull() )
+                        checkPtrSize = true; // pointer size in unsafe array elements is platform dependent
                 }
+                // in unsafe records the array is implicit by explicit position and size, and the field
+                // represents the first element; otherwise unsafe arrays are just a pointer to the base type.
+                return formatType(a->d_type.data(), a->d_unsafe) +
+                        ( arrayAsElementType ? "" :
+                                               ( a->d_unsafe ? "*" : "[]" ) );
             }
             break;
         case Thing::T_BaseType:
-            return formatBaseType(t->getBaseType(), unsafe || inUnsafeRecord );
+            return formatBaseType(t->getBaseType(), unsafe );
         case Thing::T_Enumeration:
             return "int32";
         case Thing::T_Pointer:
@@ -1023,10 +1070,10 @@ struct ObxCilGenImp : public AstVisitor
                 // a field of type object or array is always a pointer, whereas implicit;
                 if( me->d_to )
                 {
-                    QByteArray type = formatType(me->d_to.data());
+                    QByteArray type = formatType(me->d_to.data(),me->d_unsafe);
                     Type* td = derefed(me->d_to.data());
                     Array* a = td->getTag() == Thing::T_Array ? cast<Array*>(td) : 0;
-                    if( me->d_unsafe && td && ( a == 0 || a->d_lenExpr.isNull() ) )
+                    if( me->d_unsafe && td && a == 0 )
                         type += "*";
                     return type;
                 }
@@ -1035,7 +1082,7 @@ struct ObxCilGenImp : public AstVisitor
         case Thing::T_ProcType:
             {
                 ProcType* pt = cast<ProcType*>(t);
-                if( unsafe || inUnsafeRecord )
+                if( unsafe )
                     return "native int";
                 else
                     return "class " + delegateRef(pt);
@@ -1052,7 +1099,7 @@ struct ObxCilGenImp : public AstVisitor
                 if( me->d_selfRef )
                 {
                     if( Record* r = td->toRecord() )
-                        return formatType(r);
+                        return formatType(r, unsafe);
                     else
                         return "[mscorlib]System.Object"; // avoid infinite loop
                 }
@@ -1073,7 +1120,7 @@ struct ObxCilGenImp : public AstVisitor
             return ( t->d_unsafe ? "valuetype " : "class " ) + classRef(cast<Record*>(t))
                     + formatMetaActuals(t)
 #ifdef _CLI_DYN_STRUCT_VARIABLES_
-                    + ( t->d_unsafe && inUnsafeRecord ? "*" : "" ) // NOTE: we can misuse inUnsafeRecord here because there are no by value struct fields in records
+                    + ( t->d_unsafe && structAsPointer ? "*" : "" )
 #endif
                     ;
         default:
@@ -1156,34 +1203,34 @@ struct ObxCilGenImp : public AstVisitor
 #ifdef  _CLI_DYN_STRUCT_VARIABLES_
         // NOTE: we need GCHandle.Alloc() for vars used for pinvoke.
         // Mono 3 (not 5) produces random crashes with struct module variables passed to SDL.WaitEventTimeout otherwise
-        Q_ASSERT(!inUnsafeRecord);
+        Q_ASSERT(!structAsPointer);
         Type* td = derefed(me->d_type.data());
         if( td && td->getTag() == Thing::T_Record && td->d_unsafe )
-            inUnsafeRecord = true;
+            structAsPointer = true;
 #endif
-        emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
+        emitter->addField(escape(me->d_name),formatType(me->d_type.data()), // there are no unsafe variables
                          me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly, true );
         // initializer is emitted in module .cctor
-        inUnsafeRecord = false;
+        structAsPointer = false;
     }
 
     void visit( Field* me )
     {
-        Q_ASSERT(!inUnsafeRecord);
-        inUnsafeRecord = me->d_owner->d_unsafe;
+        Q_ASSERT(!arrayAsElementType);
+        arrayAsElementType = me->d_unsafe;
         Type* td = derefed(me->d_type.data());
-        if( inUnsafeRecord && td && td->isPointer() )
+        if( me->d_unsafe && td && td->isPointer() )
             checkPtrSize = true;
-        emitter->addField(escape(me->d_name),formatType(me->d_type.data()),
+        emitter->addField(escape(me->d_name),formatType(me->d_type.data(), me->d_unsafe),
                          me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly,
-                          false, inUnsafeRecord ? me->d_slot : -1 );
-        if( inUnsafeRecord && td->getTag() == Thing::T_Array && debug )
+                          false, me->d_unsafe ? me->d_slot : -1 );
+        if( me->d_unsafe && td->getTag() == Thing::T_Array && debug )
         {
             // this is a work-around for the debugger (otherwise only the first element is shown)
             Array* a = cast<Array*>(td);
             const int size = a->d_type->getByteSize();
             for( int i = 1; i < a->d_len; i++ )
-                emitter->addField(escape(me->d_name+"#"+QByteArray::number(i)),formatType(me->d_type.data()),
+                emitter->addField(escape(me->d_name+"#"+QByteArray::number(i)),formatType(me->d_type.data(), me->d_unsafe),
                                   true,false,me->d_slot+i*size);
 #if 0
             // padding is not required
@@ -1195,21 +1242,34 @@ struct ObxCilGenImp : public AstVisitor
                                   true,false,me->d_slot+i*size);
 #endif
         }
-        inUnsafeRecord = false;
+        arrayAsElementType = false;
     }
 
-    QByteArray formatFormals( const ProcType::Formals& formals, bool withName = true )
+    QByteArray formatFormals( ProcType* pt, bool withName = true, const QList<Type*>& varargs = QList<Type*>(), bool withSentinel = true )
     {
         QByteArray res = "(";
-        for( int i = 0; i < formals.size(); i++ )
+        for( int i = 0; i < pt->d_formals.size(); i++ )
         {
             if( i != 0 )
                 res += ", ";
-            res += formatType( formals[i]->d_type.data() );
-            if( passByRef(formals[i].data()) )
+            res += formatType( pt->d_formals[i]->d_type.data(), pt->d_unsafe );
+            if( passByRef(pt->d_formals[i].data()) )
                 res += "&";
             if( withName )
-                res += " " + escape(formals[i]->d_name);
+                res += " " + escape(pt->d_formals[i]->d_name);
+        }
+        if( !varargs.isEmpty() )
+        {
+            if( !pt->d_formals.isEmpty() )
+                res += ", ";
+            if( withSentinel )
+                res += "..., ";
+            for( int i = 0; i < varargs.size(); i++ )
+            {
+                if( i != 0 )
+                    res += ", ";
+                res += formatType( varargs[i], pt->d_unsafe );
+            }
         }
         res += ")";
         return res;
@@ -1221,19 +1281,21 @@ struct ObxCilGenImp : public AstVisitor
             emitter->addLocal( temps.d_types[i], escape("#temp" + QByteArray::number(i) ) );
     }
 
-    void visit( Procedure* me )
+    void emitProcedure( Procedure* me, const QByteArray& prefix = QByteArray(),
+                        const QList<Type*>& extraArgs = QList<Type*>() )
     {
-        Q_ASSERT( scope == 0 );
-        scope = me;
-
         QByteArray name;
-        if( me->d_receiverRec )
+        if( !prefix.isEmpty() )
+            name = escape( prefix + me->d_name ); // for local vararg substitute proc
+        else if( me->d_receiverRec )
             name = escape(me->d_name); // the method is directly in the receiver class
         else
             name = nestedPath(me); // the method is lifted to module level
 
+        Module* mod = me->getModule();
+        Q_ASSERT(mod);
         IlEmitter::MethodKind k;
-        if( thisMod->d_externC )
+        if( mod->d_externC )
             k = IlEmitter::Pinvoke;
         else if( me->d_receiver.isNull() )
             k = IlEmitter::Static;
@@ -1244,27 +1306,39 @@ struct ObxCilGenImp : public AstVisitor
 
         emitter->beginMethod(name,me->d_visibility != Named::Private,k);
 
-        if( thisMod->d_externC )
+        bool isVararg = false;
+        if( mod->d_externC )
         {
-            QByteArray dll, prefix;
-            SysAttr* a = thisMod->d_sysAttrs.value("dll").data();
+            QByteArray dll, prefix, alias;
+            SysAttr* a = mod->d_sysAttrs.value("dll").data();
             if( a && a->d_values.size() == 1 )
                 dll = a->d_values.first().toByteArray() + ".dll";
-            a = thisMod->d_sysAttrs.value("prefix").data();
+            a = mod->d_sysAttrs.value("prefix").data(); // module attr
             if( a && a->d_values.size() == 1 )
                 prefix = a->d_values.first().toByteArray();
-            a = me->d_sysAttrs.value("prefix").data();
+            a = me->d_sysAttrs.value("prefix").data(); // proc attr
             if( a && a->d_values.size() == 1 )
                 prefix = a->d_values.first().toByteArray();
-            QByteArray origName;
-            if( !prefix.isEmpty() )
-                origName = prefix + me->d_name;
-            emitter->setPinvoke(dll,origName);
+            a = me->d_sysAttrs.value("alias").data(); // proc attr
+            if( a && a->d_values.size() == 1 )
+                alias = a->d_values.first().toByteArray();
+            isVararg = !me->d_sysAttrs.value("varargs").isNull(); // proc attr
+            QByteArray useName;
+            if( !extraArgs.isEmpty() )
+                useName = me->d_name;
+            if( !alias.isEmpty() )
+                useName = alias;
+            else if( !prefix.isEmpty() )
+                useName = prefix + me->d_name;
+            emitter->setPinvoke(dll,useName);
         }
+
+        if( isVararg && extraArgs.isEmpty() ) // extraArgs is to substitute vararg, so we dont need the flag in this case
+            emitter->setVararg();
 
         ProcType* pt = me->getProcType();
         if( !pt->d_return.isNull() )
-            emitter->setReturnType(formatType(pt->d_return.data()));
+            emitter->setReturnType(formatType(pt->d_return.data(),pt->d_unsafe));
 
         // allocate params and local
         int off = me->d_receiver.isNull() ? 0 : 1;
@@ -1273,10 +1347,18 @@ struct ObxCilGenImp : public AstVisitor
             pt->d_formals[i]->d_slot = i+off; // for type-bounds arg0 is self
             pt->d_formals[i]->d_slotValid = true;
 
-            QByteArray type = formatType(pt->d_formals[i]->d_type.data());
+            QByteArray type = formatType(pt->d_formals[i]->d_type.data(), pt->d_unsafe);
             if( passByRef(pt->d_formals[i].data()) )
                 type += "&";
             emitter->addArgument(type,escape(pt->d_formals[i]->d_name));
+        }
+        if( !extraArgs.isEmpty() )
+        {
+            for( int i = 0; i < extraArgs.size(); i++ )
+            {
+                QByteArray type = formatType(extraArgs[i], pt->d_unsafe);
+                emitter->addArgument(type,QString("'extra%1'").arg(i).toUtf8());
+            }
         }
         off = 0;
         foreach( const Ref<Named>& n, me->d_order )
@@ -1285,7 +1367,7 @@ struct ObxCilGenImp : public AstVisitor
             {
                 n->d_slot = off++;
                 n->d_slotValid = true;
-                emitter->addLocal( formatType(n->d_type.data()), escape(n->d_name) );
+                emitter->addLocal( formatType(n->d_type.data()), escape(n->d_name) ); // unsafe procs have no local vars
             }
         }
 
@@ -1317,6 +1399,15 @@ struct ObxCilGenImp : public AstVisitor
         emitLocalVars();
 
         emitter->endMethod();
+    }
+
+    void visit( Procedure* me )
+    {
+        Q_ASSERT( scope == 0 );
+        scope = me;
+
+        emitProcedure(me);
+
         scope = 0;
     }
 
@@ -1688,8 +1779,8 @@ struct ObxCilGenImp : public AstVisitor
             ArgExpr* args = cast<ArgExpr*>( desig );
             Q_ASSERT( args->d_args.size() == 1 );
             args->d_sub->accept(this);
-            Type* td = derefed(args->d_sub->d_type.data());
-            if( td && td->d_unsafe )
+            Type* array = derefed(args->d_sub->d_type.data());
+            if( array && array->d_unsafe )
             {
                 // stack: pointer to array
                 args->d_args.first()->accept(this);
@@ -2385,8 +2476,10 @@ struct ObxCilGenImp : public AstVisitor
         ProcType* pt = cast<ProcType*>( subT );
         Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
 
+#if 0
         if( func == 0 || pt->d_typeBound )
-            ; // Q_ASSERT( stackDepth == before + 1 ); // self or delegate instance expected
+            Q_ASSERT( stackDepth == before + 1 ); // self or delegate instance expected
+#endif
 
         for( int i = 0; i < pt->d_formals.size(); i++ )
         {
@@ -2424,25 +2517,38 @@ struct ObxCilGenImp : public AstVisitor
             }
         }
 
-        // TODO varargs
+        // pass varargs if present
+        QList<Type*> varargs;
+        for( int i = pt->d_formals.size(); i < me->d_args.size(); i++ )
+        {
+            me->d_args[i]->accept(this);
+            Type* ta = derefed(me->d_args[i]->d_type.data());
+            prepareRhs( ta, me->d_args[i].data(), me->d_args[i]->d_loc );
+            varargs.append(me->d_args[i]->d_type.data());
+        }
+
+        if( !varargs.isEmpty() && ( func == 0 || pt->d_typeBound ) )
+            err->warning(Errors::Generator, Loc(me->d_loc,thisMod->d_file), "varargs not supported here, ignored" );
+
         if( func )
         {
             if( pt->d_typeBound && !superCall )
-                line(me->d_loc).callvirt_(memberRef(func),pt->d_formals.size(),!pt->d_return.isNull());
+                line(me->d_loc).callvirt_(memberRef(func),pt->d_formals.size(),!pt->d_return.isNull()); // we dont support virtual funcs with varargs
             else
-                line(me->d_loc).call_(memberRef(func),pt->d_formals.size(),!pt->d_return.isNull());
+                line(me->d_loc).call_(memberRef(func,varargs),pt->d_formals.size(),!pt->d_return.isNull());
         }else
         {
-            const QByteArray what = formatType(pt->d_return.data()) + " " + delegateRef(pt) + "::Invoke"
-                + formatFormals(pt->d_formals,false);
+            const QByteArray what = formatType(pt->d_return.data(), pt->d_unsafe) + " " + delegateRef(pt) + "::Invoke"
+                + formatFormals(pt,false); // we don't support callbacks with varargs
 
             line(me->d_loc).callvirt_(what, pt->d_formals.size(),!pt->d_return.isNull());
         }
+
         Type* rt = derefed(pt->d_return.data());
         if( rt && rt->d_unsafe && rt->getTag() == Thing::T_Record )
         {
             // we need the address of the value so we need to store it in a temp
-            const int temp = temps.buy(formatType(pt->d_return.data()));
+            const int temp = temps.buy(formatType(pt->d_return.data(),pt->d_unsafe));
             line(me->d_loc).stloc_(temp);
             line(me->d_loc).ldloca_(temp);
         }
@@ -2452,9 +2558,8 @@ struct ObxCilGenImp : public AstVisitor
     {
         Q_ASSERT(ea);
         Type* td = derefed(tf);
-        Q_ASSERT( td != 0 );
         Type* ta = derefed(ea->d_type.data());
-        if( ta == 0 )
+        if( ta == 0 || td == 0 )
             return; // error already reported
 
         const int tag = td->getTag();
@@ -2491,7 +2596,7 @@ struct ObxCilGenImp : public AstVisitor
                 }
             }//else: we copy a proc type variable, i.e. delegate already exists
 
-            if( td && td->d_unsafe && ( rhsIsProc && !ta->d_unsafe ) )
+            if( td && td->d_unsafe && ( rhsIsProc && ( !ta->d_unsafe || td == ta ) ) )
             {
                 // we assign a newly created or existing deleg to an unsafe proc pointer
                 // add a reference to it so the GC doesn't collect it while in callback
@@ -2499,6 +2604,14 @@ struct ObxCilGenImp : public AstVisitor
                 line(loc).dup_();
                 line(loc).call_("void [OBX.Runtime]OBX.Runtime::addRef(object)",1); // TODO: consider GC.KeepAlive()
             }
+
+            if( td->d_unsafe && ( !ta->d_unsafe || rhsIsProc ) )
+                line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::GetFunctionPointerForDelegate(class [mscorlib]System.Delegate)",1,true);
+
+            if( !td->d_unsafe && ta->d_unsafe && !rhsIsProc )
+                // TODO consider Marshal.GetDelegateForFunctionPointer(IntPtr, Type) if rhsIsProc and unsafe
+                err->error(Errors::Generator, Loc(loc,thisMod->d_file), "assignment of unsafe to a safe procedure pointer is not supported");
+
         }else if( td->d_unsafe && tag == Thing::T_Record )
         {
             line(loc).ldobj_(formatType(tf));
@@ -3683,10 +3796,10 @@ struct ObxCilGenImp : public AstVisitor
             {
                 // an array member of an unsafe record is just the first element by value with reserved space afterwards
                 // so we take the address of the first element
-                Q_ASSERT(!inUnsafeRecord);
-                inUnsafeRecord = true;
+                Q_ASSERT(!arrayAsElementType);
+                arrayAsElementType = true;
                 line(loc).ldflda_(memberRef(me));
-                inUnsafeRecord = false;
+                arrayAsElementType = false;
             }
 #endif
             else if( getAddr )

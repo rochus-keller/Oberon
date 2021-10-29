@@ -1,5 +1,5 @@
 module Unsafe2
-	import I := UnsafeImport1
+	import I := UnsafeImport1 
 	
 	proc test4()
 		var l: I.L
@@ -30,6 +30,7 @@ module Unsafe2
 	end test5
 var
 	t: I.T
+	str: carray 10 of char
 begin
 	test4
 	test5
@@ -45,5 +46,14 @@ begin
 	println(t.s)
 	println(t.d)
 	println(t.e)
+	
+	t.s := "my number is %d"+0dx
+	I.doit11(t.s,33)
+	I.doit11(t.s,88)
+	t.s := "now for %d bottles of %s"+0dx
+	str := "beer"
+	I.doit11(t.s,22, str)
+	t.s := "alle meine entchen %d"+0dx
+	I.doit11_int(t.s,42)
 	//*)
 end Unsafe2

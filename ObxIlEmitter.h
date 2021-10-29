@@ -48,6 +48,7 @@ namespace Obx
         uint d_methodKind : 3;
         uint d_isPublic : 1;
         uint d_isRuntime : 1;
+        uint d_isVararg : 1;
         uint d_stackDepth: 16;
         QByteArray d_name;
         QList<IlOperation> d_body;
@@ -116,6 +117,7 @@ namespace Obx
         quint32 addArgument(const QByteArray& typeRef, QByteArray name = QByteArray() );
         void setReturnType(const QByteArray& typeRef);
         void setPinvoke( const QByteArray& lib, const QByteArray& origName = QByteArray() );
+        void setVararg();
 
         quint32 newLabel();
         void label_(quint32); // inserts artificial label command
@@ -203,6 +205,7 @@ namespace Obx
         quint8 d_methodKind;
         bool d_isPublic;
         bool d_isRuntime;
+        bool d_isVararg;
         quint32 d_labelCount;
         quint16 d_stackDepth;
         quint16 d_maxStackDepth;

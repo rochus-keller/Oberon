@@ -1084,8 +1084,9 @@ struct ValidatorImp : public AstVisitor
         {
             Expression* a = me->d_args[i].data();
             Type* t = derefed(a->d_type.data());
-            if( t && !( a->visibilityFor(mod) != Named::Private &&
-                   ( t->d_unsafe || !t->isStructured(true) || isArrayOfUnstructuredType(t) ) ) )
+            if( t && ( !( a->visibilityFor(mod) != Named::Private &&
+                        ( t->d_unsafe || !t->isStructured(true) || isArrayOfUnstructuredType(t) ) ) ||
+                    t->isString() ) )
                 error( a->d_loc, Validator::tr("actual parameter type not supported in variadic procedure call"));
         }
     }
