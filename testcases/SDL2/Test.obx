@@ -11,19 +11,16 @@ module Test
 	   event: SDL.Event	
 	
 	proc filter(userdata: *void; event: *SDL.Event): integer
-		var str : carray 16 of char
 	begin
-		str := "event: %d"+0dx
-		SDL.Log(str, event.type_)		
-		//Out.String("event: ") Out.Int(event.type_,0) Out.Ln
+		SDL.Log("event: %d"+0dx, event.type_)		
 		return 1
 	end filter
 	
 	
-	proc tick( time: integer )
+	proc tick( time: integer; param: *void ):integer
 	begin
-		println(time)
-		// TODO SDL.Log("time: %d\n", time)	
+		SDL.Log("time: %d\n", SDL.GetTicks())	
+		return 1
 	end tick
 
 (*
@@ -42,8 +39,6 @@ module Test
 	   return false
 	end checkEvents
 *)
-var
-	tmp1,tmp2 : carray 32 of char
 begin
 	//trap()
 	SDL.GetVersion(v)
@@ -51,19 +46,16 @@ begin
 	Out.Int(v.major,0) Out.String(".") Out.Int(v.minor,0) 
 	Out.String(".") Out.Int(v.patch,0) Out.Ln
 
-	tmp1 := "hello from log %d.%d.%d %f %s"
-	tmp2 := "test"
-	SDL.Log(tmp1, v.major, v.minor, v.patch, long(123.45), tmp2 )
+	SDL.Log("hello from log %d.%d.%d %f %s", v.major, v.minor, v.patch, long(123.45), "test" )
 	
 	SDL.SetEventFilter( filter, nil ) 
 	
-	tmp1 := "Hello SDL!"
-	window := SDL.CreateWindow(tmp1, 20, 20, 512, 512, SDL.WINDOW_SHOWN )
+	// SDL.AddTimer(1000,tick, nil)
+	
+	window := SDL.CreateWindow("Hello SDL!", 20, 20, 512, 512, SDL.WINDOW_SHOWN )
 	surface := SDL.GetWindowSurface(window)
 
-	tmp1 := "lena.bmp"
-	tmp2 := "rb"
-	image := SDL.LoadBMP_RW(SDL.RWFromFile(tmp1, tmp2), 1)
+	image := SDL.LoadBMP_RW(SDL.RWFromFile("lena.bmp", "rb"), 1)
 	res := SDL.UpperBlit(image, nil, surface, nil)
 	
 	res := SDL.UpdateWindowSurface(window)

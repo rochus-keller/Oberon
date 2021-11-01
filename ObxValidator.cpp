@@ -545,7 +545,11 @@ struct ValidatorImp : public AstVisitor
                 }
 
                 Type* rhsT = derefed(args->d_args.first()->d_type.data());
+#ifdef _OBX_USE_NEW_FFI_
+                if( rhsT && rhsT->d_unsafe )
+#else
                 if( rhsT && ( rhsT->d_unsafe || !rhsT->isStructured(true) || isArrayOfUnstructuredType(rhsT) ) )
+#endif
                 {
                     Ref<Pointer> ptr = new Pointer();
                     ptr->d_loc = args->d_loc;
@@ -921,6 +925,22 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
+    Type* addAddrOf(Ref<Expression>& actual)
+    {
+        Ref<UnExpr> ue = new UnExpr();
+        ue->d_loc = actual->d_loc;
+        ue->d_op = UnExpr::ADDROF;
+        ue->d_sub = actual;
+        Ref<Pointer> ptr = new Pointer();
+        ptr->d_loc = actual->d_loc;
+        ptr->d_unsafe = true;
+        ptr->d_to = actual->d_type.data();
+        ue->d_type = ptr.data();
+        actual = ue.data();
+        mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
+        return ptr.data();
+    }
+
     void checkCallArg( ProcType* pt, Parameter* formal, Ref<Expression>& actual )
     {
         Type* tf = derefed(formal->d_type.data());
@@ -955,33 +975,18 @@ struct ValidatorImp : public AstVisitor
         }
 
 #if 1
-        // BBOX supports passing RECORD and ARRAY to variant or value UNSAFE POINTER parameters,
+        // BBOX supports passing RECORD and ARRAY to var/in or value UNSAFE POINTER parameters,
         // implicit address of only supported in Oberon+ in calls to external library module procedures
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
                                            || ta == bt.d_stringType || ta == bt.d_wstringType ) )
         {
-#ifdef _OBX_USE_NEW_FFI_
-            if( pt->d_unsafe && tf->d_unsafe &&
-                   isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private && ta->d_unsafe )
-#else
             if( pt->d_unsafe && tf->d_unsafe &&
                 isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private &&
-                ( ta->d_unsafe || !ta->isStructured(true) || isArrayOfUnstructuredType(ta) ) ) // see BuiltIn::ADR
-#endif
-            {
-                Ref<UnExpr> ue = new UnExpr();
-                ue->d_loc = actual->d_loc;
-                ue->d_op = UnExpr::ADDROF;
-                ue->d_sub = actual;
-                Ref<Pointer> ptr = new Pointer();
-                ptr->d_loc = actual->d_loc;
-                ptr->d_unsafe = true;
-                ptr->d_to = actual->d_type.data();
-                ta = ptr.data();
-                ue->d_type = ptr.data();
-                actual = ue.data();
-                mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
-            }
+                ( ta->d_unsafe || ta == bt.d_stringType || ta == bt.d_wstringType || isArrayOfUnstructuredType(ta) ) )
+                // ok, if actual is unsafe,
+                // or string literal
+                // or safe array to unstructured type
+                ta = addAddrOf(actual);
         }
 #endif
 #endif
@@ -990,42 +995,7 @@ struct ValidatorImp : public AstVisitor
         {
             // check if VAR really gets a physical location
             bool ok = false;
-#if 0
-            switch( actual->getTag() )
-            {
-            case Thing::T_UnExpr:
-                ok = actual->getUnOp() == UnExpr::DEREF;
-                break;
-            case Thing::T_IdentLeaf:
-                cast<IdentLeaf*>(actual.data())->d_role = VarRole;
-                ok = true;
-                break;
-            case Thing::T_IdentSel:
-                cast<IdentSel*>(actual.data())->d_role = VarRole;
-                ok = true;
-                break;
-            case Thing::T_ArgExpr:
-                if( actual->getUnOp() == UnExpr::CALL )
-                {
-                    ArgExpr* ae = cast<ArgExpr*>(actual.data());
-                    if( ae->d_sub && ae->d_sub->getIdent() )
-                    {
-                        if( ae->d_sub->getIdent()->getTag() == Thing::T_BuiltIn )
-                        {
-                            // VAL does not actually return something but is just a cast
-                            BuiltIn* bi = cast<BuiltIn*>(ae->d_sub->getIdent());
-                            ok = bi->d_func == BuiltIn::SYS_VAL;
-                        }
-                    }
-                }else
-                    ok = true; // TODO: is readoly checked for pointers derefs or array elements?
-                break;
-            default:
-                break;
-            }
-#else
             ok = isMemoryLocation(actual.data());
-#endif
 #ifdef OBX_BBOX
             if( ta == bt.d_nilType )
             {
@@ -1048,7 +1018,7 @@ struct ValidatorImp : public AstVisitor
             // If Tf is an open array, then a must be array compatible with f
             if( !arrayCompatible( af, actual->d_type.data(), actual->d_loc ) )
                 error( actual->d_loc,
-                       Validator::tr("actual parameter type %1 not compatible with formal type of %2%3")
+                       Validator::tr("actual open array parameter type %1 not compatible with formal type of %2%3")
                        .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
         }
         else
@@ -1084,9 +1054,9 @@ struct ValidatorImp : public AstVisitor
         {
             Expression* a = me->d_args[i].data();
             Type* t = derefed(a->d_type.data());
-            if( t && ( !( a->visibilityFor(mod) != Named::Private &&
-                        ( t->d_unsafe || !t->isStructured(true) || isArrayOfUnstructuredType(t) ) ) ||
-                    t->isString() ) )
+            if( isArrayOfUnstructuredType(t) || t->isString() )
+                addAddrOf(me->d_args[i]);
+            else if( !( t->d_unsafe || !t->isStructured(true) ) )
                 error( a->d_loc, Validator::tr("actual parameter type not supported in variadic procedure call"));
         }
     }
@@ -2898,6 +2868,7 @@ struct ValidatorImp : public AstVisitor
         {
             if( rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
                 return true;
+
 #if 0 // def OBX_BBOX
             // no longer implicit addrof
             Pointer* lptr = cast<Pointer*>(lhsT);
@@ -3034,6 +3005,20 @@ struct ValidatorImp : public AstVisitor
             return false;
         }else
         {
+
+#ifdef _OBX_USE_NEW_FFI_
+            if( tf->d_unsafe && tftag == Thing::T_Pointer && ta->d_unsafe && ta->getTag() == Thing::T_Pointer )
+            {
+                Type* fpt = derefed(cast<Pointer*>(tf)->d_to.data());
+                Type* apt = derefed(cast<Pointer*>(ta)->d_to.data());
+                if( fpt->isText() && apt->isText() ) // covers literals and c/array of char
+                    return true;
+                if( fpt->getTag() == Thing::T_Array && apt->getTag() == Thing::T_Array && // covers all other arrays
+                        equalType( cast<Array*>(fpt)->d_type.data(), cast<Array*>(apt)->d_type.data() ) )
+                    return true; // equaltype on array level would fail for safe/unsafe combination generated by ADDROF
+            }
+#endif
+
             // `f` is a value parameter and T~a~ is _assignment compatible_ with T~f~
             const bool res = assignmentCompatible( lhs->d_type.data(), rhs );
             if( res && tftag != Thing::T_Pointer && typeExtension(tf, ta ) &&
@@ -3059,7 +3044,7 @@ struct ValidatorImp : public AstVisitor
         rhsT = derefed(rhsT);
 
 #ifdef _OBX_USE_NEW_FFI_
-        if( lhsT && rhsT && lhsT->d_unsafe != rhsT->d_unsafe )
+        if( lhsT && rhsT && lhsT->d_unsafe != rhsT->d_unsafe && !lhsT->isText() && !rhsT->isText() )
             return false;
 #endif
 

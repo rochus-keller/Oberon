@@ -1210,12 +1210,6 @@ Named*Type::findDecl(bool recursive) const
 
 bool Type::isText(bool* wide, bool resolvePtr) const
 {
-    if( isString() || isChar() )
-    {
-        if( wide )
-            *wide = d_baseType == WCHAR || d_baseType == WSTRING;
-        return true;
-    }
     Type* t = const_cast<Type*>(this);
     int tag = t->getTag();
     if( resolvePtr && tag == Thing::T_Pointer )
@@ -1224,6 +1218,15 @@ bool Type::isText(bool* wide, bool resolvePtr) const
         t = p->d_to.data();
         if( t )
             t = t->derefed();
+        tag = t ? t->getTag() : 0;
+    }
+    if( t->isString() || t->isChar() )
+    {
+        // we also accept pointer to string literal or pointer to char as text
+        // this can happen with automatic ADDROF
+        if( wide )
+            *wide = d_baseType == WCHAR || d_baseType == WSTRING;
+        return true;
     }
     if( tag == Thing::T_Array )
     {

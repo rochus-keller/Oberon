@@ -168,6 +168,7 @@ namespace Obx
         void onDbgEvent( const DebuggerEvent& );
         void onRemoveAllBreakpoints();
         void onBreakOnExceptions();
+        void onRowColMode();
     private:
         class DocTab;
         DocTab* d_tab;
@@ -191,17 +192,17 @@ namespace Obx
         QTreeWidget* d_errs;
         QList<Location> d_backHisto; // d_backHisto.last() ist aktuell angezeigtes Objekt
         QList<Location> d_forwardHisto;
+        enum Mode { LineMode, RowColMode, BytecodeMode };
+        quint8 d_mode;
         bool d_lock, d_lock2, d_lock3, d_lock4;
         bool d_filesDirty;
         bool d_pushBackLock;
-        bool d_byteCodeMode;
         bool d_debugging;
-        bool d_rowColMode;
         bool d_suspended; // we are in debugger but code is suspended
         bool d_breakOnExceptions;
         quint32 d_curThread;
-        enum Mode { Idle, Compiling, Generating, Running };
-        Mode d_mode;
+        enum Status { Idle, Compiling, Generating, Running };
+        Status d_status;
         QList<Mono::Debugger::Frame> d_stack;
         qint32 d_curRow;
         qint16 d_curCol;

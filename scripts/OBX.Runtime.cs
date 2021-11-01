@@ -298,7 +298,19 @@ namespace OBX
 			d = mantissa;
 			e = exponent;
 		}
-		private static string toString(char[] str)
+		public static byte[] toAnsi(char[] str)
+		{
+			byte[] res = new byte[str.Length];
+			for( int i = 0; i < str.Length; i++ )
+				res[i] = (byte)str[i];
+			return res;
+		}
+		public static void writeBack(char[] to, byte[] from)
+		{
+			for( int i = 0; i < from.Length; i++ )
+				to[i] = (char)from[i];
+		}
+		public static string toString(char[] str)
 		{
 			int i = 0;
 			while( i < str.Length && str[i] != 0 )

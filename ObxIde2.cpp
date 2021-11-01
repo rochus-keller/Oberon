@@ -107,7 +107,7 @@ class Ide::Editor : public CodeEditor
 public:
     Editor(Ide* p, Project* pro):CodeEditor(p),d_pro(pro),d_ide(p),dbgRow(0),dbgCol(0)
     {
-        setCharPerTab(3);
+        setCharPerTab(2);
         setTypingLatency(400);
         setPaintIndents(false);
         d_hl = new Highlighter( document() );
@@ -214,7 +214,7 @@ public:
 
         sum << d_link;
 
-        if( d_ide->d_debugging && d_ide->d_mode == Ide::Running && d_ide->d_byteCodeMode )
+        if( d_ide->d_debugging && d_ide->d_status == Ide::Running && d_ide->d_mode != Ide::LineMode )
         {
             dbgRow = d_ide->d_curRow-1;
             dbgCol = d_ide->d_curCol-1;
@@ -377,8 +377,8 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
-      d_lock2(false),d_lock3(false),d_lock4(false),d_byteCodeMode(false),d_debugging(false),d_rowColMode(false),
-      d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_mode(Idle),d_breakOnExceptions(false)
+      d_lock2(false),d_lock3(false),d_lock4(false),d_debugging(false),d_mode(LineMode),
+      d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_status(Idle),d_breakOnExceptions(false)
 {
     s_this = this;
 
@@ -805,6 +805,7 @@ void Ide::createMenuBar()
     pop = new Gui::AutoMenu( tr("Debug"), this );
     pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
     pop->addCommand( "Bytecode mode", this, SLOT(onByteMode()) );
+    pop->addCommand( "Row/Column mode", this, SLOT(onRowColMode()) );
     pop->addSeparator();
     pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     pop->addCommand( "Remove all breakpoints", this, SLOT(onRemoveAllBreakpoints()));
@@ -839,19 +840,19 @@ void Ide::createMenuBar()
 
 void Ide::onParse()
 {
-    ENABLED_IF( !d_pro->getFiles().isEmpty() && d_mode == Idle);
+    ENABLED_IF( !d_pro->getFiles().isEmpty() && d_status == Idle);
     compile();
 }
 
 void Ide::onCompile()
 {
-    ENABLED_IF( !d_pro->getFiles().isEmpty() &&  d_mode == Idle);
+    ENABLED_IF( !d_pro->getFiles().isEmpty() &&  d_status == Idle);
     compile(true);
 }
 
 void Ide::onRun()
 {
-    ENABLED_IF( !d_pro->getFiles().isEmpty() && d_mode == Idle );
+    ENABLED_IF( !d_pro->getFiles().isEmpty() && d_status == Idle );
 
     if( run() && d_debugging )
         d_suspended = false;
@@ -859,7 +860,7 @@ void Ide::onRun()
 
 void Ide::onAbort()
 {
-    ENABLED_IF(d_mode == Running);
+    ENABLED_IF(d_status == Running);
 
     if( d_debugging )
         d_dbg->exit();
@@ -1608,7 +1609,7 @@ void Ide::onRemoveDir()
 
 void Ide::onEnableDebug()
 {
-    CHECKED_IF( d_mode == Idle, d_debugging );
+    CHECKED_IF( d_status == Idle, d_debugging );
 
     d_debugging = !d_debugging;
 }
@@ -1701,9 +1702,9 @@ bool Ide::compile(bool doGenerate )
         preloadLib(d_pro,"XYPlane");
     }
     const QTime start = QTime::currentTime();
-    d_mode = Compiling;
+    d_status = Compiling;
     const bool res = d_pro->reparse();
-    d_mode = Idle;
+    d_status = Idle;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     if( res && doGenerate )
        generate();
@@ -1718,7 +1719,7 @@ bool Ide::compile(bool doGenerate )
 
 bool Ide::generate()
 {
-    if( d_mode != Idle )
+    if( d_status != Idle )
         return false;
 
     // NOTE fastasm seems still to make problems, maybe related to the mscorelib.dll version;
@@ -1748,7 +1749,7 @@ bool Ide::generate()
         return false;
 
     const QTime start = QTime::currentTime();
-    d_mode = Generating;
+    d_status = Generating;
     CilGen::translateAll(d_pro, how, d_debugging, buildPath );
     qDebug() << "generated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 
@@ -1774,14 +1775,14 @@ bool Ide::generate()
             }
         }
     }else
-        d_mode = Idle;
+        d_status = Idle;
 
     return true;
 }
 
 bool Ide::run()
 {
-    if( d_mode != Idle )
+    if( d_status != Idle )
         return false;
     if( !checkEngine() )
         return false;
@@ -1789,14 +1790,14 @@ bool Ide::run()
     if( d_debugging && buildDir.entryList(QStringList() << "*.mdb", QDir::Files ).isEmpty() )
     {
         logMessage("No debugging information found, using bytecode level debugger",SysInfo);
-        d_byteCodeMode = true;
+        d_mode = BytecodeMode;
     }
     logMessage("\nStarting application...\n\n",SysInfo,false);
     d_eng->init( d_debugging ? d_dbg->open() : 0 );
     d_eng->setAssemblySearchPaths( QStringList() << d_pro->getBuildDir(), true );
     d_eng->setEnv( "OBERON_FILE_SYSTEM_ROOT", d_pro->getWorkingDir(true) );
     d_eng->run( buildDir.absoluteFilePath("Main#.exe"));
-    d_mode = Running;
+    d_status = Running;
     return true;
 }
 
@@ -2280,7 +2281,7 @@ void Ide::fillStack()
             item->setText(0,QString::number(level));
             item->setData(0,Qt::UserRole,level);
             item->setText(1,methodName.constData());
-            if( loc.valid && !d_byteCodeMode )
+            if( loc.valid && d_mode != BytecodeMode )
             {
                 item->setText(2,QString("%1:%2").arg(loc.row).arg(loc.col));
                 item->setData(2, Qt::UserRole, RowCol(loc.row,loc.col).packed() );
@@ -2298,7 +2299,7 @@ void Ide::fillStack()
                 if( loc.valid )
                 {
                     Editor* edit = showEditor(info.sourceFile, loc.row, loc.col, true );
-                    if( d_byteCodeMode && edit )
+                    if( d_mode != LineMode && edit )
                     {
                         d_lock = true;
                         edit->dbgRow = loc.row - 1;
@@ -2326,7 +2327,7 @@ void Ide::fillLocals()
 
     if( d_curLevel >= 0 && d_curLevel < d_stack.size() )
     {
-        if( d_byteCodeMode )
+        if( d_mode == BytecodeMode )
             d_il->load(d_stack[d_curLevel].method, d_stack[d_curLevel].il_offset );
 
         const quint32 cls = d_dbg->getMethodOwner(d_stack[d_curLevel].method);
@@ -2791,7 +2792,7 @@ void Ide::onToggleBreakPt()
         d_breakPoints[fm.first->d_mod->getName()].insert(line + 1);
     else
         d_breakPoints[fm.first->d_mod->getName()].remove(line + 1);
-    if( d_mode == Running && d_debugging )
+    if( d_status == Running && d_debugging )
     {
         const bool res = updateBreakpoint(fm.second,line+1,on);
         if( !res )
@@ -2801,9 +2802,9 @@ void Ide::onToggleBreakPt()
 
 void Ide::onStepIn()
 {
-    ENABLED_IF((!d_pro->getFiles().isEmpty() && d_mode == Idle) || (d_suspended && d_debugging));
+    ENABLED_IF((!d_pro->getFiles().isEmpty() && d_status == Idle) || (d_suspended && d_debugging));
     if( d_suspended && d_debugging )
-        d_dbg->stepIn(d_curThread, !d_byteCodeMode);
+        d_dbg->stepIn(d_curThread, d_mode == LineMode);
     else
     {
         d_debugging = true;
@@ -2814,9 +2815,9 @@ void Ide::onStepIn()
 
 void Ide::onStepOver()
 {
-    ENABLED_IF((!d_pro->getFiles().isEmpty() && d_mode == Idle) || (d_suspended && d_debugging));
+    ENABLED_IF((!d_pro->getFiles().isEmpty() && d_status == Idle) || (d_suspended && d_debugging));
     if( d_suspended && d_debugging )
-        d_dbg->stepOver(d_curThread, !d_byteCodeMode );
+        d_dbg->stepOver(d_curThread, d_mode == LineMode );
     else
     {
         d_debugging = true;
@@ -2828,12 +2829,12 @@ void Ide::onStepOver()
 void Ide::onStepOut()
 {
     ENABLED_IF(d_suspended && d_debugging);
-    d_dbg->stepOut(d_curThread, !d_byteCodeMode );
+    d_dbg->stepOut(d_curThread, d_mode == LineMode );
 }
 
 void Ide::onContinue()
 {
-    ENABLED_IF( (!d_pro->getFiles().isEmpty() && d_mode == Idle) || (d_suspended && d_debugging) );
+    ENABLED_IF( (!d_pro->getFiles().isEmpty() && d_status == Idle) || (d_suspended && d_debugging) );
 
     if( d_suspended && d_debugging )
     {
@@ -2968,7 +2969,7 @@ quint32 Ide::getMonoModule(Module* m)
 
 bool Ide::updateBreakpoint(Module* m, quint32 line, bool add)
 {
-    if( d_mode != Running || !d_debugging )
+    if( d_status != Running || !d_debugging )
         return false;
     const quint32 assemblyId = d_loadedAssemblies.value(m);
     if( assemblyId == 0 )
@@ -3062,14 +3063,17 @@ void Ide::onExpMod()
 
 void Ide::onByteMode()
 {
-    CHECKED_IF( true, d_byteCodeMode );
+    CHECKED_IF( true, d_mode == BytecodeMode );
 
-    d_byteCodeMode = !d_byteCodeMode;
+    if( d_mode != BytecodeMode )
+        d_mode = BytecodeMode;
+    else
+        d_mode = LineMode;
 }
 
 void Ide::onSetRunCommand()
 {
-    ENABLED_IF(d_mode == Idle);
+    ENABLED_IF(d_status == Idle);
 
     bool ok = false;
     QString res = QInputDialog::getText(this,tr("Set Command"),tr("<module>.<command> to run at start of program:"),
@@ -3102,7 +3106,7 @@ void Ide::onError(const QString& msg)
 
 void Ide::onFinished(int exitCode, bool normalExit)
 {
-    if( d_mode == Generating )
+    if( d_status == Generating )
     {
         QDir outDir(d_pro->getBuildDir());
         QFile files(outDir.absoluteFilePath("modules"));
@@ -3117,7 +3121,7 @@ void Ide::onFinished(int exitCode, bool normalExit)
         }
         files.remove();
         QFile::remove(outDir.absoluteFilePath("batch"));
-    }else if( d_mode == Running )
+    }else if( d_status == Running )
     {
         if( normalExit )
             logMessage(tr("\nThe application finished with code %1\n\n").arg(exitCode),SysInfo,false);
@@ -3125,7 +3129,7 @@ void Ide::onFinished(int exitCode, bool normalExit)
             logMessage(tr("\nThe execution engine crashed\n\n"),LogError,false);
         if( d_debugging )
             d_dbg->close();
-        d_mode = Idle;
+        d_status = Idle;
         d_loadedAssemblies.clear();
         removePosMarkers();
         d_il->clear();
@@ -3134,7 +3138,7 @@ void Ide::onFinished(int exitCode, bool normalExit)
         d_stackView->clear();
     }
     d_suspended = false;
-    d_mode = Idle;
+    d_status = Idle;
 }
 
 void Ide::onDbgEvent(const Mono::DebuggerEvent& e)
@@ -3236,7 +3240,7 @@ void Ide::onRemoveAllBreakpoints()
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
         e->clearBreakPoints();
     }
-    if( d_mode == Running && d_debugging )
+    if( d_status == Running && d_debugging )
         d_dbg->clearAllBreakpoints();
 }
 
@@ -3247,13 +3251,23 @@ void Ide::onBreakOnExceptions()
     d_breakOnExceptions = !d_breakOnExceptions;
 }
 
+void Ide::onRowColMode()
+{
+    CHECKED_IF( true, d_mode == RowColMode );
+
+    if( d_mode != RowColMode )
+        d_mode = RowColMode;
+    else
+        d_mode = LineMode;
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.13");
+    a.setApplicationVersion("0.9.14");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

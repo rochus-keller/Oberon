@@ -158,7 +158,7 @@ struct ObxCilGenCollector : public AstVisitor
 
 struct CilGenTempPool
 {
-    enum { MAX_TEMP = 32 };
+    enum { MAX_TEMP = 250 };
     std::bitset<MAX_TEMP> d_slots;
     QList<QByteArray> d_types;
     quint16 d_start;
@@ -224,6 +224,7 @@ struct ObxCilGenImp : public AstVisitor
 #ifdef _CLI_VARARG_SUBST_PROCS_
     QHash<Module*,QHash<Procedure*,QHash<QByteArray, QList<Type*> > > > substitutes; // replace vararg by overloads
 #endif
+    QList<QPair<int,int> > pinnedTemps; // pinned temp var -> write back var or -1
     int exitJump; // TODO: nested LOOPs
     Procedure* scope;
     int suppressLine;
@@ -1188,6 +1189,10 @@ struct ObxCilGenImp : public AstVisitor
             return "int32";
         case Type::CVOID:
             return "uint8";
+        case Type::STRING:
+            return "uint8";
+        case Type::WSTRING:
+            return "uint16";
         default:
             return "?";
         }
@@ -1908,7 +1913,10 @@ struct ObxCilGenImp : public AstVisitor
                             line(ae->d_loc).call_("string [mscorlib]System.Runtime.InteropServices.Marshal::PtrToStringAnsi(native int)",1,true);
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
                     }else
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(char[])",1);
+                    {
+                        line(ae->d_loc).call_("string [OBX.Runtime]OBX.Runtime::toString(char[])", 1, true );
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1); // WriteLine(char[]) doesn't seem to respect 0
+                    }
                 }else if( td->isInteger() )
                 {
                     if( td->getBaseType() <= Type::INTEGER )
@@ -2443,6 +2451,79 @@ struct ObxCilGenImp : public AstVisitor
             return false; // all our structured values are already on the heap, the value is actually a object reference
     }
 
+    void preparePinnedArray( Type* t, const RowCol& loc )
+    {
+        // https://docs.microsoft.com/en-us/dotnet/framework/interop/copying-and-pinning
+        // https://codereview.stackexchange.com/questions/158035/pin-an-array-in-memory-and-construct-a-bitmap-using-that-buffer
+
+        Type* td = derefed(t);
+        if( td->getTag() == Thing::T_Pointer )
+        {
+            Pointer* p = cast<Pointer*>(td);
+            Type* tp = derefed(p->d_to.data());
+            if( tp == 0 || ( tp->getTag() != Thing::T_Array && !tp->isString() ) || tp->d_unsafe )
+                return;
+            t = p->d_to.data();
+            td = tp;
+        }else
+            return;
+
+        // here remain string literals or safe arrays
+
+        bool wide;
+        if( td->isText(&wide) && !wide )
+        {
+            int slot1 = -1;
+            if( !td->isString() )
+            {
+                slot1 = temps.buy("char[]");
+                line(loc).dup_();
+                line(loc).stloc_(slot1);
+            }
+            line(loc).call_("uint8[] [OBX.Runtime]OBX.Runtime::toAnsi(char[])", 1, true );
+            line(loc).dup_();
+            const int slot2 = temps.buy("uint8[] pinned");
+            Q_ASSERT( slot2 >= 0 );
+            pinnedTemps << qMakePair(slot2,slot1);
+            line(loc).stloc_(slot2);
+            line(loc).ldc_i4(0);
+#if 1
+            line(loc).ldelema_("uint8");
+#else
+            line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::UnsafeAddrOfPinnedArrayElement([mscorlib]System.Array,int32)", 2, true );
+#endif
+        }else if( td->getTag() == Thing::T_Array )
+        {
+            line(loc).dup_();
+            const int slot = temps.buy(formatType(t) + " pinned");
+            Q_ASSERT( slot >= 0 );
+            pinnedTemps << qMakePair(slot,-1);
+            line(loc).stloc_(slot);
+            line(loc).ldc_i4(0);
+            line(loc).ldelema_(formatType(cast<Array*>(td)->d_type.data()));
+        }
+    }
+
+    void releasePinnedArrays(const RowCol& loc)
+    {
+        for( int i = 0; i < pinnedTemps.size(); i++ )
+        {
+            if( pinnedTemps[i].second >= 0 )
+            {
+                line(loc).ldloc_(pinnedTemps[i].second);
+                line(loc).ldloc_(pinnedTemps[i].first);
+                line(loc).call_("void [OBX.Runtime]OBX.Runtime::writeBack(char[],uint8[])", 2 );
+                line(loc).ldnull_();
+                line(loc).stloc_(pinnedTemps[i].second);
+                temps.sell(pinnedTemps[i].second);
+            }
+            line(loc).ldnull_();
+            line(loc).stloc_(pinnedTemps[i].first);
+            temps.sell(pinnedTemps[i].first);
+        }
+        pinnedTemps.clear();
+    }
+
     void emitCall( ArgExpr* me )
     {
         Q_ASSERT( me->d_sub );
@@ -2487,9 +2568,9 @@ struct ObxCilGenImp : public AstVisitor
             Type* tf = derefed(p->d_type.data());
             Q_ASSERT( tf != 0 );
 
+            const int tag = tf->getTag();
             if( passByRef(p) )
             {
-                const int tag = tf->getTag();
                 if( tag == Thing::T_Array )
                 {
                     Array* la = cast<Array*>(tf);
@@ -2514,6 +2595,9 @@ struct ObxCilGenImp : public AstVisitor
                 // NOTE that in case of 1) the copy is done in the body of the called procedure
                 me->d_args[i]->accept(this);
                 prepareRhs( tf, me->d_args[i].data(), me->d_args[i]->d_loc );
+
+                if( pt->d_unsafe && tag == Thing::T_Pointer && tf->d_unsafe )
+                    preparePinnedArray(me->d_args[i]->d_type.data(),me->d_args[i]->d_loc);
             }
         }
 
@@ -2525,10 +2609,12 @@ struct ObxCilGenImp : public AstVisitor
             Type* ta = derefed(me->d_args[i]->d_type.data());
             prepareRhs( ta, me->d_args[i].data(), me->d_args[i]->d_loc );
             varargs.append(me->d_args[i]->d_type.data());
+            Q_ASSERT( pt->d_unsafe );
+            preparePinnedArray(me->d_args[i]->d_type.data(),me->d_args[i]->d_loc);
         }
 
         if( !varargs.isEmpty() && ( func == 0 || pt->d_typeBound ) )
-            err->warning(Errors::Generator, Loc(me->d_loc,thisMod->d_file), "varargs not supported here, ignored" );
+            err->warning(Errors::Generator, Loc(me->d_loc,thisMod->d_file), "varargs not supported here" );
 
         if( func )
         {
@@ -2543,6 +2629,8 @@ struct ObxCilGenImp : public AstVisitor
 
             line(me->d_loc).callvirt_(what, pt->d_formals.size(),!pt->d_return.isNull());
         }
+
+        releasePinnedArrays(me->d_loc);
 
         Type* rt = derefed(pt->d_return.data());
         if( rt && rt->d_unsafe && rt->getTag() == Thing::T_Record )

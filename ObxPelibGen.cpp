@@ -30,7 +30,7 @@ class SignatureLexer
 {
 public:
     enum TokenType { Invalid, Done, ID, QSTRING, CLASS, VALUETYPE, LBRACK, RBRACK, ARR,
-                     DBLCOLON, SLASH, LPAR, RPAR, AMPERS, COMMA, DOT, STAR, VARARG, SENTINEL };
+                     DBLCOLON, SLASH, LPAR, RPAR, AMPERS, COMMA, DOT, STAR, VARARG, SENTINEL, PINNED };
     struct Token
     {
         quint8 d_tt; // TokenType
@@ -156,6 +156,8 @@ protected:
             return Token(VALUETYPE,pos);
         if( str == "vararg" )
             return Token(VARARG,pos);
+        if( str == "pinned" )
+            return Token(PINNED,pos);
         return Token(ID,pos,str);
     }
     bool get( char* ch )
@@ -186,7 +188,7 @@ class SignatureParser
 {
 public:
     // ref      ::= typeRef | membRef
-    // typeRef  ::= [ 'class' | 'valuetype' ] [ assembly ] path {'*'} {'[]'} | primType {'*'} {'[]'}
+    // typeRef  ::= ( [ 'class' | 'valuetype' ] [ assembly ] path | primType ) {'*'} {'[]'} ['pinned']
     // primType ::= [ 'native' ][ 'unsigned' ] ID
     // membRef  ::= [ 'vararg' ] typeRef [ 'class' | 'valuetype' ] [ assembly ] path '::' dottedNm [ params ]
     // assembly ::= '[' dottedNm ']'
@@ -530,7 +532,7 @@ protected:
             {
                 DataContainer* dc = dynamic_cast<DataContainer*>(node->thing);
                 Q_ASSERT(dc);
-                Node* suffix = node->subs.value(pointer); // sub "" is the plain type associated with the given class
+                Node* suffix = node->subs.value(pointer);
                 if( suffix == 0 )
                 {
                     suffix = new Node(node,pointer);
@@ -551,6 +553,14 @@ protected:
             array += "[]";
             arrayLevel++;
         }
+        bool pinned = false;
+        if( lex.peek().d_tt == SignatureLexer::PINNED )
+        {
+            lex.next();
+            pinned = true;
+            Q_ASSERT( arrayLevel > 0 ); // we currently only support pinned arrays
+            array += " pinned";
+        }
         if( Type* primitive = dynamic_cast<Type*>(node->thing) )
         {
             if( arrayLevel == 0 )
@@ -563,6 +573,7 @@ protected:
                 node->subs.insert(array,suffix);
                 Type* t = new Type(primitive->GetBasicType());
                 t->ArrayLevel(arrayLevel);
+                t->Pinned(pinned);
                 suffix->thing = t;
             }
             return suffix;
@@ -570,13 +581,14 @@ protected:
         {
             DataContainer* dc = dynamic_cast<DataContainer*>(node->thing);
             Q_ASSERT(dc);
-            Node* suffix = node->subs.value(array); // sub "" is the plain type associated with the given class
+            Node* suffix = node->subs.value(array);
             if( suffix == 0 )
             {
                 suffix = new Node(node,array);
                 node->subs.insert(array,suffix);
                 Type* t = new Type(dc);
                 t->ArrayLevel(arrayLevel);
+                t->Pinned(pinned);
                 suffix->thing = t;
             }
             return suffix;

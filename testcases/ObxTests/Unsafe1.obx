@@ -27,7 +27,7 @@ var
 	s, s2 : carray 32 of char
 	ss: array 32 of char
 	sp: cpointer to carray of char
-	ii: carray 10 of integer
+	ii: array 10 of integer // also works with carray
 	i: integer
 	point: I.P
 
@@ -37,6 +37,7 @@ var
 	//aa : cpointer to carray of char
 begin
 	println("begin Unsafe1")
+
 	t.a := 33
 	t2 := t
 	assert(t.a=33)
@@ -67,7 +68,18 @@ begin
 	r := I.doit(s,22)
 	assert(r=66)
 	assert(s="gandalf")
-	
+
+	ss := "here and now"
+	r := I.doit(ss,23)
+	assert(r=66)
+	assert(ss="gandalf")
+
+	r := I.doit("now and then",24)
+	assert(r=66)
+
+	I.doit11(ss)
+	I.doit11("here and there")
+
 	r := I.hello()
 	assert(r=42)
 
@@ -87,7 +99,9 @@ begin
 	for i := 0 to len(ii)-1 do
 		println(ii[i])
 	end
-
+	assert(ii[2]=8)
+	assert(ii[7]=3)
+ 
 	r := I.doit6( at )
 	assert(r=123)
 	assert(at[0].a=1234567)
@@ -117,6 +131,6 @@ begin
 	
 	r := I.doit10(test3)
 	println(r)
-			
+
 	println("end Unsafe1")
 end Unsafe1
