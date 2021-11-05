@@ -220,8 +220,8 @@ namespace Obx
         bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
         bool isReal() const { return d_baseType == REAL || d_baseType == LONGREAL; }
         bool isNumeric() const { return isInteger() || isReal(); }
-        bool isString() const { return d_baseType == STRING || d_baseType == WSTRING; }
-        bool isChar() const { return d_baseType == CHAR || d_baseType == WCHAR; }
+        bool isString(bool* wide = 0) const;
+        bool isChar(bool* wide = 0) const;
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0, bool resolvePtr = false) const;
         Record* toRecord() const;

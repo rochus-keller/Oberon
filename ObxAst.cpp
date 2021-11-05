@@ -1208,6 +1208,20 @@ Named*Type::findDecl(bool recursive) const
         return 0;
 }
 
+bool Type::isString(bool* wide) const
+{
+    if( wide )
+        *wide = d_baseType == WSTRING;
+    return d_baseType == STRING || d_baseType == WSTRING;
+}
+
+bool Type::isChar(bool* wide) const
+{
+    if(wide)
+        *wide = d_baseType == WCHAR;
+    return d_baseType == CHAR || d_baseType == WCHAR;
+}
+
 bool Type::isText(bool* wide, bool resolvePtr) const
 {
     Type* t = const_cast<Type*>(this);

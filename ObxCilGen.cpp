@@ -1073,6 +1073,8 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     QByteArray type = formatType(me->d_to.data(),me->d_unsafe);
                     Type* td = derefed(me->d_to.data());
+                    if( td && td->getBaseType() == Type::CVOID )
+                        return type;
                     Array* a = td->getTag() == Thing::T_Array ? cast<Array*>(td) : 0;
                     if( me->d_unsafe && td && a == 0 )
                         type += "*";
@@ -1165,7 +1167,10 @@ struct ObxCilGenImp : public AstVisitor
         switch( t )
         {
         case Type::BOOLEAN:
-            return "bool";
+            if( unsafe )
+                return "uint8";
+            else
+                return "bool";
         case Type::CHAR:
             if( unsafe )
                 return "uint8";
@@ -1188,7 +1193,7 @@ struct ObxCilGenImp : public AstVisitor
         case Type::SET:
             return "int32";
         case Type::CVOID:
-            return "uint8";
+            return "native int";
         case Type::STRING:
             return "uint8";
         case Type::WSTRING:
@@ -2327,25 +2332,37 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.last()->accept(this);
             line(ae->d_loc).not_();
             break;
-        case BuiltIn::SHORT:
+        case BuiltIn::WCHR:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
-            switch(derefed(ae->d_args.first()->d_type.data())->getBaseType())
+            break;
+        case BuiltIn::SHORT:
             {
-            case Type::LONGINT:
-                line(ae->d_loc).conv_(IlEmitter::ToI4);
-                break;
-            case Type::INTEGER:
-                line(ae->d_loc).conv_(IlEmitter::ToI2);
-                break;
-            case Type::SHORTINT:
-                line(ae->d_loc).conv_(IlEmitter::ToU1);
-                break;
-            case Type::LONGREAL:
-                line(ae->d_loc).conv_(IlEmitter::ToR4);
-                break;
-            default:
-                Q_ASSERT(false);
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                if( td->isText() )
+                    ; // NOP
+                else
+                {
+                    switch(td->getBaseType())
+                    {
+                    case Type::LONGINT:
+                        line(ae->d_loc).conv_(IlEmitter::ToI4);
+                        break;
+                    case Type::INTEGER:
+                        line(ae->d_loc).conv_(IlEmitter::ToI2);
+                        break;
+                    case Type::SHORTINT:
+                        line(ae->d_loc).conv_(IlEmitter::ToU1);
+                        break;
+                    case Type::LONGREAL:
+                        line(ae->d_loc).conv_(IlEmitter::ToR4);
+                        break;
+                    default:
+                        Q_ASSERT(false);
+                    }
+                }
             }
             break;
         case BuiltIn::LONG:
@@ -3038,7 +3055,10 @@ struct ObxCilGenImp : public AstVisitor
             {
                 stringOp(lhsT, rhsT, lwide, rwide, 6, me->d_loc );
             }else
+            {
+                qDebug() << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
                 Q_ASSERT(false);
+            }
             break;
         default:
             Q_ASSERT(false);
@@ -3411,6 +3431,9 @@ struct ObxCilGenImp : public AstVisitor
 
     void visit( CaseStmt* me)
     {
+        // TODO: else not yet handled; if else missing then abort if no case hit
+        if( !me->d_else.isEmpty() )
+            qWarning() << "CASE ELSE not yet implemented" << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
         if( me->d_typeCase )
         {
             // first rewrite the AST with 'if' instead of complex 'case'
