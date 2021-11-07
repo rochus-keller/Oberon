@@ -875,7 +875,9 @@ QList<Field*> Record::getOrderedFields() const
     {
         if( d_fields[i]->d_super )
         {
+#ifdef _DEBUG
             Q_ASSERT( d_fields[i]->d_super->d_slotValid && d_fields[i]->d_super->d_slot < d_fields.size() );
+#endif
             res[ d_fields[i]->d_super->d_slot ] = d_fields[i].data();
         }else
             res.append( d_fields[i].data() );
@@ -1099,7 +1101,7 @@ QString Pointer::pretty() const
     if( d_to.isNull() )
         return "POINTER TO ?";
     if( d_unsafe )
-        return QString("UNSAFE POINTER TO %1").arg(d_to->pretty());
+        return QString("CPOINTER TO %1").arg(d_to->pretty());
     else
         return QString("POINTER TO %1").arg(d_to->pretty());
 }
@@ -1239,7 +1241,7 @@ bool Type::isText(bool* wide, bool resolvePtr) const
         // we also accept pointer to string literal or pointer to char as text
         // this can happen with automatic ADDROF
         if( wide )
-            *wide = d_baseType == WCHAR || d_baseType == WSTRING;
+            *wide = t->d_baseType == WCHAR || t->d_baseType == WSTRING;
         return true;
     }
     if( tag == Thing::T_Array )
@@ -1251,7 +1253,7 @@ bool Type::isText(bool* wide, bool resolvePtr) const
         if( t && t->isChar() )
         {
             if( wide )
-                *wide = d_baseType == WCHAR;
+                *wide = t->d_baseType == WCHAR;
             return true;
         }
     }

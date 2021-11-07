@@ -39,6 +39,7 @@ namespace Obx
     {
     public:
         enum How { Ilasm, Fastasm, IlOnly, Pelib };
+        // all true on success, false on error
         static bool translateAll(Project*, How how, bool debug, const QString& where );
         static bool translate(Module*, IlEmitter* out, bool debug, Ob::Errors* = 0 );
         static bool generateMain(IlEmitter* out, const QByteArray& thisMod,

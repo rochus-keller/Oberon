@@ -762,9 +762,11 @@ void Ide::createMenuBar()
     pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
     pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
     pop->addSeparator();
+#ifdef QT_PRINTSUPPORT_LIB
     pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addAutoCommand( "Export PDF...", SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
     pop->addSeparator();
+#endif
     pop->addAction(tr("Quit"),qApp,SLOT(quit()), tr("CTRL+Q") );
 
     pop = new Gui::AutoMenu( tr("Edit"), this );
@@ -1010,8 +1012,11 @@ void Ide::onExportIl()
     if (dirPath.isEmpty())
         return;
 
-    if( compile(false) ) // otherwise allocated flag is already set after one generator run
-        CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging, dirPath );
+    if( !compile(false) ) // otherwise allocated flag is already set after one generator run
+        return;
+    if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging, dirPath ) )
+        QMessageBox::critical(this,tr("Save IL"),tr("There was an error when generating IL; "
+                                                    "see Output window for more information"));
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -1707,7 +1712,11 @@ bool Ide::compile(bool doGenerate )
     d_status = Idle;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     if( res && doGenerate )
-       generate();
+    {
+       if( !generate() )
+           QMessageBox::critical(this,tr("Compiler"),tr("There was an error when generating an assembly; "
+                                                        "see Output window for more information"));
+    }
     onErrors();
     fillMods();
     fillModule(0);
@@ -1750,10 +1759,10 @@ bool Ide::generate()
 
     const QTime start = QTime::currentTime();
     d_status = Generating;
-    CilGen::translateAll(d_pro, how, d_debugging, buildPath );
+    const bool ok = CilGen::translateAll(d_pro, how, d_debugging, buildPath );
     qDebug() << "generated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 
-    if( how == CilGen::Fastasm )
+    if( ok && how == CilGen::Fastasm )
     {
         logMessage("\nGenerating application...\n\n",SysInfo,false);
         QDir monoDir( d_eng->getMonoDir() );
@@ -1777,7 +1786,7 @@ bool Ide::generate()
     }else
         d_status = Idle;
 
-    return true;
+    return ok;
 }
 
 bool Ide::run()
@@ -1986,8 +1995,10 @@ void Ide::createMenu(Ide::Editor* edit)
     pop->addCommand( "Fix Indents", edit, SLOT(handleFixIndent()) );
     pop->addCommand( "Set Indentation Level...", edit, SLOT(handleSetIndent()) );
     pop->addSeparator();
+#ifdef QT_PRINTSUPPORT_LIB
     pop->addCommand( "Print...", edit, SLOT(handlePrint()), tr("CTRL+P"), true );
     pop->addCommand( "Export PDF...", edit, SLOT(handleExportPdf()), tr("CTRL+SHIFT+P"), true );
+#endif
     addTopCommands(pop);
 }
 
@@ -3267,7 +3278,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.15");
+    a.setApplicationVersion("0.9.16");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

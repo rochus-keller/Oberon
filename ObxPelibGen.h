@@ -36,6 +36,7 @@ namespace Obx
 
         static void printInstructionTable();
 
+        bool hasError() const;
         void writeByteCode(const QByteArray& filePath );
         void writeAssembler( const QByteArray& filePath );
         void clear();

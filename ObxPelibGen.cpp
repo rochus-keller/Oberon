@@ -217,6 +217,8 @@ public:
         Node* getTop() { return parent ? parent->getTop() : this; }
     };
 
+    QByteArray error;
+
     SignatureParser(const QByteArray& ref, Node& r, PELib& p ):lex(ref),root(r),pe(p)
     {
     }
@@ -230,6 +232,7 @@ public:
                 return typeRef();
         }catch( const char* err)
         {
+            error = err;
             qCritical() << err << "in" << moduleName.constData() << line.constData() << lex.text();
         }
         return 0;
@@ -919,14 +922,21 @@ struct PelibGen::Imp : public PELib
     QByteArray line; // row, col
     QList<SignatureParser::Node*> level;
     quint8 moduleKind;
+    bool hasError;
 
     SignatureParser::Node* find(SignatureParser::MemberHint hint, const QByteArray& ref )
     {
         SignatureParser p(ref,root,*this);
-        return p.parse(hint,moduleName,line);
+        SignatureParser::Node* res = p.parse(hint,moduleName,line);
+        if( res == 0 )
+        {
+            hasError = true;
+            throw "";
+        }
+        return res;
     }
 
-    Imp( const QByteArray& moduleName):PELib( moduleName.constData(), PELib::ilonly ),moduleKind(0)
+    Imp( const QByteArray& moduleName):PELib( moduleName.constData(), PELib::ilonly ),moduleKind(0),hasError(false)
       // NOTE: if PELib::bits32 is set then it doesn't run with the x64 version of CoreCLR (but with the x86 version).
       // Mono ILASM doesn't set PELib::bits32, but COFF characteristics 0x0100 (IMAGE_FILE_32BIT_MACHINE),
       // which causes .NET to run a 32 bit process even on a 64 bit Windows; Pelib instead sets characteristics
@@ -1084,6 +1094,11 @@ void PelibGen::printInstructionTable()
         out << QByteArray::number(op.len) << ", ";
         out << QByteArray::number(op.argtype) << " }," << endl;
     }
+}
+
+bool PelibGen::hasError() const
+{
+    return d_imp->hasError;
 }
 
 void PelibGen::writeByteCode(const QByteArray& filePath)

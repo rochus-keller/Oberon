@@ -531,6 +531,7 @@ struct ValidatorImp : public AstVisitor
             return false; // these can be handled by ordinary arg checker
 
         case BuiltIn::ADR:
+            // TODO: we no longer need ADR
             if( args->d_args.size() == 1 )
             {
                 if( !isMemoryLocation(args->d_args.first().data()) )
@@ -746,7 +747,7 @@ struct ValidatorImp : public AstVisitor
                 Pointer* ptr = cast<Pointer*>(lhs);
                 if( ptr->d_unsafe )
                 {
-                    error( args->d_args.first()->d_loc, Validator::tr("not supported for c pointers"));
+                    error( args->d_args.first()->d_loc, Validator::tr("not supported for CPOINTER"));
                     break;
                 }
                 Type* to = derefed(ptr->d_to.data());
@@ -1635,7 +1636,7 @@ struct ValidatorImp : public AstVisitor
             if( me->d_unsafe )
             {
                 if( t && !( ( t->isStructured() && t->d_unsafe ) || t->getBaseType() == Type::CVOID ) )
-                    error( me->d_loc, Validator::tr("CPOINTER must point to a CARRAY, CSTRUCT or CUNION") );
+                    error( me->d_loc, Validator::tr("CPOINTER must point to a CARRAY, CSTRUCT, CUNION or VOID") );
             }else
             {
                 if( t && ( !t->isStructured() || t->d_unsafe ) )
@@ -1782,7 +1783,7 @@ struct ValidatorImp : public AstVisitor
 
 #ifdef _OBX_USE_NEW_FFI_
         if( !me->d_base.isNull() && me->d_unsafe )
-            error( me->d_base->d_loc, Validator::tr("A cstruct cannot have a base type") );
+            error( me->d_base->d_loc, Validator::tr("A CSTRUCT cannot have a base type") );
             // some cstruct in BBOX inherit from COM.IUnknown, fixed
         else
 #endif
@@ -1830,7 +1831,7 @@ struct ValidatorImp : public AstVisitor
                 // in BBOX regular records inherit from COM cstructs
 #endif
             if( me->d_baseRec && me->d_unsafe && !me->d_baseRec->d_unsafe  )
-                error( me->d_base->d_loc, Validator::tr("cstruct cannot inherit from record") ); // at least this is true
+                error( me->d_base->d_loc, Validator::tr("CSTRUCT cannot inherit from record") ); // at least this is true
         }
         foreach( const Ref<Field>& f, me->d_fields )
         {
@@ -1879,6 +1880,13 @@ struct ValidatorImp : public AstVisitor
         // note that bound procedures are handled in the procedure visitor
     }
 
+    void checkNoArrayByVal(Type* t, const RowCol& loc )
+    {
+        t = derefed(t);
+        if( t && t->getTag() == Thing::T_Array )
+            error(loc, Validator::tr("arrays cannot be passed by value in external procedures") );
+    }
+
     void visit( ProcType* me )
     {
         if( me->d_visited )
@@ -1891,6 +1899,9 @@ struct ValidatorImp : public AstVisitor
             if( !me->d_return->hasByteSize() )
                 error(me->d_return->d_loc, Validator::tr("this type cannot be used here") );
             checkNoBooleanTypeInUnsafe(me->d_return.data(), me->d_unsafe, me->d_loc);
+
+            if( me->d_unsafe )
+                checkNoArrayByVal(me->d_return.data(), me->d_return->d_loc);
 
 #if 0 // TEST
             checkUnsafePointer(me->d_return.data(), true, me->d_loc);
@@ -1956,19 +1967,10 @@ struct ValidatorImp : public AstVisitor
             checkNoAnyRecType(me->d_type.data());
 
         checkNoBooleanTypeInUnsafe(me->d_type.data(), me->d_unsafe, me->d_loc);
-        if( mod->d_externC && me->d_var )
-        {
-#if 1
+        if( me->d_unsafe && me->d_var )
             error(me->d_loc, Validator::tr("VAR not supported in external library modules") );
-#else
-            if( me->d_const )
-                error(me->d_loc, Validator::tr("IN not supported in external library modules") );
-            Type* t = derefed(me->d_type.data());
-            const int tag = t ? t->getTag() : 0;
-            if( tag != Thing::T_Pointer && tag != Thing::T_ProcType )
-                error(me->d_loc, Validator::tr("VAR only supported for pointer and procedure type parameters in external library modules") );
-#endif
-        }
+        if( me->d_unsafe )
+            checkNoArrayByVal(me->d_type.data(),me->d_loc);
 
 #if 0 // TEST
         checkUnsafePointer(me->d_type.data(),false,me->d_loc);
@@ -1976,7 +1978,7 @@ struct ValidatorImp : public AstVisitor
 
         // open array value parameter are supported in all old Oberon/-2, Oberon-07 and BBOX
         Type* t = derefed(me->d_type.data());
-        if( t && t->getTag() == Thing::T_Array )
+        if( !me->d_unsafe && t && t->getTag() == Thing::T_Array )
         {
             Array* a = cast<Array*>( t );
             if( a->d_lenExpr.isNull() && !me->d_var )
@@ -2208,7 +2210,7 @@ struct ValidatorImp : public AstVisitor
 
             error( me->d_rhs->d_loc, Validator::tr("right side %1 of assignment is not compatible with left side %2")
                    .arg(rhs).arg(lhs) );
-            //assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
+            // assignmentCompatible( me->d_lhs->d_type.data(), me->d_rhs.data() ); // TEST
         }
     }
 
@@ -2740,22 +2742,31 @@ struct ValidatorImp : public AstVisitor
         return false;
     }
 
+    bool isOpenArray( Type* t ) const
+    {
+        t = derefed(t);
+        if( t && t->getTag() == Thing::T_Array )
+        {
+            Array* a = cast<Array*>(t);
+            if( a->d_lenExpr.isNull() )
+                return true;
+        }
+        return false;
+    }
+
     bool sameType( Type* lhs, Type* rhs ) const
     {
-        if( lhs == 0 && rhs == 0 )
-            return true;
+        lhs = derefed(lhs);
+        rhs = derefed(rhs);
         if( lhs == 0 || rhs == 0 )
             return false;
-        if( lhs == rhs )
-            return true;
-        if( derefed(lhs) == derefed(rhs) )
+        if( lhs == rhs && !isOpenArray(lhs) )
             return true;
         return false;
     }
 
-    bool equalType( Type* lhs, Type* rhs, bool ptrref = false ) const
+    bool equalType( Type* lhs, Type* rhs ) const
     {
-        // ptrref required because of ADDROF
         if( sameType(lhs,rhs) )
             return true;
         if( lhs == 0 || rhs == 0 )
@@ -2763,9 +2774,7 @@ struct ValidatorImp : public AstVisitor
         lhs = derefed(lhs);
         rhs = derefed(rhs);
 
-#ifdef _OBX_USE_NEW_FFI_// TODO
-        // added because of pinvoke which tends to make copies anyway so it's less implicit if we
-        // copy ourselves from safe to unsafe and back if necessary
+#ifdef _OBX_USE_NEW_FFI_
         if( lhs->d_unsafe != rhs->d_unsafe )
             return false;
 #endif
@@ -2779,13 +2788,20 @@ struct ValidatorImp : public AstVisitor
             if( rhstag == Thing::T_Array )
             {
                 Array* r = cast<Array*>(rhs);
-                if( l->d_lenExpr.isNull() && ( r->d_lenExpr.isNull() || ptrref ) &&
+                // Ta and Tb are open array types with equal element types
+                if( l->d_lenExpr.isNull() && r->d_lenExpr.isNull() && !l->d_unsafe && !r->d_unsafe &&
                         equalType( l->d_type.data(), r->d_type.data() ) )
                     return true;
-            }else if( l->d_lenExpr.isNull() &&
+
+                if( l->d_unsafe && r->d_unsafe && equalType( l->d_type.data(), r->d_type.data() ) )
+                    return true;
+            }
+#if 0
+            else if( l->d_lenExpr.isNull() &&
                       ( ( lt == bt.d_charType && rhs == bt.d_stringType ) ||
                         ( lt == bt.d_wcharType && ( rhs == bt.d_stringType || rhs == bt.d_wstringType ) ) ) )
                 return true; // because of ADDROF with unsafe pointers
+#endif
         }
         if( lhstag == Thing::T_ProcType && rhstag == Thing::T_ProcType )
             return matchingFormalParamLists( cast<ProcType*>(lhs), cast<ProcType*>(rhs) ) &&
@@ -2794,7 +2810,7 @@ struct ValidatorImp : public AstVisitor
         {
             Pointer* lhsP = cast<Pointer*>(lhs);
             Pointer* rhsP = cast<Pointer*>(rhs);
-            return equalType( lhsP->d_to.data(), rhsP->d_to.data(), lhsP->d_unsafe && rhsP->d_unsafe );
+            return equalType( lhsP->d_to.data(), rhsP->d_to.data() );
         }
         return false;
     }
@@ -2847,12 +2863,10 @@ struct ValidatorImp : public AstVisitor
             return false;
         Type* rhsT = rhs->d_type.data();
 
-        //if( sameType(lhs,rhs) )
-        //    return true;
+        if( sameType(lhsT,rhsT) ) // T~e~ and T~v~ are the _same type_
+            return true;
         lhsT = derefed(lhsT);
         rhsT = derefed(rhsT);
-        if( lhsT == rhsT )
-            return true; // T~e~ and T~v~ are the _same type_
 
         // T~v~ is a BYTE type and T~e~ is a Latin-1 character type
         // Oberon 90: The type BYTE is compatible with CHAR (shortint is 16 bit here)
@@ -2897,12 +2911,10 @@ struct ValidatorImp : public AstVisitor
             if( rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
                 return true;
 
-#if 0 // def OBX_BBOX
-            // no longer implicit addrof
-            Pointer* lptr = cast<Pointer*>(lhsT);
-            if( lptr->d_unsafe && equalType( lptr->d_to.data(), rhsT ) )
-                return true; // BBOX supports taking the address of rhs
-#endif
+            bool lwide, rwide;
+            if( rtag == Thing::T_Pointer && ( lhsT->d_unsafe || rhsT->d_unsafe ) &&
+                    lhsT->isText(&lwide,true) && rhsT->isText(&rwide,true) && lwide == rwide )
+                return true;
         }
 
         // T~v~ is a pointer or a procedure type and `e` is NIL
@@ -2941,7 +2953,7 @@ struct ValidatorImp : public AstVisitor
                 // Array := Array
                 Array* r = cast<Array*>(rhsT);
                 Type* rt = derefed(r->d_type.data());
-                if( r->d_lenExpr.isNull() && equalType( lt, rt ) )
+                if( r->d_lenExpr.isNull() && equalType( lt, rt ) && !l->d_unsafe && !r->d_unsafe )
                     return true; // T~e~ is an open array and T~v~ is an array of _equal_ base type
                 if( lt == bt.d_charType && rt == bt.d_charType )
                     return true;
@@ -2950,6 +2962,13 @@ struct ValidatorImp : public AstVisitor
                     return true;
                 if( lt == bt.d_byteType && rt == bt.d_byteType )
                     return true;
+
+#if 0
+                if( l->d_unsafe && r->d_unsafe && !l->d_lenExpr.isNull() && !r->d_lenExpr.isNull()
+                        && l->d_len == r->d_len && equalType(lt,rt) )
+                    return true;
+#endif
+
                 // TODO: open carrays cannot be rhs because len is unknown at runtime
             }else if( lt == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
                 // Array := string
@@ -3121,23 +3140,26 @@ struct ValidatorImp : public AstVisitor
             return false;
         if( lhs->d_formals.size() != rhs->d_formals.size() || lhs->d_varargs != rhs->d_varargs )
             return false;
-        if( ( lhs->d_return.isNull() && !rhs->d_return.isNull() ) ||
-            ( !lhs->d_return.isNull() && rhs->d_return.isNull() ) )
-                return false;
-        if( !allowRhsCovariance && !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
-            return false;
-        if( allowRhsCovariance && !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
+        if( !lhs->d_return.isNull() && !rhs->d_return.isNull() )
         {
-            Q_ASSERT( !lhs->d_return.isNull() && !rhs->d_return.isNull() );
-            Type* super = derefed(lhs->d_return.data());
-            Type* sub = derefed(rhs->d_return.data());
-            if( super && super->getTag() == Thing::T_Pointer && sub && sub->getTag() == Thing::T_Pointer )
-            {
-                if( !typeExtension(super, sub) )
-                    return false;
-            }else
+            if( !allowRhsCovariance && !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
                 return false;
-        }
+            if( allowRhsCovariance && !sameType( lhs->d_return.data(), rhs->d_return.data() ) )
+            {
+                Q_ASSERT( !lhs->d_return.isNull() && !rhs->d_return.isNull() );
+                Type* super = derefed(lhs->d_return.data());
+                Type* sub = derefed(rhs->d_return.data());
+                if( super && super->getTag() == Thing::T_Pointer && sub && sub->getTag() == Thing::T_Pointer )
+                {
+                    if( !typeExtension(super, sub) )
+                        return false;
+                }else
+                    return false;
+            }
+        }else if( ( lhs->d_return.isNull() && !rhs->d_return.isNull() ) ||
+                          ( !lhs->d_return.isNull() && rhs->d_return.isNull() ) )
+                              return false;
+
         for( int i = 0; i < lhs->d_formals.size(); i++ )
         {
             if( ( lhs->d_formals[i]->d_var != rhs->d_formals[i]->d_var ) ||
@@ -3146,6 +3168,7 @@ struct ValidatorImp : public AstVisitor
             if( !equalType( lhs->d_formals[i]->d_type.data(), rhs->d_formals[i]->d_type.data() ) )
                 return false;
         }
+
         return true;
     }
 

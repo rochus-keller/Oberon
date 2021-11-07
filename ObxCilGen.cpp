@@ -338,10 +338,8 @@ struct ObxCilGenImp : public AstVisitor
 
     QByteArray moduleRef( Named* modName )
     {
-#if 0
         if( modName == 0 )
-            return "<no module>";
-#endif
+            return "???";
         Q_ASSERT( modName->getTag() == Thing::T_Module );
         const QByteArray mod = escape(cast<Module*>(modName)->d_name);
         if( !forceAssemblyPrefix && modName == thisMod )
@@ -372,7 +370,9 @@ struct ObxCilGenImp : public AstVisitor
             return classRef(n);
         else
         {
+#ifdef _DEBUG
             Q_ASSERT( r->d_slotValid );
+#endif
             if( n == 0 )
                 n = r->findDecl(true);
             Module* m = n ? n->getModule() : 0;
@@ -1326,6 +1326,9 @@ struct ObxCilGenImp : public AstVisitor
             a = mod->d_sysAttrs.value("prefix").data(); // module attr
             if( a && a->d_values.size() == 1 )
                 prefix = a->d_values.first().toByteArray();
+            a = me->d_sysAttrs.value("dll").data(); // proc attr
+            if( a && a->d_values.size() == 1 )
+                dll = a->d_values.first().toByteArray();
             a = me->d_sysAttrs.value("prefix").data(); // proc attr
             if( a && a->d_values.size() == 1 )
                 prefix = a->d_values.first().toByteArray();
@@ -1569,9 +1572,11 @@ struct ObxCilGenImp : public AstVisitor
         switch( td->getTag() )
         {
         case Thing::T_Array:
-        case Thing::T_Record:
         default:
-            Q_ASSERT( false ); // never happens because no passByRef for structured types
+            Q_ASSERT(false);
+            break;
+        case Thing::T_Record:
+            line(loc).ldobj_(formatType(t));
             break;
         case Thing::T_Pointer:
         case Thing::T_ProcType:
@@ -4098,13 +4103,19 @@ bool CilGen::translate(Module* m, IlEmitter* e, bool debug, Ob::Errors* errs)
     const quint32 errCount = imp.err->getErrCount();
 
 
-    m->accept(&imp);
-
-    const bool hasErrs = ( imp.err->getErrCount() - errCount ) != 0;
+    bool ok = true;
+    try
+    {
+        m->accept(&imp);
+        ok = imp.err->getErrCount() == errCount;
+    }catch(...)
+    {
+        ok = false;
+    }
 
     if( imp.ownsErr )
         delete imp.err;
-    return hasErrs;
+    return ok;
 }
 
 bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteArray& callMod, const QByteArray& callFunc)
@@ -4273,7 +4284,11 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                                 //qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
                                 IlAsmRenderer r(&f);
                                 IlEmitter e(&r);
-                                CilGen::translate(inst,&e, debug, pro->getErrs());
+                                if( !CilGen::translate(inst,&e, debug, pro->getErrs()) )
+                                {
+                                    qCritical() << "error generating IL for" << inst->getName();
+                                    return false;
+                                }
                                 if( how == Ilasm )
                                     bout << "./ilasm /dll " << ( debug ? "/debug ": "" ) << "\"" << inst->getName() << ".il\"" << endl;
                                 else if( how == Fastasm )
@@ -4290,7 +4305,11 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                         {
                             PelibGen r;
                             IlEmitter e(&r);
-                            CilGen::translate(inst,&e,debug,pro->getErrs());
+                            if( !CilGen::translate(inst,&e,debug,pro->getErrs()) )
+                            {
+                                qCritical() << "error generating assembly for" << inst->getName();
+                                return false;
+                            }
 #if 0
                             // no longer used
                             r.writeAssembler(outDir.absoluteFilePath(inst->getName() + ".il").toUtf8());
@@ -4453,7 +4472,7 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
         }else
             clear.write(clearStr);
     }
-
-    return pro->getErrs()->getErrCount() != errCount;
+    const bool ok = pro->getErrs()->getErrCount() == errCount;
+    return ok;
 }
 

@@ -24,9 +24,10 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [x] LuaJIT compiler backend
 - [ ] Complete built-in procedure and Oakwood library implementations
 - [ ] Write documentation and focus articles
-- [x] Implement a CIL/ECMA-335 compiler backend (done for IL assembly, pending for direct dll generator)
+- [x] Implement a CIL/ECMA-335 compiler backend (done for both IL and direct assembly generator)
 - [x] Use a minimal Mono runtime as an alternative to the LuaJIT VM
 - [ ] Implement an LLVM compiler backend
+- [x] Foreign Function Interface (FFI, see [here](https://github.com/rochus-keller/OberonSystem/blob/FFI/ObSdl.obx) for an example))
 - [ ] Proceed with the programming language development (based on actual need and after careful consideration)
 
 ### The Oberon+ IDE
@@ -64,8 +65,8 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 - The generated code runs on Mono, .NET and CoreCLR (all supported platforms)
 - Optionally generates Mono debug symbol (MDB) files
 - The full Oberon+ language including generics and the Oakwood libraries are supported
-- The SYSTEM module is not supported
-- FFI not yet supported
+- The SYSTEM module is not supported (and not necessary)
+- FFI with dedicated Oberon+ language constructs for C library integration
 
 
 ### Binary versions
@@ -76,18 +77,18 @@ Just unpack the ZIP somewhere on your drive and double-click either ObxIDE_Mono.
 Here is a version of the Oberon+ IDE (Mono) for Linux x86: http://software.rochus-keller.ch/OberonIDE_linux_i386.tar.gz.
 Qt 5.4.2 is statically linked with the executables. OBXMC, Mono3 and examples are included as well.
 
-Here is a version of the Oberon+ IDE (LuaJIT) for Linux x86: http://software.rochus-keller.ch/OberonIDE_LuaJIT_linux_i386.tar.gz.
+Here is the old version of the Oberon+ IDE (LuaJIT) for Linux x86: http://software.rochus-keller.ch/OberonIDE_LuaJIT_linux_i386.tar.gz.
 It requires a preinstalled Qt version >= 5.4.
 
 Here is a version of the Oberon IDE (Mono) for macOS x86_64 (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg.
 The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
 
-Hier is a version of the Oberon IDE (LuaJIT) for macOS x86_64: http://software.rochus-keller.ch/OberonIDE_LuaJIT_macOS_x64.dmg.
+Hier is the old version of the Oberon IDE (LuaJIT) for macOS x86_64: http://software.rochus-keller.ch/OberonIDE_LuaJIT_macOS_x64.dmg.
 
-Here is a binary version of the OberonViewer for Windows: http://software.rochus-keller.ch/OberonViewer_win32.zip
+Here is a binary version of the old OberonViewer for Windows: http://software.rochus-keller.ch/OberonViewer_win32.zip
 Just download, unpack and run it; no installer is needed. The ZIP includes the needed Qt libraries.
 
-Here is a binary version of OberonViewer for Linux x86: http://software.rochus-keller.ch/OberonViewer_linux_x86.tar.gz
+Here is a binary version of the old OberonViewer for Linux x86: http://software.rochus-keller.ch/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
 
@@ -103,7 +104,7 @@ Follow these steps if you want to build e.g. the Oberon+ IDE yourself:
 1. Download https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip and unpack it to the Build directory. Rename it to MonoTools. 
 1. Download https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip and unpack it to the Build directory. Rename it to PeLib. 
 1. Download https://github.com/rochus-keller/Oberon/archive/master.zip and unpack it to the Build directory. Rename it to Oberon.
-1. Goto the Build/Oberon directory and execute e.g. `QTDIR/bin/qmake ObxIde.pro` (see the Qt documentation concerning QTDIR).
+1. Goto the Build/Oberon directory and execute e.g. `QTDIR/bin/qmake ObxIde2.pro` (see the Qt documentation concerning QTDIR).
 1. Run make; after a couple of seconds you will find the executable in the build directory.
 
 Alternatively you can open ObxIde2.pro or any other included .pro file using QtCreator and build it there.
