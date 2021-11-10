@@ -48,7 +48,7 @@ namespace Obx
 
         virtual void addMethod(const IlMethod& method );
 
-        virtual void beginClass(const QByteArray& className, bool isPublic = true, bool byValue = false,
+        virtual void beginClass(const QByteArray& className, bool isPublic, quint8 classKind,
                          const QByteArray& superClassRef = QByteArray(), int byteSize = -1 );
         virtual void endClass();
 

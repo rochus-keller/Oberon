@@ -35,11 +35,12 @@ struct EvalVisitor : public AstVisitor
 
     EvalVisitor(Scope* m, bool b, Ob::Errors* e):mod(m),errs(e),supportVla(b){}
 
-    void error( Expression* e, const QString& msg )
+    bool error( Expression* e, const QString& msg )
     {
         if( errs )
             errs->error( Errors::Semantics, Loc(e->d_loc,mod->getModule()->d_file), msg );
         throw "";
+        return false;
     }
 
     void push( const QVariant& value, quint8 vtype, bool wide = false, quint16 strlen = 0 )
@@ -78,7 +79,7 @@ struct EvalVisitor : public AstVisitor
             push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() | rhs.d_value.value<Literal::SET>() ), lhs.d_vtype);
         else
             // TODO: add string literals
-            return error( e,Evaluator::tr("operand types incompatible with operator") );
+            error( e,Evaluator::tr("operand types incompatible with operator") );
     }
 
     void SUB(const Evaluator::Result& lhs, const Evaluator::Result& rhs, Expression* e )
@@ -402,6 +403,41 @@ struct EvalVisitor : public AstVisitor
             return 0;
     }
 
+    bool evalBitOps( quint8 func, ArgExpr* me )
+    {
+        if( me->d_args.size() == 2 )
+        {
+            me->d_args.first()->accept(this);
+            if( val.d_vtype == Literal::Integer )
+            {
+                const quint32 lhs = val.d_value.toUInt();
+                me->d_args.last()->accept(this);
+                if( val.d_vtype == Literal::Integer )
+                {
+                    const quint32 rhs = val.d_value.toUInt();
+                    switch( func )
+                    {
+                    case BuiltIn::BITAND:
+                        val.d_value = lhs & rhs;
+                        break;
+                    case BuiltIn::BITOR:
+                        val.d_value = lhs | rhs;
+                        break;
+                    case BuiltIn::BITXOR:
+                        val.d_value = lhs ^ rhs;
+                        break;
+                    default:
+                        Q_ASSERT(false);
+                    }
+                }else
+                    return error( me->d_args.last().data(), Evaluator::tr("invalid argument type") );
+            }else
+                return error( me->d_args.first().data(), Evaluator::tr("invalid argument type") );
+        }else
+            return error( me, Evaluator::tr("invalid number of arguments") );
+        return true;
+    }
+
     void evalBuiltIn(BuiltIn* f, ArgExpr* me)
     {
         // NOTE: this is currently just a minimal implementation to meet BBOX Win/Mini, POS and Hennessy
@@ -659,6 +695,24 @@ struct EvalVisitor : public AstVisitor
                 return;
             }else
                 error( me, Evaluator::tr("invalid number of arguments") );
+            break;
+        case BuiltIn::BITNOT:
+            if( me->d_args.size() == 1 )
+            {
+                me->d_args.first()->accept(this);
+                if( val.d_vtype == Literal::Integer )
+                    val.d_value = ~val.d_value.toUInt();
+                else
+                    error( me, Evaluator::tr("invalid argument type") );
+                return;
+            }else
+                error( me, Evaluator::tr("invalid number of arguments") );
+            break;
+        case BuiltIn::BITAND:
+        case BuiltIn::BITOR:
+        case BuiltIn::BITXOR:
+            if( evalBitOps(f->d_func,me) )
+                return;
             break;
         case BuiltIn::INC:
         case BuiltIn::DEC:

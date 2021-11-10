@@ -977,7 +977,7 @@ struct ValidatorImp : public AstVisitor
 
 #if 1
         // BBOX supports passing RECORD and ARRAY to var/in or value UNSAFE POINTER parameters,
-        // implicit address of only supported in Oberon+ in calls to external library module procedures
+        // implicit address of supported in Oberon+ in calls to external library module procedures
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
                                            || ta == bt.d_stringType || ta == bt.d_wstringType ) )
         {

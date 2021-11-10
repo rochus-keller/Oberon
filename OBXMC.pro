@@ -27,7 +27,7 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
-DEFINES += OBX_BBOX
+DEFINES += OBX_BBOX _OBX_USE_NEW_FFI_
 
 INCLUDEPATH += ..
 

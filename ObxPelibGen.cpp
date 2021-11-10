@@ -1408,14 +1408,16 @@ void PelibGen::addMethod(const IlMethod& m)
     mm->Optimize();
 }
 
-void PelibGen::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef, int byteSize)
+void PelibGen::beginClass(const QByteArray& className, bool isPublic, quint8 classKind, const QByteArray& superClassRef, int byteSize)
 {
     Q_ASSERT( d_imp && !d_imp->level.isEmpty() );
     const QByteArray name = unescape(className);
     SignatureParser::Node* me = d_imp->level.back()->subs.value(name);
     Qualifiers flags = Qualifiers::Public;
-    if( byValue )
+    if( classKind == IlEmitter::Value )
         flags |= Qualifiers::Value | Qualifiers::Sealed | Qualifiers::Explicit | Qualifiers::Ansi;
+    else if( classKind == IlEmitter::Delegate )
+        flags |= Qualifiers::Sealed;
     Class* cls = 0;
     if( me == 0 )
     {

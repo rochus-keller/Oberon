@@ -27,7 +27,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [x] Implement a CIL/ECMA-335 compiler backend (done for both IL and direct assembly generator)
 - [x] Use a minimal Mono runtime as an alternative to the LuaJIT VM
 - [ ] Implement an LLVM compiler backend
-- [x] Foreign Function Interface (FFI, see [here](https://github.com/rochus-keller/OberonSystem/blob/FFI/ObSdl.obx) for an example))
+- [x] Foreign Function Interface (FFI, see [here](https://github.com/rochus-keller/OberonSystem/blob/FFI/ObSdl.obx) for an example, and [here](https://github.com/rochus-keller/c2obx/) for a tool to convert C headers to Oberon+ definition modules))
 - [ ] Proceed with the programming language development (based on actual need and after careful consideration)
 
 ### The Oberon+ IDE
@@ -51,14 +51,6 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 ![Oberon+ IDE Screenshot](http://software.rochus-keller.ch/obxide_0.7.13.png)
 
 
-### Oberon+ to LuaJIT bytecode compiler
-
-- Generates LuaJIT 2.0 compatible bytecode
-- The full Oberon+ language including the Oakwood libraries are supported
-- The SYSTEM module is not supported
-- The TRAP() and TRAPIF(condition:BOOLEAN) bult-in procedures let you escape to the debugger
-- FFI with dedicated Oberon+ language constructs for C library integration
-
 ### Oberon+ to CIL/ECMA-335 assembly and IL compiler
 
 - Generates either IL assembly language or assembly binaries compatible with ECMA-335/ISO 23271:2012
@@ -66,6 +58,15 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 - Optionally generates Mono debug symbol (MDB) files
 - The full Oberon+ language including generics and the Oakwood libraries are supported
 - The SYSTEM module is not supported (and not necessary)
+- FFI with dedicated Oberon+ language constructs for C library integration (see also [this tool](https://github.com/rochus-keller/c2obx/))
+
+### Oberon+ to LuaJIT bytecode compiler
+
+- This compiler is deprecated, use the CIL compiler instead.
+- Generates LuaJIT 2.0 compatible bytecode
+- The full Oberon+ language including the Oakwood libraries are supported
+- The SYSTEM module is not supported
+- The TRAP() and TRAPIF(condition:BOOLEAN) bult-in procedures let you escape to the debugger
 - FFI with dedicated Oberon+ language constructs for C library integration
 
 

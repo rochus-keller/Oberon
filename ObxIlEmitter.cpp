@@ -84,9 +84,9 @@ void IlEmitter::endMethod()
     d_origName.clear();
 }
 
-void IlEmitter::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef, int byteSize)
+void IlEmitter::beginClass(const QByteArray& className, bool isPublic, quint8 classKind, const QByteArray& superClassRef, int byteSize)
 {
-    d_out->beginClass(className,isPublic, byValue, superClassRef, byteSize);
+    d_out->beginClass(className,isPublic, classKind, superClassRef, byteSize);
 }
 
 void IlEmitter::endClass()
@@ -1255,7 +1255,7 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
     out << ws() << "}" << endl;
 }
 
-void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool byValue, const QByteArray& superClassRef, int byteSize)
+void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, quint8 classKind, const QByteArray& superClassRef, int byteSize)
 {
     levels.push_back(className);
 
@@ -1265,23 +1265,27 @@ void IlAsmRenderer::beginClass(const QByteArray& className, bool isPublic, bool 
     else
         out << "assembly ";
 
-    if( byValue )
+    if( classKind == IlEmitter::Value )
         out << "sealed explicit ansi ";
+    else if( classKind == IlEmitter::Delegate )
+        out << "sealed ";
 
     out << className;
     // << formatMetaParams(thisMod)
     out << " extends ";
     if( !superClassRef.isEmpty() )
         out << superClassRef;
-    else if( byValue )
+    else if( classKind == IlEmitter::Value )
         out << "[mscorlib]System.ValueType";
+    else if( classKind == IlEmitter::Delegate )
+        out << "[mscorlib]System.MulticastDelegate";
     else
         out << "[mscorlib]System.Object";
     out << " {" << endl;
     level++;
     if( byteSize >= 0 )
         out << ws() << ".size " << byteSize << endl;
-    if( byValue )
+    if( classKind == IlEmitter::Value )
         out << ws() << ".pack 0" << endl;
 }
 

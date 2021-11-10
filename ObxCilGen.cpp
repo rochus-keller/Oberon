@@ -668,7 +668,8 @@ struct ObxCilGenImp : public AstVisitor
             if( !r->d_base.isNull() )
                 superClassName = formatType(r->d_base.data()); // unsafe rec has no basetype
         }
-        emitter->beginClass(className, isPublic, r->d_unsafe, superClassName, r->d_unsafe ? r->getByteSize() : -1 );
+        emitter->beginClass(className, isPublic, r->d_unsafe ? IlEmitter::Value : IlEmitter::Object,
+                            superClassName, r->d_unsafe ? r->getByteSize() : -1 );
 
         foreach( const Ref<Field>& f, r->d_fields )
             f->accept(this);
@@ -792,7 +793,7 @@ struct ObxCilGenImp : public AstVisitor
         // TypeRef ResolutionScope not yet handled (3) for .48b15Qezth5ae11+xOqLVw in image GenericTest6.dll
         // * Assertion at class.c:5695, condition `!mono_loader_get_last_error ()' not met
 
-        emitter->beginClass(escape(name),true,false,"[mscorlib]System.MulticastDelegate");
+        emitter->beginClass(escape(name),true,IlEmitter::Delegate,"[mscorlib]System.MulticastDelegate");
         // formatMetaParams(thisMod)
         emitter->beginMethod(".ctor",true,IlEmitter::Instance,true);
         emitter->addArgument("object","MethodsClass");
