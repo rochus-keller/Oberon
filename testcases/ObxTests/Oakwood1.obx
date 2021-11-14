@@ -1,0 +1,27 @@
+module Oakwood1
+
+	import P := XYplane, I := Input, Out
+	
+	var 
+		ch : char
+		start, i, x, y, oldx, oldy : integer
+		keys: set
+begin
+	start := I.Time()
+	P.Open
+	// I.SetMouseLimits(640,480)
+	loop
+		P.Dot(i,i,1)
+		inc(i)
+		//ch := P.Key()
+		I.Read(ch)
+		if ch # 0x then Out.String("pressed: ") Out.Char(ch) Out.Ln end
+		I.Mouse(keys,x,y)
+		if (x # oldx) or (y # oldy) then
+			Out.String("mouse: ") Out.Int(x,0) Out.String(" ") Out.Int(y,0) Out.Ln
+			oldx := x
+			oldy := y
+		end
+		if (I.Time() - start) > 10000000 then exit end
+	end
+end Oakwood1

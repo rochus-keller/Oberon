@@ -1,7 +1,7 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
 DEFINITION XYplane;
 CONST draw = 1; erase = 0;
-VAR X, Y, W, H: INTEGER;
+VAR X-, Y-, W-, H-: INTEGER;
 PROCEDURE Open;
 PROCEDURE Clear;
 PROCEDURE Dot (x, y, mode: INTEGER);

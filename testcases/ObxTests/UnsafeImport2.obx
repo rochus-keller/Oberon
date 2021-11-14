@@ -1,4 +1,4 @@
-definition UnsafeImport2 [ extern 'C', dll 'libc.so.6' ]
+definition UnsafeImport2 [ extern 'C', dll 'Unknown' ]
 
 proc printf( format: *[]char) [ varargs ]
 proc printf_int( format: *[]char; i: integer) [ alias "printf" ]

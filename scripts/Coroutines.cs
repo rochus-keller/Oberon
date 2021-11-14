@@ -17,54 +17,15 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-public class In
+public class Coroutines
 {
-//VAR Done: BOOLEAN;
-public static bool Done = false; 
-
-//PROCEDURE Open;
-public static void Open()
-{
-	Done = true;
-}
-
-//PROCEDURE Char (VAR ch: CHAR);
-public static void Char(ref char ch)
-{
-	int res = System.Console.Read();
-	if( res > 0 )
+	public class Coroutine
 	{
-		Done = true;
-		ch = (char)res;
-	}else
-	{
-		Done = false;
-		ch = '\0';
+		// TODO
 	}
-}
-
-//PROCEDURE Int (VAR i: INTEGER);
-public static void Int(ref int i)
-{
-	// TODO
-}
-
-//PROCEDURE Real (VAR x: REAL);
-public static void Real(ref float x)
-{
-	// TODO
-}
-
-//PROCEDURE String (VAR str: ARRAY OF CHAR);
-public static void String(ref char[] str)
-{
-	// TODO
-}
-
-//PROCEDURE Name (VAR name: ARRAY OF CHAR);
-public static void Name(ref char[] name)
-{
-	// TODO
-}
-
+	
+	//Body = PROCEDURE;
+	
+	//PROCEDURE Init (body: Body; stackSize: INTEGER; VAR cor: Coroutine);
+	//PROCEDURE Transfer (VAR from, to: Coroutine);
 }

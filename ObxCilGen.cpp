@@ -4439,13 +4439,13 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
         {
             copyLib(outDir,"In",log?&cout:0);
             copyLib(outDir,"Out",log?&cout:0);
-            // TODO copyLib(outDir,"Files",log?&cout:0);
+            copyLib(outDir,"Files",log?&cout:0);
             copyLib(outDir,"Input",log?&cout:0);
             copyLib(outDir,"Math",log?&cout:0);
             copyLib(outDir,"MathL",log?&cout:0);
-            // TODO copyLib(outDir,"Strings",log?&cout:0);
-            // TODO copyLib(outDir,"Coroutines",log?&cout:0);
-            // TODO copyLib(outDir,"XYPlane",log?&cout:0);
+            copyLib(outDir,"Strings",log?&cout:0);
+            copyLib(outDir,"Coroutines",log?&cout:0);
+            copyLib(outDir,"XYplane",log?&cout:0);
         }
         copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
     }

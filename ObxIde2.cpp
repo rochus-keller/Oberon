@@ -1704,7 +1704,7 @@ bool Ide::compile(bool doGenerate )
         preloadLib(d_pro,"MathL");
         preloadLib(d_pro,"Strings");
         preloadLib(d_pro,"Coroutines");
-        preloadLib(d_pro,"XYPlane");
+        preloadLib(d_pro,"XYplane");
     }
     const QTime start = QTime::currentTime();
     d_status = Compiling;
@@ -3278,7 +3278,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.17");
+    a.setApplicationVersion("0.9.18");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

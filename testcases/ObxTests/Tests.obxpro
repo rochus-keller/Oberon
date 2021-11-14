@@ -11,15 +11,9 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/UnsafeImport1.obx
-1\RelPath=UnsafeImport1.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Unsafe1.obx
-2\RelPath=Unsafe1.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Unsafe2.obx
-3\RelPath=Unsafe2.obx
-4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/UnsafeImport2.obx
-4\RelPath=UnsafeImport2.obx
-size=3
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood2.obx
+1\RelPath=Oakwood2.obx
+size=1
 
 [Packages]
 1\Name=@ByteArray()

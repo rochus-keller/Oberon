@@ -25,36 +25,37 @@ public class Input
 	private static int cur = -1;
 	public static int Available()
 	{
-		if( cur >= 0 )
-			return 1;
-		cur = System.Console.Read();
-		if( cur >= 0 )
-			return 1;
-		else
-			return 0;
+		return XYplane.available();
 	}
 	
 	//PROCEDURE Read (VAR ch: CHAR);
 	public static void Read(ref char ch)
 	{
-		if( cur >= 0 )
-		{
-			ch = (char)cur;
-			cur = -1;
-		}else
-			ch = '\0';
+		ch = XYplane.dequeue();
 	}
 	
+	private static int _w = 0, _h = 0;
+	
 	//PROCEDURE Mouse (VAR keys: SET; VAR x, y: INTEGER);
-	public static void Mouse( ref uint keys, ref int x, ref int y)
+	public static void Mouse( ref int keys, ref int x, ref int y)
 	{
-		// TODO
+		XYplane.GetMouseState(ref keys, ref x, ref y);
+		// System.Console.WriteLine("x,y: "+ x.ToString() + " " + y.ToString());
+		if( x < 0 )
+			x = 0;
+		else if( _w != 0 && x > _w )
+			x = _w;
+		if( y < 0 )
+			y = 0;
+		else if( _h != 0 && y > _h )
+			y = _h;
 	}
 	
 	//PROCEDURE SetMouseLimits (w, h: INTEGER);
 	public static void SetMouseLimits(int w, int h)
 	{
-		// NOP
+		_w = w;
+		_h = h;
 	}
 	
 	static private System.DateTime start = System.DateTime.Now;

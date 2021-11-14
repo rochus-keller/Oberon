@@ -7,7 +7,7 @@
         <file>oakwood/Math.Def</file>
         <file>oakwood/Out.Def</file>
         <file>oakwood/Strings.Def</file>
-        <file>oakwood/XYPlane.Def</file>
+        <file>oakwood/XYplane.Def</file>
         <file>oakwood/MathL.Def</file>
         <file>scripts/Dll/In.dll</file>
         <file>scripts/Dll/Input.dll</file>
@@ -15,5 +15,9 @@
         <file>scripts/Dll/MathL.dll</file>
         <file>scripts/Dll/OBX.Runtime.dll</file>
         <file>scripts/Dll/Out.dll</file>
+        <file>scripts/Dll/Coroutines.dll</file>
+        <file>scripts/Dll/Strings.dll</file>
+        <file>scripts/Dll/Files.dll</file>
+        <file>scripts/Dll/XYplane.dll</file>
     </qresource>
 </RCC>
