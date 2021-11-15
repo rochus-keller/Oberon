@@ -211,7 +211,7 @@ public class XYplane
 			}
 		}		
       	SDL_GetWindowPosition(window, out X, out Y);
-      	// not necessary: SDL_RenderPresent(renderer);		
+      	SDL_RenderPresent(renderer);		
 	}
 	
 	private static void update()
@@ -305,7 +305,7 @@ public class XYplane
 		else
 			SDL_SetRenderDrawColor(renderer,255,255,255,255);
 		SDL_RenderDrawPoint(renderer,x,y);
-      	SDL_RenderPresent(renderer); // this is apparently a fast operation
+      	// SDL_RenderPresent(renderer); // this is a slow operation, call it in processEvents
 		
 		//update(); // this is too slow
 		// so we don't actually need a texture; directly drawing to renderer is possible and faster.
