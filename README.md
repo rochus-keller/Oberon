@@ -22,13 +22,12 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [x] Oberon+ validating parser
 - [x] IDE with semantic navigation & source-level debugger
 - [x] LuaJIT compiler backend
-- [ ] Complete built-in procedure and Oakwood library implementations
-- [ ] Write documentation and focus articles
+- [x] Complete built-in procedure and Oakwood library implementations
 - [x] Implement a CIL/ECMA-335 compiler backend (done for both IL and direct assembly generator)
 - [x] Use a minimal Mono runtime as an alternative to the LuaJIT VM
-- [ ] Implement an LLVM compiler backend
 - [x] Foreign Function Interface (FFI, see [here](https://github.com/rochus-keller/OberonSystem/blob/FFI/ObSdl.obx) for an example, and [here](https://github.com/rochus-keller/c2obx/) for a tool to convert C headers to Oberon+ definition modules))
-- [ ] Proceed with the programming language development (based on actual need and after careful consideration)
+- [ ] Implement an LLVM compiler backend (WIP)
+- [ ] Write documentation and focus articles (WIP)
 
 ### The Oberon+ IDE
 

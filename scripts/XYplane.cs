@@ -23,7 +23,7 @@ using System.Runtime.InteropServices;
 public class XYplane
 {
 	//CONST draw = 1; erase = 0;
-	public static int X, Y, W, H;
+	public static int X = 0, Y = 0, W = 1024, H = 768;
 	private static IntPtr window = IntPtr.Zero, renderer = IntPtr.Zero, texture = IntPtr.Zero;
 	private const string nativeLibName = "SDL2";
 	private static uint[] pixel;
@@ -133,6 +133,22 @@ public class XYplane
 		[DllImport(nativeLibName, CallingConvention = CallingConvention.Cdecl)]
 		public static extern int SDL_PollEvent(out SDL_Event _event);
 
+		[DllImport(nativeLibName, CallingConvention = CallingConvention.Cdecl)]
+		public static extern int SDL_RenderDrawPoint(
+			IntPtr renderer,
+			int x,
+			int y
+		);
+
+		[DllImport(nativeLibName, CallingConvention = CallingConvention.Cdecl)]
+		public static extern int SDL_SetRenderDrawColor(
+			IntPtr renderer,
+			byte r,
+			byte g,
+			byte b,
+			byte a
+		);
+		
 	private static void dispose()
 	{
 		if( texture != IntPtr.Zero )
@@ -164,7 +180,13 @@ public class XYplane
 		head = (head + 1) % QueueLen;
   	}
   	
-  	public static int available() { return count; }
+  	public static int available() 
+  	{ 
+  		if( window == IntPtr.Zero )
+			return 0;
+		processEvents();
+  		return count; 
+  	}
   	
   	public static char dequeue()
   	{
@@ -188,6 +210,8 @@ public class XYplane
 					enqueue(str[0]);
 			}
 		}		
+      	SDL_GetWindowPosition(window, out X, out Y);
+      	// not necessary: SDL_RenderPresent(renderer);		
 	}
 	
 	private static void update()
@@ -199,7 +223,6 @@ public class XYplane
 		SDL_RenderCopy(renderer, texture, IntPtr.Zero, IntPtr.Zero);
       	SDL_RenderPresent(renderer);
       	
-      	SDL_GetWindowPosition(window, out X, out Y);
 	}
 	
 	public static void GetMouseState( ref int keys, ref int x, ref int y )
@@ -226,10 +249,7 @@ public class XYplane
 	public static void Open()
 	{
 		dispose();
-	
-		W = 1024;
-		H = 768;
-	
+		
 		window = SDL_CreateWindow("Oberon XY PLane",
 		                      0x1FFF0000, 0x1FFF0000, // pos undefined
 		                      W, H, 4); // show
@@ -279,7 +299,16 @@ public class XYplane
 		// mode draw = 1; erase = 0;
 		y = H - y - 1;
 		pixel[ y * W + x ] = mode == 0 ? WHITE : BLACK;
-		update(); // TODO: make that much more efficient!
+		
+		if( mode != 0 )
+			SDL_SetRenderDrawColor(renderer,0,0,0,255);
+		else
+			SDL_SetRenderDrawColor(renderer,255,255,255,255);
+		SDL_RenderDrawPoint(renderer,x,y);
+      	SDL_RenderPresent(renderer); // this is apparently a fast operation
+		
+		//update(); // this is too slow
+		// so we don't actually need a texture; directly drawing to renderer is possible and faster.
 	}
 
 	//PROCEDURE IsDot (x, y: INTEGER): BOOLEAN;

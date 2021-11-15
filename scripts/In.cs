@@ -17,6 +17,9 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+using System.Text;
+using System;
+
 public class In
 {
 //VAR Done: BOOLEAN;
@@ -43,28 +46,136 @@ public static void Char(ref char ch)
 	}
 }
 
+private static StringBuilder blockReadToWs()
+{
+	// TODO: Oakwood expects some kind of stream which is already in memory, i.e. which is not provided by the user char by char and doesn't block
+	StringBuilder str = new StringBuilder();
+	char ch;
+	while( true )
+	{
+		ConsoleKeyInfo res = Console.ReadKey(); // sleeps until a key is pressed
+		ch = res.KeyChar;
+		if( System.Char.IsControl(ch) || System.Char.IsWhiteSpace(ch) )
+			break;
+		str.Append(ch);
+	}
+	return str;
+}
+
 //PROCEDURE Int (VAR i: INTEGER);
 public static void Int(ref int i)
 {
-	// TODO
+	// IntConst = digit {digit} | digit {hexDigit} “H”
+	string str = blockReadToWs().ToString().ToUpper();
+	Done = false;
+	i = 0;
+	if( str.Length == 0 )
+		return;
+	try
+	{
+		if( str.EndsWith("H") )
+		{
+			i = Convert.ToInt32(str.Substring(0,str.Length-1), 16);
+			Done = true;
+		}else
+		{
+			i = Convert.ToInt32(str, 10);
+			Done = true;
+		}
+	}catch
+	{
+	}
 }
 
 //PROCEDURE Real (VAR x: REAL);
 public static void Real(ref float x)
 {
-	// TODO
+	// RealConst = digit {digit} [ "." {digit} [“E” (“+” | “-”) digit {digit}]]
+	string str = blockReadToWs().ToString().ToLower();
+	Done = false;
+	x = 0.0f;
+	if( str.Length == 0 )
+		return;
+	/*
+	const int Lhs = 0;
+	const int Rhs = 1;
+	const int Exp = 2;
+	int s = Lhs;
+	*/
+	try
+	{
+		// we don't actually need this parser because syntax is directly supported by ToDouble
+		/*
+		for( int i = 0; i < str.Length; i++ )
+		{
+			switch( s )
+			{
+			case Lhs:
+				if( str[i] == '.' )
+					s = Rhs;
+				else if( !System.Char.IsDigit(str[i]) )
+					throw new Exception();
+				break;
+			case Rhs:
+				if( str[i] == 'E' )
+					s = Exp;
+				else if( !System.Char.IsDigit(str[i]) )
+					throw new Exception();
+				break;
+			case Exp:
+				if( str[i] == '+' || str[i] == '-' )
+					s = Rhs;
+				else if( !System.Char.IsDigit(str[i]) )
+					throw new Exception();
+				break;
+			}
+		}
+		*/
+		Done = true;
+		x = (float)Convert.ToDouble(str);
+	}catch
+	{
+	}
 }
 
 //PROCEDURE String (VAR str: ARRAY OF CHAR);
 public static void String(ref char[] str)
 {
-	// TODO
+	// StringConst = ‘”’ char {char} ‘”’
+	string tmp = blockReadToWs().ToString();
+	if( tmp.Length < 2 || !tmp.EndsWith("\"") || !tmp.StartsWith("\"") )
+	{
+		Done = false;
+		str[0] = '\0';
+		return;
+	}
+	tmp = tmp.Substring(1,tmp.Length-2); // remove ""
+	Done = true;
+	int i;
+	for( i = 0; i < tmp.Length; i++ )
+	{
+		str[i] = tmp[i];
+		if( str[i] < ' ' ) // The string must not contain characters less than blank such as EOL or TAB.
+		{
+			Done = false;
+			str[0] = '\0';
+			return;
+		}
+	}
+	str[i] = '\0';
 }
 
 //PROCEDURE Name (VAR name: ARRAY OF CHAR);
 public static void Name(ref char[] name)
 {
-	// TODO
+	string tmp = blockReadToWs().ToString();
+	Done = true;
+	int i;
+	for( i = 0; i < tmp.Length; i++ )
+	{
+		name[i] = tmp[i];
+	}
+	name[i] = '\0';
 }
 
 }

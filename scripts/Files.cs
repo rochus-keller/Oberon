@@ -22,7 +22,7 @@ using System.IO;
 
 public class Files
 {
-	public class File
+	public class Handle
 	{
 		public string name;
 		public MemoryStream stream;
@@ -32,7 +32,7 @@ public class Files
 		public bool eof;
 		public int res;
 		public int pos;
-		public File file;
+		public Handle file;
 	}
 	
 	private static string toString(char[] str)
@@ -45,34 +45,33 @@ public class Files
 
 
 //PROCEDURE Old (IN name: ARRAY OF CHAR): File;
-	public static File Old(char[] filename)
+	public static Handle Old(char[] filename)
 	{
 		string name = toString(filename);
 		if( String.IsNullOrEmpty(name) )
 			return null;
 		try
 		{
-			File f = new File();
+			Handle f = new Handle();
 			f.name = name;
 			f.stream = new MemoryStream(System.IO.File.ReadAllBytes(name));
 			f.stream.Seek(0, SeekOrigin.Begin);
 		    return f;
-        }catch(Exception e)
+        }catch
         {
-        	Console.WriteLine("cannot open file '"+name+"'\n"+e.ToString());
         	return null;
         }
 	}
 //PROCEDURE New (IN name: ARRAY OF CHAR): File;
-	public static File New(char[] name)
+	public static Handle New(char[] name)
 	{
-		File f = new File();
+		Handle f = new Handle();
 		f.name = toString(name);
 		f.stream = new MemoryStream();
 	    return f;
 	}
 //PROCEDURE Register (f: File);
-	public static void Register(File f)
+	public static void Register(Handle f)
 	{
 		if( f.stream != null )
 		{
@@ -87,7 +86,7 @@ public class Files
 		}
 	}
 //PROCEDURE Close (f: File);
-	public static void Close(File f)
+	public static void Close(Handle f)
 	{
 		if( f.stream != null )
 		{
@@ -97,7 +96,7 @@ public class Files
 	}
 
 //PROCEDURE Purge (f: File);
-	public static void Purge(File f)
+	public static void Purge(Handle f)
 	{
 		if( f.stream != null )
 		{
@@ -136,7 +135,7 @@ public class Files
 	}
 	
 //PROCEDURE Length (f: File): INTEGER;
-	public static int Length(File f)
+	public static int Length(Handle f)
 	{
 		if( f.stream != null )
 			return (int)f.stream.Length;
@@ -147,7 +146,7 @@ public class Files
 //PROCEDURE GetDate (f: File; VAR t, d: INTEGER);
 // The encoding is: hour = t DIV 4096; minute = t DIV 64 MOD 64; second = t MOD 64; 
 // year = d DIV 512; month = d DIV 32 MOD 16; day = d MOD 32.
-	public static void GetDate(File f, ref int t, ref int d )
+	public static void GetDate(Handle f, ref int t, ref int d )
 	{
 		try
 		{
@@ -162,7 +161,7 @@ public class Files
 	}
 
 //PROCEDURE Set (VAR r: Rider; f: File; pos: INTEGER);
-	public static void Set(Rider r, File f, int pos )
+	public static void Set(Rider r, Handle f, int pos )
 	{
 		r.file = f;
 		r.pos = pos;
@@ -176,7 +175,7 @@ public class Files
 	}
 	
 //PROCEDURE Base (VAR r: Rider): File;
-	public static File Base(Rider r)
+	public static Handle Base(Rider r)
 	{
 		return r.file;
 	}

@@ -10,6 +10,8 @@ begin
 	start := I.Time()
 	P.Open
 	// I.SetMouseLimits(640,480)
+	for i := 0 to P.H-1 do P.Dot(P.H-1-i,i,1) end
+	i := 0
 	loop
 		P.Dot(i,i,1)
 		inc(i)

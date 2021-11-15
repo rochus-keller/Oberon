@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2021-11-14");
+    a.setApplicationVersion("2021-11-15");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
