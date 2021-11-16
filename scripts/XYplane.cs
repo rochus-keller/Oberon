@@ -211,7 +211,7 @@ public class XYplane
 			}
 		}		
       	SDL_GetWindowPosition(window, out X, out Y);
-      	SDL_RenderPresent(renderer);		
+      	SDL_RenderPresent(renderer);	
 	}
 	
 	private static void update()
@@ -276,7 +276,7 @@ public class XYplane
 		  dispose();
 		  return;
 		}
-
+		
 		pixel = new uint[W*H];
 		Clear();
 	}

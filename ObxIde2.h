@@ -169,6 +169,7 @@ namespace Obx
         void onRemoveAllBreakpoints();
         void onBreakOnExceptions();
         void onRowColMode();
+        void onSetInputFile();
     private:
         class DocTab;
         DocTab* d_tab;

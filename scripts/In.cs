@@ -46,18 +46,34 @@ public static void Char(ref char ch)
 	}
 }
 
-private static StringBuilder blockReadToWs()
+private static StringBuilder blockingRead(bool stringEnd = false)
 {
 	// TODO: Oakwood expects some kind of stream which is already in memory, i.e. which is not provided by the user char by char and doesn't block
 	StringBuilder str = new StringBuilder();
+	System.IO.Stream stream = Console.OpenStandardInput();
+	byte[] buf = new byte[1];
 	char ch;
+	bool expectEnd = false;
+	bool nonWsFound = false;
 	while( true )
 	{
-		ConsoleKeyInfo res = Console.ReadKey(); // sleeps until a key is pressed
-		ch = res.KeyChar;
-		if( System.Char.IsControl(ch) || System.Char.IsWhiteSpace(ch) )
+		//ConsoleKeyInfo res = Console.ReadKey(); // sleeps until a key is pressed, but doesn't work with stdin, just with real key presses
+		//ch = res.KeyChar;
+		ch = '\0';
+		if( stream.Read(buf,0,1) > 0 )
+			ch = (char)buf[0];
+		bool isWs = System.Char.IsWhiteSpace(ch);
+		if( !stringEnd && nonWsFound && isWs )
 			break;
-		str.Append(ch);
+		else if( System.Char.IsControl(ch) )
+			continue; 
+		if( !isWs || nonWsFound )
+			str.Append(ch); // ignore trailing WS
+		if( expectEnd && ch == '"' )
+			break;
+		expectEnd = stringEnd;
+		if( !isWs )
+			nonWsFound = true;
 	}
 	return str;
 }
@@ -66,7 +82,7 @@ private static StringBuilder blockReadToWs()
 public static void Int(ref int i)
 {
 	// IntConst = digit {digit} | digit {hexDigit} “H”
-	string str = blockReadToWs().ToString().ToUpper();
+	string str = blockingRead().ToString().ToUpper();
 	Done = false;
 	i = 0;
 	if( str.Length == 0 )
@@ -91,7 +107,7 @@ public static void Int(ref int i)
 public static void Real(ref float x)
 {
 	// RealConst = digit {digit} [ "." {digit} [“E” (“+” | “-”) digit {digit}]]
-	string str = blockReadToWs().ToString().ToLower();
+	string str = blockingRead().ToString().ToLower();
 	Done = false;
 	x = 0.0f;
 	if( str.Length == 0 )
@@ -131,24 +147,40 @@ public static void Real(ref float x)
 			}
 		}
 		*/
-		Done = true;
 		x = (float)Convert.ToDouble(str);
+		Done = true;
 	}catch
 	{
 	}
 }
 
 //PROCEDURE String (VAR str: ARRAY OF CHAR);
-public static void String(ref char[] str)
+public static void String(char[] str)
 {
 	// StringConst = ‘”’ char {char} ‘”’
-	string tmp = blockReadToWs().ToString();
-	if( tmp.Length < 2 || !tmp.EndsWith("\"") || !tmp.StartsWith("\"") )
+	Done = false;
+	str[0] = '\0';
+
+/*
+	StringBuilder sb = new StringBuilder();
+	char ch;
+	bool expectEnd = false;
+	while( true )
 	{
-		Done = false;
-		str[0] = '\0';
-		return;
+		ConsoleKeyInfo res = Console.ReadKey(); // sleeps until a key is pressed
+		ch = res.KeyChar;
+		if( System.Char.IsControl(ch) )
+			return;
+		sb.Append(ch);
+		if( expectEnd && ch == '"' )
+			break;
+		expectEnd = true;
 	}
+	string tmp = sb.ToString();
+	*/
+	string tmp = blockingRead(true).ToString();
+	if( tmp.Length < 2 || !tmp.EndsWith("\"") || !tmp.StartsWith("\"") )
+		return;
 	tmp = tmp.Substring(1,tmp.Length-2); // remove ""
 	Done = true;
 	int i;
@@ -166,9 +198,9 @@ public static void String(ref char[] str)
 }
 
 //PROCEDURE Name (VAR name: ARRAY OF CHAR);
-public static void Name(ref char[] name)
+public static void Name(char[] name)
 {
-	string tmp = blockReadToWs().ToString();
+	string tmp = blockingRead().ToString();
 	Done = true;
 	int i;
 	for( i = 0; i < tmp.Length; i++ )

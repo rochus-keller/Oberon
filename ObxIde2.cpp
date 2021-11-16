@@ -725,6 +725,7 @@ void Ide::createMenu()
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
+    pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     addTopCommands(pop);
@@ -801,6 +802,7 @@ void Ide::createMenuBar()
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
+    pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
 
@@ -3272,13 +3274,23 @@ void Ide::onRowColMode()
         d_mode = LineMode;
 }
 
+void Ide::onSetInputFile()
+{
+    ENABLED_IF(d_status==Idle);
+
+    const QString path = QFileDialog::getOpenFileName(this, tr("Set Input File"),QString() );
+    if( path.isEmpty() )
+        return;
+    d_eng->setInputFile(path);
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.19");
+    a.setApplicationVersion("0.9.20");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
