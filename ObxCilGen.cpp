@@ -2243,10 +2243,11 @@ struct ObxCilGenImp : public AstVisitor
                 const int bt = ae->d_args.first()->d_type.isNull() ? 0 : ae->d_args.first()->d_type->getBaseType();
                 if( bt != Type::REAL && bt != Type::LONGREAL )
                 {
-                    if( bt == Type::LONGINT )
+                    // always double on stack; Mono 5 and 6 sometimes result in NaN if conv.r4
+                    //if( bt == Type::LONGINT )
                         line(ae->d_loc).conv_(IlEmitter::ToR8);
-                    else
-                        line(ae->d_loc).conv_(IlEmitter::ToR4);
+                    //else
+                    //    line(ae->d_loc).conv_(IlEmitter::ToR4);
                 }
             }
             break;
@@ -2363,7 +2364,7 @@ struct ObxCilGenImp : public AstVisitor
                         line(ae->d_loc).conv_(IlEmitter::ToU1);
                         break;
                     case Type::LONGREAL:
-                        line(ae->d_loc).conv_(IlEmitter::ToR4);
+                        // No, we always have r8 on stack to avoid mono x64 issues: line(ae->d_loc).conv_(IlEmitter::ToR4);
                         break;
                     default:
                         Q_ASSERT(false);
@@ -2788,15 +2789,15 @@ struct ObxCilGenImp : public AstVisitor
         from = derefed(from);
         if( from == 0 )
             return;
-        if( toBaseType == from->getBaseType() )
+        const int bt = from->getBaseType();
+        if( toBaseType == bt )
             return;
         switch( toBaseType )
         {
         case Type::LONGREAL:
-            line(loc).conv_(IlEmitter::ToR8);
-            break;
         case Type::REAL:
-            line(loc).conv_(IlEmitter::ToR4);
+            if( bt != Type::REAL && bt != Type::LONGREAL )
+                line(loc).conv_(IlEmitter::ToR8); // always r8 on stack
             break;
         case Type::LONGINT:
             line(loc).conv_(IlEmitter::ToI8);
