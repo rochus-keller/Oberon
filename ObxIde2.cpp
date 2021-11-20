@@ -27,6 +27,7 @@
 #include "ObxModel.h"
 #include "ObxCilGen.h"
 #include "ObxPelibGen.h"
+#include "ObxCGen2.h"
 #include <QtDebug>
 #include <QDockWidget>
 #include <QApplication>
@@ -804,6 +805,7 @@ void Ide::createMenuBar()
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
+    pop->addCommand( "Export C...", this, SLOT(onExportC()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
@@ -1019,6 +1021,22 @@ void Ide::onExportIl()
     if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging, dirPath ) )
         QMessageBox::critical(this,tr("Save IL"),tr("There was an error when generating IL; "
                                                     "see Output window for more information"));
+}
+
+void Ide::onExportC()
+{
+    ENABLED_IF( d_pro->getErrs()->getErrCount() == 0 );
+
+    const QString dirPath = QFileDialog::getExistingDirectory(this, tr("Save C"), d_pro->getBuildDir(true) );
+
+    if (dirPath.isEmpty())
+        return;
+
+    if( !compile(false) ) // otherwise allocated flag is already set after one generator run
+        return;
+    if( !CGen2::translateAll(d_pro, d_debugging, dirPath ) )
+        QMessageBox::critical(this,tr("Save C"),tr("There was an error when generating C; "
+                                                   "see Output window for more information"));
 }
 
 void Ide::onModsDblClicked(QTreeWidgetItem* item, int)
@@ -1976,6 +1994,7 @@ void Ide::createMenu(Ide::Editor* edit)
     pop->addSeparator();
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
+    pop->addCommand( "Export C...", this, SLOT(onExportC()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     pop->addSeparator();

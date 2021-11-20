@@ -39,7 +39,8 @@ SOURCES += ObxIde2.cpp \
     ../MonoTools/MonoEngine.cpp \
     ../MonoTools/MonoDebugger.cpp \
     ../MonoTools/MonoIlView.cpp \
-    ../MonoTools/MonoMdbGen.cpp
+    ../MonoTools/MonoMdbGen.cpp \
+    ObxCGen2.cpp
 
 
 HEADERS  += ObxIde2.h \
@@ -54,7 +55,8 @@ HEADERS  += ObxIde2.h \
     ../MonoTools/MonoDebugger.h \
     ../MonoTools/MonoDebuggerPrivate.h \
     ../MonoTools/MonoIlView.h \
-    ../MonoTools/MonoMdbGen.h
+    ../MonoTools/MonoMdbGen.h \
+    ObxCGen2.h
 
 
 include( ObxParser.pri )

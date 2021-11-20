@@ -47,6 +47,7 @@ struct ValidatorImp : public AstVisitor
 
     void visitScope( Scope* me )
     {
+        QList<Record*> recs;
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Const )
@@ -67,7 +68,18 @@ struct ValidatorImp : public AstVisitor
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_NamedType && n->d_type && n->d_type->isStructured(true) )
+            {
                 n->accept(this);
+                Type* td = n->d_type.data(); // no, don't look at qualitypes: n->d_type.isNull() ? 0 : n->d_type->derefed();
+                if( td && td->getTag() == Thing::T_Record )
+                    recs.append(cast<Record*>(td));
+            }
+        }
+        QSet<Record*> circular = Record::calcDependencyOrder(recs);
+        if( !circular.isEmpty() )
+        {
+            foreach( Record* r, circular )
+                error(r->d_loc, Validator::tr("RECORD used as field value type has circular dependency on itself"));
         }
 #endif
         foreach( const Ref<Named>& n, me->d_order )

@@ -885,6 +885,22 @@ QList<Field*> Record::getOrderedFields() const
     return res;
 }
 
+QList<Procedure*> Record::getOrderedMethods() const
+{
+    QList<Procedure*> res;
+    if( d_baseRec )
+        res = d_baseRec->getOrderedMethods();
+    foreach( const Ref<Procedure>& p, d_methods )
+    {
+        const int pos = res.indexOf(p->d_super);
+        if( pos != -1 )
+            res[pos] = p.data();
+        else
+            res.append(p.data());
+    }
+    return res;
+}
+
 Record*Record::findBySlot(int slot) const
 {
     if( d_slot == slot )
@@ -961,6 +977,99 @@ Field*Record::nextField(Field* f) const
         }
     }
     return 0;
+}
+
+static bool includesAnyOf( const QSet<Record*>& part, const QSet<Record*>& all )
+{
+    foreach( Record* r, part )
+    {
+        if( all.contains(r) )
+            return true;
+    }
+    return false;
+}
+
+static QSet<Record*> valueRecordFieldTypes(Record* r, const QSet<Record*>& all)
+{
+    QList<Field*> ff = r->getOrderedFields();
+    QSet<Record*> res;
+    foreach( Field* f, ff )
+    {
+        Type* td = f->d_type.isNull()? 0 : f->d_type->derefed(); // we only care about value fields
+        if( td == 0 )
+            continue;
+        switch( td->getTag() )
+        {
+        case Thing::T_Record:
+            {
+                Record* rr = cast<Record*>(td);
+                if( all.contains(rr) ) // we only care about records in the all set
+                    res.insert(rr);
+            }
+            break;
+        case Thing::T_Array:
+            {
+                Array* a = cast<Array*>(td);
+                QList<Array*> dims = a->getDims();
+                Q_ASSERT(!dims.isEmpty());
+                td = dims.last()->d_type.isNull() ? 0 : dims.last()->d_type->derefed();
+                if( td && td->getTag() == Thing::T_Record )
+                {
+                    Record* rr = cast<Record*>(td);
+                    if( all.contains(rr) )
+                        res.insert(rr);
+                }
+            }
+            break;
+        }
+    }
+    return res;
+}
+
+QSet<Record*> Record::calcDependencyOrder(QList<Record*>& inout)
+{
+    QSet<Record*> recs, all;
+    QList<Record*> ordered;
+    recs = inout.toSet();
+    all = recs;
+    QHash<Record*,QSet<Record*> > valueFields;
+    QSet<Record*> used;
+    foreach( Record* r, recs )
+    {
+        // Find all leafs
+        QSet<Record*> v = valueRecordFieldTypes(r, all);
+        valueFields[r] = v;
+        if( !includesAnyOf(v,all) )
+        {
+            ordered.append(r);
+            used.insert(r);
+        }
+    }
+    recs -= used;
+
+    while( !recs.isEmpty() )
+    {
+        foreach( Record* r, recs )
+        {
+            if( used.contains( valueFields[r] ) )
+                // as soon as all dependencies of r are fulfilled, add r to the order
+            {
+                used.insert(r);
+                ordered.append(r);
+            }
+        }
+        const int count = recs.size();
+        recs -= used;
+        if( count == recs.size() )
+            break; // recs has no longer modified, exit loop
+    }
+
+    if( recs.isEmpty() )
+    {
+        inout = ordered;
+        return recs;
+    }else
+        return recs; // there are circular dependencies (can this happen at all?)
 }
 
 bool Array::hasByteSize() const

@@ -127,6 +127,7 @@ namespace Obx
         void onFullScreen();
         void onCursor();
         void onExportIl();
+        void onExportC();
         void onModsDblClicked(QTreeWidgetItem*,int);
         void onModDblClicked(QTreeWidgetItem*,int);
         void onHierDblClicked(QTreeWidgetItem*,int);

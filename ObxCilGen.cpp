@@ -236,8 +236,6 @@ struct ObxCilGenImp : public AstVisitor
     {
     }
 
-    inline QByteArray ws() { return QByteArray(level*4,' '); }
-
     static QByteArray inline escape( const QByteArray& name )
     {
         return "'" + name + "'";
