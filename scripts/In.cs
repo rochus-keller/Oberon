@@ -19,9 +19,13 @@
 
 using System.Text;
 using System;
+using System.Globalization;
 
 public class In
 {
+private static CultureInfo ci = new CultureInfo("en-US");
+
+
 //VAR Done: BOOLEAN;
 public static bool Done = false; 
 
@@ -147,7 +151,7 @@ public static void Real(ref float x)
 			}
 		}
 		*/
-		x = (float)Convert.ToDouble(str);
+		x = (float)Convert.ToDouble(str,ci);
 		Done = true;
 	}catch
 	{

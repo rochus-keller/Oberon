@@ -3,5 +3,8 @@ module Minimal
 begin
 	println("Minimal start")
 	println("Hello" + " World!")
+	
+	assert(FLOOR(123.45)=ENTIER(123.45))
+	
 	println("Minimal done")
 end Minimal

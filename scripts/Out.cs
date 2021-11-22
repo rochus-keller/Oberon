@@ -17,8 +17,11 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+using System.Globalization;
+
 public class Out
 {
+private static CultureInfo ci = new CultureInfo("en-US");
 
 //PROCEDURE Open;
 public static void Open()
@@ -51,7 +54,7 @@ public static void Int(int i, int n)
 public static void Real(float x, int n)
 {
 	if( n > 0 )
-		System.Console.Write("{0,"+n.ToString()+":E}",x);
+		System.Console.Write(System.String.Format(ci, "{0,"+n.ToString()+":E}", x ));
 	else	
 		System.Console.Write(x); 
 }

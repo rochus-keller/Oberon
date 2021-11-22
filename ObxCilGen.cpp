@@ -2291,6 +2291,12 @@ struct ObxCilGenImp : public AstVisitor
             line(ae->d_loc).call_("float64 [mscorlib]System.Math::Floor(float64)", 1, true );
             line(ae->d_loc).conv_(IlEmitter::ToI4);
             break;
+        case BuiltIn::ENTIER:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            ae->d_args.first()->accept(this);
+            line(ae->d_loc).call_("float64 [mscorlib]System.Math::Floor(float64)", 1, true );
+            line(ae->d_loc).conv_(IlEmitter::ToI8);
+            break;
         case BuiltIn::LSL:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
