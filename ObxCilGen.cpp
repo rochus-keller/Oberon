@@ -2110,7 +2110,7 @@ struct ObxCilGenImp : public AstVisitor
                 if( t->isString() )
                 {
                     ae->d_args.first()->accept(this);
-                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
+                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true); // TODO: likely wrong!
                 }else
                 {
                     Q_ASSERT( t->getTag() == Thing::T_Array );

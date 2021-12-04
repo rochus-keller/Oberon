@@ -1100,23 +1100,14 @@ quint32 Array::getAlignment() const
         return 1;
 }
 
-Type*Array::getTypeDim(int& dims, bool openOnly) const
+Type*Array::getTypeDim(int& dims) const
 {
     Type* t = d_type.isNull() ? 0 : d_type->derefed();
     if( t && t->getTag() == Thing::T_Array )
     {
-        Array* a = cast<Array*>( t );
-        if( openOnly )
-        {
-            if( !a->d_lenExpr.isNull() )
-                return d_type.data();
-        }else
-        {
-            if( a->d_lenExpr.isNull() )
-                return d_type.data();
-        }
+        t = cast<Array*>( t )->getTypeDim(dims);
         dims += 1;
-        return a->getTypeDim(dims, openOnly);
+        return t;
     }else
     {
         dims = 1;

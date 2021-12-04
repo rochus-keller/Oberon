@@ -1,5 +1,5 @@
 [General]
-BuildDir=
+BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
 BuiltInOakwood=false
 BuiltInObSysInner=false
 MainModule=@ByteArray()
@@ -7,11 +7,19 @@ MainProc=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
+[.]
+size=0
+
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Circular1.obx
-1\RelPath=Circular1.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays3.obx
+1\RelPath=Arrays3.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays2.obx
+2\RelPath=Arrays2.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays3.obx
+3\RelPath=Arrays3.obx
 size=1
 
 [Packages]
 1\Name=@ByteArray()
-size=1
+2\Name=@ByteArray()
+size=2

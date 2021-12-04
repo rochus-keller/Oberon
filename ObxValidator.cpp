@@ -1009,6 +1009,8 @@ struct ValidatorImp : public AstVisitor
             // check if VAR really gets a physical location
             bool ok = false;
             ok = isMemoryLocation(actual.data());
+            if( ta->isString() )
+                ok = false; // string literals cannot be passed to a VAR param (but to IN)
 #ifdef OBX_BBOX
             if( ta == bt.d_nilType )
             {

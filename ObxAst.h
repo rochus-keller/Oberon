@@ -268,7 +268,7 @@ namespace Obx
         bool hasByteSize() const;
         quint32 getByteSize() const;
         quint32 getAlignment() const;
-        Type* getTypeDim(int& dims , bool openOnly = false) const;
+        Type* getTypeDim(int& dims ) const;
         QString pretty() const;
         QList<Array*> getDims();
     };

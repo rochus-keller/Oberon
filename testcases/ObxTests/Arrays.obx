@@ -8,7 +8,7 @@ module Arrays
 		c : array 10 of char
 		d : array 3 of R
 		e : array 10 of byte
-	
+		
 	proc sub
 		var b : array 10 of byte
 	begin

@@ -114,6 +114,77 @@ struct ObxCGenCollector : public AstVisitor
     }
 };
 
+struct ObxCGenCollector2 : public AstVisitor
+{
+    QSet<ArgExpr*> boundCalls;
+    void visit( Call* me)
+    {
+       if( me->d_what )
+           me->d_what->accept(this);
+    }
+    void visit( Return* me )
+    {
+        if( me->d_what )
+            me->d_what->accept(this);
+    }
+    void visit( Assign* me)
+    {
+        me->d_lhs->accept(this);
+        me->d_rhs->accept(this);
+    }
+    void visit( IfLoop* me)
+    {
+        foreach( const Ref<Expression>& e, me->d_if )
+            e->accept(this);
+    }
+    void visit( ForLoop* me)
+    {
+        me->d_from->accept(this);
+        me->d_to->accept(this);
+        if( me->d_by )
+            me->d_by->accept(this);
+    }
+    void visit( CaseStmt* me)
+    {
+        me->d_exp->accept(this);
+        foreach( const CaseStmt::Case& c, me->d_cases )
+            foreach( const Ref<Expression>& e, c.d_labels )
+                e->accept(this);
+    }
+
+    void visit( SetExpr* me)
+    {
+        foreach( const Ref<Expression>& e, me->d_parts )
+            e->accept(this);
+    }
+    void visit( UnExpr* me)
+    {
+        me->d_sub->accept(this);
+    }
+    void visit( IdentLeaf* ) {} // NOP
+    void visit( IdentSel* me)
+    {
+        me->d_sub->accept(this);
+    }
+    void visit( BinExpr* me)
+    {
+        me->d_lhs->accept(this);
+        me->d_rhs->accept(this);
+    }
+    void visit( ArgExpr* me )
+    {
+        me->d_sub->accept(this);
+        if( me->getUnOp() != UnExpr::CALL || me->d_sub->getUnOp() == UnExpr::DEREF )
+            return; // supercall
+        Type* subT = me->d_sub->d_type->derefed();
+        Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
+        ProcType* pt = cast<ProcType*>( subT );
+        if( pt->d_typeBound )
+            boundCalls.insert(me); // applies to both named methods and delegates (fp-object aggregate)
+    }
+};
+
+
 struct ObxCGenImp : public AstVisitor
 {
     Errors* err;
@@ -123,8 +194,10 @@ struct ObxCGenImp : public AstVisitor
     bool ownsErr;
     bool debug; // generate line pragmas
     quint32 anonymousDeclNr; // starts with one, zero is an invalid slot
+    QHash<ArgExpr*,int> temps;
+    Procedure* curProc;
 
-    ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1){}
+    ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),curProc(0){}
 
     inline QByteArray ws() { return QByteArray(level*4,' '); }
 
@@ -193,7 +266,13 @@ struct ObxCGenImp : public AstVisitor
     {
         Q_ASSERT( className && className->getTag() == Thing::T_NamedType );
         Module* m = className->getModule();
-        return /* moduleRef(m) + "$" + */ dottedName(className); // dotted because also records nested in procs are lifted to module level
+        return dottedName(className); // dotted because also records nested in procs are lifted to module level
+    }
+
+    QByteArray classRef( Type* rec )
+    {
+        rec = derefed(rec);
+        return classRef(cast<Record*>(rec));
     }
 
     QByteArray classRef( Record* r )
@@ -245,8 +324,9 @@ struct ObxCGenImp : public AstVisitor
             if( i != 0 || receiver )
                 res += ", ";
             Type* t = pt->d_formals[i]->d_type.data();
+            Type* td = derefed(t);
             Pointer p;
-            if( passByRef(pt->d_formals[i].data()) )
+            if( passByRef(pt->d_formals[i].data()) || td->getTag() == Thing::T_Array )
             {
                 t = &p;
                 p.d_to = pt->d_formals[i]->d_type.data();
@@ -275,7 +355,7 @@ struct ObxCGenImp : public AstVisitor
         case Type::CHAR:
             return "char";
         case Type::WCHAR:
-            return "uint16_t";
+            return "wchar_t";
         case Type::SHORTINT:
             return "int16_t";
         case Type::INTEGER:
@@ -295,20 +375,64 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
+    QByteArray arrayType(int dims, const RowCol& loc)
+    {
+        switch( dims )
+        {
+        case 1:
+            return "struct OBX$Array$1";
+        case 2:
+            return "struct OBX$Array$2";
+        case 3:
+            return "struct OBX$Array$3";
+        case 4:
+            return "struct OBX$Array$4";
+        case 5:
+            return "struct OBX$Array$5";
+        default:
+            err->error(Errors::Generator, Loc(loc,thisMod->d_file),
+                       "C code generator cannot handle array dimensions > 5");
+            return "???";
+        }
+    }
+
     QByteArray formatType( Type* t, const QByteArray& name = QByteArray() )
     {
         if( t == 0 )
             return "void" + ( !name.isEmpty() ? " " + name : "" );
         switch(t->getTag())
         {
+        case Thing::T_BaseType:
+            return formatBaseType(t->getBaseType()) + ( !name.isEmpty() ? " " + name : "" );
+        case Thing::T_Enumeration:
+            return "int" + ( !name.isEmpty() ? " " + name : "" );
         case Thing::T_Array:
+            /*
+                arrays or pointer to arrays can be the types of fields, variables, locals and parameters.
+                in general taking the address of an array is not supported, but with VAR/IN params an implicit
+                address is handed into the procedure; it still cannot be converted to a pointer though.
+                in contrast arrays can be dynamically created, even with a length not known at compile time.
+                we need a way to transport the dim/size of an array with the pointer. it's inefficient to explicitly
+                store these data with value arrays where it is known at compile time and invariant. with open
+                arrays (or VAR/IN parameter) it is unavoidable though. If we add this information to the array object
+                we obviously need two types of array objects, one with and one without dim/size information.
+                A possible solution is to add dim/size information to the pointer/var param value. the dim number
+                and type doens't change and is always known at compile time; so the pointer/var param could look
+                e.g. like struct { uint32_t $0; void* $a; } or struct { uint32_t $0,$1; void* $a; } etc.
+                if this information is in the array object instead we get a problem when passing either a value array
+                (which has no size info) or a dereferenced array pointer (whose object has size info) is passed
+                to a var parameter (the body of the proc has no clue which kind was passed).
+
+                TODO: passing arrays by value to a function needs special treatment; the formal param is still a pointer
+                even if declared as an open or fixed size array, so the caller has to make a copy and possibly remove it
+            */
             {
                 Array* a = cast<Array*>(t);
                 if( a->d_type.isNull() )
                     return QByteArray(); // already reported
 
                 QByteArray res;
-                if( a->d_lenExpr.isNull() )
+                if( a->d_lenExpr.isNull() || name.isEmpty() )
                     res = "*" + ( !name.isEmpty() ? " " + name : "" );
                 else
                 {
@@ -320,10 +444,6 @@ struct ObxCGenImp : public AstVisitor
                 return formatType( a->d_type.data(), res );
             }
             break;
-        case Thing::T_BaseType:
-            return formatBaseType(t->getBaseType()) + ( !name.isEmpty() ? " " + name : "" );
-        case Thing::T_Enumeration:
-            return "int" + ( !name.isEmpty() ? " " + name : "" );
         case Thing::T_Pointer:
             {
                 Pointer* me = cast<Pointer*>(t);
@@ -334,7 +454,12 @@ struct ObxCGenImp : public AstVisitor
                 Type* td = derefed(me->d_to.data());
                 if( td && td->getTag() == Thing::T_Array && !td->d_unsafe )
                 {
-                    return formatType( cast<Array*>(td)->d_type.data(), res );
+                    Array* a = cast<Array*>(td);
+                    int dims = 0;
+                    a->getTypeDim(dims);
+                    res = arrayType(dims, t->d_loc);
+                    res += ( !name.isEmpty() ? " " + name : "" );
+                    return res;
                 }
                 // else
                 return formatType( me->d_to.data(), res );
@@ -460,8 +585,7 @@ struct ObxCGenImp : public AstVisitor
 
         dedication(h);
 
-        h << "#include <stdint.h>" << endl;
-        h << "#include <stddef.h>" << endl;
+        h << "#include \"OBX.Runtime.h\"" << endl;
 
         dedication(b);
         b << "#include \"" << thisMod->getName() << ".h\"" << endl << endl;
@@ -515,24 +639,27 @@ struct ObxCGenImp : public AstVisitor
         b << "static int initDone$ = 0;" << endl;
         b << "void " << name << "$init$(void) {" << endl;
 
+        temps.clear();
         level++;
+        b << ws() << "if(initDone$) return; else initDone$ = 1;" << endl;
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Variable )
-                ; // TODO emitInitializer(n.data());
+            {
+                int f = isStructuredOrArrayPointer(n->d_type.data() );
+                if( f )
+                {
+                    const QByteArray name = moduleRef(thisMod)+"$"+n->d_name;
+                    b << ws() << "memset(&" << name << ",0,sizeof(" << name << "));" << endl;
+                    if( f == IsRecord )
+                        b << ws() << moduleRef(thisMod)+"$"+n->d_name << ".class$ = &" << classRef(n->d_type.data()) << "$class$;" << endl;
+                }
+            }
         }
-        b << ws() << "if(initDone$) return; else initDone$ = 1;" << endl;
-#if 0 // done in init literal
-        foreach( Record* r, co.allRecords )
-        {
-            if( r->d_baseRec )
-                b << ws() << classRef(r) << "$class$.super$ = &" << classRef(r->d_baseRec) << "$class$;" << endl;
-        }
-#endif
 
         foreach( const Ref<Statement>& s, me->d_body )
         {
-            s->accept(this);
+            emitStatement(s.data());
         }
         level--;
 
@@ -546,16 +673,67 @@ struct ObxCGenImp : public AstVisitor
         h << ws() << formatType(me->d_type.data(), escape(me->d_name) ) << ";" << endl;
     }
 
+    enum { NotStructured = 0, IsArrayPointer, IsRecord, IsArray };
+    int isStructuredOrArrayPointer(Type* t)
+    {
+        Type* td = derefed(t);
+        if( td == 0 )
+            return 0;
+        if( td->isStructured() )
+        {
+            if( td->getTag() == Thing::T_Record )
+                return IsRecord;
+            else
+                return IsArray;
+        }
+        if( td->getTag() == Thing::T_Pointer )
+        {
+            Pointer* p = cast<Pointer*>(td);
+            td = derefed(p->d_to.data());
+            if( td && td->getTag() == Thing::T_Array )
+                return IsArrayPointer;
+        }
+        //else
+        return 0;
+    }
+
     void visit( Variable* me )
     {
         h << ws() << "extern " << formatType(me->d_type.data(), moduleRef(thisMod)+"$"+me->d_name ) << ";" << endl;
-        b << ws() << formatType(me->d_type.data(), moduleRef(thisMod)+"$"+me->d_name ) << ";" << endl;
+        b << ws() << formatType(me->d_type.data(), moduleRef(thisMod)+"$"+me->d_name );
+        if( !isStructuredOrArrayPointer(me->d_type.data()) )
+            b << " = 0";
+        b << ";" << endl;
+    }
+
+    void emitStatement(Statement* s)
+    {
+        ObxCGenCollector2 v;
+        s->accept(&v);
+        foreach( ArgExpr* a, v.boundCalls )
+        {
+            const int temp = temps.size()+1;
+            temps[ a ] = temp; // start with 1, 0 is invalid
+            Named* id = a->d_sub->getIdent();
+            if( id && id->getTag() == Thing::T_Procedure )
+            {
+                Procedure* p = cast<Procedure*>(id);
+                Q_ASSERT( p->d_receiverRec );
+                // we later use this variable to store the this pointer which is used to dispatch the
+                // method and to pass this to the method
+                b << ws() << "struct " << classRef(p->d_receiverRec) << "* $" << temp << ";" << endl;
+            }
+        }
+        s->accept(this);
     }
 
     void visit( Procedure* me)
     {
+        curProc = me;
+        temps.clear();
+
         ProcType* pt = me->getProcType();
-        QByteArray name = /* moduleRef(thisMod) + "$" + */ dottedName(me);
+        QByteArray name = dottedName(me);
         name += formatFormals(pt,true,me->d_receiver.data());
         name = formatType(pt->d_return.data(), name);
 
@@ -565,65 +743,1251 @@ struct ObxCGenImp : public AstVisitor
         level++;
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_LocalVar )
+            switch( n->getTag() )
             {
-                b << ws() << formatType( n->d_type.data(), escape(n->d_name) ) << ";" << endl;
-                // TODO: initializer
+            case Thing::T_LocalVar:
+                {
+                    b << ws() << formatType( n->d_type.data(), escape(n->d_name) );
+                    const int f = isStructuredOrArrayPointer(n->d_type.data() );
+                    if( !f )
+                        b << " = 0";
+                    b << ";" << endl;
+                    if( f )
+                        b << ws() << "memset(&" << escape(n->d_name) << ",0,sizeof(" << escape(n->d_name) << "));" << endl;
+                    if( f == IsRecord )
+                        b << ws() << escape(n->d_name) << ".class$ = &" << classRef(n->d_type.data()) << "$class$;" << endl;
+                    }
+                break;
+            case Thing::T_Parameter:
+                {
+                    Parameter* p = cast<Parameter*>(n.data());
+                    Type* td = derefed(p->d_type.data());
+                    if( !p->d_var && td->getTag() == Thing::T_Array )
+                    {
+                        // array passed by value; make a copy of it
+                        Array* a = cast<Array*>(td);
+                        QList<Array*> dims = a->getDims();
+                        b << ws() << escape(p->d_name) << ".$a = OBX$Copy(" <<  escape(p->d_name) << ".$a,";
+                        for(int i = 0; i < dims.size(); i++ )
+                        {
+                            if( i != 0 )
+                                b << " * ";
+                            b << escape(p->d_name) << ".$" << (i+1);
+                        }
+                        b << " * sizeof(" << formatType(dims.last()->d_type.data()) << "));" << endl;
+                        b << ws() << escape(p->d_name) << ".$s = 0;" << endl;
+                    }
+                }
+                break;
             }
         }
 
         foreach( const Ref<Statement>& s, me->d_body )
         {
-            s->accept(this);
+            emitStatement(s.data());
         }
 
         level--;
         b << "}" << endl << endl;
+        curProc = 0;
     }
 
-    void visit( LocalVar* ) {}
-
-
-    void visit( NamedType* ) {}
-    void visit( Const* ) {}
-    void visit( Import* ) {}
-    void visit( BuiltIn* ) {}
-    void visit( Call* ) {}
-    void visit( Return* ) {}
-    void visit( Assign* ) {}
-    void visit( IfLoop* ) {}
-    void visit( ForLoop* ) {}
-    void visit( CaseStmt* ) {}
-    void visit( Literal* ) {}
-    void visit( SetExpr* ) {}
-    void visit( IdentLeaf* ) {}
-    void visit( UnExpr* ) {}
-    void visit( IdentSel* ) {}
-    void visit( ArgExpr* ) {}
-    void visit( BinExpr* ) {}
-    void visit( GenericName* ) {}
-    void visit( Exit* ) {}
-
-    void visit( Array* )
+    void emitConst(quint8 basetype, const QVariant& val, const RowCol& loc )
     {
-        Q_ASSERT(false);
-        /*
-            arrays or pointer to arrays can be the types of fields, variables, locals and parameters.
-            in general taking the address of an array is not supported, but with VAR/IN params an implicit
-            address is handed into the procedure; it still cannot be converted to a pointer though.
-            in contrast arrays can be dynamically created, even with a length not known at compile time.
-            we need a way to transport the dim/size of an array with the pointer. it's inefficient to explicitly
-            store these data with value arrays where it is known at compile time and invariant. with open
-            arrays (or VAR/IN parameter) it is unavoidable though. If we add this information to the array object
-            we obviously need two types of array objects, one with and one without dim/size information.
-            A possible solution is to add dim/size information to the pointer/var param value. the dim number
-            and type doens't change and is always known at compile time; so the pointer/var param could look
-            e.g. like struct { uint32_t $0; void* $a; } or struct { uint32_t $0,$1; void* $a; } etc.
-            if this information is in the array object instead we get a problem when passing either a value array
-            (which has no size info) or a dereferenced array pointer (whose object has size info) is passed
-            to a var parameter (the body of the proc has no clue which kind was passed).
-        */
+        switch( basetype )
+        {
+        case Type::BOOLEAN:
+        case Type::SHORTINT:
+        case Type::INTEGER:
+        case Type::BYTE:
+            b << val.toInt();
+            break;
+        case Type::LONGINT:
+            b << val.toLongLong();
+            break;
+        case Type::ENUMINT:
+            b << val.toUInt();
+            break;
+        case Type::REAL:
+        case Type::LONGREAL:
+            b << val.toDouble();
+            break;
+        case Type::NIL:
+            b << "0";
+            break;
+        case Type::STRING:
+        case Type::WSTRING:
+            {
+                QByteArray str = val.toByteArray();
+                str.replace('\\', "\\\\");
+                if( basetype == Type::STRING )
+                {
+                    b << "(const struct OBX$Array$1){";
+                    b << str.length()+1 << ",1,";
+                    b << "\"" << str << "\"";
+                    b << "}";
+                }else
+                {
+                    b << "(const struct OBX$Array$1){";
+                    b << QString::fromUtf8(str).length()+1 << ",1,";
+                    b << "L\"" << str << "\"";
+                    b << "}";
+                }
+            }
+            break;
+        case Type::BYTEARRAY:
+            {
+                const QByteArray ba = val.toByteArray();
+                b << "(const struct OBX$Array$1){";
+                b << ba.length() << ",1,&(const uint8_t[]){";
+                for( int i = 0; i < ba.size(); i++ )
+                    b << "0x" << QByteArray::number(quint8(ba[i]),16) << ", ";
+                b << "}}";
+            }
+            break;
+        case Type::CHAR:
+        case Type::WCHAR:
+            b << "0x" << QByteArray::number(val.toUInt(),16);
+            break;
+        case Type::SET:
+            {
+                Literal::SET s = val.value<Literal::SET>();
+                b << "0x" << QByteArray::number((quint32)s.to_ulong(),16);
+            }
+            break;
+        default:
+            Q_ASSERT(false);
+        }
     }
+
+    void visit( Literal* me)
+    {
+        Type* td = derefed(me->d_type.data());
+        Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration) );
+        // Enumeration has basetype ENUMINT
+        emitConst( td->getBaseType(), me->d_val, me->d_loc );
+    }
+
+    void visit( IdentLeaf* me)
+    {
+        Named* id = me->getIdent();
+        if( id == 0 )
+            return; // already reported
+
+        switch( id->getTag() )
+        {
+        case Thing::T_Const:
+            {
+                Type* td = derefed(me->d_type.data() );
+                Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
+                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
+            }
+            return;
+        case Thing::T_Import:
+            // NOP
+            return;
+        case Thing::T_Variable:
+            b << dottedName(id);
+            return;
+        case Thing::T_LocalVar:
+        case Thing::T_Parameter:
+            b << escape(id->d_name);
+            return;
+        case Thing::T_NamedType:
+            // NOP
+            return;
+        case Thing::T_Procedure:
+            b << dottedName(id);
+            return;
+        case Thing::T_BuiltIn:
+            // NOP
+            return;
+        default:
+            qDebug() << "ERR" << id->getTag() << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col;
+            Q_ASSERT( false );
+            break;
+        }
+        Q_ASSERT( false );
+    }
+
+    static inline bool derefOrVarParam(Expression* sub)
+    {
+        return sub->getUnOp() == UnExpr::DEREF ||
+                            ( sub->getIdent() && sub->getIdent()->getTag() == Thing::T_Parameter &&
+                              cast<Parameter*>(sub->getIdent())->d_var );
+    }
+
+    void visit( IdentSel* me)
+    {
+        Q_ASSERT( !me->d_sub.isNull() );
+
+        Named* subId = me->d_sub->getIdent();
+        const bool derefImport = subId && subId->getTag() == Thing::T_Import;
+
+        me->d_sub->accept(this);
+
+        Named* id = me->getIdent();
+        Q_ASSERT( id );
+
+        switch( id->getTag() )
+        {
+        case Thing::T_BuiltIn:
+            // NOP
+            return;
+        case Thing::T_Procedure:
+            {
+                Procedure* p = cast<Procedure*>(id);
+                if( !p->d_receiver.isNull() )
+                {
+                    // TODO: desig to bound procedures need special treatment
+                    if( derefOrVarParam(me->d_sub.data()) )
+                        b << "->";
+                    else
+                        b << ".";
+                    b << "class$->" << escape(p->d_name);
+                }else
+                {
+                    Q_ASSERT( derefImport );
+                    b << dottedName(id);
+                }
+            }
+            return;
+        case Thing::T_Variable:
+            Q_ASSERT( derefImport );
+            b << dottedName(id);
+            return;
+        case Thing::T_Field:
+            if( derefOrVarParam(me->d_sub.data()) )
+                b << "->";
+            else
+                b << ".";
+            b << escape(id->d_name);
+            return;
+        case Thing::T_NamedType:
+            // NOP
+            return;
+        case Thing::T_Const:
+            {
+                Q_ASSERT( derefImport );
+                Type* td = derefed(id->d_type.data() );
+                Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
+                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
+            }
+            return;
+        default:
+            qDebug() << "ERR" << thisMod->d_name << id->getTag() << me->d_loc.d_row << me->d_loc.d_col;
+            Q_ASSERT( false );
+            break;
+        }
+        Q_ASSERT( false );
+    }
+
+    void visit( UnExpr* me)
+    {
+        Q_ASSERT( !me->d_sub.isNull() );
+
+        Type* prevT = derefed(me->d_sub->d_type.data());
+        Q_ASSERT( prevT );
+
+        switch( me->d_op )
+        {
+        case UnExpr::NEG:
+            if( prevT->getBaseType() == BaseType::SET )
+                b << "^(";
+            else
+                b << "-(";
+            me->d_sub->accept(this);
+            b << ")";
+            return;
+        case UnExpr::NOT:
+            b << "!(";
+            me->d_sub->accept(this);
+            b << ")";
+            return;
+        case UnExpr::DEREF:
+            me->d_sub->accept(this);
+            // is handled by owner
+            return;
+        case UnExpr::ADDROF:
+            b << "&(";
+            me->d_sub->accept(this);
+            b << ")";
+            return;
+        default:
+            qDebug() << "ERR" << me->d_op << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col;
+            Q_ASSERT( false );
+            break;
+        }
+        Q_ASSERT( false );
+    }
+
+    void emitBuiltIn( BuiltIn* bi, ArgExpr* ae )
+    {
+        switch( bi->d_func )
+        {
+        case BuiltIn::PRINTLN:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                b << "printf(";
+                bool wide = false;
+                bool deref = false;
+                bool addr = false;
+                if( td->isText(&wide) )
+                {
+                    if( td->isChar() )
+                    {
+                        if( wide )
+                            b << "\"%lc\\n\"";
+                        else
+                            b << "\"%c\\n\"";
+                    }else
+                    {
+                        if( wide )
+                            b << "\"%ls\\n\"";
+                        else
+                            b << "\"%s\\n\"";
+                        deref = true;
+                    }
+                }else if( td->isInteger() )
+                {
+                    if( td->getBaseType() <= Type::INTEGER )
+                        b << "\"%d\\n\"";
+                    else
+                        b << "\"%ld\\n\"";
+                }else if( td->isReal() )
+                    b << "\"%f\\n\"";
+                else if( td->isSet() )
+                    b << "\"%x\\n\"";
+                else if( td->getBaseType() == Type::BOOLEAN )
+                    b << "\"%d\\n\"";
+                else
+                {
+                    switch(td->getTag())
+                    {
+                    case Thing::T_Enumeration:
+                        b << "\"%u\\n\"";
+                        break;
+                    case Thing::T_Pointer:
+                        if( cast<Pointer*>(td)->d_to->derefed()->getTag() == Thing::T_Array )
+                            deref = true;
+                        b << "\"%p\\n\"";
+                        break;
+                    case Thing::T_Array:
+                        deref = true;
+                        b << "\"%p\\n\"";
+                        break;
+                    case Thing::T_Record:
+                        addr = true;
+                        b << "\"%p\\n\"";
+                        break;
+                    default:
+                        b << "\"%p\\n\"";
+                        break;
+                    }
+                }
+                b << ",";
+                if( addr )
+                    b << "&";
+                if( deref )
+                    b << "(";
+                renderArg(td, ae->d_args.first().data(),false);
+                if( deref )
+                    b << ").$a";
+                b << ")";
+            }
+            break;
+        case BuiltIn::INC:
+        case BuiltIn::DEC:
+            {
+                Ref<BinExpr> add = new BinExpr();
+                add->d_lhs = ae->d_args.first();
+                add->d_type = ae->d_args.first()->d_type;
+                add->d_loc = ae->d_args.first()->d_loc;
+                if( bi->d_func == BuiltIn::INC )
+                    add->d_op = BinExpr::ADD;
+                else
+                    add->d_op = BinExpr::SUB;
+                if( ae->d_args.size() == 1 )
+                {
+                    add->d_rhs = new Literal( Literal::Integer,add->d_loc,qlonglong(1));
+                    add->d_rhs->d_type = ae->d_args.first()->d_type;
+                }else
+                {
+                    Q_ASSERT( ae->d_args.size() == 2 );
+                    add->d_rhs = ae->d_args.last();
+                }
+                Ref<Assign> ass = new Assign();
+                ass->d_lhs = ae->d_args.first();
+                ass->d_loc = ae->d_loc;
+                ass->d_rhs = add.data();
+                ass->accept(this);
+            }
+            break;
+        case BuiltIn::LEN:
+            {
+                // TODO: len with two args
+                Q_ASSERT( !ae->d_args.isEmpty() );
+                Type* t = derefed(ae->d_args.first()->d_type.data() );
+                if( t && t->getTag() == Thing::T_Pointer )
+                    t = derefed( cast<Pointer*>(t)->d_to.data() );
+                if( t->isString() )
+                {
+                    Q_ASSERT(ae->d_args.first()->getTag() == Thing::T_Literal);
+                    Literal* l = cast<Literal*>(ae->d_args.first().data());
+                    b << "( " << l->d_strLen << " + 1 )";
+                }else
+                {
+                    Q_ASSERT( t->getTag() == Thing::T_Array );
+                    Array* a = cast<Array*>(t);
+                    if( !a->d_lenExpr.isNull() )
+                        b << a->d_len;
+                    else
+                    {
+                        b << "(";
+                        renderArg(0, ae->d_args.first().data(),false);
+                        b << ").$1";
+                    }
+                }
+            }
+            break;
+        case BuiltIn::NEW:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() );
+
+                Type* t = ae->d_args.first()->d_type.data();
+                Type* td = derefed(t);
+                Q_ASSERT( td && td->getTag() == Thing::T_Pointer );
+                td = derefed(cast<Pointer*>(td)->d_to.data());
+
+                if( td->getTag() == Thing::T_Array )
+                {
+                    Array* a = cast<Array*>(td);
+                    QList<Array*> dims = a->getDims();
+                    b << "OBX$NewArr(&"; // does also memset
+                    renderArg(0,ae->d_args.first().data(),false);
+                    b << ", " << dims.size() << ", sizeof(" << formatType(dims.last()->d_type.data()) << ")";
+                    for( int i = 0; i < dims.size(); i++ )
+                    {
+                        if( dims[i]->d_lenExpr.isNull() )
+                            break;
+                        b << "," << dims[i]->d_len;
+
+                    }
+                    for( int i = 1; i < ae->d_args.size(); i++ )
+                    {
+                        b << ",";
+                        ae->d_args[i]->accept(this);
+                    }
+                    b << ")";
+                }else
+                {
+                    Q_ASSERT( td->getTag() == Thing::T_Record );
+                    Q_ASSERT( ae->d_args.size() == 1 );
+
+                    renderArg(0,ae->d_args.first().data(),false);
+                    b << " = OBX$NewRec(sizeof(" << formatType(td) << "),";
+                    b << ws() << classRef(t) << "$class$";
+                    b << ");";
+                }
+            }
+            break;
+        default:
+             qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
+             break;
+        }
+    }
+
+    void renderArg( Type* lhs, Expression* rhs, bool byRef )
+    {
+        // this method takes care that all arrays are rendered as OBX$Array
+        Type* tf = derefed(lhs);
+        Type* ta = derefed(rhs->d_type.data());
+        if( ta->isString() )
+        {
+            if( tf && tf->isChar() )
+            {
+                if( ta->getBaseType() == Type::STRING )
+                {
+                    b << "*(const char*)(";
+                    rhs->accept(this);
+                    b << ").$a";
+                }else
+                {
+                    b << "*(const wchar_t*)(";
+                    rhs->accept(this);
+                    b << ").$a";
+                }
+            }else
+                rhs->accept(this);
+        }else if( ta->getTag() == Thing::T_Array )
+        {
+            // NOTE: a copy if not passByRef done in procedure
+            const int tag = rhs->getTag();
+            if( rhs->getUnOp() == UnExpr::DEREF )
+            {
+                UnExpr* e = cast<UnExpr*>(rhs);
+                e->d_sub->accept(this); // the thing before DEREF is a pointer
+            }else if( tag == Thing::T_BinExpr // happens if strings are added
+                      || tag == Thing::T_Literal // a string or bytearray literal is always OBX$Array
+                      || rhs->getUnOp() == UnExpr::CALL  // a call always returns an OBX$Array
+                      || ( rhs->getIdent() && rhs->getIdent()->getTag() == Thing::T_Parameter ) // a param is always OBX$Array
+                      )
+            {
+                rhs->accept(this);
+            }else if( rhs->getUnOp() == UnExpr::IDX )
+            {
+                // a n-dim array is partly indexed, i.e. not to the element, but an m-dim array of elements
+                UnExpr* e = cast<UnExpr*>(rhs);
+                int dim = 1;
+                while( e->d_sub->getUnOp() == UnExpr::IDX )
+                {
+                    e = cast<UnExpr*>(e->d_sub.data());
+                    dim++;
+                }
+                Type* td = derefed(e->d_sub->d_type.data());
+                Q_ASSERT( td->getTag() == Thing::T_Array );
+                Array* a = cast<Array*>(td);
+                QList<Array*> dims = a->getDims();
+                b << "(" << arrayType(dims.size()-dim, rhs->d_loc) << "){";
+                for(int i = 0; i < (dims.size()-dim); i++ )
+                    b << dims[i+dim]->d_len << ","; // TODO: dynamic len
+                b << "1,&"; // 1 because we point in a slice here, not the start of the array
+                rhs->accept(this); // rhs because we want all IDX up to here rendered
+                b << "}";
+            }else
+            {
+                Q_ASSERT(tag == Thing::T_IdentLeaf || Thing::T_IdentSel );
+                // It's a array value, convert it to an array pointer
+                Array* a = cast<Array*>(ta);
+                QList<Array*> dims = a->getDims();
+                b << "(" << arrayType(dims.size(), rhs->d_loc) << "){";
+                for(int i = 0; i < dims.size(); i++ )
+                    b << dims[i]->d_len << ","; // TODO: dynamic len
+                b << "1,&";
+                rhs->accept(this);
+                b << "}";
+            }
+        }else
+        {
+            if( byRef )
+                b << "&";
+            rhs->accept(this);
+        }
+    }
+
+    void emitActuals( ProcType* pt, ArgExpr* me )
+    {
+        Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
+        for( int i = 0; i < pt->d_formals.size(); i++ )
+        {
+            if( i != 0 )
+                b << ", ";
+            Parameter* p = pt->d_formals[i].data();
+            renderArg( p->d_type.data(), me->d_args[i].data(), passByRef(p) );
+        }
+    }
+
+    void emitCall( ArgExpr* me )
+    {
+        Q_ASSERT( me->d_sub );
+
+        Named* func = 0;
+        bool superCall = false;
+        if( me->d_sub->getUnOp() == UnExpr::DEREF )
+        {
+            // call to superclass method; this is not a vtbl dispatch
+            UnExpr* ue = cast<UnExpr*>(me->d_sub.data());
+            func = ue->d_sub->getIdent();
+            Q_ASSERT( func && func->getTag() == Thing::T_Procedure );
+            Procedure* p = cast<Procedure*>(func);
+            Q_ASSERT( p->d_super );
+            func = p->d_super;
+            superCall = true;
+        }else
+            func = me->d_sub->getIdent();
+
+        const int funcTag = func ? func->getTag() : 0;
+        if( func && funcTag == Thing::T_BuiltIn )
+        {
+            emitBuiltIn( cast<BuiltIn*>(func), me );
+            return;
+        }else if( funcTag != Thing::T_Procedure )
+            func = 0; // apparently a function pointer or delegate
+
+        Type* subT = derefed( me->d_sub->d_type.data() );
+        Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );
+        ProcType* pt = cast<ProcType*>( subT );
+        Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
+
+        int temp = 0;
+        if( pt->d_typeBound && func && !superCall ) // TODO: delegates
+        {
+            //  ( pointer ^ | record ) .method (args)
+            Q_ASSERT(me->d_sub->getTag() == Thing::T_IdentSel );
+            IdentSel* method = cast<IdentSel*>(me->d_sub.data());
+            Type* td = derefed(method->d_sub->d_type.data());
+            Q_ASSERT(td && td->getTag() == Thing::T_Record);
+            temp = temps[me];
+            Q_ASSERT(temp);
+            b << "($" << temp << " = ";
+            if( method->d_sub->getUnOp() != UnExpr::DEREF )
+                b << "&";
+            b << "(";
+            method->d_sub->accept(this);
+            b << "))->class$->" << escape( method->getIdent()->d_name) << "($" << temp << ", ";
+            emitActuals(pt,me);
+            b << ")";
+        }else
+        {
+            me->d_sub->accept(this);
+            b << "(";
+            emitActuals(pt,me);
+            b << ")";
+        }
+    }
+
+    void visit( ArgExpr* me )
+    {
+        switch( me->d_op )
+        {
+        case ArgExpr::IDX:
+            {
+                Q_ASSERT( me->d_sub );
+                Q_ASSERT( me->d_args.size() == 1 );
+#if 0
+                Type* subT = derefed(me->d_sub->d_type.data());
+                Q_ASSERT( subT && subT->getTag() == Thing::T_Array);
+                b << "(";
+                renderArg(0,me->d_sub.data(),false);
+                b << ").$a"; // TODO: cast? shortcut if array value?
+                b << "[";
+                me->d_args.first()->accept(this);
+                b << "]";
+#else
+                ArgExpr* e = me;
+                QList<ArgExpr*> dims;
+                dims.prepend(e);
+                while( e->d_sub->getUnOp() == UnExpr::IDX )
+                {
+                    e = cast<ArgExpr*>(e->d_sub.data());
+                    dims.prepend(e);
+                }
+                Type* td = derefed(e->d_sub->d_type.data());
+                Q_ASSERT( td->getTag() == Thing::T_Array );
+                b << "((" << formatType(me->d_type.data()) << QByteArray(dims.size(),'*') << ")(";
+                renderArg(0,e->d_sub.data(),false);
+                b << ").$a)";
+                for(int i = 0; i < dims.size(); i++ )
+                {
+                    b << "[";
+                    Q_ASSERT( dims[i]->d_args.size() == 1 );
+                    dims[i]->d_args.first()->accept(this);
+                    b << "]";
+                }
+#endif
+            }
+            break;
+        case ArgExpr::CALL:
+            emitCall(me);
+            break;
+        case ArgExpr::CAST:
+            {
+                Type* tsub = derefed(me->d_sub->d_type.data());
+                Q_ASSERT( tsub );
+                if( tsub->getTag() == Thing::T_Pointer )
+                {
+                    b << "(struct " << classRef(me->d_type->toRecord()) << "*)(";
+                    me->d_sub->accept(this);
+                    b << ")";
+                }else
+                {
+                    b << "*(struct " << classRef(me->d_type->toRecord()) << "*)&(";
+                    me->d_sub->accept(this);
+                    b << ")";
+                }
+            }
+            break;
+        }
+    }
+
+    void emitBinOp(BinExpr* me, const char* op)
+    {
+        b << "(";
+        me->d_lhs->accept(this);
+        b << " " << op << " ";
+        me->d_rhs->accept(this);
+        b << ")";
+    }
+
+    void emitStringOp( Type* lhs, Type* rhs, bool lwide, bool rwide, int op, BinExpr* e )
+    {
+        b << "OBX$StrOp(&(";
+        renderArg(lhs,e->d_lhs.data(),false);
+        b << ")," << int(lwide) << ",&(";
+        renderArg(rhs,e->d_rhs.data(),false);
+        b << ")," << int(rwide) << ",";
+        b << op << ")";
+    }
+
+    void visit( BinExpr* me )
+    {
+        Type* lhsT = derefed(me->d_lhs->d_type.data());
+        Type* rhsT = derefed(me->d_rhs->d_type.data());
+        Q_ASSERT( lhsT && rhsT );
+        const int ltag = lhsT->getTag();
+        const int rtag = rhsT->getTag();
+        bool lwide, rwide;
+
+        switch( me->d_op )
+        {
+        case BinExpr::IN:
+            if( lhsT->isInteger() && rhsT->getBaseType() == Type::SET )
+            {
+                b << "((1<<";
+                me->d_lhs->accept(this);
+                b << ")&";
+                me->d_rhs->accept(this);
+                b << ")";
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::IS:
+            b << "OBX$IsSubclass(";
+            me->d_rhs->accept(this);
+            b << ( rtag == Thing::T_Record ? "." : "->" );
+            b << "class$,";
+            me->d_lhs->accept(this);
+            b << ( ltag == Thing::T_Record ? "." : "->" );
+            b << "class$)";
+            break;
+        case BinExpr::ADD:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
+                emitBinOp(me,"+");
+            else if( lhsT->isSet() && rhsT->isSet() )
+                emitBinOp(me,"|");
+            else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
+            {
+                b << "OBX$StrJoin(&(";
+                renderArg(lhsT,me->d_lhs.data(),false);
+                b << ")," << int(lwide) << ",&(";
+                renderArg(rhsT,me->d_rhs.data(),false);
+                b << ")," << int(rwide) << ")";
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::SUB:
+            if( (lhsT->isNumeric() && rhsT->isNumeric()) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
+                emitBinOp(me,"-");
+            else if( lhsT->isSet() && rhsT->isSet() )
+            {
+                b << "(";
+                me->d_lhs->accept(this);
+                b << " & ~";
+                me->d_rhs->accept(this);
+                b << ")";
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::FDIV:
+            if( lhsT->isNumeric() && rhsT->isNumeric() )
+                emitBinOp(me,"/");
+            else if( lhsT->isSet() && rhsT->isSet() )
+            {
+                b << "OBX$SetDiv(";
+                me->d_lhs->accept(this);
+                b << ",";
+                me->d_rhs->accept(this);
+                b << ")";
+            }
+            break;
+        case BinExpr::MUL:
+            if( lhsT->isNumeric() && rhsT->isNumeric() )
+                emitBinOp(me,"*");
+            else if( lhsT->isSet() && rhsT->isSet() )
+                emitBinOp(me,"&");
+            else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::DIV:
+            if( lhsT->isInteger() && rhsT->isInteger() )
+            {
+                if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
+                    b << "OBX$Div32(";
+                else
+                    b << "OBX$Div64(";
+                me->d_lhs->accept(this);
+                b << ",";
+                me->d_rhs->accept(this);
+                b << ")";
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::MOD:
+            if( lhsT->isInteger() && rhsT->isInteger() )
+            {
+                if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
+                    b << "OBX$Mod32(";
+                else
+                    b << "OBX$Mod64(";
+                me->d_lhs->accept(this);
+                b << ",";
+                me->d_rhs->accept(this);
+                b << ")";
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::AND:
+            if( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN )
+                emitBinOp(me,"&&");
+            else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::OR:
+            if( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN )
+                emitBinOp(me,"||");
+            else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::EQ:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN ) ||
+                    ( lhsT->getBaseType() == Type::SET && rhsT->getBaseType() == Type::SET) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( ( lhsT->getBaseType() == Type::NIL || ltag == Thing::T_Pointer || ltag == Thing::T_ProcType ) &&
+                    ( rhsT->getBaseType() == Type::NIL || rtag == Thing::T_Pointer || rtag == Thing::T_ProcType ) ) )
+            {
+                emitBinOp(me,"==");
+            }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            {
+                emitStringOp(lhsT, rhsT, lwide, rwide, 1, me );
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::NEQ:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( lhsT->getBaseType() == Type::BOOLEAN && rhsT->getBaseType() == Type::BOOLEAN ) ||
+                    ( lhsT->getBaseType() == Type::SET && rhsT->getBaseType() == Type::SET) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( ( lhsT->getBaseType() == Type::NIL || ltag == Thing::T_Pointer || ltag == Thing::T_ProcType ) &&
+                    ( rhsT->getBaseType() == Type::NIL || rtag == Thing::T_Pointer || rtag == Thing::T_ProcType ) ) )
+            {
+                emitBinOp(me,"!=");
+            }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            {
+                emitStringOp(lhsT, rhsT, lwide, rwide, 2, me );
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::LT:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
+            {
+                emitBinOp(me,"<");
+            }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            {
+                emitStringOp(lhsT, rhsT, lwide, rwide, 3, me );
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::LEQ:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
+            {
+                emitBinOp(me,"<=");
+            }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            {
+                emitStringOp(lhsT, rhsT, lwide, rwide, 4, me );
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::GT:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
+            {
+                emitBinOp(me,">");
+            }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            {
+                emitStringOp(lhsT, rhsT, lwide, rwide, 5, me );
+            }else
+                Q_ASSERT(false);
+            break;
+        case BinExpr::GEQ:
+            if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
+                    ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) ||
+                    ( lhsT->isChar() && rhsT->isChar() ) )
+            {
+                emitBinOp(me,">=");
+            }else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) )
+            {
+                emitStringOp(lhsT, rhsT, lwide, rwide, 6, me );
+            }else
+            {
+                qDebug() << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
+                Q_ASSERT(false);
+            }
+            break;
+        default:
+            Q_ASSERT(false);
+        }
+    }
+
+    // TODO
+    void visit( SetExpr* ) {}
+
+    void visit( Assign* me)
+    {
+        b << ws();
+        Type* tl = derefed(me->d_lhs->d_type.data());
+        if( tl->getTag() == Thing::T_Array )
+        {
+            Type* tr = derefed(me->d_rhs->d_type.data());
+            bool lwide, rwide;
+            if( tl->isText(&lwide) && tr->isText(&rwide) )
+            {
+                Q_ASSERT( !tl->isChar() );
+                b << "OBX$StrCopy(&";
+                renderArg(tl, me->d_lhs.data(),false);
+                b << "," << int(lwide) << ",&";
+                renderArg(tl, me->d_rhs.data(),false);
+                b << "," << int(rwide) << ")";
+            }else
+            {
+                b << "OBX$ArrCopy(&";
+                renderArg(tl, me->d_lhs.data(),false);
+                b << ",&";
+                renderArg(tl, me->d_rhs.data(),false);
+                b << ",";
+                int dims;
+                Type* at = cast<Array*>(tl)->getTypeDim(dims);
+                b << dims << ",";
+                b << "sizeof(" << formatType(at) << ")";
+                b << ")";
+            }
+        }else
+        {
+            me->d_lhs->accept(this);
+            b << " = ";
+            renderArg(tl, me->d_rhs.data(),false);
+        }
+        b << ";" << endl;
+    }
+
+    void visit( Call* me )
+    {
+        Q_ASSERT( me->d_what );
+        b << ws();
+        me->d_what->accept(this);
+        b << ";" << endl;
+    }
+
+    void visit( Exit*)
+    {
+        b << ws() << "break;" << endl; // since we don't use switch this doesn't colide with switch/break.
+    }
+
+    void visit( Return* me)
+    {
+        Q_ASSERT( curProc );
+        b << ws() << "return ";
+        if( me->d_what )
+            renderArg( curProc->getProcType()->d_return.data(), me->d_what.data(), false );
+        b << ";" << endl;
+    }
+
+    void visit( CaseStmt* me)
+    {
+        // NOTE: identical with CilGen!
+
+        // TODO: else not yet handled; if else missing then abort if no case hit
+        if( !me->d_else.isEmpty() )
+            qWarning() << "CASE ELSE not yet implemented" << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
+        if( me->d_typeCase )
+        {
+            // first rewrite the AST with 'if' instead of complex 'case'
+
+            if( me->d_cases.isEmpty() )
+                return;
+
+            Ref<IfLoop> ifl = new IfLoop();
+            ifl->d_op = IfLoop::IF;
+            ifl->d_loc = me->d_loc;
+
+            for( int i = 0; i < me->d_cases.size(); i++ )
+            {
+                const CaseStmt::Case& c = me->d_cases[i];
+
+                Q_ASSERT( c.d_labels.size() == 1 );
+
+                Ref<BinExpr> eq = new BinExpr();
+                eq->d_op = BinExpr::IS;
+                eq->d_lhs = me->d_exp;
+                eq->d_rhs = c.d_labels.first();
+                eq->d_loc = me->d_exp->d_loc;
+                eq->d_type = new BaseType(Type::BOOLEAN);
+
+                ifl->d_if.append(eq.data());
+                ifl->d_then.append( c.d_block );
+            }
+
+            // and now generate code for the if
+            ifl->accept(this);
+        }
+        else
+        {
+            // first rewrite the AST with 'if' instead of complex 'case'
+
+            Ref<IfLoop> ifl = new IfLoop();
+            ifl->d_op = IfLoop::IF;
+            ifl->d_loc = me->d_loc;
+
+            Ref<BaseType> boolean = new BaseType(Type::BOOLEAN);
+
+            for( int i = 0; i < me->d_cases.size(); i++ )
+            {
+                const CaseStmt::Case& c = me->d_cases[i];
+
+                QList< Ref<Expression> > ors;
+                for( int j = 0; j < c.d_labels.size(); j++ )
+                {
+                    Expression* l = c.d_labels[j].data();
+                    // TODO: avoid redundant evaluations using temp vars
+                    bool done = false;
+                    if( l->getTag() == Thing::T_BinExpr )
+                    {
+                        BinExpr* bi = cast<BinExpr*>( l );
+                        if( bi->d_op == BinExpr::Range )
+                        {
+                            Ref<BinExpr> _and = new BinExpr();
+                            _and->d_op = BinExpr::AND;
+                            _and->d_loc = l->d_loc;
+                            _and->d_type = boolean.data();
+
+                            Ref<BinExpr> lhs = new BinExpr();
+                            lhs->d_op = BinExpr::GEQ;
+                            lhs->d_lhs = me->d_exp;
+                            lhs->d_rhs = bi->d_lhs;
+                            lhs->d_loc = l->d_loc;
+                            lhs->d_type = boolean.data();
+
+                            Ref<BinExpr> rhs = new BinExpr();
+                            rhs->d_op = BinExpr::LEQ;
+                            rhs->d_lhs = me->d_exp;
+                            rhs->d_rhs = bi->d_rhs;
+                            rhs->d_loc = l->d_loc;
+                            rhs->d_type = boolean.data();
+
+                            _and->d_lhs = lhs.data();
+                            _and->d_rhs = rhs.data();
+
+                            ors << _and.data();
+                            done = true;
+                        }
+                    }
+                    if( !done )
+                    {
+                        Ref<BinExpr> eq = new BinExpr();
+                        eq->d_op = BinExpr::EQ;
+                        eq->d_lhs = me->d_exp;
+                        eq->d_rhs = l;
+                        eq->d_loc = l->d_loc;
+                        eq->d_type = boolean.data();
+
+                        ors << eq.data();
+                    }
+                }
+                Q_ASSERT( !ors.isEmpty() );
+                if( ors.size() == 1 )
+                    ifl->d_if.append( ors.first() );
+                else
+                {
+                    Q_ASSERT( ors.size() > 1 );
+                    Ref<BinExpr> bi = new BinExpr();
+                    bi->d_op = BinExpr::OR;
+                    bi->d_lhs = ors[0];
+                    bi->d_rhs = ors[1];
+                    bi->d_loc = ors[1]->d_loc;
+                    bi->d_type = boolean.data();
+                    for( int i = 2; i < ors.size(); i++ )
+                    {
+                        Ref<BinExpr> tmp = new BinExpr();
+                        tmp->d_op = BinExpr::OR;
+                        tmp->d_lhs = bi.data();
+                        tmp->d_type = boolean.data();
+                        bi = tmp;
+                        bi->d_rhs = ors[i];
+                        bi->d_loc = ors[i]->d_loc;
+                    }
+                    ifl->d_if.append( bi.data() );
+                }
+
+                ifl->d_then.append( c.d_block );
+            }
+
+            // and now generate code for the if
+            ifl->accept(this);
+        }
+    }
+
+    void emitIf( IfLoop* me)
+    {
+        b << ws() << "if( ";
+        me->d_if[0]->accept(this);
+        b << " ) {" << endl;
+        level++;
+        for( int i = 0; i < me->d_then[0].size(); i++ )
+            emitStatement(me->d_then[0][i].data());
+        level--;
+        b << ws() << "} ";
+        for( int i = 1; i < me->d_if.size(); i++ ) // ELSIF
+        {
+            b << "else if( ";
+            me->d_if[i]->accept(this);
+            b << " ) {" << endl;
+            level++;
+            for( int j = 0; j < me->d_then[i].size(); j++ )
+                emitStatement(me->d_then[i][j].data());
+            level--;
+            b << ws() << "} ";
+        }
+        if( !me->d_else.isEmpty() ) // ELSE
+        {
+            b << "else {" << endl;
+            level++;
+            for( int j = 0; j < me->d_else.size(); j++ )
+                emitStatement(me->d_else[j].data());
+            level--;
+            b << ws() << "}";
+        }
+        b << endl;
+    }
+
+    void visit( IfLoop* me)
+    {
+        switch( me->d_op )
+        {
+        case IfLoop::IF:
+            emitIf(me);
+            break;
+        case IfLoop::WHILE:
+            {
+                // NOTE: identical with CilGen!
+                // substitute by primitive statements
+                Ref<IfLoop> loop = new IfLoop();
+                loop->d_op = IfLoop::LOOP;
+                loop->d_loc = me->d_loc;
+
+                Ref<IfLoop> conds = new IfLoop();
+                conds->d_op = IfLoop::IF;
+                conds->d_loc = me->d_loc;
+
+                conds->d_if = me->d_if;
+                conds->d_then = me->d_then;
+
+                Q_ASSERT( me->d_else.isEmpty() );
+                Ref<Exit> ex = new Exit();
+                ex->d_loc = me->d_loc;
+                conds->d_else << ex.data();
+
+                loop->d_then << ( StatSeq() << conds.data() );
+
+                loop->accept(this); // now render
+            }
+            break;
+        case IfLoop::REPEAT:
+            {
+                b << ws() << "do {" << endl;
+                level++;
+                for( int i = 0; i < me->d_then.first().size(); i++ )
+                    emitStatement(me->d_then.first()[i].data());
+                level--;
+                b <<  ws() << "}while(!(";
+                me->d_if[0]->accept(this);
+                b << "));" << endl;
+            }
+            break;
+        case IfLoop::WITH:
+            {
+                // if guard then statseq elsif guard then statseq else statseq end
+                // guard ::= lhs IS rhs
+                emitIf(me);
+            }
+            break;
+        case IfLoop::LOOP:
+            {
+                b << ws() << "while(1) {" << endl;
+                level++;
+                for( int i = 0; i < me->d_then.first().size(); i++ )
+                    emitStatement(me->d_then.first()[i].data());
+                level--;
+                b << ws() << "}" << endl;
+            }
+            break;
+        }
+    }
+
+    void visit( ForLoop* me)
+    {
+        // NOTE: identical with CilGen!
+
+        // i := from;
+        // WHILE i <= to DO statements; i := i + by END
+        // WHILE i >= to DO statements; i := i + by END
+
+        Ref<Assign> a = new Assign();
+        a->d_loc = me->d_loc;
+        a->d_lhs = me->d_id;
+        a->d_rhs = me->d_from;
+
+        Ref<IfLoop> loop = new IfLoop();
+        loop->d_loc = me->d_loc;
+        loop->d_op = IfLoop::WHILE;
+
+        Ref<BinExpr> cond = new BinExpr();
+        cond->d_loc = me->d_loc;
+        if( me->d_byVal.toInt() > 0 )
+            cond->d_op = BinExpr::LEQ;
+        else
+            cond->d_op = BinExpr::GEQ;
+        cond->d_lhs = me->d_id;
+        cond->d_rhs = me->d_to;
+        cond->d_type = me->d_id->d_type.data();
+        loop->d_if.append( cond.data() );
+
+        loop->d_then.append( me->d_do );
+
+        Ref<BinExpr> add = new BinExpr();
+        add->d_loc = me->d_loc;
+        add->d_op = BinExpr::ADD;
+        add->d_lhs = me->d_id;
+        add->d_rhs = me->d_by;
+        add->d_type = me->d_by->d_type;
+
+        Ref<Assign> a2 = new Assign();
+        a2->d_loc = me->d_loc;
+        a2->d_lhs = me->d_id;
+        a2->d_rhs = add.data();
+
+        loop->d_then.back().append( a2.data() );
+
+        a->accept(this);
+        loop->accept(this);
+    }
+
+    void visit( LocalVar* ) { Q_ASSERT(false); }
+    void visit( Const* ) { Q_ASSERT(false); }
+    void visit( Array* ) { Q_ASSERT(false); }
+    void visit( GenericName* )  { Q_ASSERT(false); }
+    void visit( NamedType* ) { Q_ASSERT(false); }
+    void visit( Import* ) { Q_ASSERT(false); }
+    void visit( BuiltIn* ) { Q_ASSERT(false); }
     void visit( Pointer* ) { Q_ASSERT(false); }
     void visit( Record* ) { Q_ASSERT(false); }
     void visit( ProcType* ) { Q_ASSERT(false); }
@@ -631,28 +1995,23 @@ struct ObxCGenImp : public AstVisitor
     void visit( Enumeration* ) { Q_ASSERT(false); }
     void visit( Parameter* ) { Q_ASSERT(false); }
     void visit( BaseType* ) { Q_ASSERT(false); }
-
 };
 
-static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream* cout )
+static bool copyFile( const QDir& outDir, const QByteArray& name )
 {
-#if 0 // TODO
-    QFile f( QString(":/scripts/Dll/%1.dll" ).arg(name.constData() ) );
+    QFile f( QString(":/scripts/%1" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
     {
         qCritical() << "unknown lib" << name;
         return false;
     }
-    QFile out( outDir.absoluteFilePath(name + ".dll") );
+    QFile out( outDir.absoluteFilePath(name) );
     if( !out.open(QIODevice::WriteOnly) )
     {
         qCritical() << "cannot open for writing" << out.fileName();
         return false;
     }
     out.write( f.readAll() );
-    if( cout )
-        *cout << "rm \"" << name << ".dll\"" << endl;
-#endif
     return true;
 }
 
@@ -753,20 +2112,22 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
             qCritical() << "could not open for writing" << f.fileName();
     }
 
-    const bool log = true;
+#if 0
     if( pro->useBuiltInOakwood() ) // TODO
     {
-        copyLib(outDir,"In",log?&cout:0);
-        copyLib(outDir,"Out",log?&cout:0);
-        copyLib(outDir,"Files",log?&cout:0);
-        copyLib(outDir,"Input",log?&cout:0);
-        copyLib(outDir,"Math",log?&cout:0);
-        copyLib(outDir,"MathL",log?&cout:0);
-        copyLib(outDir,"Strings",log?&cout:0);
-        copyLib(outDir,"Coroutines",log?&cout:0);
-        copyLib(outDir,"XYplane",log?&cout:0);
+        copyFile(outDir,"In");
+        copyFile(outDir,"Out");
+        copyFile(outDir,"Files");
+        copyFile(outDir,"Input");
+        copyFile(outDir,"Math");
+        copyFile(outDir,"MathL");
+        copyFile(outDir,"Strings");
+        copyFile(outDir,"Coroutines");
+        copyFile(outDir,"XYplane");
     }
-    copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
+    copyFile(outDir,"OBX.Runtime.h");
+    copyFile(outDir,"OBX.Runtime.c");
+#endif
 
     bout.flush();
     cout.flush();
