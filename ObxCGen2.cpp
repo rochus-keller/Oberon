@@ -114,6 +114,7 @@ struct ObxCGenCollector : public AstVisitor
     }
 };
 
+#if 0
 struct ObxCGenCollector2 : public AstVisitor
 {
     QSet<ArgExpr*> boundCalls;
@@ -183,7 +184,7 @@ struct ObxCGenCollector2 : public AstVisitor
             boundCalls.insert(me); // applies to both named methods and delegates (fp-object aggregate)
     }
 };
-
+#endif
 
 struct ObxCGenImp : public AstVisitor
 {
@@ -194,7 +195,9 @@ struct ObxCGenImp : public AstVisitor
     bool ownsErr;
     bool debug; // generate line pragmas
     quint32 anonymousDeclNr; // starts with one, zero is an invalid slot
+#if 0
     QHash<ArgExpr*,int> temps;
+#endif
     Procedure* curProc;
 
     ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),curProc(0){}
@@ -422,9 +425,6 @@ struct ObxCGenImp : public AstVisitor
                 if this information is in the array object instead we get a problem when passing either a value array
                 (which has no size info) or a dereferenced array pointer (whose object has size info) is passed
                 to a var parameter (the body of the proc has no clue which kind was passed).
-
-                TODO: passing arrays by value to a function needs special treatment; the formal param is still a pointer
-                even if declared as an open or fixed size array, so the caller has to make a copy and possibly remove it
             */
             {
                 Array* a = cast<Array*>(t);
@@ -639,7 +639,9 @@ struct ObxCGenImp : public AstVisitor
         b << "static int initDone$ = 0;" << endl;
         b << "void " << name << "$init$(void) {" << endl;
 
+#if 0
         temps.clear();
+#endif
         level++;
         b << ws() << "if(initDone$) return; else initDone$ = 1;" << endl;
         foreach( const Ref<Named>& n, me->d_order )
@@ -656,6 +658,7 @@ struct ObxCGenImp : public AstVisitor
                 }
             }
         }
+        b << ws() << "void* $;" << endl;
 
         foreach( const Ref<Statement>& s, me->d_body )
         {
@@ -708,6 +711,8 @@ struct ObxCGenImp : public AstVisitor
 
     void emitStatement(Statement* s)
     {
+#if 0
+        // do it with just one void* instead of a lot of new vars
         ObxCGenCollector2 v;
         s->accept(&v);
         foreach( ArgExpr* a, v.boundCalls )
@@ -724,13 +729,16 @@ struct ObxCGenImp : public AstVisitor
                 b << ws() << "struct " << classRef(p->d_receiverRec) << "* $" << temp << ";" << endl;
             }
         }
+#endif
         s->accept(this);
     }
 
     void visit( Procedure* me)
     {
         curProc = me;
+#if 0
         temps.clear();
+#endif
 
         ProcType* pt = me->getProcType();
         QByteArray name = dottedName(me);
@@ -781,6 +789,7 @@ struct ObxCGenImp : public AstVisitor
                 break;
             }
         }
+        b << ws() << "void* $;" << endl;
 
         foreach( const Ref<Statement>& s, me->d_body )
         {
@@ -1054,7 +1063,7 @@ struct ObxCGenImp : public AstVisitor
                     if( td->getBaseType() <= Type::INTEGER )
                         b << "\"%d\\n\"";
                     else
-                        b << "\"%ld\\n\"";
+                        b << "\"%lld\\n\"";
                 }else if( td->isReal() )
                     b << "\"%f\\n\"";
                 else if( td->isSet() )
@@ -1164,8 +1173,8 @@ struct ObxCGenImp : public AstVisitor
                 {
                     Array* a = cast<Array*>(td);
                     QList<Array*> dims = a->getDims();
-                    b << "OBX$NewArr(&"; // does also memset
-                    renderArg(0,ae->d_args.first().data(),false);
+                    b << "OBX$NewArr("; // does also memset
+                    renderArg(0,ae->d_args.first().data(),true);
                     b << ", " << dims.size() << ", sizeof(" << formatType(dims.last()->d_type.data()) << ")";
                     for( int i = 0; i < dims.size(); i++ )
                     {
@@ -1186,9 +1195,11 @@ struct ObxCGenImp : public AstVisitor
                     Q_ASSERT( ae->d_args.size() == 1 );
 
                     renderArg(0,ae->d_args.first().data(),false);
-                    b << " = OBX$NewRec(sizeof(" << formatType(td) << "),";
-                    b << ws() << classRef(t) << "$class$";
-                    b << ");";
+                    b << " = ";
+                    b << "(" << formatType(td) << "*) ";
+                    b << "OBX$NewRec(sizeof(" << formatType(td) << "),&";
+                    b << classRef(td) << "$class$";
+                    b << ")";
                 }
             }
             break;
@@ -1198,13 +1209,100 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
-    void renderArg( Type* lhs, Expression* rhs, bool byRef )
+    inline static bool hasDynLen(const QList<Array*>& dims )
+    {
+        for( int i = 0; i < dims.size(); i++ )
+        {
+            if( dims[i]->d_lenExpr.isNull() )
+                return true;
+        }
+        return false;
+    }
+
+    void renderDeref(Expression* arrDesig, const QList<ArgExpr*>& idxDims, bool addrOf )
+    {
+        // Partly index an array so the result is a subset array, not a scalar
+
+        Type* td = derefed(arrDesig->d_type.data());
+        Q_ASSERT( td->getTag() == Thing::T_Array );
+        Array* a = cast<Array*>(td);
+        QList<Array*> allDims = a->getDims();
+        const bool dynLen = hasDynLen(allDims);
+
+        if( dynLen )
+        {
+            // take the address of the base OBX$Array$x struct so it's fields can be transferred to the slice
+            // this results in a sequential evaluation expression in the kind of
+            // ($=&OBX$Array$x, &(OBX$Array$y){ $->$1, ... })
+            b << "($=(";
+            renderArg(0,arrDesig,true);
+            b << "),";
+        }
+        if( addrOf )
+            b << "&";
+        b << "(" << arrayType(allDims.size()-idxDims.size(), arrDesig->d_loc) << "){";
+        for(int i = 0; i < (allDims.size()-idxDims.size()); i++ )
+        {
+            if( allDims[i+idxDims.size()]->d_lenExpr )
+                b << allDims[i+idxDims.size()]->d_len << ",";
+            else
+            {
+                Q_ASSERT(dynLen);
+                b << "((" << arrayType(allDims.size(),arrDesig->d_loc) << "*)$)->$" << i+idxDims.size()+1 << ",";
+            }
+        }
+        b << "1,"; // 1 because we point in a slice here, not the start of the array
+        b << "&((" << formatType(allDims.last()->d_type.data()) << "*)"; // cast to a 1d array because we only index one dim
+             // addrof result required because we need address of array, i.e. &array[index]
+        if( dynLen )
+            b  << "((" << arrayType(allDims.size(),arrDesig->d_loc) << "*)$)->$a)[";
+        else
+        {
+            b << "(";
+            renderArg(0,arrDesig,false);
+            b << ").$a)[";
+        }
+        for(int dim = 0; dim < idxDims.size(); dim++ )
+        {
+            // TODO: check
+            // NOTE: similar to visit(ArgExpr*), but here we don't need the +d0 part, only the ( D0 * d1 )... parts
+            // (d1 * D2 * D3 ... * Dn) + (d2 * D3 * D4 ... * Dn) + (d3 * D4 ... * Dn) ... + (dn-1 * Dn) + dn
+            if( dim != 0 )
+                b << "+";
+            for( int i = dim; i < idxDims.size(); i++ )
+            {
+                if( i != dim )
+                    b << "*";
+                if( i == dim )
+                {
+                    Q_ASSERT( idxDims[i]->d_args.size() == 1 );
+                    idxDims[i]->d_args.first()->accept(this);
+                }else
+                {
+                    if( allDims[i]->d_lenExpr )
+                        b << allDims[i]->d_len;
+                    else
+                    {
+                        Q_ASSERT(dynLen);
+                        b << "((" << arrayType(allDims.size(),arrDesig->d_loc) << "*)$)->$" << i+1;
+                    }
+                }
+            }
+        }
+        b << "]}";
+        if( dynLen )
+            b << ")";
+    }
+
+    void renderArg( Type* lhs, Expression* rhs, bool addrOf )
     {
         // this method takes care that all arrays are rendered as OBX$Array
         Type* tf = derefed(lhs);
         Type* ta = derefed(rhs->d_type.data());
         if( ta->isString() )
         {
+            if( addrOf )
+                b << "&";
             if( tf && tf->isChar() )
             {
                 if( ta->getBaseType() == Type::STRING )
@@ -1222,11 +1320,13 @@ struct ObxCGenImp : public AstVisitor
                 rhs->accept(this);
         }else if( ta->getTag() == Thing::T_Array )
         {
-            // NOTE: a copy if not passByRef done in procedure
+            // NOTE: copy if not passByRef done in procedure
             const int tag = rhs->getTag();
             if( rhs->getUnOp() == UnExpr::DEREF )
             {
                 UnExpr* e = cast<UnExpr*>(rhs);
+                if( addrOf )
+                    b << "&";
                 e->d_sub->accept(this); // the thing before DEREF is a pointer
             }else if( tag == Thing::T_BinExpr // happens if strings are added
                       || tag == Thing::T_Literal // a string or bytearray literal is always OBX$Array
@@ -1234,43 +1334,42 @@ struct ObxCGenImp : public AstVisitor
                       || ( rhs->getIdent() && rhs->getIdent()->getTag() == Thing::T_Parameter ) // a param is always OBX$Array
                       )
             {
+                if( addrOf )
+                    b << "&";
                 rhs->accept(this);
             }else if( rhs->getUnOp() == UnExpr::IDX )
             {
                 // a n-dim array is partly indexed, i.e. not to the element, but an m-dim array of elements
-                UnExpr* e = cast<UnExpr*>(rhs);
-                int dim = 1;
+                ArgExpr* e = cast<ArgExpr*>(rhs);
+                QList<ArgExpr*> idx;
+                idx.prepend(e);
                 while( e->d_sub->getUnOp() == UnExpr::IDX )
                 {
-                    e = cast<UnExpr*>(e->d_sub.data());
-                    dim++;
+                    e = cast<ArgExpr*>(e->d_sub.data());
+                    idx.prepend(e);
                 }
-                Type* td = derefed(e->d_sub->d_type.data());
-                Q_ASSERT( td->getTag() == Thing::T_Array );
-                Array* a = cast<Array*>(td);
-                QList<Array*> dims = a->getDims();
-                b << "(" << arrayType(dims.size()-dim, rhs->d_loc) << "){";
-                for(int i = 0; i < (dims.size()-dim); i++ )
-                    b << dims[i+dim]->d_len << ","; // TODO: dynamic len
-                b << "1,&"; // 1 because we point in a slice here, not the start of the array
-                rhs->accept(this); // rhs because we want all IDX up to here rendered
-                b << "}";
+                renderDeref(e->d_sub.data(),idx,addrOf);
             }else
             {
                 Q_ASSERT(tag == Thing::T_IdentLeaf || Thing::T_IdentSel );
                 // It's a array value, convert it to an array pointer
                 Array* a = cast<Array*>(ta);
                 QList<Array*> dims = a->getDims();
+                if( addrOf )
+                    b << "&";
                 b << "(" << arrayType(dims.size(), rhs->d_loc) << "){";
                 for(int i = 0; i < dims.size(); i++ )
-                    b << dims[i]->d_len << ","; // TODO: dynamic len
-                b << "1,&";
+                {
+                    Q_ASSERT( dims[i]->d_lenExpr ); // array values always have static lens
+                    b << dims[i]->d_len << ",";
+                }
+                b << "1,";
                 rhs->accept(this);
                 b << "}";
             }
         }else
         {
-            if( byRef )
+            if( addrOf )
                 b << "&";
             rhs->accept(this);
         }
@@ -1320,7 +1419,9 @@ struct ObxCGenImp : public AstVisitor
         ProcType* pt = cast<ProcType*>( subT );
         Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
 
+#if 0
         int temp = 0;
+#endif
         if( pt->d_typeBound && func && !superCall ) // TODO: delegates
         {
             //  ( pointer ^ | record ) .method (args)
@@ -1328,6 +1429,7 @@ struct ObxCGenImp : public AstVisitor
             IdentSel* method = cast<IdentSel*>(me->d_sub.data());
             Type* td = derefed(method->d_sub->d_type.data());
             Q_ASSERT(td && td->getTag() == Thing::T_Record);
+#if 0
             temp = temps[me];
             Q_ASSERT(temp);
             b << "($" << temp << " = ";
@@ -1338,6 +1440,16 @@ struct ObxCGenImp : public AstVisitor
             b << "))->class$->" << escape( method->getIdent()->d_name) << "($" << temp << ", ";
             emitActuals(pt,me);
             b << ")";
+#else
+            b << "($" << " = ";
+            if( method->d_sub->getUnOp() != UnExpr::DEREF )
+                b << "&";
+            b << "(";
+            method->d_sub->accept(this);
+            b << "))->class$->" << escape( method->getIdent()->d_name) << "($" << ", ";
+            emitActuals(pt,me);
+            b << ")";
+#endif
         }else
         {
             me->d_sub->accept(this);
@@ -1355,37 +1467,65 @@ struct ObxCGenImp : public AstVisitor
             {
                 Q_ASSERT( me->d_sub );
                 Q_ASSERT( me->d_args.size() == 1 );
-#if 0
-                Type* subT = derefed(me->d_sub->d_type.data());
-                Q_ASSERT( subT && subT->getTag() == Thing::T_Array);
-                b << "(";
-                renderArg(0,me->d_sub.data(),false);
-                b << ").$a"; // TODO: cast? shortcut if array value?
-                b << "[";
-                me->d_args.first()->accept(this);
-                b << "]";
-#else
                 ArgExpr* e = me;
-                QList<ArgExpr*> dims;
-                dims.prepend(e);
+                QList<ArgExpr*> idx;
+                idx.prepend(e);
                 while( e->d_sub->getUnOp() == UnExpr::IDX )
                 {
                     e = cast<ArgExpr*>(e->d_sub.data());
-                    dims.prepend(e);
+                    idx.prepend(e);
                 }
                 Type* td = derefed(e->d_sub->d_type.data());
                 Q_ASSERT( td->getTag() == Thing::T_Array );
-                b << "((" << formatType(me->d_type.data()) << QByteArray(dims.size(),'*') << ")(";
-                renderArg(0,e->d_sub.data(),false);
-                b << ").$a)";
-                for(int i = 0; i < dims.size(); i++ )
+                QList<Array*> dims = cast<Array*>(td)->getDims();
+                const bool dynLen = hasDynLen(dims);
+                if( dynLen )
                 {
-                    b << "[";
-                    Q_ASSERT( dims[i]->d_args.size() == 1 );
-                    dims[i]->d_args.first()->accept(this);
-                    b << "]";
+                    // take the address of the base OBX$Array$x struct so it's fields can be used
+                    b << "*($=(";
+                    renderArg(0,e->d_sub.data(),true);
+                    b << "),&";
                 }
-#endif
+                b << "((" << formatType(me->d_type.data()) << "*)"; // cast to a 1d array because we only index one dim
+                if( dynLen )
+                    b << "((" << arrayType(dims.size(),e->d_sub->d_loc) << "*)$)->$a)[";
+                else
+                {
+                    b << "(";
+                    renderArg(0,e->d_sub.data(),false);
+                    b << ").$a)[";
+                }
+                // C uses row-col order, i.e. A[row][col]
+                for(int dim = 0; dim < idx.size(); dim++ )
+                {
+                    // sample for 3D (Dx dim width, dx index):
+                    // ( d0 * D1 * D2 ) + ( d1 * D2 ) + d2
+                    // (d1 * D2 * D3 ... * Dn) + (d2 * D3 * D4 ... * Dn) + (d3 * D4 ... * Dn) ... + (dn-1 * Dn) + dn
+                    if( dim != 0 )
+                        b << "+";
+                    for( int i = dim; i < idx.size(); i++ )
+                    {
+                        if( i != dim )
+                            b << "*";
+                        if( i == dim )
+                        {
+                            Q_ASSERT( idx[i]->d_args.size() == 1 );
+                            idx[i]->d_args.first()->accept(this);
+                        }else
+                        {
+                            if( dims[i]->d_lenExpr )
+                                b << dims[i]->d_len;
+                            else
+                            {
+                                Q_ASSERT(dynLen);
+                                b << "((" << arrayType(dims.size(),e->d_sub->d_loc) << "*)$)->$" << i+1;
+                            }
+                        }
+                    }
+                }
+                b << "]";
+                if( dynLen )
+                    b << ")";
             }
             break;
         case ArgExpr::CALL:
@@ -1422,11 +1562,11 @@ struct ObxCGenImp : public AstVisitor
 
     void emitStringOp( Type* lhs, Type* rhs, bool lwide, bool rwide, int op, BinExpr* e )
     {
-        b << "OBX$StrOp(&(";
-        renderArg(lhs,e->d_lhs.data(),false);
-        b << ")," << int(lwide) << ",&(";
-        renderArg(rhs,e->d_rhs.data(),false);
-        b << ")," << int(rwide) << ",";
+        b << "OBX$StrOp(";
+        renderArg(lhs,e->d_lhs.data(),true);
+        b << "," << int(lwide) << ",";
+        renderArg(rhs,e->d_rhs.data(),true);
+        b << "," << int(rwide) << ",";
         b << op << ")";
     }
 
@@ -1469,11 +1609,11 @@ struct ObxCGenImp : public AstVisitor
                 emitBinOp(me,"|");
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
             {
-                b << "OBX$StrJoin(&(";
-                renderArg(lhsT,me->d_lhs.data(),false);
-                b << ")," << int(lwide) << ",&(";
-                renderArg(rhsT,me->d_rhs.data(),false);
-                b << ")," << int(rwide) << ")";
+                b << "OBX$StrJoin(";
+                renderArg(lhsT,me->d_lhs.data(),true);
+                b << "," << int(lwide) << ",";
+                renderArg(rhsT,me->d_rhs.data(),true);
+                b << "," << int(rwide) << ")";
             }else
                 Q_ASSERT(false);
             break;
@@ -1653,17 +1793,17 @@ struct ObxCGenImp : public AstVisitor
             if( tl->isText(&lwide) && tr->isText(&rwide) )
             {
                 Q_ASSERT( !tl->isChar() );
-                b << "OBX$StrCopy(&";
-                renderArg(tl, me->d_lhs.data(),false);
-                b << "," << int(lwide) << ",&";
-                renderArg(tl, me->d_rhs.data(),false);
+                b << "OBX$StrCopy(";
+                renderArg(tl, me->d_lhs.data(),true);
+                b << "," << int(lwide) << ",";
+                renderArg(tl, me->d_rhs.data(),true);
                 b << "," << int(rwide) << ")";
             }else
             {
-                b << "OBX$ArrCopy(&";
-                renderArg(tl, me->d_lhs.data(),false);
-                b << ",&";
-                renderArg(tl, me->d_rhs.data(),false);
+                b << "OBX$ArrCopy(";
+                renderArg(tl, me->d_lhs.data(),true);
+                b << ",";
+                renderArg(tl, me->d_rhs.data(),true);
                 b << ",";
                 int dims;
                 Type* at = cast<Array*>(tl)->getTypeDim(dims);
