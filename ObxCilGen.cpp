@@ -2080,7 +2080,7 @@ struct ObxCilGenImp : public AstVisitor
                     line(ae->d_loc).bge_(posCase);
                 else
                     line(ae->d_loc).ble_(posCase); // if
-                ae->d_args.last()->accept(this); // then
+                ae->d_args.last()->accept(this); // then // TODO: use temps to avoid multiple evaluation
 
                 const int toEnd = emitter->newLabel();
                 line(ae->d_loc).br_(toEnd);

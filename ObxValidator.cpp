@@ -1021,7 +1021,7 @@ struct ValidatorImp : public AstVisitor
             if( !ok )
                 error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR parameter") );
             else
-                checkValidLhs(actual.data()); // TODO: does this replace all the above VAR rules?
+                checkValidLhs(actual.data());
         }
 
         const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";

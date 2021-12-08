@@ -199,14 +199,30 @@ struct ObxCGenImp : public AstVisitor
     QHash<ArgExpr*,int> temps;
 #endif
     Procedure* curProc;
+    Named* curVarDecl;
+    QSet<Record*> declToInline;
 
-    ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),curProc(0){}
+    ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),curProc(0),curVarDecl(0){}
 
     inline QByteArray ws() { return QByteArray(level*4,' '); }
 
     static QByteArray escape(const QByteArray& str)
     {
-        return str; // TODO avoid collision with C keywords
+        static QSet<QByteArray> keywords;
+        if( keywords.isEmpty() )
+        {
+            keywords << "auto" << "break" << "case" << "char" << "const" << "continue" << "default"
+                     << "do" << "double" << "else" << "enum" << "extern" << "float" << "for" << "goto"
+                     << "if" << "inline" << "int" << "long" << "register" << "restrict" << "return" << "short"
+                     << "signed" << "sizeof" << "static" << "struct" << "switch" << "typedef" << "union"
+                     << "unsigned" << "void" << "volatile" << "while" << "_Bool" << "_Complex" << "_Imaginary"
+
+                     << "assert" << "main";
+        }
+        if( keywords.contains(str) )
+            return str + "_"; // avoid collision with C keywords
+        else
+            return str;
     }
 
     static void dedication(QTextStream& out)
@@ -331,6 +347,7 @@ struct ObxCGenImp : public AstVisitor
             Pointer p;
             if( passByRef(pt->d_formals[i].data()) || td->getTag() == Thing::T_Array )
             {
+                // TODO: avoid passing by ref when IN with non-structured types
                 t = &p;
                 p.d_to = pt->d_formals[i]->d_type.data();
                 p.d_decl = pt->d_formals[i].data();
@@ -492,8 +509,26 @@ struct ObxCGenImp : public AstVisitor
             }
             break;
         case Thing::T_Record:
-            return ( t->d_union ? "union " : "struct " ) +
-                    classRef(cast<Record*>(t)) + ( !name.isEmpty() ? " " + name : "" );
+            {
+                // create a local dummy struct with the same memory layout as the original struct, but avoiding
+                // the declaration order deadlock caused by mutual dependency of generic modules with the ones
+                // where the instantiated types are declared
+                Record* r = cast<Record*>(t);
+                if( !thisMod->d_metaActuals.isEmpty() && curVarDecl && declToInline.contains(r) )
+                {
+                    QByteArray res = "struct /*" + classRef(r) + "*/ { ";
+                    if( !r->d_unsafe )
+                        res += "void* class$; ";
+                    QList<Field*> fields = r->getOrderedFields();
+                    foreach( Field* f, fields )
+                        res += formatType(f->d_type.data(), escape(f->d_name) ) + "; ";
+                    res += "}";
+                    return res + ( !name.isEmpty() ? " " + name : "" );
+                }else
+                    return ( t->d_union ? "union " : "struct " ) +
+                        classRef(r) + ( !name.isEmpty() ? " " + name : "" );
+            }
+            break;
         default:
             Q_ASSERT(false);
         }
@@ -546,10 +581,8 @@ struct ObxCGenImp : public AstVisitor
         b << ws() << "struct " << className << "$Class$ " << className << "$class$ = { " << endl;
         level++;
 
-        if( r->d_baseRec )
-            h << ws() << "struct " << classRef(r->d_baseRec) << "$Class$* super$;" << endl;
-        else
-            h << ws() << "void* super$;" << endl;
+        // we need a valid type in any case, thus use this type if no base rec
+        h << ws() << "struct " << classRef(r->d_baseRec ? r->d_baseRec : r ) << "$Class$* super$;" << endl;
 
         if( r->d_baseRec )
             b << ws() << "&" << classRef(r->d_baseRec) << "$class$," << endl;
@@ -588,7 +621,8 @@ struct ObxCGenImp : public AstVisitor
         h << "#include \"OBX.Runtime.h\"" << endl;
 
         dedication(b);
-        b << "#include \"" << thisMod->getName() << ".h\"" << endl << endl;
+
+        b << "#include \"" << thisMod->getName() << ".h\"" << endl;
 
         ObxCGenCollector co;
         me->accept(&co);
@@ -612,6 +646,30 @@ struct ObxCGenImp : public AstVisitor
         }
         h << endl;
         h << "// Declaration of module " << me->getName() << endl << endl;
+
+        if( !me->d_metaActuals.isEmpty() )
+        {
+            QSet<Module*> imports;
+            for( int i = 0; i < me->d_metaActuals.size(); i++ )
+            {
+                Q_ASSERT( me->d_metaActuals[i]->getTag() == Thing::T_QualiType );
+                QualiType* t = cast<QualiType*>(me->d_metaActuals[i].data());
+                Named* n = t->d_quali->getIdent();
+                Q_ASSERT(n);
+                Module* m = n->getModule();
+                if( m ) // 0 in case of e.g. INTEGER
+                    imports.insert(m);
+                Type* td = t->derefed();
+                if( td->getTag() == Thing::T_Record )
+                {
+                    h << formatType(t) << ";" << endl;
+                    declToInline.insert(cast<Record*>(td));
+                }
+            }
+            foreach(Module* m, imports)
+                b << "#include \"" << m->getName() << ".h\"" << endl;
+        }
+        b << endl;
 
         if( !Record::calcDependencyOrder(co.allRecords).isEmpty() )
             err->error(Errors::Generator, thisMod->d_file, 1,1, // shouldn't acutally happen since caught by validator
@@ -644,6 +702,12 @@ struct ObxCGenImp : public AstVisitor
 #endif
         level++;
         b << ws() << "if(initDone$) return; else initDone$ = 1;" << endl;
+        foreach( Import* imp, me->d_imports )
+        {
+            if(imp->d_mod->d_synthetic )
+                continue; // ignore SYSTEM
+            b << ws() << moduleRef(imp->d_mod.data())  + "$init$();" << endl;
+        }
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Variable )
@@ -673,7 +737,9 @@ struct ObxCGenImp : public AstVisitor
 
     void visit( Field* me)
     {
+        curVarDecl = me;
         h << ws() << formatType(me->d_type.data(), escape(me->d_name) ) << ";" << endl;
+        curVarDecl = 0;
     }
 
     enum { NotStructured = 0, IsArrayPointer, IsRecord, IsArray };
@@ -702,11 +768,13 @@ struct ObxCGenImp : public AstVisitor
 
     void visit( Variable* me )
     {
+        curVarDecl = me;
         h << ws() << "extern " << formatType(me->d_type.data(), moduleRef(thisMod)+"$"+me->d_name ) << ";" << endl;
         b << ws() << formatType(me->d_type.data(), moduleRef(thisMod)+"$"+me->d_name );
         if( !isStructuredOrArrayPointer(me->d_type.data()) )
             b << " = 0";
         b << ";" << endl;
+        curVarDecl = 0;
     }
 
     void emitStatement(Statement* s)
@@ -755,7 +823,9 @@ struct ObxCGenImp : public AstVisitor
             {
             case Thing::T_LocalVar:
                 {
+                    curVarDecl = n.data();
                     b << ws() << formatType( n->d_type.data(), escape(n->d_name) );
+                    curVarDecl = 0;
                     const int f = isStructuredOrArrayPointer(n->d_type.data() );
                     if( !f )
                         b << " = 0";
@@ -770,7 +840,9 @@ struct ObxCGenImp : public AstVisitor
                 {
                     Parameter* p = cast<Parameter*>(n.data());
                     Type* td = derefed(p->d_type.data());
-                    if( !p->d_var && td->getTag() == Thing::T_Array )
+                    if( p->d_receiver )
+                        b << ws() << formatType(me->d_receiverRec) << "* this$ = " << escape(p->d_name) << ";" << endl;
+                    else if( !p->d_var && td->getTag() == Thing::T_Array )
                     {
                         // array passed by value; make a copy of it
                         Array* a = cast<Array*>(td);
@@ -883,6 +955,10 @@ struct ObxCGenImp : public AstVisitor
         if( id == 0 )
             return; // already reported
 
+        const bool doCast = hasGenericRecType(id);
+        if( doCast )
+            b << "(*(" << formatType(id->d_type.data()) << "*)&";
+
         switch( id->getTag() )
         {
         case Thing::T_Const:
@@ -891,39 +967,61 @@ struct ObxCGenImp : public AstVisitor
                 Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
                 emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
             }
-            return;
+            break;
         case Thing::T_Import:
             // NOP
-            return;
+            break;
         case Thing::T_Variable:
             b << dottedName(id);
-            return;
+            break;
         case Thing::T_LocalVar:
-        case Thing::T_Parameter:
             b << escape(id->d_name);
-            return;
+            break;
+        case Thing::T_Parameter:
+            {
+                Parameter* p = cast<Parameter*>(id);
+                Type* td = derefed(me->d_type.data() );
+                const bool doDeref = p->d_var && td->getTag() != Thing::T_Array;
+                if( doDeref )
+                    b << "(*";
+                if( p->d_receiver )
+                    b << "this$";
+                else
+                    b << escape(id->d_name);
+                if( doDeref )
+                    b << ")";
+            }
+            break;
         case Thing::T_NamedType:
             // NOP
-            return;
+            break;
         case Thing::T_Procedure:
             b << dottedName(id);
-            return;
+            break;
         case Thing::T_BuiltIn:
             // NOP
-            return;
+            break;
         default:
             qDebug() << "ERR" << id->getTag() << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col;
             Q_ASSERT( false );
             break;
         }
-        Q_ASSERT( false );
+        if( doCast )
+            b << ")";
     }
 
-    static inline bool derefOrVarParam(Expression* sub)
+    static inline bool hasGenericRecType(Named* id)
     {
-        return sub->getUnOp() == UnExpr::DEREF ||
-                            ( sub->getIdent() && sub->getIdent()->getTag() == Thing::T_Parameter &&
-                              cast<Parameter*>(sub->getIdent())->d_var );
+        Q_ASSERT(id);
+        Type* t = id->d_type.data(); // id can be anything, including import
+        if( t && t->getTag() == Thing::T_QualiType )
+        {
+            QualiType* qt = cast<QualiType*>(t);
+            Named* n = qt->d_quali->getIdent();
+            Type* td = derefed(t);
+            return n && n->getTag() == Thing::T_GenericName && td->getTag() == Thing::T_Record;
+        }
+        return false;
     }
 
     void visit( IdentSel* me)
@@ -933,23 +1031,29 @@ struct ObxCGenImp : public AstVisitor
         Named* subId = me->d_sub->getIdent();
         const bool derefImport = subId && subId->getTag() == Thing::T_Import;
 
-        me->d_sub->accept(this);
-
         Named* id = me->getIdent();
         Q_ASSERT( id );
+        const bool doCast = hasGenericRecType(id);
+        if( doCast )
+        {
+            // qDebug() << thisMod->getName() << id->d_name << me->d_loc.d_row << me->d_loc.d_col;
+            b << "(*(" << formatType(id->d_type.data()) << "*)&";
+        }
+
+        me->d_sub->accept(this);
 
         switch( id->getTag() )
         {
         case Thing::T_BuiltIn:
             // NOP
-            return;
+            break;
         case Thing::T_Procedure:
             {
                 Procedure* p = cast<Procedure*>(id);
                 if( !p->d_receiver.isNull() )
                 {
                     // TODO: desig to bound procedures need special treatment
-                    if( derefOrVarParam(me->d_sub.data()) )
+                    if( me->d_sub->getUnOp() == UnExpr::DEREF )
                         b << "->";
                     else
                         b << ".";
@@ -960,21 +1064,21 @@ struct ObxCGenImp : public AstVisitor
                     b << dottedName(id);
                 }
             }
-            return;
+            break;
         case Thing::T_Variable:
             Q_ASSERT( derefImport );
             b << dottedName(id);
-            return;
+            break;
         case Thing::T_Field:
-            if( derefOrVarParam(me->d_sub.data()) )
+            if( me->d_sub->getUnOp() == UnExpr::DEREF )
                 b << "->";
             else
                 b << ".";
             b << escape(id->d_name);
-            return;
+            break;
         case Thing::T_NamedType:
             // NOP
-            return;
+            break;
         case Thing::T_Const:
             {
                 Q_ASSERT( derefImport );
@@ -982,13 +1086,14 @@ struct ObxCGenImp : public AstVisitor
                 Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
                 emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
             }
-            return;
+            break;
         default:
             qDebug() << "ERR" << thisMod->d_name << id->getTag() << me->d_loc.d_row << me->d_loc.d_col;
             Q_ASSERT( false );
             break;
         }
-        Q_ASSERT( false );
+        if( doCast )
+            b << ")";
     }
 
     void visit( UnExpr* me)
@@ -1034,6 +1139,36 @@ struct ObxCGenImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::PACK:
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+
+                b << "OBX$Pack32(";
+                renderArg(ae->d_args.first()->d_type.data(), ae->d_args.first().data(),true);
+                b << ",";
+                ae->d_args.last()->accept(this);
+                b << ")";
+           }
+            break;
+        case BuiltIn::UNPK:
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+
+                b << "OBX$Unpack32(";
+                renderArg(ae->d_args.first()->d_type.data(), ae->d_args.first().data(),true);
+                b << ",";
+                renderArg(ae->d_args.last()->d_type.data(), ae->d_args.last().data(),true);
+                b << ")";
+             }
+            break;
+        case BuiltIn::ASSERT:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() ); // TODO: by now second optional arg ignored!
+                b << "assert(";
+                ae->d_args.first()->accept(this);
+                b << ")";
+            }
+            break;
         case BuiltIn::PRINTLN:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
@@ -1042,6 +1177,7 @@ struct ObxCGenImp : public AstVisitor
                 bool wide = false;
                 bool deref = false;
                 bool addr = false;
+                bool charcast = false;
                 if( td->isText(&wide) )
                 {
                     if( td->isChar() )
@@ -1057,6 +1193,7 @@ struct ObxCGenImp : public AstVisitor
                         else
                             b << "\"%s\\n\"";
                         deref = true;
+                        charcast = true;
                     }
                 }else if( td->isInteger() )
                 {
@@ -1098,6 +1235,13 @@ struct ObxCGenImp : public AstVisitor
                 b << ",";
                 if( addr )
                     b << "&";
+                if( charcast )
+                {
+                    if( wide )
+                        b << "(const wchar_t*)";
+                    else
+                        b << "(const char*)";
+                }
                 if( deref )
                     b << "(";
                 renderArg(td, ae->d_args.first().data(),false);
@@ -1108,29 +1252,23 @@ struct ObxCGenImp : public AstVisitor
             break;
         case BuiltIn::INC:
         case BuiltIn::DEC:
+            if( ae->d_args.size() == 1 )
             {
-                Ref<BinExpr> add = new BinExpr();
-                add->d_lhs = ae->d_args.first();
-                add->d_type = ae->d_args.first()->d_type;
-                add->d_loc = ae->d_args.first()->d_loc;
+                ae->d_args.first()->accept(this);
                 if( bi->d_func == BuiltIn::INC )
-                    add->d_op = BinExpr::ADD;
+                    b << "++";
                 else
-                    add->d_op = BinExpr::SUB;
-                if( ae->d_args.size() == 1 )
-                {
-                    add->d_rhs = new Literal( Literal::Integer,add->d_loc,qlonglong(1));
-                    add->d_rhs->d_type = ae->d_args.first()->d_type;
-                }else
-                {
-                    Q_ASSERT( ae->d_args.size() == 2 );
-                    add->d_rhs = ae->d_args.last();
-                }
-                Ref<Assign> ass = new Assign();
-                ass->d_lhs = ae->d_args.first();
-                ass->d_loc = ae->d_loc;
-                ass->d_rhs = add.data();
-                ass->accept(this);
+                    b << "--";
+
+            }else
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+                ae->d_args.first()->accept(this);
+                if( bi->d_func == BuiltIn::INC )
+                    b << "+=";
+                else
+                    b << "-=";
+                ae->d_args.last()->accept(this);
             }
             break;
         case BuiltIn::LEN:
@@ -1203,6 +1341,83 @@ struct ObxCGenImp : public AstVisitor
                 }
             }
             break;
+        case BuiltIn::MAX:
+        case BuiltIn::MIN:
+            if( ae->d_args.size() == 1 )
+            {
+                Type* t = derefed(ae->d_args.first()->d_type.data());
+                switch( t->getTag() )
+                {
+                case Thing::T_BaseType:
+                    {
+                        BaseType* bt = cast<BaseType*>(t);
+                        switch( bt->getBaseType() )
+                        {
+                        case Type::LONGINT:
+                            if( bi->d_func == BuiltIn::MAX )
+                                b << bt->maxVal().toLongLong();
+                            else
+                                b << bt->minVal().toLongLong();
+                            break;
+                        case Type::LONGREAL:
+                        case Type::REAL:
+                            if( bi->d_func == BuiltIn::MAX )
+                                b << bt->maxVal().toDouble();
+                            else
+                                b << bt->minVal().toDouble();
+                            break;
+                        case Type::SHORTINT:
+                        case Type::INTEGER:
+                            if( bi->d_func == BuiltIn::MAX )
+                                b << bt->maxVal().toInt();
+                            else
+                                b << bt->minVal().toInt();
+                            break;
+                        case Type::BOOLEAN:
+                        case Type::CHAR:
+                        case Type::WCHAR:
+                        case Type::BYTE:
+                        case Type::SET:
+                            if( bi->d_func == BuiltIn::MAX )
+                                b << bt->maxVal().toUInt();
+                            else
+                                b << bt->minVal().toUInt();
+                            break;
+                        }
+                    }
+                    break;
+                case Thing::T_Enumeration:
+                    {
+                        Enumeration* e = cast<Enumeration*>(t);
+                        if( bi->d_func == BuiltIn::MAX )
+                            b << e->d_items.last()->d_val.toInt();
+                        else
+                            b << e->d_items.first()->d_val.toInt();
+                    }
+                    break;
+                default:
+                    Q_ASSERT( false );
+                }
+            }else if( ae->d_args.size() == 2 )
+            {
+                b << "(";
+                ae->d_args.first()->accept(this);
+                b << ( bi->d_func == BuiltIn::MAX ? " > " : " < " );
+                ae->d_args.last()->accept(this);
+                b << " ? ";
+                ae->d_args.first()->accept(this); // TODO: use runtime calls to avoid multiple evaluation
+                b << " : ";
+                ae->d_args.last()->accept(this);
+                b << ")";
+            }else
+                Q_ASSERT( false );
+            break;
+        case BuiltIn::SHORT:
+        case BuiltIn::LONG:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            ae->d_args.first()->accept(this);
+            // TODO: text
+            break;
         default:
              qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
              break;
@@ -1264,7 +1479,6 @@ struct ObxCGenImp : public AstVisitor
         }
         for(int dim = 0; dim < idxDims.size(); dim++ )
         {
-            // TODO: check
             // NOTE: similar to visit(ArgExpr*), but here we don't need the +d0 part, only the ( D0 * d1 )... parts
             // (d1 * D2 * D3 ... * Dn) + (d2 * D3 * D4 ... * Dn) + (d3 * D4 ... * Dn) ... + (dn-1 * Dn) + dn
             if( dim != 0 )
@@ -1375,6 +1589,28 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
+    bool isLvalue( Expression* lhs )
+    {
+        if( lhs == 0 )
+            return false;
+        Named* id = lhs->getIdent();
+        if( id )
+        {
+            switch( id->getTag() )
+            {
+            case Thing::T_BuiltIn:
+            case Thing::T_Import:
+            case Thing::T_GenericName:
+            case Thing::T_Procedure:
+            case Thing::T_NamedType:
+                return false;
+            default:
+                return true;
+            }
+        }
+        return false;
+    }
+
     void emitActuals( ProcType* pt, ArgExpr* me )
     {
         Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
@@ -1383,7 +1619,16 @@ struct ObxCGenImp : public AstVisitor
             if( i != 0 )
                 b << ", ";
             Parameter* p = pt->d_formals[i].data();
-            renderArg( p->d_type.data(), me->d_args[i].data(), passByRef(p) );
+            Type* td = derefed(me->d_args[i]->d_type.data());
+            if( p->d_const && !td->isStructured(true) && !td->isString() && !isLvalue(me->d_args[i].data()) )
+            {
+                // if IN and not an lvalue and not structured use a compound literal
+                b << "&(" << formatType(td) << "){";
+                me->d_args[i]->accept(this);
+                b << "}";
+            }else
+                renderArg( p->d_type.data(), me->d_args[i].data(), passByRef(p) &&
+                           ( td->getTag() != Thing::T_Array && !td->isString() ) );
         }
     }
 
@@ -1441,15 +1686,42 @@ struct ObxCGenImp : public AstVisitor
             emitActuals(pt,me);
             b << ")";
 #else
-            b << "($" << " = ";
+            Procedure* p = cast<Procedure*>(func);
+            b << "((" << formatType(p->d_receiverRec) << "*)($" << " = ";
             if( method->d_sub->getUnOp() != UnExpr::DEREF )
                 b << "&";
             b << "(";
             method->d_sub->accept(this);
-            b << "))->class$->" << escape( method->getIdent()->d_name) << "($" << ", ";
-            emitActuals(pt,me);
+            b << ")))->class$->" << escape( method->getIdent()->d_name) << "($";
+            if( !pt->d_formals.isEmpty() )
+            {
+                b << ", ";
+                emitActuals(pt,me);
+            }
             b << ")";
 #endif
+        }else if( pt->d_typeBound && func && superCall )
+        {
+            Q_ASSERT(me->d_sub->getUnOp() == UnExpr::DEREF );
+            UnExpr* sub = cast<UnExpr*>(me->d_sub.data());
+            Q_ASSERT(sub->d_sub->getTag() == Thing::T_IdentSel );
+            IdentSel* method = cast<IdentSel*>(sub->d_sub.data());
+            Type* td = derefed(method->d_sub->d_type.data());
+            Q_ASSERT(td && td->getTag() == Thing::T_Record);
+
+            Procedure* p = cast<Procedure*>(func);
+            b << "((" << formatType(p->d_receiverRec) << "*)($" << " = ";
+            if( method->d_sub->getUnOp() != UnExpr::DEREF )
+                b << "&";
+            b << "(";
+            method->d_sub->accept(this);
+            b << ")))->class$->super$->" << escape( method->getIdent()->d_name) << "($";
+            if( !pt->d_formals.isEmpty() )
+            {
+                b << ", ";
+                emitActuals(pt,me);
+            }
+            b << ")";
         }else
         {
             me->d_sub->accept(this);
@@ -1609,11 +1881,13 @@ struct ObxCGenImp : public AstVisitor
                 emitBinOp(me,"|");
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
             {
-                b << "OBX$StrJoin(";
+                b << "(struct OBX$Array$1 [1]){OBX$StrJoin(";
                 renderArg(lhsT,me->d_lhs.data(),true);
                 b << "," << int(lwide) << ",";
                 renderArg(rhsT,me->d_rhs.data(),true);
-                b << "," << int(rwide) << ")";
+                b << "," << int(rwide) << ")}[0]";
+                // NOTE: if we don't use the dirty compound array literal element zero trick nested OBX$StrJoin
+                // would issue an lvalue error
             }else
                 Q_ASSERT(false);
             break;
@@ -1779,8 +2053,11 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
-    // TODO
-    void visit( SetExpr* ) {}
+    void visit( SetExpr* me)
+    {
+        // TODO
+
+    }
 
     void visit( Assign* me)
     {

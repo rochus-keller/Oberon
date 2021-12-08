@@ -155,7 +155,7 @@ int OBX$StrOp( struct OBX$Array$1* lhs, int lwide, struct OBX$Array$1* rhs, int 
 	return 0;
 }
 
-struct OBX$Array$1 OBX$StrJoin( struct OBX$Array$1* lhs, int lwide, struct OBX$Array$1* rhs, int rwide )
+struct OBX$Array$1 OBX$StrJoin( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide )
 {
 	if( lwide && rwide )
 	{
@@ -328,5 +328,18 @@ void* OBX$NewRec(int size, void* cls)
 	memset(obj,0,size);
 	obj->class$ = cls;
 	return obj;
+}
+
+void OBX$Pack32(float* x, int n)
+{
+	*x *= (float)powf(2, n);
+}
+
+void OBX$Unpack32(float* x, int* n)
+{
+	// UNPACK(4,-10) -> 1,2
+	*x = frexpf(*x, n);
+	*x = *x + *x;
+	*n = *n - 1;
 }
 

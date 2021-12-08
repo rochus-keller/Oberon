@@ -26,6 +26,7 @@
 #include <wchar.h>
 #include <assert.h>
 #include <stdio.h>
+#include <math.h>
 
 struct OBX$Array$1 { uint32_t $1: 31; uint32_t $s: 1; void* $a; }; // $s..static, 1 if literal or pointer to stack, 0 if allocated with OBX$Alloc
 struct OBX$Array$2 { uint32_t $1; uint32_t $2: 31; uint32_t $s: 1; void* $a; };
@@ -49,11 +50,19 @@ int32_t OBX$Mod32( int32_t a, int32_t b );
 int64_t OBX$Mod64( int64_t a, int64_t b );
 extern void* OBX$Alloc( size_t );
 extern int OBX$StrOp( struct OBX$Array$1* lhs, int lwide, struct OBX$Array$1* rhs, int rwide, int op );
-extern struct OBX$Array$1 OBX$StrJoin( struct OBX$Array$1* lhs, int lwide, struct OBX$Array$1* rhs, int rwide );
+extern struct OBX$Array$1 OBX$StrJoin( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
 extern void OBX$StrCopy(struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
 extern void OBX$ArrCopy(void* lhs, const void* rhs, int dims, int size ); // lhs and rhs are pointer to OBX$Array$*
 extern void* OBX$Copy(void* data, int len);
 extern void OBX$NewArr(void* arr, int dims, int size, ...);
 extern void* OBX$NewRec(int size, void* cls);
+
+inline int OBX$MaxI32(int32_t lhs, int32_t rhs ) { return lhs > rhs ? lhs : rhs; }
+inline int OBX$MaxI64(int64_t lhs, int64_t rhs ) { return lhs > rhs ? lhs : rhs; }
+inline int OBX$MaxF32(float lhs, float rhs ) { return lhs > rhs ? lhs : rhs; }
+inline int OBX$MaxF64(double lhs, double rhs ) { return lhs > rhs ? lhs : rhs; }
+
+extern void OBX$Pack32(float* lhs, int rhs);
+extern void OBX$Unpack32(float* lhs, int* rhs);
 
 #endif
