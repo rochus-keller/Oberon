@@ -20,7 +20,7 @@ module Main
         
     type Proc = proc 
 
-    proc Time(s: array of char; p: Proc)
+    proc Time(in s: array of char; p: Proc)
         var 
             timer: integer
             i: integer

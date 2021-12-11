@@ -79,6 +79,8 @@ size=0
 39\RelPath=Load1.obx
 4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays4.obx
 4\RelPath=Arrays4.obx
+40\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Circular1.obx
+40\RelPath=Circular1.obx
 5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Enum1.obx
 5\RelPath=Enum1.obx
 6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Flow.obx
@@ -89,7 +91,7 @@ size=0
 8\RelPath=Generic2.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic4.obx
 9\RelPath=Generic4.obx
-size=39
+size=40
 
 [Packages]
 1\Name=@ByteArray()

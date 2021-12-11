@@ -236,8 +236,6 @@ struct ObxCilGenImp : public AstVisitor
     {
     }
 
-    inline QByteArray ws() { return QByteArray(level*4,' '); }
-
     static QByteArray inline escape( const QByteArray& name )
     {
         return "'" + name + "'";
@@ -2082,7 +2080,7 @@ struct ObxCilGenImp : public AstVisitor
                     line(ae->d_loc).bge_(posCase);
                 else
                     line(ae->d_loc).ble_(posCase); // if
-                ae->d_args.last()->accept(this); // then
+                ae->d_args.last()->accept(this); // then // TODO: use temps to avoid multiple evaluation
 
                 const int toEnd = emitter->newLabel();
                 line(ae->d_loc).br_(toEnd);
@@ -2112,7 +2110,7 @@ struct ObxCilGenImp : public AstVisitor
                 if( t->isString() )
                 {
                     ae->d_args.first()->accept(this);
-                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
+                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true); // TODO: likely wrong!
                 }else
                 {
                     Q_ASSERT( t->getTag() == Thing::T_Array );
@@ -2340,9 +2338,8 @@ struct ObxCilGenImp : public AstVisitor
             line(ae->d_loc).xor_();
             break;
         case BuiltIn::BITNOT:
-            Q_ASSERT( ae->d_args.size() == 2 );
+            Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
-            ae->d_args.last()->accept(this);
             line(ae->d_loc).not_();
             break;
         case BuiltIn::WCHR:

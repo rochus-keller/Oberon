@@ -41,5 +41,7 @@
         <file>scripts/Dll/Strings.dll</file>
         <file>scripts/Dll/Files.dll</file>
         <file>scripts/Dll/XYplane.dll</file>
+        <file>scripts/OBX.Runtime.c</file>
+        <file>scripts/OBX.Runtime.h</file>
     </qresource>
 </RCC>

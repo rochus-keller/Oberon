@@ -268,7 +268,7 @@ namespace Obx
         bool hasByteSize() const;
         quint32 getByteSize() const;
         quint32 getAlignment() const;
-        Type* getTypeDim(int& dims , bool openOnly = false) const;
+        Type* getTypeDim(int& dims ) const;
         QString pretty() const;
         QList<Array*> getDims();
     };
@@ -294,10 +294,12 @@ namespace Obx
         Named* find(const QByteArray& name , bool recursive) const;
         QString pretty() const { return d_unsafe ? ( d_union ? "CUNION" : "CSTRUCT" ) : "RECORD"; }
         QList<Field*> getOrderedFields() const;
+        QList<Procedure*> getOrderedMethods() const;
         Record* findBySlot(int) const;
         quint32 getByteSize() const;
         quint32 getAlignment() const { return d_alignment; }
         Field* nextField(Field*) const;
+        static QSet<Record*> calcDependencyOrder(QList<Record*>& inout);
     };
 
     struct ProcType : public Type

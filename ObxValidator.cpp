@@ -47,6 +47,7 @@ struct ValidatorImp : public AstVisitor
 
     void visitScope( Scope* me )
     {
+        QList<Record*> recs;
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Const )
@@ -67,7 +68,18 @@ struct ValidatorImp : public AstVisitor
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_NamedType && n->d_type && n->d_type->isStructured(true) )
+            {
                 n->accept(this);
+                Type* td = n->d_type.data(); // no, don't look at qualitypes: n->d_type.isNull() ? 0 : n->d_type->derefed();
+                if( td && td->getTag() == Thing::T_Record )
+                    recs.append(cast<Record*>(td));
+            }
+        }
+        QSet<Record*> circular = Record::calcDependencyOrder(recs);
+        if( !circular.isEmpty() )
+        {
+            foreach( Record* r, circular )
+                error(r->d_loc, Validator::tr("RECORD used as field value type has circular dependency on itself"));
         }
 #endif
         foreach( const Ref<Named>& n, me->d_order )
@@ -997,6 +1009,8 @@ struct ValidatorImp : public AstVisitor
             // check if VAR really gets a physical location
             bool ok = false;
             ok = isMemoryLocation(actual.data());
+            if( ta->isString() )
+                ok = false; // string literals cannot be passed to a VAR param (but to IN)
 #ifdef OBX_BBOX
             if( ta == bt.d_nilType )
             {
@@ -1007,7 +1021,7 @@ struct ValidatorImp : public AstVisitor
             if( !ok )
                 error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR parameter") );
             else
-                checkValidLhs(actual.data()); // TODO: does this replace all the above VAR rules?
+                checkValidLhs(actual.data());
         }
 
         const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";

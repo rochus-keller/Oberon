@@ -7,7 +7,7 @@ module Util
     var         
         seed*: integer
 
-    proc Str*(s: array of char)
+    proc Str*(in s: array of char)
         var 
             i: integer
     begin 

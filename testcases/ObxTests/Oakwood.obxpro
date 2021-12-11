@@ -1,6 +1,6 @@
 [General]
 BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
-BuiltInOakwood=false
+BuiltInOakwood=true
 BuiltInObSysInner=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
@@ -11,7 +11,11 @@ WorkingDir=
 size=0
 
 [Modules]
-
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood3.obx
+1\RelPath=Oakwood3.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood1.obx
+2\RelPath=Oakwood1.obx
+size=2
 
 [Packages]
 1\Name=@ByteArray()
