@@ -42,6 +42,13 @@ struct OBX$Inst {
 	void* class$;
 };
 
+typedef void (*OBX$NullMeth)(void*);
+
+struct OBX$Deleg {
+	void* inst;
+	OBX$NullMeth func;
+};
+
 int OBX$IsSubclass( void* superClass, void* subClass );
 int OBX$SetDiv( uint32_t lhs, uint32_t rhs );
 int32_t OBX$Div32( int32_t a, int32_t b );
@@ -56,6 +63,8 @@ extern void OBX$ArrCopy(void* lhs, const void* rhs, int dims, int size ); // lhs
 extern void* OBX$Copy(void* data, int len);
 extern void OBX$NewArr(void* arr, int dims, int size, ...);
 extern void* OBX$NewRec(int size, void* cls);
+extern void* OBX$FromUtf(const char* in, int len, int wide ); // len is decoded len incl. terminating zero
+extern void OBX$PrintA(int ln, const char*);
 
 inline int OBX$MaxI32(int32_t lhs, int32_t rhs ) { return lhs > rhs ? lhs : rhs; }
 inline int OBX$MaxI64(int64_t lhs, int64_t rhs ) { return lhs > rhs ? lhs : rhs; }

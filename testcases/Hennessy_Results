@@ -120,3 +120,16 @@ Quick	10.411
 Bubble	17.312
 Tree	11.895
 FFT		17.339
+
+**** C Code generated with OBXIDE2, -O2, no GC
+Perm      9.920
+Towers    6.644
+Queens    5.047
+Intmm     1.895
+Mm    	  4.350
+Quick     6.247
+Bubble    5.685
+Trees     5.751
+FFT       6.465
+About factor 2.1 speed-up compared to Mono 5
+

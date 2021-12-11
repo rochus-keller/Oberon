@@ -2331,9 +2331,8 @@ struct ObxCilGenImp : public AstVisitor
             line(ae->d_loc).xor_();
             break;
         case BuiltIn::BITNOT:
-            Q_ASSERT( ae->d_args.size() == 2 );
+            Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
-            ae->d_args.last()->accept(this);
             line(ae->d_loc).not_();
             break;
         case BuiltIn::WCHR:

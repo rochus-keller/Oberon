@@ -272,6 +272,8 @@ struct ObxCGenImp : public AstVisitor
     static QByteArray moduleRef(Module* m)
     {
         QByteArray name = m->d_fullName.join('$');
+        if( name.isEmpty() )
+            name = m->d_name; // happens with built-in modules like Out
         if( !m->d_metaActuals.isEmpty() )
         {
             QCryptographicHash hash(QCryptographicHash::Md5);
@@ -321,26 +323,13 @@ struct ObxCGenImp : public AstVisitor
     QByteArray formatFormals( ProcType* pt, bool withName = true, Parameter* receiver = 0 )
     {
         QByteArray res = "(";
-        if( receiver )
+        if( pt->d_typeBound )
         {
-#if 0
-            Type* t = receiver->d_type.data();
-            Pointer p;
-            if( passByRef(receiver) )
-            {
-                t = &p;
-                p.d_to = receiver->d_type.data();
-                p.d_decl = receiver;
-                p.d_loc = receiver->d_loc;
-            }
-            res += formatType( t, withName ? escape(receiver->d_name) : "" );
-#else
-            res += "void*" + ( withName ? " " + escape(receiver->d_name) : "" );
-#endif
+            res += "void*" + ( withName && receiver ? " " + escape(receiver->d_name) : "" );
         }
         for( int i = 0; i < pt->d_formals.size(); i++ )
         {
-            if( i != 0 || receiver )
+            if( i != 0 || pt->d_typeBound )
                 res += ", ";
             Type* t = pt->d_formals[i]->d_type.data();
             Type* td = derefed(t);
@@ -485,6 +474,8 @@ struct ObxCGenImp : public AstVisitor
         case Thing::T_ProcType:
             {
                 ProcType* pt = cast<ProcType*>(t);
+                if( pt->d_typeBound )
+                    return "struct OBX$Deleg" + ( !name.isEmpty() ? " " + name : "" );
                 const QByteArray returnType = formatType(pt->d_return.data());
                 return returnType + " (*" + name + ")" + formatFormals(pt); // name can legally be empty
             }
@@ -742,20 +733,23 @@ struct ObxCGenImp : public AstVisitor
         curVarDecl = 0;
     }
 
-    enum { NotStructured = 0, IsArrayPointer, IsRecord, IsArray };
+    enum { NotStructured = 0, IsArrayPointer, IsRecord, IsArray, IsDeleg };
     int isStructuredOrArrayPointer(Type* t)
     {
         Type* td = derefed(t);
         if( td == 0 )
             return 0;
+        const int tag = td->getTag();
+        if( tag == Thing::T_ProcType && td->d_typeBound )
+            return IsDeleg;
         if( td->isStructured() )
         {
-            if( td->getTag() == Thing::T_Record )
+            if( tag == Thing::T_Record )
                 return IsRecord;
             else
                 return IsArray;
         }
-        if( td->getTag() == Thing::T_Pointer )
+        if( tag == Thing::T_Pointer )
         {
             Pointer* p = cast<Pointer*>(td);
             td = derefed(p->d_to.data());
@@ -873,6 +867,16 @@ struct ObxCGenImp : public AstVisitor
         curProc = 0;
     }
 
+#if 0
+    QVector<uint> toNumbers(const QString& in)
+    {
+        QVector<uint> res(in.size());
+        for( int i = 0; i < in.size(); i++ )
+            res[i] = in[i].unicode();
+        return res;
+    }
+#endif
+
     void emitConst(quint8 basetype, const QVariant& val, const RowCol& loc )
     {
         switch( basetype )
@@ -899,21 +903,15 @@ struct ObxCGenImp : public AstVisitor
         case Type::STRING:
         case Type::WSTRING:
             {
-                QByteArray str = val.toByteArray();
+                QString str = val.toString();
                 str.replace('\\', "\\\\");
-                if( basetype == Type::STRING )
-                {
-                    b << "(const struct OBX$Array$1){";
-                    b << str.length()+1 << ",1,";
-                    b << "\"" << str << "\"";
-                    b << "}";
-                }else
-                {
-                    b << "(const struct OBX$Array$1){";
-                    b << QString::fromUtf8(str).length()+1 << ",1,";
-                    b << "L\"" << str << "\"";
-                    b << "}";
-                }
+                // TEST qDebug() << "Literal:" << str << toNumbers(str);
+                // no L prefix, we want UTF-8 in any case
+                b << "(const struct OBX$Array$1){";
+                b << str.length()+1 << ",0,";
+                b << "OBX$FromUtf(\"" << str << "\"," << str.length()+1 << ","
+                  << int(basetype==Type::WSTRING) << ")";
+                b << "}";
             }
             break;
         case Type::BYTEARRAY:
@@ -1139,6 +1137,77 @@ struct ObxCGenImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::DEFAULT:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() );
+                Type* td = derefed(ae->d_args.first()->d_type.data() );
+                Q_ASSERT( td );
+                switch( td->getTag() )
+                {
+                case Thing::T_Record:
+                    if( td->d_unsafe )
+                        b << "(" << formatType(td) << "){}"; // partial init sets all members to zero
+                    else
+                        b << "(" << formatType(td) << "){ &" << classRef(td) << "$class$ }";
+                    break;
+                case Thing::T_Array:
+                    {
+                        // TODO: OBX$Array$ of array compound literal
+                        qCritical() << "DEFAULT(array) not yet implemented" << thisMod->getName();
+                    }
+                    break;
+                case Thing::T_BaseType:
+                case Thing::T_Enumeration:
+                case Thing::T_Pointer:
+                case Thing::T_ProcType:
+                    b << "0";
+                    break;
+                default:
+                    Q_ASSERT(false);
+                }
+            }
+            break;
+        case BuiltIn::BITAND:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            b << "(";
+            ae->d_args.first()->accept(this);
+            b << " & ";
+            ae->d_args.last()->accept(this);
+            b << ")";
+            break;
+        case BuiltIn::BITOR:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            b << "(";
+            ae->d_args.first()->accept(this);
+            b << " | ";
+            ae->d_args.last()->accept(this);
+            b << ")";
+            break;
+        case BuiltIn::BITXOR:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            b << "(";
+            ae->d_args.first()->accept(this);
+            b << " ^ ";
+            ae->d_args.last()->accept(this);
+            b << ")";
+            break;
+        case BuiltIn::BITNOT:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            b << "~";
+            ae->d_args.first()->accept(this);
+            break;
+        case BuiltIn::HALT:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            b << "exit(";
+            ae->d_args.first()->accept(this);
+            b << ")";
+            break;
+        case BuiltIn::FLT:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+            }
+            break;
         case BuiltIn::PACK:
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
@@ -1173,69 +1242,76 @@ struct ObxCGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
                 Type* td = derefed(ae->d_args.first()->d_type.data());
-                b << "printf(";
+                QByteArray format;
                 bool wide = false;
                 bool deref = false;
                 bool addr = false;
-                bool charcast = false;
+                bool strcast = false;
                 if( td->isText(&wide) )
                 {
                     if( td->isChar() )
                     {
                         if( wide )
-                            b << "\"%lc\\n\"";
+                            format = "\"%lc\\n\"";
                         else
-                            b << "\"%c\\n\"";
+                            format = "\"%c\\n\"";
                     }else
                     {
                         if( wide )
-                            b << "\"%ls\\n\"";
+                            format = "\"%ls\\n\"";
                         else
-                            b << "\"%s\\n\"";
+                            format = "\"%s\\n\"";
                         deref = true;
-                        charcast = true;
+                        strcast = true;
                     }
                 }else if( td->isInteger() )
                 {
                     if( td->getBaseType() <= Type::INTEGER )
-                        b << "\"%d\\n\"";
+                        format = "\"%d\\n\"";
                     else
-                        b << "\"%lld\\n\"";
+                        format = "\"%lld\\n\"";
                 }else if( td->isReal() )
-                    b << "\"%f\\n\"";
+                    format = "\"%f\\n\"";
                 else if( td->isSet() )
-                    b << "\"%x\\n\"";
+                    format = "\"%x\\n\"";
                 else if( td->getBaseType() == Type::BOOLEAN )
-                    b << "\"%d\\n\"";
+                    format = "\"%d\\n\"";
                 else
                 {
                     switch(td->getTag())
                     {
                     case Thing::T_Enumeration:
-                        b << "\"%u\\n\"";
+                        format = "\"%u\\n\"";
                         break;
                     case Thing::T_Pointer:
                         if( cast<Pointer*>(td)->d_to->derefed()->getTag() == Thing::T_Array )
                             deref = true;
-                        b << "\"%p\\n\"";
+                        format = "\"%p\\n\"";
                         break;
                     case Thing::T_Array:
                         deref = true;
-                        b << "\"%p\\n\"";
+                        format = "\"%p\\n\"";
                         break;
                     case Thing::T_Record:
                         addr = true;
-                        b << "\"%p\\n\"";
+                        format = "\"%p\\n\"";
                         break;
                     default:
-                        b << "\"%p\\n\"";
+                        format = "\"%p\\n\"";
                         break;
                     }
+                }
+                if( strcast && !wide )
+                    b << "OBX$PrintA(1";
+                else
+                {
+                    b << "printf(";
+                    b << format;
                 }
                 b << ",";
                 if( addr )
                     b << "&";
-                if( charcast )
+                if( strcast )
                 {
                     if( wide )
                         b << "(const wchar_t*)";
@@ -1419,7 +1495,7 @@ struct ObxCGenImp : public AstVisitor
             // TODO: text
             break;
         default:
-             qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
+             qCritical() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
              break;
         }
     }
@@ -1581,6 +1657,19 @@ struct ObxCGenImp : public AstVisitor
                 rhs->accept(this);
                 b << "}";
             }
+        }else if( ta->getTag() == Thing::T_ProcType && ta->d_typeBound &&
+                  rhs->getIdent() && rhs->getIdent()->getTag() == Thing::T_Procedure )
+        {
+            Q_ASSERT( rhs->getTag() == Thing::T_IdentSel );
+            IdentSel* sel = cast<IdentSel*>(rhs);
+            if( addrOf )
+                b << "&";
+            b << "(struct OBX$Deleg){";
+            sel->d_sub->accept(this);
+            b << ",";
+            b << "(OBX$NullMeth)";
+            sel->accept(this); // TODO: do we need the $ trick here?
+            b << "}";
         }else
         {
             if( addrOf )
@@ -1667,41 +1756,50 @@ struct ObxCGenImp : public AstVisitor
 #if 0
         int temp = 0;
 #endif
-        if( pt->d_typeBound && func && !superCall ) // TODO: delegates
+        if( pt->d_typeBound && !superCall )
         {
-            //  ( pointer ^ | record ) .method (args)
-            Q_ASSERT(me->d_sub->getTag() == Thing::T_IdentSel );
-            IdentSel* method = cast<IdentSel*>(me->d_sub.data());
-            Type* td = derefed(method->d_sub->d_type.data());
-            Q_ASSERT(td && td->getTag() == Thing::T_Record);
-#if 0
-            temp = temps[me];
-            Q_ASSERT(temp);
-            b << "($" << temp << " = ";
-            if( method->d_sub->getUnOp() != UnExpr::DEREF )
-                b << "&";
-            b << "(";
-            method->d_sub->accept(this);
-            b << "))->class$->" << escape( method->getIdent()->d_name) << "($" << temp << ", ";
-            emitActuals(pt,me);
-            b << ")";
-#else
-            Procedure* p = cast<Procedure*>(func);
-            b << "((" << formatType(p->d_receiverRec) << "*)($" << " = ";
-            if( method->d_sub->getUnOp() != UnExpr::DEREF )
-                b << "&";
-            b << "(";
-            method->d_sub->accept(this);
-            b << ")))->class$->" << escape( method->getIdent()->d_name) << "($";
-            if( !pt->d_formals.isEmpty() )
+            if( func )
             {
-                b << ", ";
-                emitActuals(pt,me);
+                //  ( pointer ^ | record ) .method (args)
+                Q_ASSERT(me->d_sub->getTag() == Thing::T_IdentSel );
+                IdentSel* method = cast<IdentSel*>(me->d_sub.data());
+                Type* td = derefed(method->d_sub->d_type.data());
+                Q_ASSERT(td && td->getTag() == Thing::T_Record);
+
+                Procedure* p = cast<Procedure*>(func);
+                b << "((" << formatType(p->d_receiverRec) << "*)($" << " = ";
+                if( method->d_sub->getUnOp() != UnExpr::DEREF )
+                    b << "&";
+                b << "(";
+                method->d_sub->accept(this);
+                b << ")))->class$->" << escape( method->getIdent()->d_name) << "($";
+                if( !pt->d_formals.isEmpty() )
+                {
+                    b << ", ";
+                    emitActuals(pt,me);
+                }
+                b << ")";
+            }else
+            {
+                b << "($ = &(struct OBX$Deleg[1]){";
+                me->d_sub->accept(this); // use compound because d_sub could be function call resulting in lvalue error
+                b << "}[0],";
+                b << "((" << formatType(pt->d_return.data()) << "(*)"
+                  << formatFormals(pt,false) << ")"; // cast to method
+                b << "((struct OBX$Deleg*)$)->func)";
+                b << "(((struct OBX$Deleg*)$)->inst"; // call
+                if( !pt->d_formals.isEmpty() )
+                {
+                    b << ", ";
+                    emitActuals(pt,me);
+                }
+                b << ")"; // call
+                b << ")"; // ($=
             }
-            b << ")";
-#endif
-        }else if( pt->d_typeBound && func && superCall )
+        }else if( pt->d_typeBound && superCall )
         {
+            Q_ASSERT( func );
+
             Q_ASSERT(me->d_sub->getUnOp() == UnExpr::DEREF );
             UnExpr* sub = cast<UnExpr*>(me->d_sub.data());
             Q_ASSERT(sub->d_sub->getTag() == Thing::T_IdentSel );
@@ -1834,12 +1932,48 @@ struct ObxCGenImp : public AstVisitor
 
     void emitStringOp( Type* lhs, Type* rhs, bool lwide, bool rwide, int op, BinExpr* e )
     {
-        b << "OBX$StrOp(";
-        renderArg(lhs,e->d_lhs.data(),true);
-        b << "," << int(lwide) << ",";
-        renderArg(rhs,e->d_rhs.data(),true);
-        b << "," << int(rwide) << ",";
-        b << op << ")";
+        const bool lhsChar = lhs->isChar();
+        const bool rhsChar = rhs->isChar();
+        if( lhsChar || rhsChar )
+        {
+            b << "(";
+            if( !lwide )
+                b << "(uint8_t)";
+            renderArg(lhsChar ? lhs : rhs,e->d_lhs.data(),false);
+            switch(op)
+            {
+            case 1: // ==
+                b << "==";
+                break;
+            case 2: // !=
+                b << "!=";
+                break;
+            case 3: // <
+                b << "<";
+                break;
+            case 4: // <=
+                b << "<=";
+                break;
+            case 5: // >
+                b << ">";
+                break;
+            case 6: // >=
+                b << ">=";
+                break;
+            }
+            if( !rwide )
+                b << "(uint8_t)";
+            renderArg(lhsChar ? lhs : rhs,e->d_rhs.data(),false);
+            b << ")";
+        }else
+        {
+            b << "OBX$StrOp(";
+            renderArg(lhs,e->d_lhs.data(),true);
+            b << "," << int(lwide) << ",";
+            renderArg(rhs,e->d_rhs.data(),true);
+            b << "," << int(rwide) << ",";
+            b << op << ")";
+        }
     }
 
     void visit( BinExpr* me )
@@ -2056,7 +2190,7 @@ struct ObxCGenImp : public AstVisitor
     void visit( SetExpr* me)
     {
         // TODO
-
+        qCritical() << "SetExpr not yet implemented";
     }
 
     void visit( Assign* me)
@@ -2125,7 +2259,7 @@ struct ObxCGenImp : public AstVisitor
 
         // TODO: else not yet handled; if else missing then abort if no case hit
         if( !me->d_else.isEmpty() )
-            qWarning() << "CASE ELSE not yet implemented" << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
+            qCritical() << "CASE ELSE not yet implemented" << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
         if( me->d_typeCase )
         {
             // first rewrite the AST with 'if' instead of complex 'case'
@@ -2434,6 +2568,8 @@ static bool copyFile( const QDir& outDir, const QByteArray& name )
 
 bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& where)
 {
+    // NOTE: can be built using cc -O2 --std=c99 *.c -lm resulting in a.out
+
     Q_ASSERT( pro );
     if( where.isEmpty() )
     {
@@ -2621,10 +2757,15 @@ bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteAr
     QTextStream out(to);
     ObxCGenImp::dedication(out);
 
-    //out << "#include \"OBX$Runtime.h\"" << endl;
+    out << "#include <locale.h>" << endl; // https://stackoverflow.com/questions/40590207/displaying-wide-chars-with-printf
     out << "#include \"" << callMod << ".h\"" << endl << endl;
 
     out << "int main(void) {" << endl;
+    out << "    setlocale(LC_ALL, \"C.UTF-8\");" << endl;
+    // NOTE: default locale is "C"; in it a string literal with umlaute is coded in UTF-8; printf prints it correctly
+    //       in contrast a L"" string literal is decoded in memory as plain Unicode (not UTF-8) in memory
+    // we have latin-1 char strings in memory; didn't find a way yet to properly print these, that's why we
+    // make a temp wchar_t* copy of the char* and work with C.UTF-8
     out << "    " << callMod + "init$();" << endl;
     if( !callFunc.isEmpty() )
         out << "    " << callMod + "$" + callFunc + "();" << endl;
@@ -2642,13 +2783,13 @@ bool CGen2::generateMain(QIODevice* to, const QByteArrayList& callMods)
     QTextStream out(to);
     ObxCGenImp::dedication(out);
 
-    //out << "#include \"OBX$Runtime.h\"" << endl;
+    out << "#include <locale.h>" << endl;
     foreach( const QByteArray& mod, callMods )
         out << "#include \"" << mod << ".h\"" << endl;
     out << endl;
 
     out << "int main(void) {" << endl;
-
+    out << "    setlocale(LC_ALL, \"C.UTF-8\");" << endl;
     foreach( const QByteArray& mod, callMods )
     {
         out << "    " << mod + "$init$();" << endl;
