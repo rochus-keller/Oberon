@@ -2548,7 +2548,7 @@ struct ObxCGenImp : public AstVisitor
     void visit( BaseType* ) { Q_ASSERT(false); }
 };
 
-static bool copyFile( const QDir& outDir, const QByteArray& name )
+static bool copyFile( const QDir& outDir, const QByteArray& name, QTextStream& list )
 {
     QFile f( QString(":/scripts/%1" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
@@ -2563,6 +2563,7 @@ static bool copyFile( const QDir& outDir, const QByteArray& name )
         return false;
     }
     out.write( f.readAll() );
+    list << name << endl;
     return true;
 }
 
@@ -2582,7 +2583,7 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     QByteArray buildStr;
     QTextStream bout(&buildStr);
     QByteArray clearStr;
-    QTextStream cout(&clearStr);
+    QTextStream fout(&clearStr);
 
     QList<Module*> mods = pro->getModulesToGenerate();
     const quint32 errCount = pro->getErrs()->getErrCount();
@@ -2626,9 +2627,8 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
                                     qCritical() << "error generating C for" << inst->getName();
                                     return false;
                                 }
-                                bout << "./ilasm /dll " << "\"" << inst->getName() << ".il\"" << endl;
-                                cout << "rm \"" << inst->getName() << ".il\"" << endl;
-                                cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                                fout << inst->getName() << ".c" << endl;
+                                fout << inst->getName() << ".h" << endl;
                             }else
                                 qCritical() << "could not open for writing" << h.fileName();
                         }else
@@ -2658,47 +2658,48 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
                 CGen2::generateMain(&f,roots);
             else
                 CGen2::generateMain(&f,mp.first, mp.second);
-            bout << "cc /exe " << "\"" << name << ".c\"" << endl;
-            cout << "rm \"" << name << ".c\"" << endl;
-            cout << "rm \"" << name << ".o\"" << endl;
+            fout << name << ".c" << endl;
         }else
             qCritical() << "could not open for writing" << f.fileName();
     }
 
-#if 0
-    if( pro->useBuiltInOakwood() ) // TODO
+    if( pro->useBuiltInOakwood() )
     {
-        copyFile(outDir,"In");
-        copyFile(outDir,"Out");
-        copyFile(outDir,"Files");
-        copyFile(outDir,"Input");
-        copyFile(outDir,"Math");
-        copyFile(outDir,"MathL");
-        copyFile(outDir,"Strings");
-        copyFile(outDir,"Coroutines");
-        copyFile(outDir,"XYplane");
-    }
-    copyFile(outDir,"OBX.Runtime.h");
-    copyFile(outDir,"OBX.Runtime.c");
+        copyFile(outDir,"Input.c",fout);
+        copyFile(outDir,"Input.h",fout);
+        copyFile(outDir,"Out.c",fout);
+        copyFile(outDir,"Out.h",fout);
+#if 0 // TODO
+        copyFile(outDir,"Files",fout);
+        copyFile(outDir,"In",fout);
+        copyFile(outDir,"Math",fout);
+        copyFile(outDir,"MathL",fout);
+        copyFile(outDir,"Strings",fout);
+        copyFile(outDir,"Coroutines",fout);
+        copyFile(outDir,"XYplane",fout);
 #endif
+    }
+    copyFile(outDir,"OBX.Runtime.h",fout);
+    copyFile(outDir,"OBX.Runtime.c",fout);
 
+    bout << "cc -O2 --std=c99 *.c -lm" << endl;
     bout.flush();
-    cout.flush();
+    fout.flush();
 
-    QFile build( outDir.absoluteFilePath( "build.sh" ) );
+    QFile build( outDir.absoluteFilePath( "build.txt" ) );
     if( !build.open(QIODevice::WriteOnly) )
     {
         qCritical() << "could not open for writing" << build.fileName();
         return false;
     }else
         build.write(buildStr);
-    QFile clear( outDir.absoluteFilePath( "clean.sh" ) );
-    if( !clear.open(QIODevice::WriteOnly) )
+    QFile fileList( outDir.absoluteFilePath( "files.txt" ) );
+    if( !fileList.open(QIODevice::WriteOnly) )
     {
-        qCritical() << "could not open for writing" << clear.fileName();
+        qCritical() << "could not open for writing" << fileList.fileName();
         return false;
     }else
-        clear.write(clearStr);
+        fileList.write(clearStr);
     const bool ok = pro->getErrs()->getErrCount() == errCount;
     return ok;
 }

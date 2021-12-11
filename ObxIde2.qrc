@@ -43,5 +43,9 @@
         <file>scripts/Dll/XYplane.dll</file>
         <file>scripts/OBX.Runtime.c</file>
         <file>scripts/OBX.Runtime.h</file>
+        <file>scripts/Input.c</file>
+        <file>scripts/Input.h</file>
+        <file>scripts/Out.c</file>
+        <file>scripts/Out.h</file>
     </qresource>
 </RCC>
