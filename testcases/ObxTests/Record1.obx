@@ -1,0 +1,23 @@
+module Record1
+
+type
+	A = record i,j: integer end
+	B = record (A) str: array 10 of char end
+	C = record (A) flag: boolean end
+
+var
+	a: pointer to A
+	b: pointer to B
+	c: pointer to C
+
+begin
+	println("start Record1")
+	new(b)
+	a := b
+
+	assert(a is A)
+	assert(a is B)
+	assert(~(a is C))
+
+	println("end Record1")
+end Record1

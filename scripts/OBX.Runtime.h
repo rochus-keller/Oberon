@@ -27,6 +27,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
+#include <inttypes.h>
+#include <stdlib.h>
 
 struct OBX$Array$1 { uint32_t $1: 31; uint32_t $s: 1; void* $a; }; // $s..static, 1 if literal or pointer to stack, 0 if allocated with OBX$Alloc
 struct OBX$Array$2 { uint32_t $1; uint32_t $2: 31; uint32_t $s: 1; void* $a; };
@@ -49,20 +51,19 @@ struct OBX$Deleg {
 	OBX$NullMeth func;
 };
 
+extern void* OBX$ClassOf(void* inst);
 int OBX$IsSubclass( void* superClass, void* subClass );
-int OBX$SetDiv( uint32_t lhs, uint32_t rhs );
+uint32_t OBX$SetDiv( uint32_t lhs, uint32_t rhs );
 int32_t OBX$Div32( int32_t a, int32_t b );
 int64_t OBX$Div64( int64_t a, int64_t b );
 int32_t OBX$Mod32( int32_t a, int32_t b );
 int64_t OBX$Mod64( int64_t a, int64_t b );
 extern void* OBX$Alloc( size_t );
-extern int OBX$StrOp( struct OBX$Array$1* lhs, int lwide, struct OBX$Array$1* rhs, int rwide, int op );
+extern int OBX$StrOp( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide, int op );
 extern struct OBX$Array$1 OBX$StrJoin( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
 extern void OBX$StrCopy(struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
 extern void OBX$ArrCopy(void* lhs, const void* rhs, int dims, int size ); // lhs and rhs are pointer to OBX$Array$*
 extern void* OBX$Copy(void* data, int len);
-extern void OBX$NewArr(void* arr, int dims, int size, ...);
-extern void* OBX$NewRec(int size, void* cls);
 extern void* OBX$FromUtf(const char* in, int len, int wide ); // len is decoded len incl. terminating zero
 extern void OBX$PrintA(int ln, const char*);
 
@@ -73,5 +74,10 @@ inline int OBX$MaxF64(double lhs, double rhs ) { return lhs > rhs ? lhs : rhs; }
 
 extern void OBX$Pack32(float* lhs, int rhs);
 extern void OBX$Unpack32(float* lhs, int* rhs);
+
+extern uint32_t OBX$MakeSet(int count, ... );
+extern int64_t OBX$Asr64(int64_t x, int n);
+extern int32_t OBX$Asr32(int32_t x, int n);
+extern int16_t OBX$Asr16(int16_t x, int n);
 
 #endif

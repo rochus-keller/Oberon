@@ -11,7 +11,9 @@ WorkingDir=
 size=0
 
 [Modules]
-
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/With.obx
+1\RelPath=With.obx
+size=1
 
 [Packages]
 1\Name=@ByteArray()

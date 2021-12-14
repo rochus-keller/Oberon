@@ -30,12 +30,13 @@ MODULE T3VariableDeclarations;
 		RectangleDesc = RECORD (ShapeDesc)
 			size: Vector
 		END;
-
+		
 	PROCEDURE TestInitialization;
 		VAR s: ShapeDesc;
 			r: RectangleDesc;
 			rs: ARRAY 10 OF RectangleDesc;
 			rp: Rectangle;
+			ap: POINTER TO ARRAY OF ARRAY OF Vector;
 
 		PROCEDURE AssertVector(VAR v: Vector);
 		BEGIN
@@ -53,6 +54,10 @@ MODULE T3VariableDeclarations;
 		ASSERT(rp IS Rectangle);
 		AssertVector(rp.pos);
 		AssertVector(rp.size);
+		
+		NEW(ap,3,2); // TODO crashes with Pelib generated assembly, works with ILASM generated one
+		AssertVector(ap[2,1]);
+		
 	END TestInitialization;
 
 BEGIN

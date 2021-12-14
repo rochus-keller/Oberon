@@ -1,0 +1,31 @@
+module Record2
+
+type
+	A = record i,j: integer end
+	B = record (A) str: array 10 of char end
+	C = record (A) flag: boolean end
+
+	proc P1( var x: A )
+	begin
+		assert(x is A)
+	end P1
+
+	proc P2( var x: A )
+	begin
+		assert(~(x is C))
+	end P2
+		
+var
+	a: A
+	b: B
+	c: C
+
+begin
+	println("start Record2")
+
+	P1(a)
+	P1(b)
+	P2(b)
+
+	println("end Record2")
+end Record2

@@ -728,7 +728,7 @@ Ref<Expression> Parser::literal()
     case Tok_string:
         {
             next();
-            const QByteArray utf8 = d_cur.d_val.mid(1,d_cur.d_val.size()-2);
+            const QByteArray utf8 = d_cur.d_val.mid(1,d_cur.d_val.size()-2); // remove "" and '' around string
             const QString tmp = QString::fromUtf8( utf8 );
             Ref<Literal> lit =  new Literal(Literal::String, d_cur.toRowCol(), utf8);
             lit->d_strLen = tmp.size();

@@ -45,7 +45,7 @@ MODULE T2TypeDeclarations;
 			next: List;
 			next1: POINTER TO Node;
 			next2: List1;
-			p: PROCEDURE (n: Node; VAR n1: Node)
+			p: PROCEDURE (IN n: Node; VAR n1: Node)
 		END;
 
 		ArrayRecPtr = POINTER TO RECORD
@@ -106,7 +106,7 @@ MODULE T2TypeDeclarations;
 	END TreeProc;
 
 
-	PROCEDURE NodeProc(n: Node; VAR n1: Node);
+	PROCEDURE NodeProc(IN n: Node; VAR n1: Node);
 	END NodeProc;
 
 	

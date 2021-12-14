@@ -1483,15 +1483,32 @@ struct ValidatorImp : public AstVisitor
             break;
 
         case BinExpr::IS:
-            if( typeExtension( lhsT, rhsT ) )
-                me->d_type = bt.d_boolType;
-            else
-                error( me->d_loc, Validator::tr("operator 'IS' expects operands of record type") );
+            {
+                // v IS T -> lhs IS rhs
+
+                // v IS T stands for the dynamic type of v is T (or an extension of T ) and is called a type test.
+                //   It is applicable if:
+                // 1) v is a variable parameter of record type or v is a pointer, and if
+                // 2) T is an extension of the static type of v.
+                Named* n = me->d_lhs->getIdent();
+                const int ltag = lhsT->getTag();
+                const bool isVarParamOfRecordType = ltag == Thing::T_Record && n
+                        && n->getTag() == Thing::T_Parameter && cast<Parameter*>(n)->d_var;
+                const bool isPointerToRecord = ltag == Thing::T_Pointer && lhsT->toRecord();
+                if( me->d_rhs->getIdent() == 0 || me->d_rhs->getIdent()->getTag() != Thing::T_NamedType )
+                    error( me->d_rhs->d_loc, Validator::tr("right side of IS operator must be a named type") );
+                else if( !isVarParamOfRecordType && !isPointerToRecord )
+                    error( me->d_lhs->d_loc, Validator::tr("left side is neither a VAR parameter nor a pointer to record") );
+                else if( !typeExtension( lhsT , rhsT ) )
+                    error( me->d_loc, Validator::tr("the type on the right side is not an extension of the static type of the left side") );
+                else
+                    me->d_type = bt.d_boolType;
+            }
             break;
 
-        case BinExpr::ADD: // set num
-        case BinExpr::SUB: // set num
-        case BinExpr::MUL:  // set num
+        case BinExpr::ADD:
+        case BinExpr::SUB:
+        case BinExpr::MUL:
             if( isNumeric(lhsT) && isNumeric(rhsT) )
             {
                 me->d_type = inclusiveType1(lhsT,rhsT);
@@ -1517,7 +1534,7 @@ struct ValidatorImp : public AstVisitor
                                                 "be either of numeric, SET or text type").arg( BinExpr::s_opName[me->d_op]) );
             break;
 
-        case BinExpr::FDIV: // set num
+        case BinExpr::FDIV:
             if( isNumeric(lhsT) && isNumeric(rhsT) )
             {
                 me->d_type = inclusiveType2(lhsT,rhsT);
@@ -2863,10 +2880,11 @@ struct ValidatorImp : public AstVisitor
                 return true;
             while( subRec && subRec->d_baseRec )
             {
-                if( subRec->d_baseRec == superRec )
+                if( sameType(superRec,subRec->d_baseRec) )
                     return true;
                 subRec = subRec->d_baseRec;
             }
+            return false;
         }
         return false;
     }

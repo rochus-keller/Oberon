@@ -18,8 +18,9 @@
 */
 
 #include "OBX.Runtime.h"
-#include <stdlib.h>
 #include <stdarg.h>
+
+inline void* OBX$ClassOf(void* inst) { return inst ? ((struct OBX$Inst*)inst)->class$ : 0; }
 
 inline int OBX$IsSubclass( void* superClass, void* subClass )
 {
@@ -31,7 +32,7 @@ inline int OBX$IsSubclass( void* superClass, void* subClass )
     return rhs == lhs;
 }
 
-inline int OBX$SetDiv( uint32_t lhs, uint32_t rhs )
+inline uint32_t OBX$SetDiv( uint32_t lhs, uint32_t rhs )
 {
     return ~( lhs & rhs ) & ( lhs | rhs );
 }
@@ -82,7 +83,7 @@ void* OBX$Alloc( size_t s)
     return malloc(s);
 }
 
-int OBX$StrOp( struct OBX$Array$1* lhs, int lwide, struct OBX$Array$1* rhs, int rwide, int op )
+int OBX$StrOp( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide, int op )
 {
     if( !lwide && !rwide )
     {
@@ -288,67 +289,6 @@ void OBX$ArrCopy(void* lhs, const void* rhs, int dims, int size )
         assert(0);
 }
 
-void OBX$NewArr(void* arr, int count, int size, ...)
-{
-    uint32_t dims[5];
-    va_list ap;
-    va_start(ap, size);
-    for(int i = 0; i < count; i++)
-        dims[i] = va_arg(ap, uint32_t);
-    va_end(ap);
-    
-    if( count == 1 )
-    {
-        struct OBX$Array$1* a = arr;
-        a->$1 = dims[0];
-        a->$a = OBX$Alloc(dims[0]*size);
-        memset(a->$a,0,dims[0]*size);
-    }else if( count == 2 )
-    {
-        struct OBX$Array$2* a = arr;
-        a->$1 = dims[0];
-        a->$2 = dims[1];
-        a->$a = OBX$Alloc(dims[0]*dims[1]*size);
-        memset(a->$a,0,dims[0]*dims[1]*size);
-    }else if( count == 3 )
-    {
-        struct OBX$Array$3* a = arr;
-        a->$1 = dims[0];
-        a->$2 = dims[1];
-        a->$3 = dims[2];
-        a->$a = OBX$Alloc(dims[0]*dims[1]*dims[2]*size);
-        memset(a->$a,0,dims[0]*dims[1]*dims[2]*size);
-    }else if( count == 4 )
-    {
-        struct OBX$Array$4* a = arr;
-        a->$1 = dims[0];
-        a->$2 = dims[1];
-        a->$3 = dims[2];
-        a->$4 = dims[3];
-        a->$a = OBX$Alloc(dims[0]*dims[1]*dims[2]*dims[3]*size);
-        memset(a->$a,0,dims[0]*dims[1]*dims[2]*dims[3]*size);
-    }else if( count == 5 )
-    {
-        struct OBX$Array$5* a = arr;
-        a->$1 = dims[0];
-        a->$2 = dims[1];
-        a->$3 = dims[2];
-        a->$4 = dims[3];
-        a->$5 = dims[4];
-        a->$a = OBX$Alloc(dims[0]*dims[1]*dims[2]*dims[3]*dims[4]*size);
-        memset(a->$a,0,dims[0]*dims[1]*dims[2]*dims[3]*dims[4]*size);
-    }else
-        assert(0);
-}
-
-void* OBX$NewRec(int size, void* cls)
-{
-    struct OBX$Inst* obj = OBX$Alloc(size);
-    memset(obj,0,size);
-    obj->class$ = cls;
-    return obj;
-}
-
 void OBX$Pack32(float* x, int n)
 {
     *x *= (float)powf(2, n);
@@ -405,7 +345,7 @@ void* OBX$FromUtf(const char* in, int len, int wide )
             str[i++] = ch;
             in += n;
         }
-        str[i] = 0;
+        str[len-1] = 0;
         return str;
     }else
     {
@@ -416,7 +356,7 @@ void* OBX$FromUtf(const char* in, int len, int wide )
             str[i++] = (char)(uint8_t)ch;
             in += n;
         }
-        str[i] = 0;
+        str[len-1] = 0;
         return str;
     }
 }
@@ -431,5 +371,58 @@ void OBX$PrintA(int ln, const char* str)
     	printf("%ls\n", tmp);
     else
         printf("%ls", tmp);
+            
     free(tmp);
+}
+
+uint32_t OBX$MakeSet(int count, ... )
+{
+	va_list ap;
+	
+	va_start(ap, count);
+
+	uint32_t res = 0;
+    for( int i = 0; i < count; i += 2 )
+    {
+        const int32_t a = va_arg(ap, int32_t);
+        const int32_t b = va_arg(ap, int32_t);
+        if( a >= 0 && b >= 0 )
+        {
+        	if( a <= b )
+			    for( int j = a; j <= b; j++ )
+			    	res |= 1 << j;
+			// else NOP
+        }else if( a >= 0 )
+        {
+	    	res |= 1 << a;
+        }else
+        	assert( 0 );
+    }
+    va_end(ap);
+	return res;
+}
+
+// https://stackoverflow.com/a/2463888/10830469
+int64_t OBX$Asr64(int64_t x, int n)
+{
+	if( x < 0 && n > 0 )
+		return x >> n | ~(~((uint64_t)0) >> n);
+	else
+		return x >> n;
+}
+
+int32_t OBX$Asr32(int32_t x, int n)
+{
+	if( x < 0 && n > 0 )
+		return x >> n | ~(~((uint32_t)0) >> n);
+	else
+		return x >> n;
+}
+
+int16_t OBX$Asr16(int16_t x, int n)
+{
+	if( x < 0 && n > 0 )
+		return x >> n | ~(~((uint16_t)0) >> n);
+	else
+		return x >> n;
 }

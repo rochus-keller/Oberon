@@ -989,39 +989,59 @@ static bool includesAnyOf( const QSet<Record*>& part, const QSet<Record*>& all )
     return false;
 }
 
+static QSet<Record*> valueRecordInType(Type* t, const QSet<Record*>& all )
+{
+    // we only care about value fields
+    Type* td =  t == 0 ? 0 : t->derefed();
+    QSet<Record*> res;
+    if( td == 0 )
+        return res;
+    switch( td->getTag() )
+    {
+    case Thing::T_Record:
+        {
+            Record* rr = cast<Record*>(td);
+            if( all.contains(rr) ) // we only care about records in the all set
+                res.insert(rr);
+        }
+        break;
+    case Thing::T_Array:
+        {
+            Array* a = cast<Array*>(td);
+            QList<Array*> dims = a->getDims();
+            Q_ASSERT(!dims.isEmpty());
+            td = dims.last()->d_type.isNull() ? 0 : dims.last()->d_type->derefed();
+            if( td && td->getTag() == Thing::T_Record )
+            {
+                Record* rr = cast<Record*>(td);
+                if( all.contains(rr) )
+                    res.insert(rr);
+            }
+        }
+        break;
+    case Thing::T_ProcType:
+        {
+            ProcType* pt = cast<ProcType*>(td);
+            foreach( const Ref<Parameter>& p, pt->d_formals )
+            {
+                if( !p->d_var )
+                    res += valueRecordInType(p->d_type.data(),all);
+            }
+            if( pt->d_return )
+                res += valueRecordInType(pt->d_return.data(),all);
+        }
+        break;
+    }
+    return res;
+}
+
 static QSet<Record*> valueRecordFieldTypes(Record* r, const QSet<Record*>& all)
 {
     QList<Field*> ff = r->getOrderedFields();
     QSet<Record*> res;
     foreach( Field* f, ff )
     {
-        Type* td = f->d_type.isNull()? 0 : f->d_type->derefed(); // we only care about value fields
-        if( td == 0 )
-            continue;
-        switch( td->getTag() )
-        {
-        case Thing::T_Record:
-            {
-                Record* rr = cast<Record*>(td);
-                if( all.contains(rr) ) // we only care about records in the all set
-                    res.insert(rr);
-            }
-            break;
-        case Thing::T_Array:
-            {
-                Array* a = cast<Array*>(td);
-                QList<Array*> dims = a->getDims();
-                Q_ASSERT(!dims.isEmpty());
-                td = dims.last()->d_type.isNull() ? 0 : dims.last()->d_type->derefed();
-                if( td && td->getTag() == Thing::T_Record )
-                {
-                    Record* rr = cast<Record*>(td);
-                    if( all.contains(rr) )
-                        res.insert(rr);
-                }
-            }
-            break;
-        }
+        res += valueRecordInType(f->d_type.data(),all);
     }
     return res;
 }

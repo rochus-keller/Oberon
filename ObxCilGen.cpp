@@ -2145,6 +2145,12 @@ struct ObxCilGenImp : public AstVisitor
                     lengths.append(len);
                     line(ae->d_loc).stloc_(len);
                 }
+                // TODO: Pelib issue when 2d array local variable; apparently
+                // newarr class 'T3VariableDeclarations'/'Vector'[] is written
+                // as newarr class 'T3VariableDeclarations'/'Vector' by Pelib!
+                // see T3VariableDeclarations. Same if module variable instead of local,
+                // same if RectangleDesc instead of Vector; but it works if CHAR or INTEGER,
+                // or if compiled with ILASM instead of Pelib.
 
                 emitFetchDesigAddr(ae->d_args.first().data(),true); // not false, because also here a var param has the address already
                 // stack: address to store to
