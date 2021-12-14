@@ -47,5 +47,9 @@
         <file>scripts/Input.h</file>
         <file>scripts/Out.c</file>
         <file>scripts/Out.h</file>
+        <file>scripts/MathL.h</file>
+        <file>scripts/MathL.c</file>
+        <file>scripts/Math.c</file>
+        <file>scripts/Math.h</file>
     </qresource>
 </RCC>

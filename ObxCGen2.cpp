@@ -281,7 +281,7 @@ struct ObxCGenImp : public AstVisitor
         {
             QCryptographicHash hash(QCryptographicHash::Md5);
             hash.addData(m->formatMetaActuals());
-            name += separator + hash.result().toHex();
+            name += separator + hash.result().toHex().left(10); // TODO
         }
         return escape(name);
     }
@@ -958,10 +958,10 @@ struct ObxCGenImp : public AstVisitor
             b << val.toUInt();
             break;
         case Type::REAL:
-            b << QByteArray::number(val.toDouble(),'e',9);
+            b << QByteArray::number(val.toDouble(),'e',7);
             break;
         case Type::LONGREAL:
-            b << QByteArray::number(val.toDouble(),'e',17);
+            b << QByteArray::number(val.toDouble(),'e',16); // empirically optimized, 17 is too much
             break;
         case Type::NIL:
             b << "0";
@@ -1483,8 +1483,12 @@ struct ObxCGenImp : public AstVisitor
                     else
                         format = "\"%lld\\n\"";
                 }else if( td->isReal() )
-                    format = "\"%f\\n\"";
-                else if( td->isSet() )
+                {
+                    if( td->getBaseType() == Type::LONGREAL )
+                        format = "\"%1.16e\\n\"";
+                    else
+                        format = "\"%1.7e\\n\"";
+                }else if( td->isSet() )
                     format = "\"%x\\n\"";
                 else if( td->getBaseType() == Type::BOOLEAN )
                     format = "\"%d\\n\"";
@@ -2017,7 +2021,7 @@ struct ObxCGenImp : public AstVisitor
                 rhs->accept(this);
             }else
             {
-                if( addrOf && rhs->getUnOp() != UnExpr::DEREF )
+                if( addrOf && /* TODO atag == Thing::T_Record && */ rhs->getUnOp() != UnExpr::DEREF )
                     b << "&";
                 rhs->accept(this);
             }
@@ -2053,8 +2057,6 @@ struct ObxCGenImp : public AstVisitor
 
     void emitActuals( ProcType* pt, ArgExpr* me )
     {
-        if( thisMod->d_name == "T5Statements" && me->d_loc.d_row == 292 )
-            qDebug() << "hit";
         Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
         for( int i = 0; i < pt->d_formals.size(); i++ )
         {
@@ -3071,11 +3073,13 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
         copyFile(outDir,"Input.h",fout);
         copyFile(outDir,"Out.c",fout);
         copyFile(outDir,"Out.h",fout);
+        copyFile(outDir,"Math.h",fout);
+        copyFile(outDir,"Math.c",fout);
+        copyFile(outDir,"MathL.h",fout);
+        copyFile(outDir,"MathL.c",fout);
 #if 0 // TODO
         copyFile(outDir,"Files",fout);
         copyFile(outDir,"In",fout);
-        copyFile(outDir,"Math",fout);
-        copyFile(outDir,"MathL",fout);
         copyFile(outDir,"Strings",fout);
         copyFile(outDir,"Coroutines",fout);
         copyFile(outDir,"XYplane",fout);

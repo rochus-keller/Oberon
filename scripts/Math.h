@@ -1,6 +1,5 @@
-#ifndef _OBX_OUT_
-#define _OBX_OUT_
-
+#ifndef _OBX_MATH_
+#define _OBX_MATH_
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
@@ -20,15 +19,28 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include "OBX.Runtime.h"
 
-extern void Out$Int(int32_t i, int32_t n);
-extern void Out$Ln();
-extern void Out$Char(char);
-extern void Out$Open();
-extern void Out$String(const struct OBX$Array$1 str);
-extern void Out$Real(float x, int32_t n);
+extern float Math$sqrt(float x);
+extern float Math$power(float x, float b);
+extern float Math$exp(float x);
+extern float Math$ln(float x);
+extern float Math$log(float x);
+extern float Math$round(float x);
+extern float Math$sin(float x);
+extern float Math$cos(float x);
+extern float Math$tan(float x);
+extern float Math$arcsin(float x);
+extern float Math$arccos(float x);
+extern float Math$arctan(float x);
+extern float Math$arctan2(float x, float y);
+extern float Math$sinh(float x);
+extern float Math$cosh(float x);
+extern float Math$tanh(float x);
+extern float Math$arcsinh(float x);
+extern float Math$arccosh(float x);
+extern float Math$arctanh(float x);
 
-extern void Out$init$();
+
+extern void Math$init$();
 
 #endif
