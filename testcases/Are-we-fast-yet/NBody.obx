@@ -45,7 +45,7 @@ module NBody
 	    const epsilon = 0.00000000000000005 // 5e-17
     begin
        if innerIterations = 250000 then
-          return result - 0.1690859889909308 < epsilon
+          return abs(result) - 0.1690859889909308 < epsilon
        end
        if innerIterations = 1 then
           return abs(result) - 0.16907495402506745 < epsilon

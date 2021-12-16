@@ -612,6 +612,7 @@ namespace Obx
 
     enum IdentRole { NoRole, DeclRole, LhsRole, VarRole, RhsRole, SuperRole, SubRole, CallRole,
                      ImportRole, ThisRole, MethRole, StringRole };
+                     // used by Xref as additional information for IdentLeaf/Sel
 
     struct Expression : public Thing
     {
