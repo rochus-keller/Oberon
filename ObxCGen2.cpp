@@ -1685,7 +1685,7 @@ struct ObxCGenImp : public AstVisitor
                         b << "$" << i;
                     }
                     b << ", $s=" << "sizeof(" << formatType(td) << "); ";
-                    const int temp = buyTemp("void*");
+                    const int temp = buyTemp(formatType(td,"*"));
                     b << "$t" << temp << " = OBX$Alloc($s*$n); ";
                     b << "memset($t" << temp << ",0,$s*$n); ";
                     renderArg(0,ae->d_args.first().data(),false);
@@ -1700,7 +1700,7 @@ struct ObxCGenImp : public AstVisitor
                     {
                         // like emitArrayInit
                         b << "for(int $i = 0; $i < $n; $i++) ";
-                        b << classRef(td) << "$init$(&((" << formatType(td,"*") << ")$t" << temp << ")[$i]); ";
+                        b << classRef(td) << "$init$(&$t" << temp << "[$i]); ";
                     }
                     sellTemp(temp);
                     b << "}";
@@ -1708,14 +1708,14 @@ struct ObxCGenImp : public AstVisitor
                 {
                     Q_ASSERT( td->getTag() == Thing::T_Record );
                     Q_ASSERT( ae->d_args.size() == 1 );
-                    const int temp = buyTemp("void*");
+                    const int temp = buyTemp(formatType(td,"*"));
                     b << "$t" << temp << " = OBX$Alloc(sizeof(" << formatType(td) << "));" << endl;
                     b << "memset($t" << temp << ",0,sizeof(" << formatType(td) << "));" << endl;
                     b << ws();
                     renderArg(0,ae->d_args.first().data(),false);
                     b << " = ";
-                    b << "(" << formatType(td,"*") << ")$t" << temp << ";" << endl;
-                    b << ws() << classRef(td) << "$init$((" << formatType(td,"*") << ")$t" << temp << ")";
+                    b << "$t" << temp << ";" << endl;
+                    b << ws() << classRef(td) << "$init$(" << "$t" << temp << ")";
                     sellTemp(temp);
                 }
             }
@@ -1908,7 +1908,7 @@ struct ObxCGenImp : public AstVisitor
         QList<Array*> allDims = a->getDims();
         const bool dynLen = hasDynLen(allDims);
 
-        const int temp = buyTemp("void*");
+        const int temp = buyTemp(arrayType(allDims.size(),arrDesig->d_loc)+"*");
         if( dynLen )
         {
             // take the address of the base OBX$Array$x struct so it's fields can be transferred to the slice
@@ -1928,14 +1928,14 @@ struct ObxCGenImp : public AstVisitor
             else
             {
                 Q_ASSERT(dynLen);
-                b << "((" << arrayType(allDims.size(),arrDesig->d_loc) << "*)$t" << temp << ")->$" << i+idxDims.size()+1 << ",";
+                b << "$t" << temp << "->$" << i+idxDims.size()+1 << ",";
             }
         }
         b << "1,"; // 1 because we point in a slice here, not the start of the array
         b << "&((" << formatType(allDims.last()->d_type.data(),"*") << ")"; // cast to a 1d array because we only index one dim
              // addrof result required because we need address of array, i.e. &array[index]
         if( dynLen )
-            b  << "((" << arrayType(allDims.size(),arrDesig->d_loc) << "*)$t" << temp << ")->$a)[";
+            b  << "$t" << temp << "->$a)[";
         else
         {
             b << "(";
@@ -1963,7 +1963,7 @@ struct ObxCGenImp : public AstVisitor
                     else
                     {
                         Q_ASSERT(dynLen);
-                        b << "((" << arrayType(allDims.size(),arrDesig->d_loc) << "*)$t" << temp << ")->$" << i+1;
+                        b << "$t" << temp << "->$" << i+1;
                     }
                 }
             }
@@ -2236,7 +2236,6 @@ struct ObxCGenImp : public AstVisitor
         ProcType* pt = cast<ProcType*>( subT );
         Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
 
-        const int temp = buyTemp("void*");
 
         if( pt->d_typeBound && !superCall )
         {
@@ -2249,10 +2248,9 @@ struct ObxCGenImp : public AstVisitor
                 Q_ASSERT(td && td->getTag() == Thing::T_Record);
 
                 Procedure* p = cast<Procedure*>(func);
+                const int temp = buyTemp("void*");
                 b << "((" << formatType(p->d_receiverRec,"*") << ")($t" << temp << " = ";
-                if( true ) // method->d_sub->getUnOp() != UnExpr::DEREF )
-                    b << "&";
-                b << "(";
+                b << "&(";
                 method->d_sub->accept(this);
                 b << ")))->class$->" << escape( method->getIdent()->d_name) << "($t" << temp;
                 if( !pt->d_formals.isEmpty() )
@@ -2261,15 +2259,17 @@ struct ObxCGenImp : public AstVisitor
                     emitActuals(pt,me);
                 }
                 b << ")";
+                sellTemp(temp);
             }else
             {
+                const int temp = buyTemp("struct OBX$Deleg*");
                 b << "($t" << temp << " = &(struct OBX$Deleg[1]){";
                 me->d_sub->accept(this); // use compound because d_sub could be function call resulting in lvalue error
                 b << "}[0],";
                 b << "((" << formatReturn(pt,"") << "(*)"
                   << formatFormals(pt,false) << ")"; // cast to method
-                b << "((struct OBX$Deleg*)$t" << temp << ")->func)";
-                b << "(((struct OBX$Deleg*)$t" << temp << ")->inst"; // call
+                b << "$t" << temp << "->func)";
+                b << "($t" << temp << "->inst"; // call
                 if( !pt->d_formals.isEmpty() )
                 {
                     b << ", ";
@@ -2277,6 +2277,7 @@ struct ObxCGenImp : public AstVisitor
                 }
                 b << ")"; // call
                 b << ")"; // ($t=
+                sellTemp(temp);
             }
         }else if( pt->d_typeBound && superCall )
         {
@@ -2290,10 +2291,9 @@ struct ObxCGenImp : public AstVisitor
             Q_ASSERT(td && td->getTag() == Thing::T_Record);
 
             Procedure* p = cast<Procedure*>(func);
+            const int temp = buyTemp("void*");
             b << "((" << formatType(p->d_receiverRec,"*") << ")($t" << temp << " = ";
-            if( true ) // method->d_sub->getUnOp() != UnExpr::DEREF )
-                b << "&";
-            b << "(";
+            b << "&(";
             method->d_sub->accept(this);
             b << ")))->class$->super$->" << escape( method->getIdent()->d_name) << "($t" << temp;
             if( !pt->d_formals.isEmpty() )
@@ -2301,6 +2301,7 @@ struct ObxCGenImp : public AstVisitor
                 b << ", ";
                 emitActuals(pt,me);
             }
+            sellTemp(temp);
             b << ")";
         }else
         {
@@ -2309,7 +2310,6 @@ struct ObxCGenImp : public AstVisitor
             emitActuals(pt,me);
             b << ")";
         }
-        sellTemp(temp);
     }
 
     void visit( ArgExpr* me )
@@ -2333,7 +2333,7 @@ struct ObxCGenImp : public AstVisitor
                 QList<Array*> dims = cast<Array*>(td)->getDims();
                 const bool dynLen = hasDynLen(dims);
                 b << "(";
-                const int temp = buyTemp("void*");
+                const int temp = buyTemp(arrayType(dims.size(),e->d_sub->d_loc)+"*");
                 if( dynLen )
                 {
                     // take the address of the base OBX$Array$x struct so it's fields can be used later
@@ -2343,7 +2343,7 @@ struct ObxCGenImp : public AstVisitor
                 }
                 b << "((" << formatType(me->d_type.data(),"*") << ")"; // cast to a 1d array because we only index one dim
                 if( dynLen )
-                    b << "((" << arrayType(dims.size(),e->d_sub->d_loc) << "*)$t" << temp << ")->$a)[";
+                    b << "$t" << temp << "->$a)[";
                 else
                 {
                     b << "(";
@@ -2373,7 +2373,7 @@ struct ObxCGenImp : public AstVisitor
                             else
                             {
                                 Q_ASSERT(dynLen);
-                                b << "((" << arrayType(dims.size(),e->d_sub->d_loc) << "*)$t" << temp << ")->$" << i+1;
+                                b << "$t" << temp << "->$" << i+1;
                             }
                         }
                     }
@@ -3240,6 +3240,8 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     copyFile(outDir,"OBX.Runtime.c",fout);
 
     bout << "cc -O2 --std=c99 *.c -lm" << endl;
+    bout << "or with Boehm-Demers-Weiser GC" << endl;
+    bout << "cc -O2 --std=c99 *.c -lm -DOBX_USE_BOEHM_GC -lgc" << endl;
     bout.flush();
     fout.flush();
 

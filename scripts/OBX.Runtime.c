@@ -19,6 +19,9 @@
 
 #include "OBX.Runtime.h"
 #include <stdarg.h>
+#ifdef OBX_USE_BOEHM_GC
+#include <gc/gc.h>
+#endif
 
 inline void* OBX$ClassOf(void* inst) { return inst ? ((struct OBX$Inst*)inst)->class$ : 0; }
 
@@ -80,7 +83,11 @@ inline int64_t OBX$Mod64( int64_t a, int64_t b )
 
 void* OBX$Alloc( size_t s)
 {
+#ifdef OBX_USE_BOEHM_GC
+    return GC_MALLOC(s);
+#else
     return malloc(s);
+#endif
 }
 
 int OBX$StrOp( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide, int op )

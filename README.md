@@ -2,7 +2,7 @@
 
 This project started out as an [Oberon-07](http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf) parser, code model and transpiler written in C++ and Qt, with the goal to build tools to better understand the [Lola-2](https://www.inf.ethz.ch/personal/wirth/Lola/Lola2.pdf) compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries, and with no dependencies to the Oberon System (see the [Lola](https://github.com/rochus-keller/lola) and [LolaCreator](https://github.com/rochus-keller/lolacreator) repositories).
 
-Oberon turned out to be a language very well suited for compiler front and backend experiments because it is decently simple but still powerful enough to build real-world software, as it supports pointers, static and stack based data structures and call by reference, which are not usually available with scripting languages. In consequence, an other goal of this project is to study the feasibility of reusing [LuaJIT](http://luajit.org/) as a backend for statically typed programming languages like Oberon (see [this article](https://medium.com/@rochus.keller/implementing-call-by-reference-and-call-by-name-in-lua-47b9d1003cc2)). The current implementation of the compiler is able to map full Oberon+ to LuaJIT and CIL/ECMA-335 bytecode and run with decent performance (see [Linux report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_linux.pdf) and [Windows report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_windows.pdf)). There is also a [compatible version of the Oberon System](https://github.com/rochus-keller/OberonSystem), as well as a powerful IDE with semantic navigation and source-level debugging (see below).
+Oberon turned out to be a language very well suited for compiler front and backend experiments because it is decently simple but still powerful enough to build real-world software, as it supports pointers, static and stack based data structures and call by reference, which are not usually available with scripting languages. In consequence, an other goal of this project is to study the feasibility of reusing [LuaJIT](http://luajit.org/) as a backend for statically typed programming languages like Oberon (see [this article](https://medium.com/@rochus.keller/implementing-call-by-reference-and-call-by-name-in-lua-47b9d1003cc2)). The current implementation of the compiler is able to map full Oberon+ to LuaJIT, CIL/ECMA-335 bytecode and C99 source code, and run with decent performance (see [Linux report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_linux.pdf) and [Windows report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_windows.pdf)). There is also a [compatible version of the Oberon System](https://github.com/rochus-keller/OberonSystem), as well as a powerful IDE with semantic navigation and source-level debugging (see below).
 
 During my work with Oberon and systems implemented in Oberon, I kept asking myself what properties the language would need to have so that I could use it for my own systems too, without giving up the goal of making it as simple as possible. From these considerations a new language emerged, which I call **Oberon+** (i.e. "Oberon with extensions", abbreviated OBX); it is a general-purpose, procedural and object-oriented programming language in the tradition of and based on Oberon-07, Oberon-2 and Oberon 90, with all the elements of these languages, plus generic modules, enumerations, and many additional simplifications such as support for lower case keywords, optional semicolons, and flexible declaration sequences. See [the language report](https://github.com/oberon-lang/specification/blob/master/The_Programming_Language_Oberon%2B.adoc) and the [dedicated language site](http://oberon-lang.ch) for more information. The compiler supports both, Oberon+ as well as most of the syntax and semantics of the previous Oberon versions.
 
@@ -26,7 +26,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [x] Implement a CIL/ECMA-335 compiler backend (done for both IL and direct assembly generator)
 - [x] Use a minimal Mono runtime as an alternative to the LuaJIT VM
 - [x] Foreign Function Interface (FFI, see [here](https://github.com/rochus-keller/OberonSystem/blob/FFI/ObSdl.obx) for an example, and [here](https://github.com/rochus-keller/c2obx/) for a tool to convert C headers to Oberon+ definition modules))
-- [ ] Implement an LLVM compiler backend (WIP)
+- [x] Implement a C transpiler backend (instead the originally planned LLVM backend)
 - [ ] Write documentation and focus articles (WIP)
 
 ### The Oberon+ IDE
@@ -58,6 +58,13 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 - The full Oberon+ language including generics and the Oakwood libraries are supported
 - The SYSTEM module is not supported (and not necessary)
 - FFI with dedicated Oberon+ language constructs for C library integration (see also [this tool](https://github.com/rochus-keller/c2obx/))
+
+### Oberon+ to C99 transpiler
+
+- Generates C code compatible with ISO 9899:1999 with no other dependencies than the C standard library and the [Boehm-Demers-Weiser garbage collector](https://hboehm.info/gc/)
+- The full Oberon+ language including generics and the Oakwood libraries are supported
+- The SYSTEM module is not supported (and not necessary)
+- FFI and Oakwood WIP
 
 ### Oberon+ to LuaJIT bytecode compiler
 
