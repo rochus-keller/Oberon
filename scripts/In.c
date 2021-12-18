@@ -1,6 +1,3 @@
-#ifndef _OBX_INPUT_
-#define _OBX_INPUT_
-
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
@@ -20,12 +17,29 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include "OBX.Runtime.h"
+#include "In.h"
 
-// TODO complete
+int In$Done = 0;
 
-extern int32_t Input$Time();
+void In$Open()
+{
+}
 
-extern void Input$init$();
+void In$Char(char* ch)
+{
+	assert( ch != 0 );
+	const int res = getchar();
+	if( res != EOF )
+	{
+		In$Done = 1;
+		*ch = (char)res;
+	}else
+	{
+		In$Done = 0;
+		*ch = '\0';
+	}
+}
 
-#endif
+void In$init$()
+{
+}

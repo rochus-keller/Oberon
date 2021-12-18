@@ -1,5 +1,5 @@
-#ifndef _OBX_INPUT_
-#define _OBX_INPUT_
+#ifndef _OBX_IN_
+#define _OBX_IN_
 
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
@@ -22,10 +22,14 @@
 
 #include "OBX.Runtime.h"
 
-// TODO complete
+extern int In$Done;
 
-extern int32_t Input$Time();
+//PROCEDURE Open;
+extern void In$Open();
 
-extern void Input$init$();
+//PROCEDURE Char (VAR ch: CHAR);
+extern void In$Char(char* ch);
+
+extern void In$init$();
 
 #endif

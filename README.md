@@ -13,7 +13,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - The old Oberon-07 validating parser with code model, Lua source code transpiler, C++ transpiler and LuaJIT bytecode compiler (file prefix Ob)
 - The old OberonViewer, Oberon-07 IDE and OBNLC command line version of the compiler/transpiler
 - The Oberon+ LL(1) EBNF grammar
-- The new Oberon+ validating parser, code model, and LuaJIT and CIL/ECMA-335 bytecode compiler (file prefix Obx)
+- The new Oberon+ validating parser, code model, and LuaJIT, CIL/ECMA-335 bytecode and C99 compiler (file prefix Obx)
 - The new Oberon+ IDE (a separate one for LuaJIT and Mono), OBXLJ (LuaJIT) and OBXMC (Mono) command line version of the compiler
 - The Oberon+ version of the "Are we fast yet" and "Hennessy" benchmark suites
 
@@ -46,6 +46,7 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 - Bytecode view (LuaJIT or IL assembler syntax), synchronized to source
 - Integrated source level debugger with breakpoints, stack trace and locals view
 - Built-in optional Oakwood or Oberon System backend library
+- Note that the LuaJIT version (ObxIde.pro) of the IDE is deprecated; use the Mono version (ObxIde2.pro) instead
 
 ![Oberon+ IDE Screenshot](http://software.rochus-keller.ch/obxide_0.7.13.png)
 
@@ -116,9 +117,14 @@ Follow these steps if you want to build e.g. the Oberon+ IDE yourself:
 
 Alternatively you can open ObxIde2.pro or any other included .pro file using QtCreator and build it there.
 
+## Collaboration
+
+The author is not ready yet for collaboration or to accept pull requests. 
 
 ## Support
 If you need support or would like to post issues or feature requests please use the Github issue list at https://github.com/rochus-keller/Oberon/issues or send an email to the author.
+
+
 
 
 

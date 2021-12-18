@@ -35,7 +35,16 @@ using namespace Ob;
 Q_DECLARE_METATYPE( Obx::Literal::SET )
 #endif
 
-#define _MY_GENERICS_
+//#define _OBX_FUNC_SEQ_POINT_
+    /* The concept ($t1 = object)->func($t1) correctly works on all compilers and platforms tested so far,
+     * also interleaved applications of the concept like ($t1 = object)->func($t1, ($t2 = object2)->func2($t2) )
+     * properly work. I neither came across a situation since I wrote my first C program in the eighties where
+     * this was suspected not to work. Unfortunately the unspecified evaluation order in the C99 standard includes the
+     * function designator (not only the order of arguments). So theoretically the function argument $t1 could
+     * be evaluated before the assignment $t1 = object. This define enables a version with an additional indirection
+     * and comma expression like ($t2 = ($t1 = object)->func, $t2($t1)) so that there is an explicit sequence point
+     * between the evaluation of the function designator and the evaluation of the arguments (at the cost of performance).
+     */
 
 struct ObxCGenCollector : public AstVisitor
 {
@@ -130,13 +139,47 @@ struct ObxCGenImp : public AstVisitor
     Named* curVarDecl;
     QSet<Record*> declToInline;
     Named* retypedRecIdent;
-    QList<QPair<QByteArray,bool> > temps; // type -> in use
+
+#ifdef _OBX_FUNC_SEQ_POINT_
+    struct Temp
+    {
+        QByteArray d_type;
+        ProcType* d_pt;
+        bool d_inUse;
+        Temp(const QByteArray& name = QByteArray(), ProcType* pt = 0, bool inUse = false ):d_type(name),d_pt(pt),d_inUse(inUse){}
+    };
+    QList<Temp> temps;
+#else
+    QList<QPair<QByteArray,bool> > temps;
+#endif
+
 
     ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),
         curProc(0),curVarDecl(0),retypedRecIdent(0),park(0){}
 
     inline QByteArray ws() { return QByteArray(level*4,' '); }
 
+#ifdef _OBX_FUNC_SEQ_POINT_
+    int buyTemp( const QByteArray& type, ProcType* pt = 0 )
+    {
+        for( int i = 0; i < temps.size(); i++ )
+        {
+            if( temps[i].d_type == type && !temps[i].d_inUse )
+            {
+                temps[i].d_inUse = true;
+                return i;
+            }
+        }
+        temps.append(Temp(type,pt,true));
+        return temps.size() - 1;
+    }
+
+    void sellTemp(int i)
+    {
+        Q_ASSERT( i >= 0 && i < temps.size() );
+        temps[i].d_inUse = false;
+    }
+#else
     int buyTemp( const QByteArray& type )
     {
         for( int i = 0; i < temps.size(); i++ )
@@ -156,6 +199,7 @@ struct ObxCGenImp : public AstVisitor
         Q_ASSERT( i >= 0 && i < temps.size() );
         temps[i].second = false;
     }
+#endif
 
     void beginBody()
     {
@@ -172,7 +216,16 @@ struct ObxCGenImp : public AstVisitor
         Q_ASSERT( park );
         b.flush();
         for(int i = 0; i < temps.size(); i++ )
+        {
+#ifdef _OBX_FUNC_SEQ_POINT_
+            if( temps[i].d_pt )
+                park->write(ws() + formatProcType(temps[i].d_pt," $t" + QByteArray::number(i)) + ";\n" );
+            else
+                park->write(ws() + temps[i].d_type + " $t" + QByteArray::number(i) + ";\n" );
+#else
             park->write(ws() + temps[i].first + " $t" + QByteArray::number(i) + ";\n" );
+#endif
+        }
         park->write(body.toUtf8());
         b.setDevice(park);
     }
@@ -403,6 +456,11 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
+    QByteArray formatProcType( ProcType* pt, const QByteArray& name = QByteArray() )
+    {
+        return formatReturn(pt, "(*" + name + ")" + formatFormals(pt, false));
+    }
+
     QByteArray formatType( Type* t, const QByteArray& name = QByteArray() )
     {
         if( t == 0 )
@@ -479,7 +537,8 @@ struct ObxCGenImp : public AstVisitor
                 if( pt->d_typeBound )
                     return "struct OBX$Deleg" + ( !name.isEmpty() ? " " + name : "" );
 
-                return formatReturn(pt, "(*" + name + ")" + formatFormals(pt)); // fix for proc type returns
+                return formatProcType(pt,name);
+                //return formatReturn(pt, "(*" + name + ")" + formatFormals(pt)); // fix for proc type returns
                 //const QByteArray returnType = formatType(pt->d_return.data());
                 //return returnType + " (*" + name + ")" + formatFormals(pt); // name can legally be empty
             }
@@ -928,6 +987,12 @@ struct ObxCGenImp : public AstVisitor
         {
             emitStatement(s.data());
         }
+        if( !pt->d_return.isNull() && ( me->d_body.isEmpty() || me->d_body.last()->getTag() != Thing::T_Return ) )
+        {
+            b << ws() << "return ";
+            emitDefault(pt->d_return.data(),me->d_end);
+            b << ";" << endl;
+        }
 
         endBody();
 
@@ -1248,6 +1313,72 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
+    void emitDefault( Type* t, const RowCol& loc )
+    {
+        Type* td = derefed(t);
+        Q_ASSERT( td );
+        switch( td->getTag() )
+        {
+        case Thing::T_Record:
+            qDebug() << "DEFAULT(record)" << thisMod->getName();
+            if( td->d_unsafe )
+                b << "(" << formatType(td) << "){}"; // partial init sets all members to zero
+            else
+                b << "(" << formatType(td) << "){ &" << classRef(td) << "$class$ }";
+            break;
+        case Thing::T_Array:
+            {
+                Array* a = cast<Array*>(td);
+                QList<Array*> dims = a->getDims();
+                td = derefed(dims.last()->d_type.data());
+                if( dims.size() == 1 && td->isChar() )
+                {
+                    if( td->getBaseType() == Type::CHAR )
+                        b << "(struct OBX$Array$1){1,1,&(char[1]){0}}";
+                    else
+                        b << "(struct OBX$Array$1){1,1,&(wchar_t[1]){0}}";
+                }else
+                {
+                    b << "(" << arrayType(dims.size(), loc) << "){";
+                    for( int i = 0; i < dims.size(); i++ )
+                    {
+                        Q_ASSERT(!dims[i]->d_lenExpr.isNull());
+                        b << dims[i]->d_len;
+                        b << ",";
+                    }
+                    b << "1,&(";
+                    b << formatType(dims.last()->d_type.data());
+                    for( int i = 0; i < dims.size(); i++ )
+                    {
+                        b << "[" << dims[i]->d_len << "]";
+                    }
+                    b << "){}}";
+                }
+            }
+            break;
+        case Thing::T_Pointer:
+            {
+                td = derefed(cast<Pointer*>(td)->d_to.data());
+                Q_ASSERT(td);
+                if( td->getTag() == Thing::T_Array )
+                {
+                    int dims;
+                    cast<Array*>(td)->getTypeDim(dims);
+                    b << "(" << arrayType(dims, loc) << "){}";
+                }else
+                    b << "0";
+            }
+            break;
+        case Thing::T_BaseType:
+        case Thing::T_Enumeration:
+        case Thing::T_ProcType:
+            b << "0";
+            break;
+        default:
+            Q_ASSERT(false);
+        }
+    }
+
     void emitBuiltIn( BuiltIn* bi, ArgExpr* ae )
     {
         switch( bi->d_func )
@@ -1372,71 +1503,8 @@ struct ObxCGenImp : public AstVisitor
             }
             break;
         case BuiltIn::DEFAULT:
-            {
-                Q_ASSERT( !ae->d_args.isEmpty() );
-                Type* td = derefed(ae->d_args.first()->d_type.data() );
-                Q_ASSERT( td );
-                switch( td->getTag() )
-                {
-                case Thing::T_Record:
-                    qDebug() << "DEFAULT(record)" << thisMod->getName();
-                    if( td->d_unsafe )
-                        b << "(" << formatType(td) << "){}"; // partial init sets all members to zero
-                    else
-                        b << "(" << formatType(td) << "){ &" << classRef(td) << "$class$ }";
-                    break;
-                case Thing::T_Array:
-                    {
-                        Array* a = cast<Array*>(td);
-                        QList<Array*> dims = a->getDims();
-                        td = derefed(dims.last()->d_type.data());
-                        if( dims.size() == 1 && td->isChar() )
-                        {
-                            if( td->getBaseType() == Type::CHAR )
-                                b << "(struct OBX$Array$1){1,1,&(char[1]){0}}";
-                            else
-                                b << "(struct OBX$Array$1){1,1,&(wchar_t[1]){0}}";
-                        }else
-                        {
-                            b << "(" << arrayType(dims.size(), ae->d_loc) << "){";
-                            for( int i = 0; i < dims.size(); i++ )
-                            {
-                                Q_ASSERT(!dims[i]->d_lenExpr.isNull());
-                                b << dims[i]->d_len;
-                                b << ",";
-                            }
-                            b << "1,&(";
-                            b << formatType(dims.last()->d_type.data());
-                            for( int i = 0; i < dims.size(); i++ )
-                            {
-                                b << "[" << dims[i]->d_len << "]";
-                            }
-                            b << "){}}";
-                        }
-                    }
-                    break;
-                case Thing::T_Pointer:
-                    {
-                        td = derefed(cast<Pointer*>(td)->d_to.data());
-                        Q_ASSERT(td);
-                        if( td->getTag() == Thing::T_Array )
-                        {
-                            int dims;
-                            cast<Array*>(td)->getTypeDim(dims);
-                            b << "(" << arrayType(dims, ae->d_loc) << "){}";
-                        }else
-                            b << "0";
-                    }
-                    break;
-                case Thing::T_BaseType:
-                case Thing::T_Enumeration:
-                case Thing::T_ProcType:
-                    b << "0";
-                    break;
-                default:
-                    Q_ASSERT(false);
-                }
-            }
+            Q_ASSERT( !ae->d_args.isEmpty() );
+            emitDefault(ae->d_args.first()->d_type.data(),ae->d_args.first()->d_loc);
             break;
         case BuiltIn::BITAND:
             Q_ASSERT( ae->d_args.size() == 2 );
@@ -1710,7 +1778,7 @@ struct ObxCGenImp : public AstVisitor
                     Q_ASSERT( ae->d_args.size() == 1 );
                     const int temp = buyTemp(formatType(td,"*"));
                     b << "$t" << temp << " = OBX$Alloc(sizeof(" << formatType(td) << "));" << endl;
-                    b << "memset($t" << temp << ",0,sizeof(" << formatType(td) << "));" << endl;
+                    b << ws() << "memset($t" << temp << ",0,sizeof(" << formatType(td) << "));" << endl;
                     b << ws();
                     renderArg(0,ae->d_args.first().data(),false);
                     b << " = ";
@@ -2236,7 +2304,6 @@ struct ObxCGenImp : public AstVisitor
         ProcType* pt = cast<ProcType*>( subT );
         Q_ASSERT( pt->d_formals.size() <= me->d_args.size() );
 
-
         if( pt->d_typeBound && !superCall )
         {
             if( func )
@@ -2246,30 +2313,43 @@ struct ObxCGenImp : public AstVisitor
                 IdentSel* method = cast<IdentSel*>(me->d_sub.data());
                 Type* td = derefed(method->d_sub->d_type.data());
                 Q_ASSERT(td && td->getTag() == Thing::T_Record);
-
                 Procedure* p = cast<Procedure*>(func);
-                const int temp = buyTemp("void*");
-                b << "((" << formatType(p->d_receiverRec,"*") << ")($t" << temp << " = ";
+                const int self = buyTemp("void*");
+
+#ifdef _OBX_FUNC_SEQ_POINT_
+                const int fptr = buyTemp(formatProcType(pt),pt);
+                b << "($t" << fptr << " = ";
+#endif
+                b << "((" << formatType(p->d_receiverRec,"*") << ")($t" << self << " = ";
                 b << "&(";
                 method->d_sub->accept(this);
-                b << ")))->class$->" << escape( method->getIdent()->d_name) << "($t" << temp;
+                b << ")";
+                b << "))->class$->" << escape( method->getIdent()->d_name);
+#ifdef _OBX_FUNC_SEQ_POINT_
+                b << ", " << "$t" << fptr;
+#endif
+                b << "($t" << self;
                 if( !pt->d_formals.isEmpty() )
                 {
                     b << ", ";
                     emitActuals(pt,me);
                 }
                 b << ")";
-                sellTemp(temp);
+#ifdef _OBX_FUNC_SEQ_POINT_
+                b << ")";
+                sellTemp(fptr);
+#endif
+                sellTemp(self);
             }else
             {
-                const int temp = buyTemp("struct OBX$Deleg*");
-                b << "($t" << temp << " = &(struct OBX$Deleg[1]){";
+                const int deleg = buyTemp("struct OBX$Deleg*");
+                b << "($t" << deleg << " = &(struct OBX$Deleg[1]){";
                 me->d_sub->accept(this); // use compound because d_sub could be function call resulting in lvalue error
                 b << "}[0],";
                 b << "((" << formatReturn(pt,"") << "(*)"
                   << formatFormals(pt,false) << ")"; // cast to method
-                b << "$t" << temp << "->func)";
-                b << "($t" << temp << "->inst"; // call
+                b << "$t" << deleg << "->func)";
+                b << "($t" << deleg << "->inst"; // call
                 if( !pt->d_formals.isEmpty() )
                 {
                     b << ", ";
@@ -2277,7 +2357,7 @@ struct ObxCGenImp : public AstVisitor
                 }
                 b << ")"; // call
                 b << ")"; // ($t=
-                sellTemp(temp);
+                sellTemp(deleg);
             }
         }else if( pt->d_typeBound && superCall )
         {
@@ -2289,20 +2369,33 @@ struct ObxCGenImp : public AstVisitor
             IdentSel* method = cast<IdentSel*>(sub->d_sub.data());
             Type* td = derefed(method->d_sub->d_type.data());
             Q_ASSERT(td && td->getTag() == Thing::T_Record);
-
             Procedure* p = cast<Procedure*>(func);
-            const int temp = buyTemp("void*");
-            b << "((" << formatType(p->d_receiverRec,"*") << ")($t" << temp << " = ";
+            const int self = buyTemp("void*");
+
+#ifdef _OBX_FUNC_SEQ_POINT_
+                const int fptr = buyTemp(formatProcType(pt),pt);
+                b << "($t" << fptr << " = ";
+#endif
+            b << "((" << formatType(p->d_receiverRec,"*") << ")($t" << self << " = ";
             b << "&(";
             method->d_sub->accept(this);
-            b << ")))->class$->super$->" << escape( method->getIdent()->d_name) << "($t" << temp;
+            b << ")";
+            b << "))->class$->super$->" << escape( method->getIdent()->d_name);
+#ifdef _OBX_FUNC_SEQ_POINT_
+                b << ", " << "$t" << fptr;
+#endif
+            b << "($t" << self;
             if( !pt->d_formals.isEmpty() )
             {
                 b << ", ";
                 emitActuals(pt,me);
             }
-            sellTemp(temp);
             b << ")";
+#ifdef _OBX_FUNC_SEQ_POINT_
+            b << ")";
+            sellTemp(fptr);
+#endif
+            sellTemp(self);
         }else
         {
             me->d_sub->accept(this);
