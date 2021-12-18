@@ -147,6 +147,7 @@ namespace Obx
         void onRemoveDir();
         void onEnableDebug();
         void onBreak();
+        void onClearTerm();
         void handleGoBack();
         void handleGoForward();
         void onUpdateLocation(int line, int col );
