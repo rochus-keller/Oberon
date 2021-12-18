@@ -74,6 +74,8 @@ CONFIG(debug, debug|release) {
 RESOURCES += \
     ObxIde2.qrc
 
+RC_ICONS = images/Oberon.ico
+
 CONFIG(static) {
     message(static build)
 LIBS += -lQt5Network
