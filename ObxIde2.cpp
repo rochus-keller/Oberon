@@ -416,7 +416,13 @@ Ide::Ide(QWidget *parent)
     setCorner( Qt::BottomLeftCorner, Qt::LeftDockWidgetArea );
     setCorner( Qt::TopRightCorner, Qt::RightDockWidgetArea );
     setCorner( Qt::TopLeftCorner, Qt::LeftDockWidgetArea );
-
+    
+    for (int i = 0; i < MaxRecentFiles; ++i) {
+        recentFileActs[i] = new QAction(this);
+        recentFileActs[i]->setVisible(false);
+        connect(recentFileActs[i], SIGNAL(triggered()), this, SLOT(openRecentFile()));
+    }
+    
     createMods();
     createMod();
     createHier();
@@ -759,6 +765,12 @@ void Ide::createMenuBar()
     pop->addCommand( "Open Project...", this, SLOT(onOpenPro()), tr("CTRL+O"), false );
     pop->addCommand( "Save Project", this, SLOT(onSavePro()), tr("CTRL+SHIFT+S"), false );
     pop->addCommand( "Save Project as...", this, SLOT(onSaveAs()) );
+    
+    separatorAct = pop->addSeparator();
+    for (int i = 0; i < MaxRecentFiles; ++i)
+        pop->addAction(recentFileActs[i]);
+    updateRecentFileActions();
+    
     pop->addSeparator();
     pop->addCommand( "Save", this, SLOT(onSaveFile()), tr("CTRL+S"), false );
     pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
@@ -922,15 +934,17 @@ void Ide::onOpenPro()
     d_pro->loadFrom(fileName);
 
     compile();
+    setCurrentFile(fileName);
 }
 
 void Ide::onSavePro()
 {
     ENABLED_IF( d_pro->isDirty() );
 
-    if( !d_pro->getProjectPath().isEmpty() )
+    if( !d_pro->getProjectPath().isEmpty() ) {
         d_pro->save();
-    else
+        setCurrentFile(d_pro->getProjectPath());
+    } else
         onSaveAs();
 }
 
@@ -960,6 +974,7 @@ void Ide::onSaveAs()
         fileName += ".obxpro";
 
     d_pro->saveTo(fileName);
+    setCurrentFile(fileName);
     onCaption();
 }
 
@@ -3301,6 +3316,44 @@ void Ide::onSetInputFile()
     if( path.isEmpty() )
         return;
     d_eng->setInputFile(path);
+}
+
+void Ide::setCurrentFile(const QString &fileName)
+{
+    QSettings settings;
+    QStringList files = settings.value("recentFileList").toStringList();
+    files.removeAll(fileName);
+    files.prepend(fileName);
+    while (files.size() > MaxRecentFiles)
+        files.removeLast();
+    settings.setValue("recentFileList", files);
+    updateRecentFileActions();
+}
+
+void Ide::updateRecentFileActions()
+{
+    QSettings settings;
+    QStringList files = settings.value("recentFileList").toStringList();
+
+    int numRecentFiles = qMin(files.size(), (int)MaxRecentFiles);
+
+    for (int i = 0; i < numRecentFiles; ++i) {
+        QString text = tr("&%1 %2").arg(i + 1).arg(QFileInfo(files[i]).fileName());
+        recentFileActs[i]->setText(text);
+        recentFileActs[i]->setData(files[i]);
+        recentFileActs[i]->setVisible(true);
+    }
+    for (int j = numRecentFiles; j < MaxRecentFiles; ++j)
+        recentFileActs[j]->setVisible(false);
+
+    separatorAct->setVisible(numRecentFiles > 0);
+}
+
+void Ide::openRecentFile()
+{
+    QAction *action = qobject_cast<QAction *>(sender());
+    if (action)
+        loadFile(action->data().toString());
 }
 
 int main(int argc, char *argv[])
