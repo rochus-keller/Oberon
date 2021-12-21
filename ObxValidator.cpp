@@ -1419,8 +1419,10 @@ struct ValidatorImp : public AstVisitor
                 me->d_type = rhsT;
             else if( isCharConst(me->d_lhs.data(),&lwchar) && isCharConst(me->d_rhs.data(),&rwchar) )
                 me->d_type = lwchar || rwchar ? bt.d_wcharType : bt.d_charType;
+            else if(lhsT->getBaseType() == Type::ENUMINT && rhsT->getBaseType() == Type::ENUMINT )
+                me->d_type = rhsT;
             else
-                error( me->d_loc, Validator::tr("range operator expects operands to be either integers or characters") );
+                error( me->d_loc, Validator::tr("range operator expects operands to be of integer, enumeration or character type") );
             break;
 
         case BinExpr::EQ:
@@ -2399,6 +2401,19 @@ struct ValidatorImp : public AstVisitor
         visitStats( me->d_do );
     }
 
+    static qint64 toInt(const Evaluator::Result& res )
+    {
+        if( res.d_vtype == Literal::Integer || res.d_vtype == Literal::Enum )
+            return res.d_value.toLongLong();
+        if( res.d_vtype == Literal::String )
+        {
+            const QByteArray str = res.d_value.toByteArray();
+            if( !str.isEmpty() )
+                return (quint8)str[0];
+        }
+        return 0;
+    }
+
     void visit( CaseStmt* me )
     {
         if( me->d_exp.isNull() )
@@ -2409,8 +2424,8 @@ struct ValidatorImp : public AstVisitor
         if( te == 0 )
             return; // already reported
 
-        if( !te->isChar() && !te->isInteger() && te->toRecord() == 0 )
-            error( me->d_exp->d_loc, Validator::tr("case expression must be a character, integer or record") );
+        if( !te->isChar() && !te->isInteger() && te->toRecord() == 0 && te->getTag() != Thing::T_Enumeration )
+            error( me->d_exp->d_loc, Validator::tr("case expression must be a character, integer, enumeration or record") );
 
         Ref<Type> orig;
 
@@ -2437,6 +2452,7 @@ struct ValidatorImp : public AstVisitor
             }
         }
 
+        QList< QPair<qint64,qint64> > ranges;
         foreach( const CaseStmt::Case& c, me->d_cases )
         {
             foreach( const Ref<Expression>& e, c.d_labels )
@@ -2449,8 +2465,23 @@ struct ValidatorImp : public AstVisitor
                         bool lwide,rwide;
                         Type* tl = derefed(e->d_type.data() );
                         if( ( te->isInteger() && !includes(te,tl) ) ||
-                            ( te->isChar(&lwide) && ( !isCharConst(e.data(),&rwide) || (!lwide && rwide) ) ) )
+                            ( te->isChar(&lwide) && ( !isCharConst(e.data(),&rwide) || (!lwide && rwide) ) ) ||
+                                ( te->getTag() == Thing::T_Enumeration && te != tl ))
                             error( e->d_loc, Validator::tr("label expression type not compatible with case expression type"));
+                        if( e->getBinOp() == BinExpr::Range )
+                        {
+                            BinExpr* be = cast<BinExpr*>(e.data());
+                            const qint64 a = toInt(Evaluator::eval(be->d_lhs.data(), levels.back().scope,err));
+                            const qint64 b = toInt(Evaluator::eval(be->d_rhs.data(), levels.back().scope,err));
+                            if( a <= b )
+                                ranges.append(qMakePair(a,b));
+                            else
+                                ranges.append(qMakePair(b,a));
+                        }else
+                        {
+                            const qint64 a = toInt(Evaluator::eval(e.data(), levels.back().scope,err));
+                            ranges.append(qMakePair(a,a));
+                        }
                     }
                 }
             }
@@ -2469,6 +2500,17 @@ struct ValidatorImp : public AstVisitor
                     continue;
                 }else
                     caseId->d_type = c.d_labels.first()->getIdent()->d_type;
+            }else
+            {
+                qSort( ranges );
+                for( int i = 1; i < ranges.size(); i++ )
+                {
+                    if( ranges[i].first <= ranges[i-1].second )
+                    {
+                        error( me->d_loc, Validator::tr("no case label must occur more than once"));
+                        break;
+                    }
+                }
             }
 
             visitStats( c.d_block );

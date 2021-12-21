@@ -23,6 +23,9 @@
 #include <gc/gc.h>
 #endif
 
+#define OBX_MAX_PATH 300
+static char s_appPath[OBX_MAX_PATH] = {0};
+
 inline void* OBX$ClassOf(void* inst) { return inst ? ((struct OBX$Inst*)inst)->class$ : 0; }
 
 inline int OBX$IsSubclass( void* superClass, void* subClass )
@@ -433,3 +436,186 @@ int16_t OBX$Asr16(int16_t x, int n)
 	else
 		return x >> n;
 }
+
+typedef struct {
+  char** names;
+  OBX$Lookup* lookups;
+  size_t used;
+  size_t size;
+} ObxDynArray;
+
+static ObxDynArray modules = {};
+
+static void initArray(ObxDynArray *a, size_t initialSize) {
+  a->names = malloc(initialSize * sizeof(char*));
+  a->lookups = malloc(initialSize * sizeof(OBX$Lookup));
+  a->used = 0;
+  a->size = initialSize;
+}
+
+static void appendArray(ObxDynArray *a, const char* module, OBX$Lookup lookup) {
+  if( a->names == 0 )
+    initArray(a,100);
+  else if( a->used == a->size ) {
+    a->size *= 2;
+    a->names = realloc(a->names, a->size * sizeof(char*));
+    a->lookups = realloc(a->lookups, a->size * sizeof(OBX$Lookup));
+  }
+  a->lookups[a->used] = lookup;
+  char* key = malloc(strlen(module)+1);
+  strcpy(key,module);
+  a->names[a->used++] = key;
+}
+
+static OBX$Lookup findModule(ObxDynArray *a, const char* module)
+{
+  for( int i = 0; i < a->used; i++ )
+  {
+  	if( strcmp(a->names[i],module) == 0 )
+  		return a->lookups[i];
+  }
+  return 0;
+}
+
+static OBX$Lookup loadModule(const char* module)
+{
+	// TODO: create path, OBX$LoadDynLib, OBX$LoadProc
+	return 0;
+}
+
+OBX$Lookup OBX$LoadModule(const char* module)
+{
+	OBX$Lookup lookup = findModule(&modules, module);
+	if( lookup == 0 )
+	{
+		lookup = loadModule(module);
+		if( lookup )
+			OBX$RegisterModule(module,lookup);
+	}
+	if( lookup )
+	{
+		OBX$Cmd init = lookup(0);
+		if( init )
+			init();
+	}
+	return lookup;
+}
+
+static void freeArray(ObxDynArray *a) {
+  for( int i = 0; i < a->used; i++ )
+  	free(a->names[i]);
+  free(a->names);
+  free(a->lookups);
+  a->names = 0;
+  a->lookups = 0;
+  a->used = a->size = 0;
+}
+
+void OBX$RegisterModule(const char* module, OBX$Lookup lookup)
+{
+	appendArray(&modules,module,lookup);
+}
+
+OBX$Cmd OBX$LoadCmd(const char* module, const char* command)
+{
+	OBX$Lookup lookup = OBX$LoadModule(module);
+	if( lookup )
+		return lookup(command);
+	else
+		return 0;
+}
+
+#ifdef _WIN32
+#include <windows.h>
+void* OBX$LoadDynLib(const char* path)
+{
+  	return LoadLibraryA(path);
+}
+void* OBX$LoadProc(void* lib, const char* name)
+{
+    return GetProcAddress((HINSTANCE)lib, sym);
+}
+#else
+#ifdef OBX_USE_DYN_LOAD
+#include <dlfcn.h>
+void* OBX$LoadDynLib(const char* path)
+{
+	return dlopen(path, RTLD_NOW);
+}
+void* OBX$LoadProc(void* lib, const char* name)
+{
+	return dlsym(lib, name);
+}
+#else
+void* OBX$LoadDynLib(const char* path)
+{
+	return 0;
+}
+void* OBX$LoadProc(void* lib, const char* name)
+{
+	return 0;
+}
+#endif
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+void getCurPath(char *buf, size_t size)
+{
+	GetModuleFileName(NULL, buf, size);
+	const char* res = strrchr(path, '\\');
+	if( res )
+		*res = 0; // cut off application name
+}
+#else
+#include <unistd.h>
+void getCurPath(char *buf, size_t size)
+{
+	if( getcwd(buf, size) == 0 )
+		buf[0] = 0;
+}
+#endif
+
+static void fetchAppPath( const char* path )
+{
+	if( path )
+	{
+		const char* res = strrchr(path, '/');
+		if( *path == '/' && res )
+		{
+			int len = res - path;
+			if( len >= OBX_MAX_PATH )
+				len = OBX_MAX_PATH - 1;
+			strncpy( s_appPath, path, len );
+			s_appPath[len] = 0;
+			return;
+		}
+#ifndef _WIN32
+		if( res )
+		{
+			getCurPath( s_appPath, OBX_MAX_PATH );
+			const int len1 = strlen(s_appPath);
+			int len2 = strlen(path);
+			if( len1+len2+1 > OBX_MAX_PATH )
+				len2 = OBX_MAX_PATH -1 -len1;
+			if( len2 > 0 )
+			{
+				strncpy(s_appPath+len1,path,len2);
+				s_appPath[OBX_MAX_PATH -1] = 0;
+			}else
+				return;
+		}
+#endif
+	}
+	getCurPath( s_appPath, OBX_MAX_PATH );
+}
+
+void OBX$InitApp(int argc, char **argv)
+{
+	if( argc > 0 )
+		fetchAppPath(argv[0]);
+	else
+		fetchAppPath(0);
+	// TEST printf("app path: %s\n", s_appPath);
+}
+

@@ -42,5 +42,7 @@ extern float Math$arctanh(float x);
 
 
 extern void Math$init$();
+extern void Math$cmd$(const char*);
+
 
 #endif

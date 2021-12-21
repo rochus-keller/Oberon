@@ -35,7 +35,7 @@ using namespace Ob;
 Q_DECLARE_METATYPE( Obx::Literal::SET )
 #endif
 
-//#define _OBX_FUNC_SEQ_POINT_
+#define _OBX_FUNC_SEQ_POINT_
     /* The concept ($t1 = object)->func($t1) correctly works on all compilers and platforms tested so far,
      * also interleaved applications of the concept like ($t1 = object)->func($t1, ($t2 = object2)->func2($t2) )
      * properly work. I neither came across a situation since I wrote my first C program in the eighties where
@@ -43,7 +43,8 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
      * function designator (not only the order of arguments). So theoretically the function argument $t1 could
      * be evaluated before the assignment $t1 = object. This define enables a version with an additional indirection
      * and comma expression like ($t2 = ($t1 = object)->func, $t2($t1)) so that there is an explicit sequence point
-     * between the evaluation of the function designator and the evaluation of the arguments (at the cost of performance).
+     * between the evaluation of the function designator and the evaluation of the arguments. The additional performance
+     * cost is neglible, so we can just leave it enabled.
      */
 
 struct ObxCGenCollector : public AstVisitor
@@ -847,6 +848,25 @@ struct ObxCGenImp : public AstVisitor
 
         b << "}" << endl;
 
+        h << "OBX$Cmd " << moduleName << "$cmd$(const char* name);" << endl;
+        b << "OBX$Cmd " << moduleName << "$cmd$(const char* name) {" << endl;
+        level++;
+        b << ws() << "if( name == 0 ) return " << moduleName << "$init$;" << endl;
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Procedure )
+            {
+                Procedure* p = cast<Procedure*>(n.data());
+                ProcType* pt = p->getProcType();
+                if( p->d_receiver.isNull() && pt->d_return.isNull() && pt->d_formals.isEmpty() )
+                    b << ws() << "if( strcmp(name,\"" << n->d_name <<
+                         "\") == 0 ) return " << moduleName << "$" << escape(n->d_name) << ";" << endl;
+            }
+        }
+        b << ws() << "return 0;" << endl;
+        level--;
+        b << "}" << endl;
+
         h << "#endif" << endl;
     }
 
@@ -1383,6 +1403,24 @@ struct ObxCGenImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::LDMOD:
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                b << "OBX$LoadModule((const char*)";
+                ae->d_args.first()->accept(this);
+                b << ".$a)";
+            }
+            break;
+        case BuiltIn::LDCMD:
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+                b << "OBX$LoadCmd((const char*)";
+                ae->d_args.first()->accept(this);
+                b << ".$a,(const char*)";
+                ae->d_args.last()->accept(this);
+                b << ".$a)";
+            }
+            break;
         case BuiltIn::ROR:
             Q_ASSERT( ae->d_args.size() == 2 );
             b << "(((";
@@ -2933,6 +2971,7 @@ struct ObxCGenImp : public AstVisitor
 
             Ref<BaseType> boolean = new BaseType(Type::BOOLEAN);
 
+            // TODO: consider switch statement
             for( int i = 0; i < me->d_cases.size(); i++ )
             {
                 const CaseStmt::Case& c = me->d_cases[i];
@@ -2948,6 +2987,7 @@ struct ObxCGenImp : public AstVisitor
                         BinExpr* bi = cast<BinExpr*>( l );
                         if( bi->d_op == BinExpr::Range )
                         {
+                            // TODO: consider lhs > rhs
                             Ref<BinExpr> _and = new BinExpr();
                             _and->d_op = BinExpr::AND;
                             _and->d_loc = l->d_loc;
@@ -3289,11 +3329,13 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     if( !mods.isEmpty() )
     {
         const QByteArray name = "OBX.Main";
-        QByteArrayList roots;
+        QByteArrayList roots, all;
         for(int i = mods.size() - 1; i >= 0; i-- )
         {
+            all.append(ObxCGenImp::moduleRef(mods[i]));
             if( mods[i]->d_usedBy.isEmpty() )
-                roots.append(ObxCGenImp::moduleRef(mods[i]));
+                roots.append(all.back());
+
         }
         if( roots.isEmpty() )
             roots.append(ObxCGenImp::moduleRef(mods.last())); // shouldn't actually happenk
@@ -3303,9 +3345,9 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
         {
             const Project::ModProc& mp = pro->getMain();
             if( mp.first.isEmpty() )
-                CGen2::generateMain(&f,roots);
+                CGen2::generateMain(&f,roots, all);
             else
-                CGen2::generateMain(&f,mp.first, mp.second);
+                CGen2::generateMain(&f,mp.first, mp.second, all);
             fout << name << ".c" << endl;
         }else
             qCritical() << "could not open for writing" << f.fileName();
@@ -3335,6 +3377,7 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     bout << "cc -O2 --std=c99 *.c -lm" << endl;
     bout << "or with Boehm-Demers-Weiser GC" << endl;
     bout << "cc -O2 --std=c99 *.c -lm -DOBX_USE_BOEHM_GC -lgc" << endl;
+    bout << "if on Unix/Linux/macOS dynamic libraries should be loaded add -DOBX_USE_DYN_LOAD -ldl" << endl;
     bout.flush();
     fout.flush();
 
@@ -3408,7 +3451,7 @@ static QByteArray escapeFileName(QByteArray name)
     return name;
 }
 
-bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteArray& callFunc)
+bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteArray& callFunc, const QByteArrayList& allMods)
 {
     if( callMod.isEmpty() )
         return false;
@@ -3419,12 +3462,15 @@ bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteAr
     out << "#include <locale.h>" << endl; // https://stackoverflow.com/questions/40590207/displaying-wide-chars-with-printf
     out << "#include \"" << escapeFileName(callMod) << ".h\"" << endl << endl;
 
-    out << "int main(void) {" << endl;
+    out << "int main(int argc, char **argv) {" << endl;
     out << "    setlocale(LC_ALL, \"C.UTF-8\");" << endl;
     // NOTE: default locale is "C"; in it a string literal with umlaute is coded in UTF-8; printf prints it correctly
     //       in contrast a L"" string literal is decoded in memory as plain Unicode (not UTF-8) in memory
     // we have latin-1 char strings in memory; didn't find a way yet to properly print these, that's why we
     // make a temp wchar_t* copy of the char* and work with C.UTF-8
+    out << "    OBX$InitApp(argc,argv);" << endl;
+    foreach( const QByteArray& m, allMods )
+        out << "    OBX$RegisterModule(\"" << escapeFileName(m) << "\"," << m << "$cmd$ );" << endl;
     out << "    " << callMod + "init$();" << endl;
     if( !callFunc.isEmpty() )
         out << "    " << callMod + "$" + callFunc + "();" << endl;
@@ -3433,7 +3479,7 @@ bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteAr
     return true;
 }
 
-bool CGen2::generateMain(QIODevice* to, const QByteArrayList& callMods)
+bool CGen2::generateMain(QIODevice* to, const QByteArrayList& callMods, const QByteArrayList& allMods)
 {
     Q_ASSERT( to );
     if( callMods.isEmpty() )
@@ -3447,14 +3493,14 @@ bool CGen2::generateMain(QIODevice* to, const QByteArrayList& callMods)
         out << "#include \"" << escapeFileName(mod) << ".h\"" << endl;
     out << endl;
 
-    out << "int main(void) {" << endl;
+    out << "int main(int argc, char **argv) {" << endl;
     out << "    setlocale(LC_ALL, \"C.UTF-8\");" << endl;
+    out << "    OBX$InitApp(argc,argv);" << endl;
+    foreach( const QByteArray& m, allMods )
+        out << "    OBX$RegisterModule(\"" << escapeFileName(m) << "\"," << m << "$cmd$ );" << endl;
     foreach( const QByteArray& mod, callMods )
-    {
         out << "    " << mod + "$init$();" << endl;
-    }
     out << "    return 0;" << endl;
     out << "}" << endl;
-    return true;
     return true;
 }

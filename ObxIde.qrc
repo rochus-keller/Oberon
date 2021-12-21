@@ -9,7 +9,7 @@
         <file>oakwood/Math.Def</file>
         <file>oakwood/Out.Def</file>
         <file>oakwood/Strings.Def</file>
-        <file>oakwood/XYPlane.Def</file>
+        <file>oakwood/XYplane.Def</file>
         <file>oakwood/Coroutines.Def</file>
         <file>scripts/Out.lua</file>
         <file>scripts/Strings.lua</file>

@@ -27,5 +27,6 @@
 extern int32_t Input$Time();
 
 extern void Input$init$();
+extern void Input$cmd$(const char*);
 
 #endif

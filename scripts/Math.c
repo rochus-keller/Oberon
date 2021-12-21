@@ -118,3 +118,10 @@ float Math$arctanh(float x)
 void Math$init$()
 {
 }
+
+void Math$cmd$(const char* name)
+{
+	if( name == 0 ) return Math$init$;
+	return 0;
+}
+

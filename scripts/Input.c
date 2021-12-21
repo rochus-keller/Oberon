@@ -43,3 +43,9 @@ void Input$init$()
 {
     gettimeofday(&start, 0);
 }
+
+void Input$cmd$(const char* name)
+{
+	if( name == 0 ) return Input$init$;
+	return 0;
+}

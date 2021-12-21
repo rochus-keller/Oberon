@@ -31,5 +31,6 @@ extern void In$Open();
 extern void In$Char(char* ch);
 
 extern void In$init$();
+extern void In$cmd$(const char*);
 
 #endif

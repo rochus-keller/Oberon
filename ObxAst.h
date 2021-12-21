@@ -623,6 +623,7 @@ namespace Obx
         virtual Expression* getSub() const { return 0; }
         QList<Expression*> getSubList() const;
         virtual quint8 getUnOp() const { return 0; }
+        virtual quint8 getBinOp() const { return 0; }
         virtual IdentRole getIdentRole() const { return NoRole; }
     };
 
@@ -727,6 +728,7 @@ namespace Obx
         void accept(AstVisitor* v) { v->visit(this); }
         bool isArithRelation() const;
         Module* getModule() const { return !d_lhs.isNull() ? d_lhs->getModule() : !d_rhs.isNull() ? d_rhs->getModule() : 0 ; }
+        quint8 getBinOp() const { return d_op; }
     };
 
     struct SysAttr : public Named

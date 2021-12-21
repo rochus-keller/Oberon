@@ -11,14 +11,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/With.obx
-1\RelPath=With.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays2.obx
-2\RelPath=Arrays2.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays3.obx
-3\RelPath=Arrays3.obx
-4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Arrays4.obx
-4\RelPath=Arrays4.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Enum2.obx
+1\RelPath=Enum2.obx
 size=1
 
 [Packages]

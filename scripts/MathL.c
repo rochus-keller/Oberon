@@ -119,3 +119,9 @@ double MathL$arctanh(double x)
 void MathL$init$()
 {
 }
+
+void MathL$cmd$(const char* name)
+{
+	if(name==0) return MathL$init$;
+	return 0;
+}

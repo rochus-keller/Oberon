@@ -1,0 +1,24 @@
+module Enum2
+
+	type 
+		T = ( A, B, C D E )
+		T2 = ( G, H, I )
+	var
+		t : T
+		
+begin
+	println("start Enum2")
+	t := C
+
+	case t of
+	| A: println("A")
+	| B..C: println("B")
+	| D: println("D")
+	end
+	
+	if t = A then println("A")
+	elsif t = B then println("B")
+	elsif t = C then println("C")
+	end
+	println("end Enum2")
+end Enum2

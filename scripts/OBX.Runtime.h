@@ -51,6 +51,9 @@ struct OBX$Deleg {
 	OBX$NullMeth func;
 };
 
+typedef void (*OBX$Cmd)(void);
+typedef OBX$Cmd (*OBX$Lookup)(const char* name );
+
 extern void* OBX$ClassOf(void* inst);
 int OBX$IsSubclass( void* superClass, void* subClass );
 uint32_t OBX$SetDiv( uint32_t lhs, uint32_t rhs );
@@ -79,5 +82,12 @@ extern uint32_t OBX$MakeSet(int count, ... );
 extern int64_t OBX$Asr64(int64_t x, int n);
 extern int32_t OBX$Asr32(int32_t x, int n);
 extern int16_t OBX$Asr16(int16_t x, int n);
+
+extern OBX$Lookup OBX$LoadModule(const char* module);
+extern void OBX$RegisterModule(const char* module, OBX$Lookup);
+extern OBX$Cmd OBX$LoadCmd(const char* module, const char* command);
+extern void* OBX$LoadDynLib(const char* path);
+extern void* OBX$LoadProc(void* lib, const char* name);
+extern void OBX$InitApp(int argc, char **argv);
 
 #endif

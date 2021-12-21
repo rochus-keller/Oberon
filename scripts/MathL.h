@@ -79,5 +79,6 @@ extern double MathL$arctanh(double x);
 
 
 extern void MathL$init$();
+extern void MathL$cmd$(const char*);
 
 #endif

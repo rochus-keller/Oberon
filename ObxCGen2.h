@@ -40,8 +40,11 @@ namespace Obx
     public:
         static bool translateAll(Project*, bool debug, const QString& where );
         static bool translate(QIODevice* header, QIODevice* body, Module*, bool debug, Ob::Errors* = 0 );
-        static bool generateMain(QIODevice*, const QByteArray& callMod = QByteArray(), const QByteArray& callFunc = QByteArray());
-        static bool generateMain(QIODevice*, const QByteArrayList& callMods );
+        static bool generateMain(QIODevice*, const QByteArray& callMod,
+                                 const QByteArray& callFunc,
+                                 const QByteArrayList& allMods );
+        static bool generateMain(QIODevice*, const QByteArrayList& callMods,
+                                 const QByteArrayList& allMods );
     private:
         CGen2();
     };

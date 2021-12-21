@@ -3506,6 +3506,7 @@ struct ObxCilGenImp : public AstVisitor
                         BinExpr* bi = cast<BinExpr*>( l );
                         if( bi->d_op == BinExpr::Range )
                         {
+                            // TODO: consider lhs > rhs
                             Ref<BinExpr> _and = new BinExpr();
                             _and->d_op = BinExpr::AND;
                             _and->d_loc = l->d_loc;

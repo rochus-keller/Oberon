@@ -43,3 +43,9 @@ void In$Char(char* ch)
 void In$init$()
 {
 }
+
+void In$cmd$(const char* name)
+{
+	if(name==0) return In$Init();
+	return 0;
+}

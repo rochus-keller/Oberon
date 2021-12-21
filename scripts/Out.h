@@ -30,5 +30,6 @@ extern void Out$String(const struct OBX$Array$1 str);
 extern void Out$Real(float x, int32_t n);
 
 extern void Out$init$();
+extern void Out$cmd$(const char*);
 
 #endif
