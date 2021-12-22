@@ -120,7 +120,7 @@ void MathL$init$()
 {
 }
 
-void MathL$cmd$(const char* name)
+OBX$Cmd MathL$cmd$(const char* name)
 {
 	if(name==0) return MathL$init$;
 	return 0;

@@ -29,8 +29,16 @@ extern void In$Open();
 
 //PROCEDURE Char (VAR ch: CHAR);
 extern void In$Char(char* ch);
+//PROCEDURE Int (VAR i: INTEGER);
+extern void In$Int(int32_t* i);
+//PROCEDURE Real (VAR x: REAL);
+extern void In$Real(float* x);
+//PROCEDURE String (VAR str: ARRAY OF CHAR);
+extern void In$String(struct OBX$Array$1 str);
+//PROCEDURE Name (VAR name: ARRAY OF CHAR);
+extern void In$Name(struct OBX$Array$1 name);
 
 extern void In$init$();
-extern void In$cmd$(const char*);
+extern OBX$Cmd In$cmd$(const char*);
 
 #endif

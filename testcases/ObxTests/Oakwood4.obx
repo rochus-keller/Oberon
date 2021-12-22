@@ -1,0 +1,35 @@
+module Oakwood4
+
+import In
+
+var
+	ch: char
+	i: integer
+	f: real
+	s: array 32 of char
+begin
+	println("begin Oakwood4")
+	In.Char(ch)
+	assert(ch="a")
+	In.Char(ch)
+	assert(ch="A")
+	//In.Name(s)
+	//assert(s="aA")
+	In.Int(i)
+	assert(i=0abcdh)
+	In.Int(i)
+	assert(i=-12345)
+	In.Real(f)
+	//assert(f=123.45)
+	In.Real(f)
+	assert(f=-1.234e3)
+	In.String(s)
+	assert(s="this is a string")
+	In.Name(s)
+	assert(s="Hello")
+	In.Name(s)
+	assert(s="World")
+	assert(In.Done)
+	
+	println("end Oakwood4")
+end Oakwood4

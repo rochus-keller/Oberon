@@ -33,7 +33,7 @@ void Out$Open()
 {
 }
 
-void Out$cmd$(const char* name)
+OBX$Cmd Out$cmd$(const char* name)
 {
 	if(name==0) return Out$init$;
 	return 0;

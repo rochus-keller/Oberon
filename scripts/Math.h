@@ -19,6 +19,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#include "OBX.Runtime.h"
 
 extern float Math$sqrt(float x);
 extern float Math$power(float x, float b);
@@ -42,7 +43,7 @@ extern float Math$arctanh(float x);
 
 
 extern void Math$init$();
-extern void Math$cmd$(const char*);
+extern OBX$Cmd Math$cmd$(const char*);
 
 
 #endif

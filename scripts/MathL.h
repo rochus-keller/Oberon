@@ -19,6 +19,7 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#include "OBX.Runtime.h"
 
 //PROCEDURE sqrt (x : LONGREAL) : LONGREAL;
 extern double MathL$sqrt(double x);
@@ -79,6 +80,6 @@ extern double MathL$arctanh(double x);
 
 
 extern void MathL$init$();
-extern void MathL$cmd$(const char*);
+extern OBX$Cmd MathL$cmd$(const char*);
 
 #endif

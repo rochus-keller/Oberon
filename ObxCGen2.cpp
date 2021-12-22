@@ -1413,6 +1413,7 @@ struct ObxCGenImp : public AstVisitor
             break;
         case BuiltIn::LDCMD:
             {
+
                 Q_ASSERT( ae->d_args.size() == 2 );
                 b << "OBX$LoadCmd((const char*)";
                 ae->d_args.first()->accept(this);
@@ -3363,10 +3364,12 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
         copyFile(outDir,"Math.c",fout);
         copyFile(outDir,"MathL.h",fout);
         copyFile(outDir,"MathL.c",fout);
+        copyFile(outDir,"In.c",fout);
+        copyFile(outDir,"In.h",fout);
+        copyFile(outDir,"Strings.h",fout);
+        copyFile(outDir,"Strings.c",fout);
 #if 0 // TODO
         copyFile(outDir,"Files",fout);
-        copyFile(outDir,"In",fout);
-        copyFile(outDir,"Strings",fout);
         copyFile(outDir,"Coroutines",fout);
         copyFile(outDir,"XYplane",fout);
 #endif

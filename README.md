@@ -117,6 +117,8 @@ Follow these steps if you want to build e.g. the Oberon+ IDE yourself:
 
 Alternatively you can open ObxIde2.pro or any other included .pro file using QtCreator and build it there.
 
+Note that the Mono version of the Oberon+ IDE expects a subdirectory relative to the IDE executable called "mono"; this subdirectory shall contain copies of or links to the mono executable and the mscorlib.dll. Precompiled versions of these files are included in the binary versions referenced above, or downloadable from [here](http://software.rochus-keller.ch/mono_5.20.1.34_linux_x86_64.tar.gz) in case of x86_64.
+
 ## Collaboration
 
 The author is not ready yet for collaboration or to accept pull requests. 

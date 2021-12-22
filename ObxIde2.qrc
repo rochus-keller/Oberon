@@ -51,5 +51,9 @@
         <file>scripts/MathL.c</file>
         <file>scripts/Math.c</file>
         <file>scripts/Math.h</file>
+        <file>scripts/In.c</file>
+        <file>scripts/In.h</file>
+        <file>scripts/Strings.h</file>
+        <file>scripts/Strings.c</file>
     </qresource>
 </RCC>

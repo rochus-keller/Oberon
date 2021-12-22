@@ -5,6 +5,7 @@ var
 	s1,s2,s3: array 64 of char
 	i: integer
 begin
+	println("begin Oakwood2")
 	s1 := "123456789"
 	assert(Strings.Length(s1)=9)
 	
