@@ -14,11 +14,15 @@ begin
 	| A: println("A")
 	| B..C: println("B")
 	| D: println("D")
+	else
+		println("case else")
 	end
 	
 	if t = A then println("A")
 	elsif t = B then println("B")
 	elsif t = C then println("C")
+	else
+		println("nop")
 	end
 	println("end Enum2")
 end Enum2

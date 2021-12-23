@@ -23,6 +23,7 @@ begin
 	tmp2 := "Parlons aux Français"
 	println(tmp2)
 	println("alpha" + "beta" + "gamma")
-	println("moin " + str1 + " " + str2 + " " + "welcome 你好!")
+	tmp := "**and**"
+	println("moin " + str1 + " " + str2 + " " + tmp + " " + "welcome 你好!")
 	println("Hello done")
 end Hello

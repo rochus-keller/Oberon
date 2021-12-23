@@ -2924,9 +2924,6 @@ struct ObxCGenImp : public AstVisitor
     {
         // NOTE: identical with CilGen!
 
-        // TODO: else not yet handled; if else missing then abort if no case hit
-        if( !me->d_else.isEmpty() )
-            qCritical() << "CASE ELSE not yet implemented" << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
         if( me->d_typeCase )
         {
             // first rewrite the AST with 'if' instead of complex 'case'
@@ -2957,6 +2954,8 @@ struct ObxCGenImp : public AstVisitor
                 ifl->d_if.append(eq.data());
                 ifl->d_then.append( c.d_block );
             }
+
+            ifl->d_else = me->d_else;
 
             // and now generate code for the if
             ifl->accept(this);
@@ -3054,6 +3053,8 @@ struct ObxCGenImp : public AstVisitor
 
                 ifl->d_then.append( c.d_block );
             }
+
+            ifl->d_else = me->d_else;
 
             // and now generate code for the if
             ifl->accept(this);
@@ -3368,8 +3369,9 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
         copyFile(outDir,"In.h",fout);
         copyFile(outDir,"Strings.h",fout);
         copyFile(outDir,"Strings.c",fout);
+        copyFile(outDir,"Files.h",fout);
+        copyFile(outDir,"Files.c",fout);
 #if 0 // TODO
-        copyFile(outDir,"Files",fout);
         copyFile(outDir,"Coroutines",fout);
         copyFile(outDir,"XYplane",fout);
 #endif

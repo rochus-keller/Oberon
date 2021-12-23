@@ -55,5 +55,7 @@
         <file>scripts/In.h</file>
         <file>scripts/Strings.h</file>
         <file>scripts/Strings.c</file>
+        <file>scripts/Files.c</file>
+        <file>scripts/Files.h</file>
     </qresource>
 </RCC>

@@ -9,6 +9,7 @@ var
 	res2 : real
 	str : array 32 of char
 begin
+	println("begin Oakwood3")
  f := F.New("obx_test_file")
  F.Set(r,f,0)
  F.WriteInt(r,33)
@@ -36,5 +37,5 @@ begin
  assert(res=0)
  f := F.Old("obx_test_file2")
  assert(f=nil)
-
+	println("end Oakwood3")
 end Oakwood3
