@@ -26,9 +26,9 @@
 #define OBX_MAX_PATH 300
 static char s_appPath[OBX_MAX_PATH] = {0};
 
-inline void* OBX$ClassOf(void* inst) { return inst ? ((struct OBX$Inst*)inst)->class$ : 0; }
+void* OBX$ClassOf(void* inst) { return inst ? ((struct OBX$Inst*)inst)->class$ : 0; }
 
-inline int OBX$IsSubclass( void* superClass, void* subClass )
+int OBX$IsSubclass( void* superClass, void* subClass )
 {
     struct OBX$Class* lhs = superClass;
     struct OBX$Class* rhs = subClass;
@@ -38,12 +38,12 @@ inline int OBX$IsSubclass( void* superClass, void* subClass )
     return rhs == lhs;
 }
 
-inline uint32_t OBX$SetDiv( uint32_t lhs, uint32_t rhs )
+uint32_t OBX$SetDiv( uint32_t lhs, uint32_t rhs )
 {
     return ~( lhs & rhs ) & ( lhs | rhs );
 }
 
-inline int32_t OBX$Div32( int32_t a, int32_t b )
+int32_t OBX$Div32( int32_t a, int32_t b )
 {
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     assert( b != 0 );
@@ -53,7 +53,7 @@ inline int32_t OBX$Div32( int32_t a, int32_t b )
         return a / b;
 }
 
-inline int64_t OBX$Div64( int64_t a, int64_t b )
+int64_t OBX$Div64( int64_t a, int64_t b )
 {
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     assert( b != 0 );
@@ -64,7 +64,7 @@ inline int64_t OBX$Div64( int64_t a, int64_t b )
 }
 
 
-inline int32_t OBX$Mod32( int32_t a, int32_t b )
+int32_t OBX$Mod32( int32_t a, int32_t b )
 {
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     assert( b != 0 );
@@ -74,7 +74,7 @@ inline int32_t OBX$Mod32( int32_t a, int32_t b )
         return a % b;
 }
 
-inline int64_t OBX$Mod64( int64_t a, int64_t b )
+int64_t OBX$Mod64( int64_t a, int64_t b )
 {
     // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
     assert( b != 0 );
@@ -230,8 +230,9 @@ struct OBX$Array$1 OBX$StrJoin( const struct OBX$Array$1* lhs, int lwide, const 
         str[lenl+lenr] = 0;
         //printf("lsa: \"%s\"  rsw: \"%ls\"  res: \"%ls\"\n", ls, rs, str);
         return res;
-    }else
-        assert(0);
+    }
+    assert(0);
+    return (struct OBX$Array$1){0};
 }
 
 void* OBX$Copy(void* data, int len)
@@ -315,7 +316,11 @@ void OBX$Unpack32(float* x, int* n)
 static uint32_t decode(const uint8_t* in, int* len )
 {
     uint32_t x = 0;
-    if( *in <= 0x7f )
+    if( *in == 0 )
+    {
+    	*len = 0;
+    	x = 0;
+    }else if( *in <= 0x7f )
     {
         *len = 1;
         x = *in;
@@ -369,6 +374,43 @@ void* OBX$FromUtf(const char* in, int len, int wide )
         str[len-1] = 0;
         return str;
     }
+}
+
+void* OBX$FromUtf2(int len, int wide, int count, ...)
+{
+	va_list ap;
+	
+	va_start(ap, count);
+	
+	int i = 0;
+    int n = 0;
+    void* res = 0;
+    if( wide )
+    	res = OBX$Alloc(len*sizeof(wchar_t));
+    else
+    	res = OBX$Alloc(len*sizeof(char));
+    for( int j = 0; j < count; j++ )
+    {
+    	const char* in = va_arg(ap, const char*);
+	    while( 1 )
+	    {
+	        const uint32_t ch = decode((const uint8_t*)in,&n);
+            if( ch == 0 )
+                break;
+			if( wide )
+				((wchar_t*)res)[i++] = ch;
+			else
+			   	((char*)res)[i++] = ch;	        
+			in += n;
+	    }
+    }
+    if( wide )
+    	((wchar_t*)res)[len-1] = 0;
+    else
+       	((char*)res)[len-1] = 0;
+
+    va_end(ap);
+	return res;
 }
 
 void OBX$PrintA(int ln, const char* str)
@@ -444,7 +486,7 @@ typedef struct {
   size_t size;
 } ObxDynArray;
 
-static ObxDynArray modules = {};
+static ObxDynArray modules = {0};
 
 static void initArray(ObxDynArray *a, size_t initialSize) {
   a->names = malloc(initialSize * sizeof(char*));
@@ -533,7 +575,7 @@ void* OBX$LoadDynLib(const char* path)
 }
 void* OBX$LoadProc(void* lib, const char* name)
 {
-    return GetProcAddress((HINSTANCE)lib, sym);
+    return GetProcAddress((HINSTANCE)lib, name);
 }
 #else
 #ifdef OBX_USE_DYN_LOAD
@@ -563,7 +605,7 @@ void* OBX$LoadProc(void* lib, const char* name)
 void getCurPath(char *buf, size_t size)
 {
 	GetModuleFileName(NULL, buf, size);
-	const char* res = strrchr(path, '\\');
+	char* res = strrchr(buf, '\\');
 	if( res )
 		*res = 0; // cut off application name
 }
@@ -617,5 +659,22 @@ void OBX$InitApp(int argc, char **argv)
 	else
 		fetchAppPath(0);
 	// TEST printf("app path: %s\n", s_appPath);
+}
+
+struct OBX$Array$1 OBX$CharToStr( int lwide, wchar_t ch )
+{
+	if( lwide )
+	{
+		wchar_t* str = OBX$Alloc(2*sizeof(wchar_t));
+		str[0] = ch;
+		str[1] = 1;
+		return (struct OBX$Array$1){ 2, 0, str };
+	}else
+	{
+		char* str = OBX$Alloc(2*sizeof(char));
+		str[0] = ch;
+		str[1] = 1;
+		return (struct OBX$Array$1){ 2, 0, str };
+	}
 }
 

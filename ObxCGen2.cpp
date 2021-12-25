@@ -1061,14 +1061,35 @@ struct ObxCGenImp : public AstVisitor
             {
                 QString str = val.toString();
                 const int len = str.length();
-                str.replace('\\', "\\\\");
-                str.replace("\"","\\\"");
-                // TEST qDebug() << "Literal:" << str << toNumbers(str);
+                const int utfLen = str.toUtf8().size();
                 // no L prefix, we want UTF-8 in any case
                 b << "(const struct OBX$Array$1){";
                 b << len+1 << ",0,";
-                b << "OBX$FromUtf(\"" << str << "\"," << len+1 << ","
-                  << int(basetype==Type::WSTRING) << ")";
+                if( utfLen < 16000 )
+                {
+                    str.replace('\\', "\\\\");
+                    str.replace("\"","\\\"");
+                    b << "OBX$FromUtf(\"" << str << "\"," << len+1 << ","
+                      << int(basetype==Type::WSTRING) << ")";
+                }else
+                {
+                    // MSVC cl has a 16k lenth limitation for string literals
+                    b << "OBX$FromUtf2(" << len+1 << "," << int(basetype==Type::WSTRING) << ",";
+                    const int chunk = 4000; // each unicode can expand to 1 to 4 utf-8 bytes
+                    const int n = (len + chunk) / chunk;
+                    b << n;
+                    int i = 0;
+                    while( i < str.size() )
+                    {
+                        b << ", " << endl << ws();
+                        QString str2 = str.mid(i,chunk);
+                        str2.replace('\\', "\\\\");
+                        str2.replace("\"","\\\"");
+                        b << "\"" << str2 << "\""; // never cuts in an utf-8 sequence
+                        i += chunk;
+                    }
+                    b << ")";
+                }
                 b << "}";
             }
             break;
@@ -1342,7 +1363,7 @@ struct ObxCGenImp : public AstVisitor
         case Thing::T_Record:
             qDebug() << "DEFAULT(record)" << thisMod->getName();
             if( td->d_unsafe )
-                b << "(" << formatType(td) << "){}"; // partial init sets all members to zero
+                b << "(" << formatType(td) << "){0}"; // partial init sets all members to zero
             else
                 b << "(" << formatType(td) << "){ &" << classRef(td) << "$class$ }";
             break;
@@ -1372,7 +1393,7 @@ struct ObxCGenImp : public AstVisitor
                     {
                         b << "[" << dims[i]->d_len << "]";
                     }
-                    b << "){}}";
+                    b << "){0}}";
                 }
             }
             break;
@@ -1384,7 +1405,7 @@ struct ObxCGenImp : public AstVisitor
                 {
                     int dims;
                     cast<Array*>(td)->getTypeDim(dims);
-                    b << "(" << arrayType(dims, loc) << "){}";
+                    b << "(" << arrayType(dims, loc) << "){0}";
                 }else
                     b << "0";
             }
@@ -2088,6 +2109,7 @@ struct ObxCGenImp : public AstVisitor
         Type* ta = derefed(rhs->d_type.data());
         Q_ASSERT(ta);
         const int atag = ta->getTag();
+        bool lwide, rwide;
         if( ta->isString() || ta->getBaseType() == Type::BYTEARRAY )
         {
             if( addrOf )
@@ -2107,6 +2129,18 @@ struct ObxCGenImp : public AstVisitor
                 }
             }else
                 rhs->accept(this);
+        }else if( tf && tf->isString(&lwide) && ta->isChar(&rwide) )
+        {
+            // happens when strings are added
+            if( addrOf )
+                b << "&(struct OBX$Array$1[1]){";
+            b << "OBX$CharToStr(" << int(lwide) << ",";
+            if( !rwide )
+                b << "(uint8_t)";
+            rhs->accept(this);
+            b << ")";
+            if( addrOf )
+                b << "}[0]";
         }else if( atag == Thing::T_Array )
         {
             // NOTE: copy if not passByRef is done in procedure
@@ -2656,10 +2690,11 @@ struct ObxCGenImp : public AstVisitor
                 emitBinOp(me,"|");
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
             {
+                Type* td = derefed(me->d_type.data());
                 b << "(struct OBX$Array$1 [1]){OBX$StrJoin(";
-                renderArg2(lhsT,me->d_lhs.data(),true);
+                renderArg2(td,me->d_lhs.data(),true);
                 b << "," << int(lwide) << ",";
-                renderArg2(rhsT,me->d_rhs.data(),true);
+                renderArg2(td,me->d_rhs.data(),true);
                 b << "," << int(rwide) << ")}[0]";
                 // NOTE: if we don't use the dirty compound array literal element zero trick nested OBX$StrJoin
                 // would issue an lvalue error
@@ -3379,10 +3414,18 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     copyFile(outDir,"OBX.Runtime.h",fout);
     copyFile(outDir,"OBX.Runtime.c",fout);
 
+    bout << "on Linux or Windows with GCC/MinGW or CLANG:" << endl;
     bout << "cc -O2 --std=c99 *.c -lm" << endl;
-    bout << "or with Boehm-Demers-Weiser GC" << endl;
+    bout << "or on Windows with MSVC:" << endl;
+    bout << "cl /O2 /MD /Fe:OBX.Main.exe *.c" << endl;
+    bout << "or with Boehm-Demers-Weiser GC:" << endl;
     bout << "cc -O2 --std=c99 *.c -lm -DOBX_USE_BOEHM_GC -lgc" << endl;
+    bout << "or on Windows with MSVC:" << endl;
+    bout << "cl /O2 /MD /Fe:OBX.Main.exe /DOBX_USE_BOEHM_GC /Iinclude *.c gcmt-dll.lib" << endl;
     bout << "if on Unix/Linux/macOS dynamic libraries should be loaded add -DOBX_USE_DYN_LOAD -ldl" << endl;
+    bout << "Note that MSVC produces crashing code in certain cases (e.g. DeltaBlue and Havlak examples)" << endl;
+    bout << "Note that GCC/MinGW versions 4.x and 5.x (but not 8.x) produce crashing code e.g. with Havlak" << endl;
+    bout << "Note that no issues were observed so far with CLANG" << endl;
     bout.flush();
     fout.flush();
 

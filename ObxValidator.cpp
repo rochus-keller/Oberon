@@ -2403,7 +2403,7 @@ struct ValidatorImp : public AstVisitor
 
     static qint64 toInt(const Evaluator::Result& res )
     {
-        if( res.d_vtype == Literal::Integer || res.d_vtype == Literal::Enum )
+        if( res.d_vtype == Literal::Integer || res.d_vtype == Literal::Enum || res.d_vtype == Literal::Char )
             return res.d_value.toLongLong();
         if( res.d_vtype == Literal::String )
         {
@@ -2451,7 +2451,6 @@ struct ValidatorImp : public AstVisitor
                     me->d_typeCase = true;
             }
         }
-
         QList< QPair<qint64,qint64> > ranges;
         foreach( const CaseStmt::Case& c, me->d_cases )
         {

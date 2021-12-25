@@ -64,16 +64,18 @@ int64_t OBX$Mod64( int64_t a, int64_t b );
 extern void* OBX$Alloc( size_t );
 extern int OBX$StrOp( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide, int op );
 extern struct OBX$Array$1 OBX$StrJoin( const struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
+extern struct OBX$Array$1 OBX$CharToStr( int lwide, wchar_t ch );
 extern void OBX$StrCopy(struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
 extern void OBX$ArrCopy(void* lhs, const void* rhs, int dims, int size ); // lhs and rhs are pointer to OBX$Array$*
 extern void* OBX$Copy(void* data, int len);
 extern void* OBX$FromUtf(const char* in, int len, int wide ); // len is decoded len incl. terminating zero
+extern void* OBX$FromUtf2(int len, int wide, int count, ...); // count of const char* str
 extern void OBX$PrintA(int ln, const char*);
 
-inline int OBX$MaxI32(int32_t lhs, int32_t rhs ) { return lhs > rhs ? lhs : rhs; }
-inline int OBX$MaxI64(int64_t lhs, int64_t rhs ) { return lhs > rhs ? lhs : rhs; }
-inline int OBX$MaxF32(float lhs, float rhs ) { return lhs > rhs ? lhs : rhs; }
-inline int OBX$MaxF64(double lhs, double rhs ) { return lhs > rhs ? lhs : rhs; }
+//int OBX$MaxI32(int32_t lhs, int32_t rhs ) { return lhs > rhs ? lhs : rhs; }
+//int OBX$MaxI64(int64_t lhs, int64_t rhs ) { return lhs > rhs ? lhs : rhs; }
+//int OBX$MaxF32(float lhs, float rhs ) { return lhs > rhs ? lhs : rhs; }
+//int OBX$MaxF64(double lhs, double rhs ) { return lhs > rhs ? lhs : rhs; }
 
 extern void OBX$Pack32(float* lhs, int rhs);
 extern void OBX$Unpack32(float* lhs, int* rhs);

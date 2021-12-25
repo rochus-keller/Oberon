@@ -1,5 +1,5 @@
 #include "Files.h"
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__GNUC__)
   #include <direct.h>
 #else
   #include <sys/stat.h>
