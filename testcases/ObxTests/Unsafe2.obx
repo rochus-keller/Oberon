@@ -1,5 +1,6 @@
 module Unsafe2
-	import I := UnsafeImport1 I2 := UnsafeImport2
+	import I := UnsafeImport1 
+		//I2 := UnsafeImport2
 	
 	proc test4()
 		var l: I.L

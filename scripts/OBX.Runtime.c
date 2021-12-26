@@ -519,9 +519,115 @@ static OBX$Lookup findModule(ObxDynArray *a, const char* module)
   return 0;
 }
 
+#ifdef _WIN32
+#include <windows.h>
+static inline void* loadDynLib(const char* path)
+{
+  	return LoadLibraryA(path);
+}
+OBX$Cmd OBX$LoadProc(void* lib, const char* name)
+{
+	assert(lib);
+    return GetProcAddress((HINSTANCE)lib, name);
+}
+#else
+#ifdef OBX_USE_DYN_LOAD
+#include <dlfcn.h>
+static inline void* loadDynLib(const char* path)
+{
+	return dlopen(path, RTLD_NOW);
+}
+OBX$Cmd OBX$LoadProc(void* lib, const char* name)
+{
+	assert(lib);
+	return dlsym(lib, name);
+}
+#else
+static inline void* loadDynLib(const char* path)
+{
+	return 0;
+}
+OBX$Cmd OBX$LoadProc(void* lib, const char* name)
+{
+	return 0;
+}
+#endif
+#endif
+
+#if defined(_WIN32)
+#define OBX_LIB_SUFFIX ".dll"
+#define OBX_PATH_SEP '\\'
+#elif defined(__APPLE__)
+#define OBX_LIB_SUFFIX ".dylib"
+#define OBX_PATH_SEP '/'
+#else
+#define OBX_LIB_SUFFIX ".so"
+#define OBX_PATH_SEP '/'
+#endif
+
+void* OBX$LoadDynLib(const char* module)
+{
+	const int maxLen = 2 * OBX_MAX_PATH;
+	char path[maxLen];
+	strcpy(path, s_appPath);
+	const int pos1 = strlen(path);
+	const int pos2 = strlen(module);
+	if( pos1 + pos2 + 2 + 3 + strlen(OBX_LIB_SUFFIX) >= maxLen )
+	{
+		fprintf(stderr,"OBX.Runtime OBX$LoadDynLib buffer too short\n");
+		exit(-1);
+	}
+	path[pos1] = OBX_PATH_SEP;
+	void* lib = 0;
+#if !defined(_WIN32)
+	strcpy(path+pos1+1,"lib"); // search for path/libModule.so
+	strcpy(path+pos1+1+3,module);
+	strcpy(path+pos1+1+3+pos2,OBX_LIB_SUFFIX);
+	lib = loadDynLib(path);
+	if( lib )
+		return lib;
+#endif
+	strcpy(path+pos1+1,module); // search for path/Module.so
+	strcpy(path+pos1+1+pos2,OBX_LIB_SUFFIX);
+	lib = loadDynLib(path);
+	if( lib )
+		return lib;
+#if !defined(_WIN32)
+	strcpy(path,"lib"); // search libModule.so on the regular search paths
+	strcpy(path+3,module);
+	strcpy(path+3+pos2,OBX_LIB_SUFFIX);
+	lib = loadDynLib(path);
+	if( lib )
+		return lib;
+#endif
+	strcpy(path,module); // search for Module.so on the regular search paths
+	strcpy(path+pos2,OBX_LIB_SUFFIX);
+	return loadDynLib(path);
+}
+
 static OBX$Lookup loadModule(const char* module)
 {
-	// TODO: create path, OBX$LoadDynLib, OBX$LoadProc
+	void* lib = OBX$LoadDynLib(module);
+	
+	if( lib )
+	{
+		const int maxLen = OBX_MAX_PATH / 2;
+        char name[maxLen];
+		const int pos = strlen(module);
+		if( pos + 5 + 1 >= maxLen )
+		{
+			fprintf(stderr,"OBX.Runtime loadModule buffer too short\n");
+			exit(-1);
+		}
+		strcpy(name,module);
+		for(int i = 0; i < pos; i++ )
+		{
+			if( name[i] == '.' )
+				name[i] = '$';
+		}
+		strcpy(name+pos,"$cmd$");
+		return (OBX$Lookup)OBX$LoadProc(lib,name);
+	}
 	return 0;
 }
 
@@ -566,39 +672,6 @@ OBX$Cmd OBX$LoadCmd(const char* module, const char* command)
 	else
 		return 0;
 }
-
-#ifdef _WIN32
-#include <windows.h>
-void* OBX$LoadDynLib(const char* path)
-{
-  	return LoadLibraryA(path);
-}
-void* OBX$LoadProc(void* lib, const char* name)
-{
-    return GetProcAddress((HINSTANCE)lib, name);
-}
-#else
-#ifdef OBX_USE_DYN_LOAD
-#include <dlfcn.h>
-void* OBX$LoadDynLib(const char* path)
-{
-	return dlopen(path, RTLD_NOW);
-}
-void* OBX$LoadProc(void* lib, const char* name)
-{
-	return dlsym(lib, name);
-}
-#else
-void* OBX$LoadDynLib(const char* path)
-{
-	return 0;
-}
-void* OBX$LoadProc(void* lib, const char* name)
-{
-	return 0;
-}
-#endif
-#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -667,13 +740,13 @@ struct OBX$Array$1 OBX$CharToStr( int lwide, wchar_t ch )
 	{
 		wchar_t* str = OBX$Alloc(2*sizeof(wchar_t));
 		str[0] = ch;
-		str[1] = 1;
+		str[1] = 0;
 		return (struct OBX$Array$1){ 2, 0, str };
 	}else
 	{
 		char* str = OBX$Alloc(2*sizeof(char));
 		str[0] = ch;
-		str[1] = 1;
+		str[1] = 0;
 		return (struct OBX$Array$1){ 2, 0, str };
 	}
 }

@@ -519,14 +519,20 @@ struct ObxCGenImp : public AstVisitor
 
                 QByteArray res = "*" + ( !name.isEmpty() ? " " + name : "" );
                 Type* td = derefed(me->d_to.data());
-                if( td && td->getTag() == Thing::T_Array && !td->d_unsafe )
+                if( td && td->getTag() == Thing::T_Array )
                 {
-                    Array* a = cast<Array*>(td);
-                    int dims = 0;
-                    a->getTypeDim(dims);
-                    res = arrayType(dims, t->d_loc);
-                    res += ( !name.isEmpty() ? " " + name : "" );
-                    return res;
+                    if( !td->d_unsafe )
+                    {
+                        Array* a = cast<Array*>(td);
+                        int dims = 0;
+                        a->getTypeDim(dims);
+                        res = arrayType(dims, t->d_loc);
+                        res += ( !name.isEmpty() ? " " + name : "" );
+                        return res;
+                    }else
+                    {
+                        res = name; // pointer to array is equal to array in c
+                    }
                 }
                 // else
                 return formatType( me->d_to.data(), res );
@@ -571,7 +577,7 @@ struct ObxCGenImp : public AstVisitor
                 Record* r = cast<Record*>(t);
                 if( !thisMod->d_metaActuals.isEmpty() && curVarDecl && declToInline.contains(r) )
                 {
-                    QByteArray res = "struct /*" + classRef(r) + "*/ { ";
+                    QByteArray res = (r->d_union ? "union /*" : "struct /*" ) + classRef(r) + "*/ { ";
                     if( !r->d_unsafe )
                         res += "void* class$; ";
                     QList<Field*> fields = r->getOrderedFields();
@@ -630,7 +636,7 @@ struct ObxCGenImp : public AstVisitor
         r->d_slotAllocated = true;
 
         const QByteArray className = classRef(r);
-        h << ws() << "struct " << className << " {" << endl;
+        h << ws() << (r->d_union ? "union " : "struct " ) << className << " {" << endl;
         level++;
 
         if( !r->d_unsafe )
@@ -781,15 +787,16 @@ struct ObxCGenImp : public AstVisitor
             Type* td = derefed(me->d_metaActuals[i].data());
             Q_ASSERT(td);
             if( Record* r = td->toRecord() )
-                h << ws() << "struct " << classRef(r) << "; // meta actual" << endl;
+                h << ws() << (r->d_union ? "union " : "struct " ) << classRef(r) << "; // meta actual" << endl;
         }
 
         foreach( Record* r, co.allRecords )
         {
             // forward decls
             const QByteArray className = classRef(r);
-            h << ws() << "struct " << className << "$Class$;" << endl;
-            h << ws() << "struct " << className << ";" << endl;
+            if( !r->d_unsafe )
+                h << ws() << "struct " << className << "$Class$;" << endl;
+            h << ws() << (r->d_union ? "union " : "struct " ) << className << ";" << endl;
         }
 
         foreach( Record* r, co.allRecords )
@@ -827,20 +834,76 @@ struct ObxCGenImp : public AstVisitor
                 int f = isStructuredOrArrayPointer(n->d_type.data() );
                 if( f )
                 {
+                    Type* td = derefed(n->d_type.data());
                     const QByteArray name = moduleRef(thisMod)+"$"+n->d_name;
                     b << ws() << "memset(&" << name << ",0,sizeof(" << name << "));" << endl;
-                    if( f == IsRecord )
+                    if( f == IsRecord && td && !td->d_unsafe )
                         b << ws() << classRef(n->d_type.data()) << "$init$(&" << name << ");" << endl;
-                    else if( f == IsArray )
+                    else if( f == IsArray && td && !td->d_unsafe )
                         emitArrayInit( cast<Array*>(n->d_type->derefed()), name );
                 }
             }
         }
-        //b << ws() << "void* $;" << endl;
 
         foreach( const Ref<Statement>& s, me->d_body )
         {
             emitStatement(s.data());
+        }
+
+        if( me->d_externC )
+        {
+            QByteArray modDll;
+            SysAttr* a = me->d_sysAttrs.value("dll").data();
+            if( a && a->d_values.size() == 1 )
+                modDll = a->d_values.first().toByteArray();
+            else
+                modDll = me->d_name;
+
+            b << ws() << "void* $l = 0;" << endl;
+
+            QMap<QByteArray,QList<QPair<Procedure*,QByteArray> > > procs; // dll -> proc, name
+
+            foreach( Procedure* p, co.allProcs )
+            {
+                QByteArray procDll, prefix, alias;
+                a = me->d_sysAttrs.value("prefix").data(); // meule attr
+                if( a && a->d_values.size() == 1 )
+                    prefix = a->d_values.first().toByteArray();
+                a = p->d_sysAttrs.value("dll").data(); // proc attr
+                if( a && a->d_values.size() == 1 )
+                    procDll = a->d_values.first().toByteArray();
+                else
+                    procDll = modDll;
+                a = p->d_sysAttrs.value("prefix").data(); // proc attr
+                if( a && a->d_values.size() == 1 )
+                    prefix = a->d_values.first().toByteArray();
+                a = p->d_sysAttrs.value("alias").data(); // proc attr
+                if( a && a->d_values.size() == 1 )
+                    alias = a->d_values.first().toByteArray();
+                QByteArray useName = p->d_name;
+                if( !alias.isEmpty() )
+                    useName = alias;
+                else if( !prefix.isEmpty() )
+                    useName = prefix + p->d_name;
+                procs[procDll].append(qMakePair(p,useName));
+                // b << ws() << dottedName(p) << " = 0;" << endl;
+            }
+            QMap<QByteArray,QList<QPair<Procedure*,QByteArray> > >::const_iterator i;
+            for( i = procs.begin(); i != procs.end(); ++i )
+            {
+                b << ws() << "$l = OBX$LoadDynLib(\"" << i.key() << "\");" << endl;
+                b << ws() << "if( $l == 0 ){ fprintf(stderr,\"cannot load module %s, terminating\\n\",\""
+                  << i.key() << "\"); exit(-1); }" << endl;
+                QList<QPair<Procedure*,QByteArray> >::const_iterator j;
+                for( j = i.value().begin(); j != i.value().end(); ++j )
+                {
+                    b << ws() << dottedName((*j).first) << " = ("
+                      << formatType((*j).first->d_type.data()) << ")OBX$LoadProc($l,\"" << (*j).second << "\");" << endl;
+                    b << ws() << "if(" << dottedName((*j).first) << " == 0){ fprintf(stderr,"
+                         "\"cannot load procedure %s from module %s, terminating\\n\",\""
+                      << (*j).second << "\",\"" << i.key() << "\"); exit(-1); }" << endl;
+                }
+            }
         }
 
         endBody();
@@ -926,6 +989,15 @@ struct ObxCGenImp : public AstVisitor
 
         ProcType* pt = me->getProcType();
         QByteArray name = dottedName(me);
+
+        if( thisMod->d_externC )
+        {
+            h << "extern " << formatType(pt, name ) << ";" << endl;
+            b << formatType(pt, name ) << " = 0;" << endl;
+            curProc = 0;
+            return;
+        }
+
         name += formatFormals(pt,true,me->d_receiver.data());
         name = formatReturn(pt, name);
 
@@ -967,13 +1039,14 @@ struct ObxCGenImp : public AstVisitor
             case Thing::T_LocalVar:
                 {
                     const int f = isStructuredOrArrayPointer(n->d_type.data() );
+                    Type* td = derefed(n->d_type.data());
                     if( !f )
                         b << ws() << escape(n->d_name) << " = 0;" << endl;
                     if( f )
                         b << ws() << "memset(&" << escape(n->d_name) << ",0,sizeof(" << escape(n->d_name) << "));" << endl;
-                    if( f == IsRecord )
+                    if( f == IsRecord && td && !td->d_unsafe )
                         b << ws() << classRef(n->d_type.data()) << "$init$(&" << escape(n->d_name) << ");" << endl;
-                    else if( f == IsArray )
+                    else if( f == IsArray && td && !td->d_unsafe )
                         emitArrayInit( cast<Array*>(n->d_type->derefed()), escape(n->d_name) );
                     }
                 break;
@@ -1001,12 +1074,11 @@ struct ObxCGenImp : public AstVisitor
             }
         }
 
-        //b << ws() << "void* $;" << endl;
-
         foreach( const Ref<Statement>& s, me->d_body )
         {
             emitStatement(s.data());
         }
+
         if( !pt->d_return.isNull() && ( me->d_body.isEmpty() || me->d_body.last()->getTag() != Thing::T_Return ) )
         {
             b << ws() << "return ";
@@ -1343,9 +1415,17 @@ struct ObxCGenImp : public AstVisitor
             }
             break;
         case UnExpr::ADDROF:
-            b << "(&";
-            me->d_sub->accept(this);
-            b << ")";
+            if( prevT && ( prevT->getTag() == Thing::T_Array || prevT->isString() ) )
+            {
+                me->d_sub->accept(this); // the address of a safe and unsafe array is just the array
+                if( ( me->d_sub->getUnOp() == UnExpr::DEREF && !prevT->d_unsafe ) || prevT->isString() )
+                    b << ".$a";
+            }else
+            {
+                b << "(&";
+                me->d_sub->accept(this);
+                b << ")";
+            }
             break;
         default:
             qDebug() << "ERR" << me->d_op << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col;
@@ -2311,6 +2391,12 @@ struct ObxCGenImp : public AstVisitor
                 const bool addrOf = passByRef(p) && ( ta->getTag() != Thing::T_Array && !ta->isString() );
                 renderArg2(p->d_type.data(), me->d_args[i].data(), addrOf );
             }
+        }
+        for( int i = pt->d_formals.size(); i < me->d_args.size(); i++ )
+        {
+            if( !pt->d_formals.isEmpty() )
+                b << ", ";
+            renderArg2(me->d_args[i]->d_type.data(), me->d_args[i].data(), false );
         }
     }
 
@@ -3424,7 +3510,7 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     bout << "cl /O2 /MD /Fe:OBX.Main.exe /DOBX_USE_BOEHM_GC /Iinclude *.c gcmt-dll.lib" << endl;
     bout << "if on Unix/Linux/macOS dynamic libraries should be loaded add -DOBX_USE_DYN_LOAD -ldl" << endl;
     bout << "Note that MSVC produces crashing code in certain cases (e.g. DeltaBlue and Havlak examples)" << endl;
-    bout << "Note that GCC/MinGW versions 4.x and 5.x (but not 8.x) produce crashing code e.g. with Havlak" << endl;
+    bout << "Note that -O2 of GCC/MinGW versions 4.x and 5.x (but not 8.x) produces crashing code e.g. with Havlak" << endl;
     bout << "Note that no issues were observed so far with CLANG" << endl;
     bout.flush();
     fout.flush();

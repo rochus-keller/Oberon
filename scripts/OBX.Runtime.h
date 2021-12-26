@@ -85,11 +85,11 @@ extern int64_t OBX$Asr64(int64_t x, int n);
 extern int32_t OBX$Asr32(int32_t x, int n);
 extern int16_t OBX$Asr16(int16_t x, int n);
 
-extern OBX$Lookup OBX$LoadModule(const char* module);
+extern OBX$Lookup OBX$LoadModule(const char* module); // load OBX module dynamically or statically
 extern void OBX$RegisterModule(const char* module, OBX$Lookup);
 extern OBX$Cmd OBX$LoadCmd(const char* module, const char* command);
-extern void* OBX$LoadDynLib(const char* path);
-extern void* OBX$LoadProc(void* lib, const char* name);
+extern void* OBX$LoadDynLib(const char* path); // load any shared library
+extern OBX$Cmd OBX$LoadProc(void* lib, const char* name); // load any procedure of given shared library
 extern void OBX$InitApp(int argc, char **argv);
 
 #endif
