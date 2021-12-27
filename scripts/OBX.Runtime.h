@@ -68,6 +68,7 @@ extern struct OBX$Array$1 OBX$CharToStr( int lwide, wchar_t ch );
 extern void OBX$StrCopy(struct OBX$Array$1* lhs, int lwide, const struct OBX$Array$1* rhs, int rwide );
 extern void OBX$ArrCopy(void* lhs, const void* rhs, int dims, int size ); // lhs and rhs are pointer to OBX$Array$*
 extern void* OBX$Copy(void* data, int len);
+extern uint32_t OBX$UtfDecode(const uint8_t* in, int* len );
 extern void* OBX$FromUtf(const char* in, int len, int wide ); // len is decoded len incl. terminating zero
 extern void* OBX$FromUtf2(int len, int wide, int count, ...); // count of const char* str
 extern void OBX$PrintA(int ln, const char*);

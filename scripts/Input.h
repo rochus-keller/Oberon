@@ -24,6 +24,18 @@
 
 // TODO complete
 
+//PROCEDURE Available (): INTEGER;
+extern int Input$Available();
+
+//PROCEDURE Read (VAR ch: CHAR);
+extern void Input$Read(char* ch);
+
+//PROCEDURE Mouse (VAR keys: SET; VAR x, y: INTEGER);
+extern void Input$Mouse( int32_t* keys, int32_t* x, int32_t* y);
+	
+//PROCEDURE SetMouseLimits (w, h: INTEGER);
+extern void Input$SetMouseLimits(int32_t w, int32_t h);
+	
 extern int32_t Input$Time();
 
 extern void Input$init$();

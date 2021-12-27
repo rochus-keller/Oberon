@@ -18,6 +18,7 @@
 */
 
 #include "Input.h"
+#include "XYplane.h"
 #include <time.h>
 
 #if defined(_WIN32) && !defined(__GNUC__)
@@ -72,6 +73,37 @@ int32_t Input$Time()
     const long microseconds = now.tv_usec - start.tv_usec;
     return seconds*1000000 + microseconds;
 #endif
+}
+
+int Input$Available()
+{
+	return XYplane$Available();
+}
+
+void Input$Read(char* ch)
+{
+	*ch = XYplane$Dequeue();
+}
+
+static int _w = 0, _h = 0;
+
+void Input$SetMouseLimits(int32_t w, int32_t h)
+{
+	_w = w;
+	_h = h;
+}
+
+void Input$Mouse( int32_t* keys, int32_t* x, int32_t* y)
+{
+	XYplane$GetMouseState(keys, x, y);
+	if( *x < 0 )
+		*x = 0;
+	else if( _w != 0 && *x > _w )
+		*x = _w;
+	if( *y < 0 )
+		*y = 0;
+	else if( _h != 0 && *y > _h )
+		*y = _h;
 }
 
 void Input$init$()

@@ -17,9 +17,9 @@ size=0
 2\RelPath=Oakwood2.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood4.obx
 3\RelPath=Oakwood4.obx
-4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood4.obx
-4\RelPath=Oakwood4.obx
-size=3
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood1.obx
+4\RelPath=Oakwood1.obx
+size=4
 
 [Packages]
 1\Name=@ByteArray()

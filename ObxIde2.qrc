@@ -57,5 +57,7 @@
         <file>scripts/Strings.c</file>
         <file>scripts/Files.c</file>
         <file>scripts/Files.h</file>
+        <file>scripts/XYplane.h</file>
+        <file>scripts/XYplane.c</file>
     </qresource>
 </RCC>

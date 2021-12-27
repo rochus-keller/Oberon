@@ -17,6 +17,10 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
+#ifdef _MSC_VER
+#define inline
+#endif
+
 #include "OBX.Runtime.h"
 #include <stdarg.h>
 #ifdef OBX_USE_BOEHM_GC
@@ -308,36 +312,41 @@ void OBX$Pack32(float* x, int n)
 void OBX$Unpack32(float* x, int* n)
 {
     // UNPACK(4,-10) -> 1,2
-    *x = frexpf(*x, n);
+    *x = frexpf(*x, n); 
     *x = *x + *x;
     *n = *n - 1;
 }
 
-static uint32_t decode(const uint8_t* in, int* len )
+uint32_t OBX$UtfDecode(const uint8_t* in, int* len )
 {
     uint32_t x = 0;
     if( *in == 0 )
     {
-    	*len = 0;
+    	if( len )
+    		*len = 0;
     	x = 0;
     }else if( *in <= 0x7f )
     {
-        *len = 1;
+    	if( len )
+        	*len = 1;
         x = *in;
     }else if( *in <= 0xdf )
     {
-        *len = 2;
+    	if( len )
+        	*len = 2;
         x = (in[0] & 0x1f) << 6;
         x |= (in[1] & 0x3f);
     }else if( *in <= 0xef )
     {
-        *len = 3;
+    	if( len )
+        	*len = 3;
         x = (in[0] & 0xf) << 12;
         x |= (in[1] & 0x3f) << 6;
         x |= (in[2] & 0x3f);
     }else if( *in <= 0xf7 )
     {
-        *len = 4;
+    	if( len )
+        	*len = 4;
         x = (in[0] & 0x7) << 18;
         x |= (in[1] & 0x3f) << 12;
         x |= (in[2] & 0x3f) << 6;
@@ -356,7 +365,7 @@ void* OBX$FromUtf(const char* in, int len, int wide )
         wchar_t* str = OBX$Alloc(len*sizeof(wchar_t));
         while( i < len )
         {
-            const uint32_t ch = decode((const uint8_t*)in,&n);
+            const uint32_t ch = OBX$UtfDecode((const uint8_t*)in,&n);
             str[i++] = ch;
             in += n;
         }
@@ -367,7 +376,7 @@ void* OBX$FromUtf(const char* in, int len, int wide )
         char* str = OBX$Alloc(len);
         while( i < len )
         {
-            const uint32_t ch = decode((const uint8_t*)in,&n);
+            const uint32_t ch = OBX$UtfDecode((const uint8_t*)in,&n);
             str[i++] = (char)(uint8_t)ch;
             in += n;
         }
@@ -394,7 +403,7 @@ void* OBX$FromUtf2(int len, int wide, int count, ...)
     	const char* in = va_arg(ap, const char*);
 	    while( 1 )
 	    {
-	        const uint32_t ch = decode((const uint8_t*)in,&n);
+	        const uint32_t ch = OBX$UtfDecode((const uint8_t*)in,&n);
             if( ch == 0 )
                 break;
 			if( wide )
@@ -528,7 +537,7 @@ static inline void* loadDynLib(const char* path)
 OBX$Cmd OBX$LoadProc(void* lib, const char* name)
 {
 	assert(lib);
-    return GetProcAddress((HINSTANCE)lib, name);
+    return (OBX$Cmd) GetProcAddress((HINSTANCE)lib, name);
 }
 #else
 #ifdef OBX_USE_DYN_LOAD
@@ -567,7 +576,7 @@ OBX$Cmd OBX$LoadProc(void* lib, const char* name)
 
 void* OBX$LoadDynLib(const char* module)
 {
-	const int maxLen = 2 * OBX_MAX_PATH;
+	enum { maxLen = 2 * OBX_MAX_PATH };
 	char path[maxLen];
 	strcpy(path, s_appPath);
 	const int pos1 = strlen(path);
@@ -611,7 +620,7 @@ static OBX$Lookup loadModule(const char* module)
 	
 	if( lib )
 	{
-		const int maxLen = OBX_MAX_PATH / 2;
+		enum { maxLen = OBX_MAX_PATH / 2 };
         char name[maxLen];
 		const int pos = strlen(module);
 		if( pos + 5 + 1 >= maxLen )

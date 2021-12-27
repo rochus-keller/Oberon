@@ -1,3 +1,6 @@
+#ifndef _OBX_XYPLANE_
+#define _OBX_XYPLANE_
+
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
@@ -17,43 +20,26 @@
 * http://www.gnu.org/copyleft/gpl.html.
 */
 
-#include "Out.h"
+#include "OBX.Runtime.h"
 
-void Out$Int(int32_t i, int32_t n)
-{
-    printf("%*d", n, i);
-}
+extern int32_t XYplane$X, XYplane$Y, XYplane$W, XYplane$H;
 
-void Out$Real(float x, int32_t n)
-{
-    printf("%*e", n, x);
-}
+//PROCEDURE Open;
+extern void XYplane$Open();
+//PROCEDURE Clear;
+extern void XYplane$Clear();
+//PROCEDURE Dot (x, y, mode: INTEGER);
+extern void XYplane$Dot(int32_t x, int32_t y, int32_t mode);
+//PROCEDURE IsDot (x, y: INTEGER): BOOLEAN;
+extern uint8_t XYplane$IsDot(int32_t x, int32_t y);
+//PROCEDURE Key (): CHAR;
+extern char XYplane$Key();
 
-void Out$Ln()
-{
-	printf("\n");
-}
+extern void XYplane$GetMouseState( int32_t* keys, int32_t* x, int32_t* y );
+extern int XYplane$Available();
+extern char XYplane$Dequeue();
 
-void Out$Char(char c)
-{
-	printf("%c", c );
-}
+extern void XYplane$init$();
+extern OBX$Cmd XYplane$cmd$(const char*);
 
-void Out$String(const struct OBX$Array$1 str)
-{
-	OBX$PrintA(0,(const char*)str.$a);
-}
-
-void Out$init$()
-{
-}
-
-void Out$Open()
-{
-}
-
-OBX$Cmd Out$cmd$(const char* name)
-{
-	if(name==0) return Out$init$;
-	return 0;
-}
+#endif

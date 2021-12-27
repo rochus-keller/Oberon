@@ -1,5 +1,5 @@
-#ifndef _OBX_OUT_
-#define _OBX_OUT_
+#ifndef _OBX_STRINGS_
+#define _OBX_STRINGS_
 
 /*
 * Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>

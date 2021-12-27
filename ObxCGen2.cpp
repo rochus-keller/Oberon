@@ -1508,7 +1508,7 @@ struct ObxCGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
                 b << "OBX$LoadModule((const char*)";
-                ae->d_args.first()->accept(this);
+                renderArg(0, ae->d_args.first().data(),false);
                 b << ".$a)";
             }
             break;
@@ -1517,9 +1517,9 @@ struct ObxCGenImp : public AstVisitor
 
                 Q_ASSERT( ae->d_args.size() == 2 );
                 b << "OBX$LoadCmd((const char*)";
-                ae->d_args.first()->accept(this);
+                renderArg(0, ae->d_args.first().data(), false);
                 b << ".$a,(const char*)";
-                ae->d_args.last()->accept(this);
+                renderArg(0, ae->d_args.last().data(), false);
                 b << ".$a)";
             }
             break;
@@ -2090,6 +2090,10 @@ struct ObxCGenImp : public AstVisitor
                 b << "))";
             }
             break;
+        case BuiltIn::VAL:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            ae->d_args.last()->accept(this);
+            break;
         default:
              qCritical() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
              break;
@@ -2221,7 +2225,10 @@ struct ObxCGenImp : public AstVisitor
             b << ")";
             if( addrOf )
                 b << "}[0]";
-        }else if( atag == Thing::T_Array )
+        }else if( atag == Thing::T_Array && ta->d_unsafe )
+        {
+            rhs->accept(this);
+        }else if( atag == Thing::T_Array && !ta->d_unsafe )
         {
             // NOTE: copy if not passByRef is done in procedure
             const int tag = rhs->getTag();
@@ -2293,8 +2300,19 @@ struct ObxCGenImp : public AstVisitor
             b << "}";
         }else if( atag == Thing::T_Record )
         {
+            bool inTypeCase = false;
+            Named* n = rhs->getIdent();
+            if( n == 0 && rhs->getUnOp() == UnExpr::DEREF )
+            {
+                Expression* e = cast<UnExpr*>(rhs)->d_sub.data();
+                n = e->getIdent();
+                if( n )
+                    inTypeCase = derefed(n->d_type.data()) != derefed(e->d_type.data());
+            }else if( n )
+                inTypeCase = derefed(n->d_type.data()) != derefed(rhs->d_type.data());
+
             // ta is record or pointer to record
-            if( tf && ta != tf ) // tf may be 0 here
+            if( (tf && ta != tf) || inTypeCase ) // tf may be 0 here
             {
                 // we need a cast
                 // ta is record
@@ -2333,6 +2351,9 @@ struct ObxCGenImp : public AstVisitor
                     b << "&";
                 rhs->accept(this);
             }
+        }else if( tf && tf->getTag() == Thing::T_Pointer && ta->getBaseType() == Type::NIL )
+        {
+            emitDefault(tf,rhs->d_loc);
         }else
         {
             // if rhs is a skalar or constant taking the address of it requires a temporary storage
@@ -2394,6 +2415,7 @@ struct ObxCGenImp : public AstVisitor
         }
         for( int i = pt->d_formals.size(); i < me->d_args.size(); i++ )
         {
+            // render varargs, i.e. all remaining args when formals are filled up
             if( !pt->d_formals.isEmpty() )
                 b << ", ";
             renderArg2(me->d_args[i]->d_type.data(), me->d_args[i].data(), false );
@@ -3492,9 +3514,10 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
         copyFile(outDir,"Strings.c",fout);
         copyFile(outDir,"Files.h",fout);
         copyFile(outDir,"Files.c",fout);
+        copyFile(outDir,"XYplane.c",fout);
+        copyFile(outDir,"XYplane.h",fout);
 #if 0 // TODO
         copyFile(outDir,"Coroutines",fout);
-        copyFile(outDir,"XYplane",fout);
 #endif
     }
     copyFile(outDir,"OBX.Runtime.h",fout);
@@ -3594,7 +3617,13 @@ bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteAr
     ObxCGenImp::dedication(out);
 
     out << "#include <locale.h>" << endl; // https://stackoverflow.com/questions/40590207/displaying-wide-chars-with-printf
-    out << "#include \"" << escapeFileName(callMod) << ".h\"" << endl << endl;
+    out << "#include \"" << escapeFileName(callMod) << ".h\"" << endl;
+    foreach( const QByteArray& m, allMods )
+    {
+        if( callMod != m )
+            out << "#include \"" << escapeFileName(m) << ".h\"" << endl;
+    }
+    out << endl;
 
     out << "int main(int argc, char **argv) {" << endl;
     out << "    setlocale(LC_ALL, \"C.UTF-8\");" << endl;
@@ -3625,6 +3654,11 @@ bool CGen2::generateMain(QIODevice* to, const QByteArrayList& callMods, const QB
     out << "#include <locale.h>" << endl;
     foreach( const QByteArray& mod, callMods )
         out << "#include \"" << escapeFileName(mod) << ".h\"" << endl;
+    foreach( const QByteArray& m, allMods )
+    {
+        if( !callMods.contains(m) )
+            out << "#include \"" << escapeFileName(m) << ".h\"" << endl;
+    }
     out << endl;
 
     out << "int main(int argc, char **argv) {" << endl;
