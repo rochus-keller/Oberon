@@ -90,7 +90,7 @@ static bool preloadLib( Ob::Ast::Model& mdl, const QByteArray& name )
 #ifdef OBNLC_USING_LUAJIT
 static void loadLuaLib( Lua::Engine2& lua, const QByteArray& name )
 {
-    QFile lib( QString(":/scripts/%1.lua").arg(name.constData()) );
+    QFile lib( QString(":/runtime/%1.lua").arg(name.constData()) );
     lib.open(QIODevice::ReadOnly);
     if( !lua.addSourceLib( lib.readAll(), name ) )
         qCritical() << "compiling" << name << ":" << lua.getLastError();

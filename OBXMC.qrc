@@ -9,15 +9,15 @@
         <file>oakwood/Strings.Def</file>
         <file>oakwood/XYplane.Def</file>
         <file>oakwood/MathL.Def</file>
-        <file>scripts/Dll/In.dll</file>
-        <file>scripts/Dll/Input.dll</file>
-        <file>scripts/Dll/Math.dll</file>
-        <file>scripts/Dll/MathL.dll</file>
-        <file>scripts/Dll/OBX.Runtime.dll</file>
-        <file>scripts/Dll/Out.dll</file>
-        <file>scripts/Dll/Coroutines.dll</file>
-        <file>scripts/Dll/Strings.dll</file>
-        <file>scripts/Dll/Files.dll</file>
-        <file>scripts/Dll/XYplane.dll</file>
+        <file>runtime/Dll/In.dll</file>
+        <file>runtime/Dll/Input.dll</file>
+        <file>runtime/Dll/Math.dll</file>
+        <file>runtime/Dll/MathL.dll</file>
+        <file>runtime/Dll/OBX.Runtime.dll</file>
+        <file>runtime/Dll/Out.dll</file>
+        <file>runtime/Dll/Coroutines.dll</file>
+        <file>runtime/Dll/Strings.dll</file>
+        <file>runtime/Dll/Files.dll</file>
+        <file>runtime/Dll/XYplane.dll</file>
     </qresource>
 </RCC>

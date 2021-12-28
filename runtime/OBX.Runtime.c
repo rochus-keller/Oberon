@@ -760,3 +760,8 @@ struct OBX$Array$1 OBX$CharToStr( int lwide, wchar_t ch )
 	}
 }
 
+const char* OBX$AppPath()
+{
+	return s_appPath;
+}
+

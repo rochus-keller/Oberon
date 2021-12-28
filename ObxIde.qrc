@@ -11,14 +11,14 @@
         <file>oakwood/Strings.Def</file>
         <file>oakwood/XYplane.Def</file>
         <file>oakwood/Coroutines.Def</file>
-        <file>scripts/Out.lua</file>
-        <file>scripts/Strings.lua</file>
-        <file>scripts/XYPlane.lua</file>
-        <file>scripts/Coroutines.lua</file>
-        <file>scripts/Files.lua</file>
-        <file>scripts/In.lua</file>
-        <file>scripts/Input.lua</file>
-        <file>scripts/Math.lua</file>
+        <file>runtime/Out.lua</file>
+        <file>runtime/Strings.lua</file>
+        <file>runtime/XYPlane.lua</file>
+        <file>runtime/Coroutines.lua</file>
+        <file>runtime/Files.lua</file>
+        <file>runtime/In.lua</file>
+        <file>runtime/Input.lua</file>
+        <file>runtime/Math.lua</file>
         <file>images/class.png</file>
         <file>images/func_priv.png</file>
         <file>images/func.png</file>
@@ -30,21 +30,21 @@
         <file>images/module.png</file>
         <file>images/class_priv.png</file>
         <file>images/struct_priv.png</file>
-        <file>scripts/obxlj.lua</file>
+        <file>runtime/obxlj.lua</file>
         <file>images/definition.png</file>
-        <file>scripts/Obs/Display.lua</file>
-        <file>scripts/Obs/FileDir.lua</file>
-        <file>scripts/Obs/Files.lua</file>
-        <file>scripts/Obs/Input.lua</file>
-        <file>scripts/Obs/Kernel.lua</file>
-        <file>scripts/Obs/Modules.lua</file>
+        <file>runtime/Obs/Display.lua</file>
+        <file>runtime/Obs/FileDir.lua</file>
+        <file>runtime/Obs/Files.lua</file>
+        <file>runtime/Obs/Input.lua</file>
+        <file>runtime/Obs/Kernel.lua</file>
+        <file>runtime/Obs/Modules.lua</file>
         <file>images/break-marker.png</file>
         <file>images/breakpoint.png</file>
         <file>images/marker.png</file>
         <file>images/alias_priv.png</file>
         <file>images/alias.png</file>
         <file>font/DejaVuSansMono.ttf</file>
-        <file>scripts/MathL.lua</file>
+        <file>runtime/MathL.lua</file>
         <file>oakwood/MathL.Def</file>
     </qresource>
 </RCC>

@@ -82,7 +82,7 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 
 static void loadLuaLib( Lua::Engine2* lua, const QByteArray& name )
 {
-    QFile obnlj( QString(":/scripts/%1.lua").arg(name.constData()) );
+    QFile obnlj( QString(":/runtime/%1.lua").arg(name.constData()) );
     if( !obnlj.open(QIODevice::ReadOnly) )
         qCritical() << "cannot load Lua lib" << name;
     if( !lua->addSourceLib( obnlj.readAll(), name ) )

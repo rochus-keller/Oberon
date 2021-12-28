@@ -2734,9 +2734,9 @@ struct ObxCilGenImp : public AstVisitor
                 err->error(Errors::Generator, Loc(loc,thisMod->d_file), "assignment of unsafe to a safe procedure pointer is not supported");
 
         }else if( td->d_unsafe && tag == Thing::T_Record )
-        {
             line(loc).ldobj_(formatType(tf));
-        }
+        else if( tag == Thing::T_BaseType )
+            convertTo(td->getBaseType(), ta, ea->d_loc);
     }
 
     void visit( ArgExpr* me )
@@ -4215,7 +4215,7 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
 
 static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream* cout )
 {
-    QFile f( QString(":/scripts/Dll/%1.dll" ).arg(name.constData() ) );
+    QFile f( QString(":/runtime/Dll/%1.dll" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
     {
         qCritical() << "unknown lib" << name;

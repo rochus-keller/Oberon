@@ -92,5 +92,6 @@ extern OBX$Cmd OBX$LoadCmd(const char* module, const char* command);
 extern void* OBX$LoadDynLib(const char* path); // load any shared library
 extern OBX$Cmd OBX$LoadProc(void* lib, const char* name); // load any procedure of given shared library
 extern void OBX$InitApp(int argc, char **argv);
+extern const char* OBX$AppPath();
 
 #endif

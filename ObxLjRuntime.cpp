@@ -52,7 +52,7 @@ static void printLoadError(Lua::Engine2* lua, const QByteArray& what)
 
 static void loadLuaLib( Lua::Engine2* lua, const QByteArray& path, QByteArray name = QByteArray() )
 {
-    QFile lib( QString(":/scripts/%1.lua").arg(path.constData()) );
+    QFile lib( QString(":/runtime/%1.lua").arg(path.constData()) );
     if( !lib.open(QIODevice::ReadOnly) )
         qCritical() << "cannot find" << path;
     if( name.isEmpty() )

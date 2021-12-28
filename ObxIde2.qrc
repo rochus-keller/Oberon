@@ -22,7 +22,7 @@
         <file>images/module.png</file>
         <file>images/class_priv.png</file>
         <file>images/struct_priv.png</file>
-        <file>scripts/obxlj.lua</file>
+        <file>runtime/obxlj.lua</file>
         <file>images/definition.png</file>
         <file>images/break-marker.png</file>
         <file>images/breakpoint.png</file>
@@ -31,33 +31,33 @@
         <file>images/alias.png</file>
         <file>font/DejaVuSansMono.ttf</file>
         <file>oakwood/MathL.Def</file>
-        <file>scripts/Dll/In.dll</file>
-        <file>scripts/Dll/Input.dll</file>
-        <file>scripts/Dll/Math.dll</file>
-        <file>scripts/Dll/MathL.dll</file>
-        <file>scripts/Dll/OBX.Runtime.dll</file>
-        <file>scripts/Dll/Out.dll</file>
-        <file>scripts/Dll/Coroutines.dll</file>
-        <file>scripts/Dll/Strings.dll</file>
-        <file>scripts/Dll/Files.dll</file>
-        <file>scripts/Dll/XYplane.dll</file>
-        <file>scripts/OBX.Runtime.c</file>
-        <file>scripts/OBX.Runtime.h</file>
-        <file>scripts/Input.c</file>
-        <file>scripts/Input.h</file>
-        <file>scripts/Out.c</file>
-        <file>scripts/Out.h</file>
-        <file>scripts/MathL.h</file>
-        <file>scripts/MathL.c</file>
-        <file>scripts/Math.c</file>
-        <file>scripts/Math.h</file>
-        <file>scripts/In.c</file>
-        <file>scripts/In.h</file>
-        <file>scripts/Strings.h</file>
-        <file>scripts/Strings.c</file>
-        <file>scripts/Files.c</file>
-        <file>scripts/Files.h</file>
-        <file>scripts/XYplane.h</file>
-        <file>scripts/XYplane.c</file>
+        <file>runtime/Dll/In.dll</file>
+        <file>runtime/Dll/Input.dll</file>
+        <file>runtime/Dll/Math.dll</file>
+        <file>runtime/Dll/MathL.dll</file>
+        <file>runtime/Dll/OBX.Runtime.dll</file>
+        <file>runtime/Dll/Out.dll</file>
+        <file>runtime/Dll/Coroutines.dll</file>
+        <file>runtime/Dll/Strings.dll</file>
+        <file>runtime/Dll/Files.dll</file>
+        <file>runtime/Dll/XYplane.dll</file>
+        <file>runtime/OBX.Runtime.c</file>
+        <file>runtime/OBX.Runtime.h</file>
+        <file>runtime/Input.c</file>
+        <file>runtime/Input.h</file>
+        <file>runtime/Out.c</file>
+        <file>runtime/Out.h</file>
+        <file>runtime/MathL.h</file>
+        <file>runtime/MathL.c</file>
+        <file>runtime/Math.c</file>
+        <file>runtime/Math.h</file>
+        <file>runtime/In.c</file>
+        <file>runtime/In.h</file>
+        <file>runtime/Strings.h</file>
+        <file>runtime/Strings.c</file>
+        <file>runtime/Files.c</file>
+        <file>runtime/Files.h</file>
+        <file>runtime/XYplane.h</file>
+        <file>runtime/XYplane.c</file>
     </qresource>
 </RCC>

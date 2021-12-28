@@ -1,6 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>scripts/obnlj.lua</file>
+        <file>runtime/obnlj.lua</file>
         <file>oakwood/Coroutines.Def</file>
         <file>oakwood/Files.Def</file>
         <file>oakwood/In.Def</file>
@@ -8,15 +8,15 @@
         <file>oakwood/Math.Def</file>
         <file>oakwood/Out.Def</file>
         <file>oakwood/Strings.Def</file>
-        <file>oakwood/XYPlane.Def</file>
-        <file>scripts/Out.lua</file>
-        <file>scripts/XYPlane.lua</file>
-        <file>scripts/Strings.lua</file>
-        <file>scripts/Math.lua</file>
-        <file>scripts/Input.lua</file>
-        <file>scripts/In.lua</file>
-        <file>scripts/Files.lua</file>
-        <file>scripts/Coroutines.lua</file>
-        <file>scripts/obxlj.lua</file>
+        <file>oakwood/XYplane.Def</file>
+        <file>runtime/Out.lua</file>
+        <file>runtime/XYPlane.lua</file>
+        <file>runtime/Strings.lua</file>
+        <file>runtime/Math.lua</file>
+        <file>runtime/Input.lua</file>
+        <file>runtime/In.lua</file>
+        <file>runtime/Files.lua</file>
+        <file>runtime/Coroutines.lua</file>
+        <file>runtime/obxlj.lua</file>
     </qresource>
 </RCC>

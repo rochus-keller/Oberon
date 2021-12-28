@@ -139,7 +139,6 @@ struct ObxCGenImp : public AstVisitor
     Procedure* curProc;
     Named* curVarDecl;
     QSet<Record*> declToInline;
-    Named* retypedRecIdent;
 
 #ifdef _OBX_FUNC_SEQ_POINT_
     struct Temp
@@ -156,7 +155,7 @@ struct ObxCGenImp : public AstVisitor
 
 
     ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),
-        curProc(0),curVarDecl(0),retypedRecIdent(0),park(0){}
+        curProc(0),curVarDecl(0),park(0){}
 
     inline QByteArray ws() { return QByteArray(level*4,' '); }
 
@@ -1205,19 +1204,18 @@ struct ObxCGenImp : public AstVisitor
             return; // already reported
 
 
-        const bool doCast = hasGenericRecType(id) || id == retypedRecIdent;
+        Type* td = derefed(me->d_type.data() );
+        Type* tid = derefed(id->d_type.data() );
+        const bool doCast = hasGenericRecType(id)
+                || ( td && td != tid ); // this happens if id got temporarily retyped due to type case
         if( doCast )
         {
-            Type* td = derefed(me->d_type.data() );
             Q_ASSERT(td);
             const int tag = td->getTag();
             Q_ASSERT( tag != Thing::T_Array && tag != Thing::T_ProcType );
-            b << "(";
-            if( true ) //tag != Thing::T_Pointer )
-                b << "*";
+            b << "(*";
             b << "(" << formatType(me->d_type.data(),true /* tag != Thing::T_Pointer */ ? "*" : "" ) << ")";
-            if( true ) //tag != Thing::T_Pointer )
-                b << "&";
+            b << "&";
             // NOTE: just do brute force *& regardless whether pointer or not, because C has a strange feature
             // (*(struct T5Statements$RectangleDesc * *)&sp) = (*(struct T5Statements$RectangleDesc * *)&sp); // works
             // ((struct T5Statements$RectangleDesc * )sp) = ((struct T5Statements$RectangleDesc  *)sp); // error: lvalue required as left operand of assignment
@@ -1227,7 +1225,6 @@ struct ObxCGenImp : public AstVisitor
         {
         case Thing::T_Const:
             {
-                Type* td = derefed(me->d_type.data() );
                 Q_ASSERT(td);
                 Q_ASSERT( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration );
                 emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
@@ -1244,6 +1241,7 @@ struct ObxCGenImp : public AstVisitor
             break;
         case Thing::T_Parameter:
             {
+                Q_ASSERT(td);
                 // a VAR/IN parameter is implemented as a pointer.
                 // an array passed by value is also represented by a pointer
                 // record pointers are plain C pointers
@@ -1256,7 +1254,6 @@ struct ObxCGenImp : public AstVisitor
                 // or a dereferenced pointer, and a true value otherwise.
 
                 Parameter* p = cast<Parameter*>(id);
-                Type* td = derefed(me->d_type.data() );
 
                 // we dereference here in case of VAR/IN so the succeeding desigs can assume a value based on d_type
                 // without checking the prefix desig. But we don't do it for array values.
@@ -1314,10 +1311,12 @@ struct ObxCGenImp : public AstVisitor
         Named* id = me->getIdent();
         Q_ASSERT( id );
 
-        const bool doCast = hasGenericRecType(id) || id == retypedRecIdent;
+        Type* td = derefed(me->d_type.data() );
+        Type* tid = derefed(id->d_type.data() );
+        const bool doCast = hasGenericRecType(id)
+                    || ( td && td != tid ); // this happens if id got temporarily retyped due to type case
         if( doCast )
         {
-            Type* td = derefed(me->d_type.data() );
             Q_ASSERT(td);
             const int tag = td->getTag();
             Q_ASSERT( tag != Thing::T_Array && tag != Thing::T_ProcType );
@@ -1363,7 +1362,6 @@ struct ObxCGenImp : public AstVisitor
             break;
         case Thing::T_Const:
             {
-                Type* td = derefed(id->d_type.data() );
                 Q_ASSERT(td);
                 Q_ASSERT( derefImport );
                 Q_ASSERT( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration );
@@ -2301,6 +2299,7 @@ struct ObxCGenImp : public AstVisitor
         }else if( atag == Thing::T_Record )
         {
             bool inTypeCase = false;
+            /*
             Named* n = rhs->getIdent();
             if( n == 0 && rhs->getUnOp() == UnExpr::DEREF )
             {
@@ -2310,6 +2309,7 @@ struct ObxCGenImp : public AstVisitor
                     inTypeCase = derefed(n->d_type.data()) != derefed(e->d_type.data());
             }else if( n )
                 inTypeCase = derefed(n->d_type.data()) != derefed(rhs->d_type.data());
+                */
 
             // ta is record or pointer to record
             if( (tf && ta != tf) || inTypeCase ) // tf may be 0 here
@@ -2604,59 +2604,72 @@ struct ObxCGenImp : public AstVisitor
                 }
                 Type* td = derefed(e->d_sub->d_type.data());
                 Q_ASSERT( td->getTag() == Thing::T_Array );
-                QList<Array*> dims = cast<Array*>(td)->getDims();
-                const bool dynLen = hasDynLen(dims);
-                b << "(";
-                const int temp = buyTemp(arrayType(dims.size(),e->d_sub->d_loc)+"*");
-                if( dynLen )
+                if( td->d_unsafe )
                 {
-                    // take the address of the base OBX$Array$x struct so it's fields can be used later
-                    b << "*($t" << temp << " = (";
-                    renderArg(0,e->d_sub.data(),true);
-                    b << "),&";
-                }
-                b << "((" << formatType(me->d_type.data(),"*") << ")"; // cast to a 1d array because we only index one dim
-                if( dynLen )
-                    b << "$t" << temp << "->$a)[";
-                else
-                {
-                    b << "(";
-                    renderArg(0,e->d_sub.data(),false);
-                    b << ").$a)[";
-                }
-                // C uses row-col order, i.e. A[row][col]
-                for(int dim = 0; dim < idx.size(); dim++ )
-                {
-                    // sample for 3D (Dx dim width, dx index):
-                    // ( d0 * D1 * D2 ) + ( d1 * D2 ) + d2
-                    // (d1 * D2 * D3 ... * Dn) + (d2 * D3 * D4 ... * Dn) + (d3 * D4 ... * Dn) ... + (dn-1 * Dn) + dn
-                    if( dim != 0 )
-                        b << "+";
-                    for( int i = dim; i < idx.size(); i++ )
+                    e->d_sub->accept(this);
+                    for( int i = 0; i < idx.size(); i++ )
                     {
-                        if( i != dim )
-                            b << "*";
-                        if( i == dim )
+                        b << "[";
+                        Q_ASSERT( idx[i]->d_args.size() == 1 );
+                        idx[i]->d_args.first()->accept(this);
+                        b << "]";
+                    }
+                }else
+                {
+                    QList<Array*> dims = cast<Array*>(td)->getDims();
+                    const bool dynLen = hasDynLen(dims);
+                    b << "(";
+                    const int temp = buyTemp(arrayType(dims.size(),e->d_sub->d_loc)+"*");
+                    if( dynLen )
+                    {
+                        // take the address of the base OBX$Array$x struct so it's fields can be used later
+                        b << "*($t" << temp << " = (";
+                        renderArg(0,e->d_sub.data(),true);
+                        b << "),&";
+                    }
+                    b << "((" << formatType(me->d_type.data(),"*") << ")"; // cast to a 1d array because we only index one dim
+                    if( dynLen )
+                        b << "$t" << temp << "->$a)[";
+                    else
+                    {
+                        b << "(";
+                        renderArg(0,e->d_sub.data(),false);
+                        b << ").$a)[";
+                    }
+                    // C uses row-col order, i.e. A[row][col]
+                    for(int dim = 0; dim < idx.size(); dim++ )
+                    {
+                        // sample for 3D (Dx dim width, dx index):
+                        // ( d0 * D1 * D2 ) + ( d1 * D2 ) + d2
+                        // (d1 * D2 * D3 ... * Dn) + (d2 * D3 * D4 ... * Dn) + (d3 * D4 ... * Dn) ... + (dn-1 * Dn) + dn
+                        if( dim != 0 )
+                            b << "+";
+                        for( int i = dim; i < idx.size(); i++ )
                         {
-                            Q_ASSERT( idx[i]->d_args.size() == 1 );
-                            idx[i]->d_args.first()->accept(this);
-                        }else
-                        {
-                            if( dims[i]->d_lenExpr )
-                                b << dims[i]->d_len;
-                            else
+                            if( i != dim )
+                                b << "*";
+                            if( i == dim )
                             {
-                                Q_ASSERT(dynLen);
-                                b << "$t" << temp << "->$" << i+1;
+                                Q_ASSERT( idx[i]->d_args.size() == 1 );
+                                idx[i]->d_args.first()->accept(this);
+                            }else
+                            {
+                                if( dims[i]->d_lenExpr )
+                                    b << dims[i]->d_len;
+                                else
+                                {
+                                    Q_ASSERT(dynLen);
+                                    b << "$t" << temp << "->$" << i+1;
+                                }
                             }
                         }
                     }
-                }
-                b << "]";
-                if( dynLen )
+                    b << "]";
+                    if( dynLen )
+                        b << ")";
                     b << ")";
-                b << ")";
-                sellTemp(temp);
+                    sellTemp(temp);
+                }
             }
             break;
         case ArgExpr::CALL:
@@ -3074,9 +3087,6 @@ struct ObxCGenImp : public AstVisitor
             if( me->d_cases.isEmpty() )
                 return;
 
-            Named* old = retypedRecIdent;
-            retypedRecIdent = me->d_exp->getIdent();
-
             Ref<IfLoop> ifl = new IfLoop();
             ifl->d_op = IfLoop::IF;
             ifl->d_loc = me->d_loc;
@@ -3102,7 +3112,6 @@ struct ObxCGenImp : public AstVisitor
 
             // and now generate code for the if
             ifl->accept(this);
-            retypedRecIdent = old;
         }
         else
         {
@@ -3204,40 +3213,24 @@ struct ObxCGenImp : public AstVisitor
         }
     }
 
-    Named* getGuard(Expression* e)
-    {
-        Q_ASSERT( e->getTag() == Thing::T_BinExpr );
-        BinExpr* guard = cast<BinExpr*>(e);
-        Q_ASSERT( guard->d_op == BinExpr::IS );
-
-        return guard->d_lhs->getIdent();
-    }
-
-    void emitIf( IfLoop* me, bool withStatement )
+    void emitIf( IfLoop* me )
     {
         b << ws() << "if( ";
-        me->d_if[0]->accept(this);
+        renderArg(me->d_if[0]->d_type.data(), me->d_if[0].data(),false);
         b << " ) {" << endl;
         level++;
-        Named* old = retypedRecIdent;
-        if( withStatement )
-            retypedRecIdent = getGuard(me->d_if[0].data());
         for( int i = 0; i < me->d_then[0].size(); i++ )
             emitStatement(me->d_then[0][i].data());
-        retypedRecIdent = old;
         level--;
         b << ws() << "} ";
         for( int i = 1; i < me->d_if.size(); i++ ) // ELSIF
         {
             b << "else if( ";
-            me->d_if[i]->accept(this);
+            renderArg(me->d_if[i]->d_type.data(), me->d_if[i].data(),false);
             b << " ) {" << endl;
             level++;
-            if( withStatement )
-                retypedRecIdent = getGuard(me->d_if[i].data());
             for( int j = 0; j < me->d_then[i].size(); j++ )
                 emitStatement(me->d_then[i][j].data());
-            retypedRecIdent = old;
             level--;
             b << ws() << "} ";
         }
@@ -3258,7 +3251,7 @@ struct ObxCGenImp : public AstVisitor
         switch( me->d_op )
         {
         case IfLoop::IF:
-            emitIf(me,false);
+            emitIf(me);
             break;
         case IfLoop::WHILE:
             {
@@ -3301,7 +3294,7 @@ struct ObxCGenImp : public AstVisitor
             {
                 // if guard then statseq elsif guard then statseq else statseq end
                 // guard ::= lhs IS rhs
-                emitIf(me,true);
+                emitIf(me);
             }
             break;
         case IfLoop::LOOP:
@@ -3383,7 +3376,7 @@ struct ObxCGenImp : public AstVisitor
 
 static bool copyFile( const QDir& outDir, const QByteArray& name, QTextStream& list )
 {
-    QFile f( QString(":/scripts/%1" ).arg(name.constData() ) );
+    QFile f( QString(":/runtime/%1" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
     {
         qCritical() << "unknown lib" << name;
@@ -3634,7 +3627,7 @@ bool CGen2::generateMain(QIODevice* to, const QByteArray& callMod, const QByteAr
     out << "    OBX$InitApp(argc,argv);" << endl;
     foreach( const QByteArray& m, allMods )
         out << "    OBX$RegisterModule(\"" << escapeFileName(m) << "\"," << m << "$cmd$ );" << endl;
-    out << "    " << callMod + "init$();" << endl;
+    out << "    " << callMod + "$init$();" << endl;
     if( !callFunc.isEmpty() )
         out << "    " << callMod + "$" + callFunc + "();" << endl;
     out << "    return 0;" << endl;
