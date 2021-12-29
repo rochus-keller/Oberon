@@ -122,7 +122,9 @@ static void clearFiles()
     s_count = 0;
 }
 
-#if defined(_WIN32) && !defined(__GNUC__)
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 // source: https://stackoverflow.com/questions/2314542/listing-directory-contents-using-c-and-windows
 static void readDir()
 {
@@ -131,7 +133,6 @@ static void readDir()
     WIN32_FIND_DATA fdFile;
     HANDLE hFind = NULL;
 
-    char sPath[2048];
     enum { LEN = 2048 };
     char sPath[LEN];
     getPath(sPath,LEN);

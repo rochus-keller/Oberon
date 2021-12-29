@@ -35,10 +35,18 @@ public static void Char(char ch)
 	System.Console.Write(ch);
 }
 
+private static string toString(char[] str)
+{
+	int i = 0;
+	while( i < str.Length && str[i] != 0 )
+		i++;
+	return new string(str,0,i);
+}
+
 //PROCEDURE String (str: ARRAY OF CHAR);
 public static void String(char[] str)
 {
-	System.Console.Write(str);
+	System.Console.Write(toString(str));
 }
 
 //PROCEDURE Int (i, n: INTEGER);

@@ -721,12 +721,13 @@ namespace Obx
                 };
         static const char* s_opName[];
         quint8 d_op;
-        quint8 d_baseType; // the including type in case of arithmetic relations and ops
+        quint8 d_inclType; // the including type in case of comparison relations (whose type is bool otherwise)
         Ref<Expression> d_lhs, d_rhs;
-        BinExpr():d_op(Invalid),d_baseType(0){}
+        BinExpr():d_op(Invalid),d_inclType(0){}
         int getTag() const { return T_BinExpr; }
         void accept(AstVisitor* v) { v->visit(this); }
-        bool isArithRelation() const;
+        bool isRelation() const;
+        bool isArithOp() const;
         Module* getModule() const { return !d_lhs.isNull() ? d_lhs->getModule() : !d_rhs.isNull() ? d_rhs->getModule() : 0 ; }
         quint8 getBinOp() const { return d_op; }
     };

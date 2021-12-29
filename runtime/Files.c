@@ -274,8 +274,8 @@ void Files$ReadNum(struct Files$Rider* R, int32_t* x)
 {
     uint32_t n, y; uint8_t b = 0;
 	n = 32; y = 0; Files$Read(R, &b);
-	while( b >= 0x80 ) { y = y + b-0x80 >> 7; n -= 7; Files$Read(R, &b); }
-	if( n <= 4 ) *x = (int)(y + b % 0x10 >> 4); else *x = (int)(y + b >> 7) >> (int)n-7;
+	while( b >= 0x80 ) { y = (y + b-0x80) >> 7; n -= 7; Files$Read(R, &b); }
+	if( n <= 4 ) *x = (int)((y + b % 0x10) >> 4); else *x = (int)((y + b) >> 7) >> (int)(n-7);
 }
 
 void Files$ReadString(struct Files$Rider* R, struct OBX$Array$1 x)

@@ -2828,26 +2828,59 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
+    int widenType(int baseType )
+    {
+        switch(baseType)
+        {
+        case Type::BOOLEAN:
+        case Type::CHAR:
+        case Type::WCHAR:
+        case Type::BYTE:
+        case Type::SHORTINT:
+            return Type::INTEGER;
+        default:
+            return baseType;
+        }
+    }
+
+    void adjustTypes( Type* cur, Type* other, const RowCol& loc )
+    {
+        Q_ASSERT( cur && other );
+        const int c = widenType(cur->getBaseType());
+        const int o = widenType(other->getBaseType());
+        if( c == o )
+            return;
+        if( o == Type::LONGINT && c != Type::LONGINT )
+            convertTo(Type::LONGINT, cur, loc);
+        else if( o == Type::LONGREAL && c != Type::LONGREAL )
+            convertTo(Type::LONGREAL, cur, loc);
+    }
+
     void visit( BinExpr* me)
     {
         Q_ASSERT( !me->d_lhs.isNull() && !me->d_rhs.isNull() &&
                   !me->d_lhs->d_type.isNull() && !me->d_rhs->d_type.isNull() );
 
+        Type* lhsT = derefed(me->d_lhs->d_type.data());
+        Type* rhsT = derefed(me->d_rhs->d_type.data());
+        Q_ASSERT( lhsT && rhsT );
+
         me->d_lhs->accept(this);
-        if( me->isArithRelation() )
-            convertTo(me->d_baseType, me->d_lhs->d_type.data(), me->d_lhs->d_loc);
+        if( me->isRelation() )
+            convertTo(me->d_inclType, me->d_lhs->d_type.data(), me->d_lhs->d_loc);
+        else if( me->isArithOp() )
+            adjustTypes( lhsT, rhsT, me->d_lhs->d_loc );
 
         if( me->d_op != BinExpr::AND && me->d_op != BinExpr::OR )
         {
             // AND and OR are special in that rhs might not be executed
             me->d_rhs->accept(this);
-            if( me->isArithRelation() )
-                convertTo(me->d_baseType, me->d_rhs->d_type.data(), me->d_rhs->d_loc );
+            if( me->isRelation() )
+                convertTo(me->d_inclType, me->d_rhs->d_type.data(), me->d_rhs->d_loc );
+            else if( me->isArithOp() )
+                adjustTypes( rhsT, lhsT, me->d_rhs->d_loc );
         }
 
-        Type* lhsT = derefed(me->d_lhs->d_type.data());
-        Type* rhsT = derefed(me->d_rhs->d_type.data());
-        Q_ASSERT( lhsT && rhsT );
         const int ltag = lhsT->getTag();
         const int rtag = rhsT->getTag();
         bool lwide, rwide;
@@ -3387,7 +3420,8 @@ struct ObxCilGenImp : public AstVisitor
             const bool unsafe = emitFetchDesigAddr(me->d_lhs.data());
             me->d_rhs->accept(this);
             prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );
-            convertTo(lhsT->getBaseType(),me->d_rhs->d_type.data(), me->d_loc); // required, otherwise crash when LONGREAL
+            // no longer used, instead in prepareRhs:
+            // convertTo(lhsT->getBaseType(),me->d_rhs->d_type.data(), me->d_loc);
 #if _USE_LDSTOBJ
             line(me->d_loc).stobj_(formatType(me->d_lhs->d_type.data()));
 #else
@@ -3447,9 +3481,7 @@ struct ObxCilGenImp : public AstVisitor
 
     void visit( CaseStmt* me)
     {
-        // TODO: else not yet handled; if else missing then abort if no case hit
-        if( !me->d_else.isEmpty() )
-            qWarning() << "CASE ELSE not yet implemented" << me->d_loc.d_row << me->d_loc.d_col << thisMod->d_file;
+        // TODO: if else missing then abort if no case hit
         if( me->d_typeCase )
         {
             // first rewrite the AST with 'if' instead of complex 'case'
@@ -3477,6 +3509,8 @@ struct ObxCilGenImp : public AstVisitor
                 ifl->d_if.append(eq.data());
                 ifl->d_then.append( c.d_block );
             }
+
+            ifl->d_else = me->d_else;
 
             // and now generate code for the if
             ifl->accept(this);
@@ -3572,6 +3606,8 @@ struct ObxCilGenImp : public AstVisitor
 
                 ifl->d_then.append( c.d_block );
             }
+
+            ifl->d_else = me->d_else;
 
             // and now generate code for the if
             ifl->accept(this);

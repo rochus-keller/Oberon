@@ -686,7 +686,7 @@ OBX$Cmd OBX$LoadCmd(const char* module, const char* command)
 #include <windows.h>
 void getCurPath(char *buf, size_t size)
 {
-	GetModuleFileName(NULL, buf, size);
+    GetModuleFileNameA(NULL, buf, size);
 	char* res = strrchr(buf, '\\');
 	if( res )
 		*res = 0; // cut off application name
@@ -704,8 +704,8 @@ static void fetchAppPath( const char* path )
 {
 	if( path )
 	{
-		const char* res = strrchr(path, '/');
-		if( *path == '/' && res )
+        const char* res = strrchr(path, OBX_PATH_SEP);
+        if( ( path[0] == OBX_PATH_SEP || path[1] == ':' ) && res )
 		{
 			int len = res - path;
 			if( len >= OBX_MAX_PATH )

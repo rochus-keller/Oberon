@@ -1446,7 +1446,7 @@ struct ValidatorImp : public AstVisitor
                 {
                     Type* t = inclusiveType1(lhsT,rhsT);
                     if( t )
-                        me->d_baseType = t->d_baseType;
+                        me->d_inclType = t->d_baseType;
                 }
             }else
             {
@@ -1468,7 +1468,7 @@ struct ValidatorImp : public AstVisitor
                 {
                     Type* t = inclusiveType1(lhsT,rhsT);
                     if( t )
-                        me->d_baseType = t->d_baseType;
+                        me->d_inclType = t->d_baseType;
                 }
             }else
             {
@@ -1514,8 +1514,6 @@ struct ValidatorImp : public AstVisitor
             if( isNumeric(lhsT) && isNumeric(rhsT) )
             {
                 me->d_type = inclusiveType1(lhsT,rhsT);
-                if( !me->d_type.isNull() )
-                    me->d_baseType = me->d_type->d_baseType;
             }else if( lhsT == bt.d_setType && rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
 #ifdef OBX_BBOX
@@ -1540,8 +1538,6 @@ struct ValidatorImp : public AstVisitor
             if( isNumeric(lhsT) && isNumeric(rhsT) )
             {
                 me->d_type = inclusiveType2(lhsT,rhsT);
-                if( !me->d_type.isNull() )
-                    me->d_baseType = me->d_type->d_baseType;
             }else if( lhsT == bt.d_setType || rhsT == bt.d_setType )
                 me->d_type = bt.d_setType;
             else
@@ -1555,8 +1551,6 @@ struct ValidatorImp : public AstVisitor
             if( !isInteger(rhsT ) )
                 error( me->d_rhs->d_loc, Validator::tr("integer type expected for right side of MOD or DIV operator") );
             me->d_type = inclusiveType1(lhsT,rhsT);
-            if( !me->d_type.isNull() )
-                me->d_baseType = me->d_type->d_baseType;
             break;
 
         case BinExpr::OR:  // bool
@@ -2542,9 +2536,8 @@ struct ValidatorImp : public AstVisitor
                 t->accept(this);
                 Type* td = t->derefed();
                 Q_ASSERT( td != 0 );
-                if( false )// !td->hasByteSize() )
+                if( !td->hasByteSize() )
                 {
-                    // not necessary here because such errors are discovered when the instance is validated in context
                     error( t->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
                     return;
                 }
