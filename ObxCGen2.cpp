@@ -153,7 +153,7 @@ struct ObxCGenImp : public AstVisitor
 #else
     QList<QPair<QByteArray,bool> > temps;
 #endif
-
+    QList<int> sellLater;
 
     ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),
         curProc(0),curVarDecl(0),park(0){}
@@ -175,10 +175,13 @@ struct ObxCGenImp : public AstVisitor
         return temps.size() - 1;
     }
 
-    void sellTemp(int i)
+    void sellTemp(int i, bool later = true) // if default false then crash with GCC 4.8 -O2
     {
         Q_ASSERT( i >= 0 && i < temps.size() );
-        temps[i].d_inUse = false;
+        if( later )
+            sellLater.append(i);
+        else
+            temps[i].d_inUse = false;
     }
 #else
     int buyTemp( const QByteArray& type )
@@ -195,10 +198,13 @@ struct ObxCGenImp : public AstVisitor
         return temps.size() - 1;
     }
 
-    void sellTemp(int i)
+    void sellTemp(int i, bool later = true )
     {
         Q_ASSERT( i >= 0 && i < temps.size() );
-        temps[i].second = false;
+        if( later )
+            sellLater.append(i);
+        else
+            temps[i].second = false;
     }
 #endif
 
@@ -991,6 +997,12 @@ struct ObxCGenImp : public AstVisitor
     void emitStatement(Statement* s)
     {
         s->accept(this);
+        if( !sellLater.isEmpty() )
+        {
+            foreach( int t, sellLater )
+                sellTemp(t, false);
+            sellLater.clear();
+        }
     }
 
     void visit( Procedure* me)
@@ -3563,9 +3575,6 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     bout << "or on Windows with MSVC:" << endl;
     bout << "cl /O2 /MD /Fe:OBX.Main.exe /DOBX_USE_BOEHM_GC /Iinclude *.c gcmt-dll.lib" << endl;
     bout << "if on Unix/Linux/macOS dynamic libraries should be loaded add -DOBX_USE_DYN_LOAD -ldl" << endl;
-    bout << "Note that MSVC produces crashing code in certain cases (e.g. DeltaBlue and Havlak examples)" << endl;
-    bout << "Note that -O2 of GCC/MinGW versions 4.x and 5.x (but not 8.x) produces crashing code e.g. with Havlak" << endl;
-    bout << "Note that no issues were observed so far with CLANG" << endl;
     bout.flush();
     fout.flush();
 

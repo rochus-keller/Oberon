@@ -56,7 +56,6 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp)
 #endif
 
 static struct timeval start;
-// TODO complete
 
 int32_t ObFiles$getTime()
 {
@@ -232,7 +231,7 @@ int32_t ObFiles$openFile(struct OBX$Array$1 filename)
     if( *path == 0 )
         return -1;
 
-    FILE* old = fopen(path, "r");
+    FILE* old = fopen(path, "rb"); // must be rb, not just r, otherwise fseek fails on Windows
     if( old == 0 )
     {
         fprintf( stderr, "cannot open file for reading: %s\n", path );
@@ -306,7 +305,7 @@ int ObFiles$saveFile(struct OBX$Array$1 filename, int32_t buffer)
         if( *path == 0 )
             return 0;
 
-        FILE* file = fopen(path, "w");
+        FILE* file = fopen(path, "wb");
         if( file == 0 )
         {
             fprintf( stderr, "cannot open file for writing: %s\n", path );
