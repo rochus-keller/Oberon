@@ -65,7 +65,7 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 - Generates C code compatible with ISO 9899:1999 with no other dependencies than the C standard library and the [Boehm-Demers-Weiser garbage collector](https://hboehm.info/gc/)
 - The full Oberon+ language including generics and the Oakwood libraries are supported
 - The SYSTEM module is not supported (and not necessary)
-- FFI and Oakwood WIP
+- Oberon+ FFI language for cross-platform C library integration (see also [this tool](https://github.com/rochus-keller/c2obx/))
 
 ### Oberon+ to LuaJIT bytecode compiler
 
