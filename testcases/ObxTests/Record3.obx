@@ -1,0 +1,12 @@
+module Record3
+
+type T = record a,b: integer end
+
+var
+		a : array 2 of array 3 of array 4 of T
+begin
+
+	a[1][2][3].a := 33
+	println(a[1][2][3].a)
+
+end Record3

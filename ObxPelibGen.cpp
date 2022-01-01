@@ -184,6 +184,39 @@ private:
     Token d_tmp;
 };
 
+static const char* s_pelibBasicType[] =
+{
+    "ClassRef",
+    "MethodRef",
+    "TypeVar",
+    "MethodParam",
+    "Void", "Bool", "Char", "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64",
+    "inative", "unative", "r32", "r64", "object", "string"
+};
+
+static QByteArray dump(Resource* r)
+{
+    if( r == 0 )
+        return "null";
+    else if( Type* t = dynamic_cast<Type*>(r) )
+    {
+        QByteArray res = "Type ";
+        res += s_pelibBasicType[t->GetBasicType()];
+        res += " ";
+        for( int i = 0; i < t->ArrayLevel(); i++ )
+            res += "[]";
+        for( int i = 0; i < t->PointerLevel(); i++ )
+            res += "*";
+        if( t->ByRef() )
+            res += "&";
+        return res;
+    }else if( Class* c = dynamic_cast<Class*>(r) )
+    {
+        return "Class " + QByteArray(c->Name().c_str());
+    }else
+        return QByteArray(typeid(*r).name()).mid(14);
+}
+
 class SignatureParser
 {
 public:
@@ -215,6 +248,22 @@ public:
                 delete i.value();
         }
         Node* getTop() { return parent ? parent->getTop() : this; }
+        QByteArrayList path()
+        {
+            QByteArrayList res;
+            if( parent )
+                res = parent->path();
+            res += name;
+            return res;
+        }
+        QList<Resource*> thingsPath()
+        {
+            QList<Resource*> res;
+            if( parent )
+                res = parent->thingsPath();
+            res += thing;
+            return res;
+        }
     };
 
     QByteArray error;
@@ -591,6 +640,9 @@ protected:
                 node->subs.insert(array,suffix);
                 Type* t = new Type(dc);
                 t->ArrayLevel(arrayLevel);
+                if( arrayLevel )
+                    t->ShowType(); // otherwise refs in stelem or newarr only show record not array level
+                    // see Record3.obx and Gen4Tests T3VariableDeclarations.obn
                 t->Pinned(pinned);
                 suffix->thing = t;
             }
@@ -970,12 +1022,13 @@ struct PelibGen::Imp : public PELib
         m->AddInstruction(new Instruction((Instruction::iop)op, new Operand( label.constData() ) ) );
     }
 
-    void addTypeOp( Method* m, quint8 op, const QByteArray& typeRef )
+    SignatureParser::Node* addTypeOp( Method* m, quint8 op, const QByteArray& typeRef )
     {
         SignatureParser::Node* type = find(SignatureParser::TypeRef,typeRef);
         Type* t = dynamic_cast<Type*>(type->thing);
         Q_ASSERT( t );
         m->AddInstruction(new Instruction((Instruction::iop)op, new Operand( new Value(t))));
+        return type;
     }
 
     void addMethodOp( Method* m, quint8 op, SignatureParser::MemberHint hint, const QByteArray& methodRef )
@@ -1336,7 +1389,16 @@ void PelibGen::addMethod(const IlMethod& m)
         case IL_stelem:
         case IL_stobj:
         case IL_unbox:
-            d_imp->addTypeOp(mm,op.d_ilop,op.d_arg);
+            {
+                SignatureParser::Node* t = d_imp->addTypeOp(mm,op.d_ilop,op.d_arg);
+#if 0
+                // TEST
+                qDebug() << "***" << DotNetPELib::Instruction::instructions_[op.d_ilop].name << t->path().join(' ');
+                QList<Resource*> path = t->thingsPath();
+                foreach( Resource* r, path )
+                    qDebug() << dump(r);
+#endif
+            }
             break;
         case IL_ldfld:
         case IL_ldflda:

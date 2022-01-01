@@ -11,10 +11,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Oakwood3.obx
-1\RelPath=Oakwood3.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Hello.obx
-2\RelPath=Hello.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Record3.obx
+1\RelPath=Record3.obx
 size=1
 
 [Packages]
