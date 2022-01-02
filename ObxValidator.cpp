@@ -518,8 +518,6 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::SYS_REG:
         case BuiltIn::SYS_COPY:
         case BuiltIn::ODD:
-        case BuiltIn::FLOOR:
-        case BuiltIn::FLT:
         case BuiltIn::CHR:
         case BuiltIn::INCL:
         case BuiltIn::EXCL:
@@ -531,7 +529,6 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::WCHR:
         case BuiltIn::BITS:
         case BuiltIn::HALT:
-        case BuiltIn::ASH:
         case BuiltIn::ROR:
         case BuiltIn::ENTIER:
             return false; // these can be handled by ordinary arg checker
@@ -550,8 +547,10 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::BITXOR:
         case BuiltIn::BITSHL:
         case BuiltIn::BITSHR:
+        case BuiltIn::BITASR:
         case BuiltIn::LSL:
         case BuiltIn::ASR:
+        case BuiltIn::ASH:
             if( args->d_args.size() == 2 )
             {
                 Type* td = derefed(args->d_args.first()->d_type.data());
@@ -563,6 +562,24 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting two arguments"));
             break;
+        case BuiltIn::FLOOR:
+            if( args->d_args.size() == 1 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data());
+                if( !td->isReal() )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting real argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+           break;
+        case BuiltIn::FLT:
+            if( args->d_args.size() == 1 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data());
+                if( !td->isInteger() )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting integer argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+           break;
         case BuiltIn::ADR:
             // TODO: we no longer need ADR
             if( args->d_args.size() == 1 )
@@ -1105,8 +1122,10 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::BITNOT:
         case BuiltIn::BITSHL:
         case BuiltIn::BITSHR:
+        case BuiltIn::BITASR:
         case BuiltIn::LSL:
         case BuiltIn::ASR:
+        case BuiltIn::ASH:
             if( !args.isEmpty() )
             {
                 Type* td = derefed(args.first()->d_type.data());
@@ -1114,6 +1133,26 @@ struct ValidatorImp : public AstVisitor
                     return bt.d_longType;
                 else
                     return bt.d_intType;
+            }
+            break;
+        case BuiltIn::FLOOR:
+            if( !args.isEmpty() )
+            {
+                Type* td = derefed(args.first()->d_type.data());
+                if( td && td->getBaseType() == Type::LONGREAL )
+                    return bt.d_longType;
+                else
+                    return bt.d_intType;
+            }
+            break;
+        case BuiltIn::FLT:
+            if( !args.isEmpty() )
+            {
+                Type* td = derefed(args.first()->d_type.data());
+                if( td && td->getBaseType() == Type::LONGINT )
+                    return bt.d_longrealType;
+                else
+                    return bt.d_realType;
             }
             break;
         case BuiltIn::BITAND:

@@ -453,17 +453,20 @@ namespace Obx
                // IDE
                TRAP, TRAPIF, TRACE, NOP, LDMOD, LDCMD,
                // SYSTEM
-               SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY,
+               SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY, // obsolete
                // Oberon-2
-               MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, BYTESIZE, ENTIER, // BYTESIZE is SIZE in BB
+               MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, BYTESIZE, ENTIER, // BYTESIZE=SIZE
                // Blackbox
                BITS,
                // Oberon-2 SYSTEM
-               SYS_MOVE, SYS_NEW, SYS_ROT, SYS_LSH, SYS_GETREG, SYS_PUTREG,
+               SYS_MOVE, SYS_NEW, SYS_ROT, SYS_LSH, SYS_GETREG, SYS_PUTREG, // obsolete
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR, BITSHL, BITSHR, ADR, MAXBUILTIN
+               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
+               BITSHL, BITSHR, BITASR,
+               ADR, // obsolete
+               MAXBUILTIN
              };
         static const char* s_typeName[];
         quint8 d_func;

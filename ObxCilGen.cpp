@@ -2292,15 +2292,20 @@ struct ObxCilGenImp : public AstVisitor
         case BuiltIn::FLOOR:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
+            convertTo(Type::LONGREAL,ae->d_args.first()->d_type.data(), ae->d_args.first()->d_loc);
             line(ae->d_loc).call_("float64 [mscorlib]System.Math::Floor(float64)", 1, true );
-            line(ae->d_loc).conv_(IlEmitter::ToI4);
+            if( ae->d_args.first()->d_type->derefed()->getBaseType() == Type::LONGREAL )
+                line(ae->d_loc).conv_(IlEmitter::ToI8);
+            else
+                line(ae->d_loc).conv_(IlEmitter::ToI4);
             break;
-        case BuiltIn::ENTIER:
+        case BuiltIn::ENTIER: // obsolete
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
             line(ae->d_loc).call_("float64 [mscorlib]System.Math::Floor(float64)", 1, true );
             line(ae->d_loc).conv_(IlEmitter::ToI8);
             break;
+#if 0
         case BuiltIn::LSL:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
@@ -2319,24 +2324,30 @@ struct ObxCilGenImp : public AstVisitor
                 line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::Shr32(int32,int32,bool)", 2, true );
 #endif
             break;
-        case BuiltIn::ASR:
+#endif
+        case BuiltIn::ASH:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
             convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
-#if 1
-            line(ae->d_loc).shr_();
-#else
-            // TODO
             line(ae->d_loc).ldc_i4(1);
             if( ae->d_args.first()->d_type->derefed()->getBaseType() == Type::LONGINT )
-                line(ae->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::Shr64(int64,int32,bool)", 2, true );
+                line(ae->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::Ash64(int64,int32,bool)", 2, true );
             else
-                line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::Shr32(int32,int32,bool)", 2, true );
-#endif
+                line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::Ash32(int32,int32,bool)", 2, true );
             break;
-        case BuiltIn::ROR: // TODO
+        case BuiltIn::ASR:
+        case BuiltIn::BITASR:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            ae->d_args.first()->accept(this);
+            assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
+            ae->d_args.last()->accept(this);
+            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            line(ae->d_loc).shr_();
+            break;
+#if 0
+        case BuiltIn::ROR: // obsolete
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
@@ -2344,6 +2355,7 @@ struct ObxCilGenImp : public AstVisitor
             convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shr_(true);
             break;
+#endif
         case BuiltIn::BITAND:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
@@ -2373,16 +2385,20 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             line(ae->d_loc).not_();
             break;
+        case BuiltIn::LSL:
         case BuiltIn::BITSHL:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
             convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shl_();
             break;
+        case BuiltIn::ROR:
         case BuiltIn::BITSHR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
             convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shr_(true);

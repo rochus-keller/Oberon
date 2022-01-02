@@ -438,11 +438,13 @@ struct EvalVisitor : public AstVisitor
             me->d_args.first()->accept(this);
             if( val.d_vtype == Literal::Integer )
             {
-                const quint32 lhs = val.d_value.toUInt();
+                bool lwide = val.d_wide;
+                const qint64 lhs = val.d_value.toLongLong();
                 me->d_args.last()->accept(this);
                 if( val.d_vtype == Literal::Integer )
                 {
-                    const quint32 rhs = val.d_value.toUInt();
+                    bool rwide = val.d_wide;
+                    const qint64 rhs = val.d_value.toLongLong();
                     switch( func )
                     {
                     case BuiltIn::BITAND:
@@ -460,9 +462,14 @@ struct EvalVisitor : public AstVisitor
                     case BuiltIn::BITSHR:
                         val.d_value = lhs >> rhs;
                         break;
+                    case BuiltIn::BITASR:
+                        val.d_value = lhs >> rhs | ~(~((quint64)0) >> rhs);
+                        break;
                     default:
                         Q_ASSERT(false);
                     }
+                    val.d_wide = lwide || rwide;
+                    val.d_minInt = !val.d_wide;
                 }else
                     return error( me->d_args.last().data(), Evaluator::tr("invalid argument type") );
             }else
@@ -767,6 +774,7 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::BITXOR:
         case BuiltIn::BITSHL:
         case BuiltIn::BITSHR:
+        case BuiltIn::BITASR:
             if( evalBitOps(f->d_func,me) )
                 return;
             break;

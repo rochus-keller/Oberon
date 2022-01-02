@@ -1031,6 +1031,7 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::BITXOR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITSHL, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITSHR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::BITASR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::ADR, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
     d_globals->add( anyrec.data() );

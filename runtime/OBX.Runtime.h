@@ -82,8 +82,10 @@ extern void OBX$Pack32(float* lhs, int rhs);
 extern void OBX$Unpack32(float* lhs, int* rhs);
 
 extern uint32_t OBX$MakeSet(int count, ... );
-extern int64_t OBX$Shr64(int64_t x, int n, int arithmetic);
-extern int32_t OBX$Shr32(int32_t x, int n, int arithmetic);
+extern int64_t OBX$Asr64(int64_t x, int n);
+extern int32_t OBX$Asr32(int32_t x, int n);
+extern int64_t OBX$Ash64(int64_t x, int n);
+extern int32_t OBX$Ash32(int32_t x, int n);
 
 extern OBX$Lookup OBX$LoadModule(const char* module); // load OBX module dynamically or statically
 extern void OBX$RegisterModule(const char* module, OBX$Lookup);

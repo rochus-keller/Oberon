@@ -480,25 +480,20 @@ namespace OBX
 			return String.Format("0x{0:x}",adr);
 		}
 		
-		public static long Shr64(long x, int n, bool arithmetic)
+		public static long Ash64(long x, int n, bool arithmetic)
 		{
-			if( n < 0 )
-				return x >> (64 + n); 
-			else if( arithmetic && x < 0 && n > 0 )
-				return x >> n; // uses shr
+			if( n >= 0 )
+				return x << n;
 			else
-				return (long)(((ulong)x) >> n); // uses shr.un
+				return x >> (-n); // uses shr.un
 		}
 
-		public static int Shr32(int x, int n, bool arithmetic)
+		public static int Ash32(int x, int n, bool arithmetic)
 		{
-			if( n < 0 )
-			{
-				return x >> (32 + n); 
-			}else if( arithmetic && x < 0 && n > 0 )
-				return x >> n;
+			if( n >= 0 )
+				return x << n;
 			else
-				return (int)(((uint)x) >> n);
+				return x >> (-n); // uses shr.un
 		}
 	}
 }

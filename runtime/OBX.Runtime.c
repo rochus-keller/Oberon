@@ -463,25 +463,76 @@ uint32_t OBX$MakeSet(int count, ... )
 	return res;
 }
 
-// https://stackoverflow.com/a/2463888/10830469
-int64_t OBX$Shr64(int64_t x, int n, int arithmetic)
+static void toBin(int n, char* res)
 {
-	/* if( n < 0 ) // TODO
-		return x >> (64 + n);
-	else */ if( arithmetic && x < 0 && n > 0 )
+  const int count = sizeof(int) * 8;
+  for (int i = count - 1; i >= 0; i--) {
+    res[i] = (n & 1) + '0';
+    n >>= 1;
+  }
+  res[count] = '\0';
+}
+
+/*
+the formula x DIV 2^n^ from the Oberon spec gives mostly -2147483648 for negative n and OberonSystem looks wrong 
+thus what C and assumingly also Wirth's Oberon compiler does with negative n is a different function 
+but apparently the only one which makes OberonSystem look right
+
+-1 = 	11111111111111111111111111111111
+-2 = 	11111111111111111111111111111110
+-30 = 	11111111111111111111111111100010
+-31 = 	11111111111111111111111111100001
+-32 = 	11111111111111111111111111100000
+-33 =   11111111111111111111111111011111
+
+60 >> -30 = 15 	 	00000000000000000000000000111100 >> 11111111111111111111111111100010 = 00000000000000000000000000001111
+7168 >> -22 = 7  	00000000000000000001110000000000 >> 11111111111111111111111111101010 = 00000000000000000000000000000111
+24576 >> -18 = 1 	00000000000000000110000000000000 >> 11111111111111111111111111101110 = 00000000000000000000000000000001
+never observed an n < -31 or n > -18
+
+The formula for all n is apparently ASR32(x,n) = x DIV 2^( n MOD 32 )^
+
+And apparently n MOD 32 is not the same as ABS(n) MOD 32:
+1 = 	00000000000000000000000000000001
+2 =		00000000000000000000000000000010
+30 =	00000000000000000000000000011110
+31 =	00000000000000000000000000011111
+32 =	00000000000000000000000000100000
+33 =	00000000000000000000000000100001
+
+*/
+
+int32_t OBX$Asr32(int32_t x, int n)
+{
+	if( x < 0 && n > 0 )
+		return x >> n | ~(~((uint32_t)0) >> n);
+	else
+		return x >> n; // actually C does x >> OBX$Mod32(n,32)
+}
+
+// https://stackoverflow.com/a/2463888/10830469
+int64_t OBX$Asr64(int64_t x, int n )
+{
+	if( x < 0 && n > 0 )
 		return x >> n | ~(~((uint64_t)0) >> n);
 	else
 		return x >> n;
 }
 
-int32_t OBX$Shr32(int32_t x, int n, int arithmetic)
+int64_t OBX$Ash64(int64_t x, int n)
 {
-	/* if( n < 0 ) // TODO
-		return x >> (32 + n);
-	else */ if( arithmetic && x < 0 && n > 0 )
-		return x >> n | ~(~((uint32_t)0) >> n);
+	if( n >= 0 )
+		return x << n;
 	else
-		return x >> n;
+		return OBX$Asr64(x,-n);
+}
+
+int32_t OBX$Ash32(int32_t x, int n)
+{
+	if( n >= 0 )
+		return x << n;
+	else
+		return OBX$Asr32(x,-n);
 }
 
 typedef struct {

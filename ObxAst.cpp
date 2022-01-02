@@ -45,14 +45,15 @@ const char* BuiltIn::s_typeName[] =
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
     "LED", "TRAP", "TRAPIF", "TRACE", "NOP", "LDMOD", "LDCMD",
     "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
-    "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "BYTESIZE", "ENTIER",
+    "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
     "BITS",
     // Oberon-2 SYSTEM
     "MOVE", "NEW", "ROT", "LSH", "GETREG", "PUTREG",
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR", "BITSHL", "BITSHR", "ADR"
+    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR",
+    "BITSHL", "BITSHR", "BITASR", "ADR"
 };
 
 const char* UnExpr::s_opName[] =

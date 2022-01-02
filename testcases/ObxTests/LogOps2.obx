@@ -1,0 +1,39 @@
+module LogOps2
+
+begin
+println("begin LogOps2")
+// source hostess-tests HOTBuiltinASH1.Ref
+
+assert(ASH(4,-1)=2)
+assert(ASH(2,-1)=1)
+assert(ASH(1,-1)=0)
+
+assert(ASH(3,-1)=1)
+assert(ASH(1,-1)=0)
+assert(ASH(0,-1)=0)
+
+assert(ASH(0,-1)=0)
+
+assert(ASH(-3,-1)=-2)
+assert(ASH(-2,-1)=-1)
+assert(ASH(-1,-1)=-1)
+
+assert(ASH(-2,1)=-4)
+assert(ASH(-4,1)=-8)
+
+assert(ASH(0,1)=0)
+
+assert(ASH(1,1)=2)
+
+assert(ASH(-3,-2)=-1)
+assert(ASH(-1,-2)=-1)
+
+assert(ASH(5,-2)=1)
+assert(ASH(1,-2)=0)
+
+assert(ASH(3,0)=3)
+
+assert(ASH(-3,0)=-3)
+
+println("end LogOps2")
+end LogOps2
