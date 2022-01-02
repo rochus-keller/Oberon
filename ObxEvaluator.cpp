@@ -43,20 +43,21 @@ struct EvalVisitor : public AstVisitor
         return false;
     }
 
-    void push( const QVariant& value, quint8 vtype, bool wide = false, quint16 strlen = 0 )
+    void push( const QVariant& value, quint8 vtype, bool wide = false, bool minInt = false, int strlen = 0 )
     {
         val.d_value = value;
         val.d_vtype = vtype;
         val.d_wide = wide;
+        val.d_minInt = minInt;
         val.d_strLen = strlen;
     }
 
     void NEG(const Evaluator::Result& r, Expression* e )
     {
         if( r.d_vtype == Literal::Real )
-            push( -r.d_value.toDouble(), r.d_vtype );
+            push( -r.d_value.toDouble(), r.d_vtype, r.d_wide );
         if( r.d_vtype == Literal::Integer )
-            push( -r.d_value.toLongLong(), r.d_vtype );
+            push( -r.d_value.toLongLong(), r.d_vtype, r.d_wide, r.d_minInt );
         else
             error( e, Evaluator::tr("cannot invert sign of non numerical expression"));
     }
@@ -69,25 +70,45 @@ struct EvalVisitor : public AstVisitor
             error( e, Evaluator::tr("cannot negate non boolean expression"));
     }
 
+    static QByteArray toString(const Evaluator::Result& v )
+    {
+        if( v.d_wide )
+            return QString(1,QChar((ushort)v.d_value.toUInt())).toUtf8();
+        else
+            return QByteArray(1,(quint8)v.d_value.toUInt());
+    }
+
     void ADD(const Evaluator::Result& lhs, const Evaluator::Result& rhs, Expression* e )
     {
         if( lhs.d_vtype == Literal::Integer && rhs.d_vtype == Literal::Integer )
-            push(lhs.d_value.toLongLong() + rhs.d_value.toLongLong(),lhs.d_vtype);
+            push(lhs.d_value.toLongLong() + rhs.d_value.toLongLong(),lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt );
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
-            push(lhs.d_value.toDouble() + rhs.d_value.toDouble(),lhs.d_vtype);
+            push(lhs.d_value.toDouble() + rhs.d_value.toDouble(),lhs.d_vtype, lhs.d_wide || rhs.d_wide );
         else if( lhs.d_vtype == Literal::Set && rhs.d_vtype == Literal::Set )
-            push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() | rhs.d_value.value<Literal::SET>() ), lhs.d_vtype);
+            push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() | rhs.d_value.value<Literal::SET>() ),
+                 lhs.d_vtype);
+        else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
+            push( lhs.d_value.toByteArray() + rhs.d_value.toByteArray(), Literal::String, lhs.d_wide || rhs.d_wide,
+                  false, lhs.d_strLen + rhs.d_strLen );
+        else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::Char )
+            push( lhs.d_value.toByteArray() + toString(rhs), Literal::String, lhs.d_wide || rhs.d_wide,
+                  false, lhs.d_strLen + 1 );
+        else if( lhs.d_vtype == Literal::Char && rhs.d_vtype == Literal::String )
+            push( toString(lhs) + rhs.d_value.toByteArray(), Literal::String, lhs.d_wide || rhs.d_wide,
+                  false, lhs.d_strLen + 1 );
+        else if( lhs.d_vtype == Literal::Char && rhs.d_vtype == Literal::Char )
+            push( toString(lhs) + toString(rhs), Literal::String, lhs.d_wide || rhs.d_wide,
+                  false, 1 + 1 );
         else
-            // TODO: add string literals
             error( e,Evaluator::tr("operand types incompatible with operator") );
     }
 
     void SUB(const Evaluator::Result& lhs, const Evaluator::Result& rhs, Expression* e )
     {
         if( lhs.d_vtype == Literal::Integer && rhs.d_vtype == Literal::Integer )
-            push(lhs.d_value.toLongLong() - rhs.d_value.toLongLong(),lhs.d_vtype);
+            push(lhs.d_value.toLongLong() - rhs.d_value.toLongLong(),lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt);
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
-            push(lhs.d_value.toDouble() - rhs.d_value.toDouble(),lhs.d_vtype);
+            push(lhs.d_value.toDouble() - rhs.d_value.toDouble(),lhs.d_vtype, lhs.d_wide || rhs.d_wide );
         else if( lhs.d_vtype == Literal::Set && rhs.d_vtype == Literal::Set )
         {
             const Literal::SET a = lhs.d_value.value<Literal::SET>();
@@ -103,9 +124,9 @@ struct EvalVisitor : public AstVisitor
     void FDIV(const Evaluator::Result& lhs, const Evaluator::Result& rhs, Expression* e )
     {
         if( lhs.d_vtype == Literal::Integer && rhs.d_vtype == Literal::Integer )
-            push(lhs.d_value.toLongLong() / double(rhs.d_value.toLongLong()),Literal::Real);
+            push(lhs.d_value.toLongLong() / double(rhs.d_value.toLongLong()),Literal::Real, lhs.d_wide || rhs.d_wide);
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
-            push(lhs.d_value.toDouble() / rhs.d_value.toDouble(),lhs.d_vtype);
+            push(lhs.d_value.toDouble() / rhs.d_value.toDouble(),lhs.d_vtype, lhs.d_wide || rhs.d_wide );
         else if( lhs.d_vtype == Literal::Set && rhs.d_vtype == Literal::Set )
         {
             const Literal::SET a = lhs.d_value.value<Literal::SET>();
@@ -121,9 +142,9 @@ struct EvalVisitor : public AstVisitor
     void MUL(const Evaluator::Result& lhs, const Evaluator::Result& rhs, Expression* e )
     {
         if( lhs.d_vtype == Literal::Integer && rhs.d_vtype == Literal::Integer )
-            push(lhs.d_value.toLongLong() * rhs.d_value.toLongLong(),lhs.d_vtype);
+            push(lhs.d_value.toLongLong() * rhs.d_value.toLongLong(),lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt);
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
-            push(lhs.d_value.toDouble() * rhs.d_value.toDouble(),lhs.d_vtype);
+            push(lhs.d_value.toDouble() * rhs.d_value.toDouble(),lhs.d_vtype, lhs.d_wide || rhs.d_wide );
         else if( lhs.d_vtype == Literal::Set && rhs.d_vtype == Literal::Set )
         {
             const Literal::SET a = lhs.d_value.value<Literal::SET>();
@@ -142,9 +163,9 @@ struct EvalVisitor : public AstVisitor
             // res = ( a - ( ( a % b + b ) % b ) ) / b;
             // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
             if (a < 0)
-                push(qint64( (a - b + 1) / b ),lhs.d_vtype);
+                push(qint64( (a - b + 1) / b ),lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt);
             else
-                push(qint64( a / b ),lhs.d_vtype);
+                push(qint64( a / b ),lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt);
         }else
             error(e,Evaluator::tr("operand types incompatible with operator") );
     }
@@ -158,9 +179,9 @@ struct EvalVisitor : public AstVisitor
             // res = ( a % b + b ) % b;
             // source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
             if (a < 0)
-                push(qint64( (b - 1) + ((a - b + 1)) % b ),lhs.d_vtype);
+                push(qint64( (b - 1) + ((a - b + 1)) % b ),lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt);
             else
-                push(qint64( a % b ), lhs.d_vtype);
+                push(qint64( a % b ), lhs.d_vtype, lhs.d_wide || rhs.d_wide, lhs.d_minInt || rhs.d_minInt);
         }else
             error(e,Evaluator::tr("operand types incompatible with operator") );
     }
@@ -190,7 +211,8 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_vtype == Literal::Boolean && rhs.d_vtype == Literal::Boolean )
             push(lhs.d_value.toBool() == rhs.d_value.toBool(), Literal::Boolean);
         else if( lhs.d_vtype == Literal::Set && rhs.d_vtype == Literal::Set )
-            push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() == rhs.d_value.value<Literal::SET>() ),Literal::Boolean);
+            push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() == rhs.d_value.value<Literal::SET>() ),
+                 Literal::Boolean);
         else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
             push(lhs.d_value.toByteArray() == rhs.d_value.toByteArray(), Literal::Boolean);
         else
@@ -206,7 +228,8 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_vtype == Literal::Boolean && rhs.d_vtype == Literal::Boolean )
             push(lhs.d_value.toBool() != rhs.d_value.toBool(), Literal::Boolean);
         else if( lhs.d_vtype == Literal::Set && rhs.d_vtype == Literal::Set )
-            push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() != rhs.d_value.value<Literal::SET>() ),Literal::Boolean);
+            push(QVariant::fromValue( lhs.d_value.value<Literal::SET>() != rhs.d_value.value<Literal::SET>() ),
+                 Literal::Boolean);
         else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
             push(lhs.d_value.toByteArray() != rhs.d_value.toByteArray(), Literal::Boolean);
         else
@@ -220,7 +243,8 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
             push(lhs.d_value.toDouble() < rhs.d_value.toDouble(),Literal::Boolean);
         else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
-            push(QString::fromUtf8(lhs.d_value.toByteArray()) < QString::fromUtf8(rhs.d_value.toByteArray()), Literal::Boolean);
+            push(QString::fromUtf8(lhs.d_value.toByteArray()) < QString::fromUtf8(rhs.d_value.toByteArray()),
+                 Literal::Boolean);
         else
             error(e,Evaluator::tr("operand types incompatible with operator") );
     }
@@ -232,7 +256,8 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
             push(lhs.d_value.toDouble() <= rhs.d_value.toDouble(),Literal::Boolean);
         else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
-            push(QString::fromUtf8(lhs.d_value.toByteArray()) <= QString::fromUtf8(rhs.d_value.toByteArray()), Literal::Boolean);
+            push(QString::fromUtf8(lhs.d_value.toByteArray()) <= QString::fromUtf8(rhs.d_value.toByteArray()),
+                 Literal::Boolean);
         else
             error(e,Evaluator::tr("operand types incompatible with operator") );
     }
@@ -244,7 +269,8 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
             push(lhs.d_value.toDouble() > rhs.d_value.toDouble(),Literal::Boolean);
         else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
-            push(QString::fromUtf8(lhs.d_value.toByteArray()) > QString::fromUtf8(rhs.d_value.toByteArray()), Literal::Boolean);
+            push(QString::fromUtf8(lhs.d_value.toByteArray()) > QString::fromUtf8(rhs.d_value.toByteArray()),
+                 Literal::Boolean);
         else
             error(e,Evaluator::tr("operand types incompatible with operator") );
     }
@@ -256,7 +282,8 @@ struct EvalVisitor : public AstVisitor
         else if( lhs.d_vtype == Literal::Real && rhs.d_vtype == Literal::Real )
             push(lhs.d_value.toDouble() >= rhs.d_value.toDouble(),Literal::Boolean);
         else if( lhs.d_vtype == Literal::String && rhs.d_vtype == Literal::String )
-            push(QString::fromUtf8(lhs.d_value.toByteArray()) >= QString::fromUtf8(rhs.d_value.toByteArray()), Literal::Boolean);
+            push(QString::fromUtf8(lhs.d_value.toByteArray()) >= QString::fromUtf8(rhs.d_value.toByteArray()),
+                 Literal::Boolean);
         else
             error(e,Evaluator::tr("operand types incompatible with operator") );
     }
@@ -278,6 +305,7 @@ struct EvalVisitor : public AstVisitor
         val.d_value = me->d_val;
         val.d_vtype = (Literal::ValueType)me->d_vtype;
         val.d_wide = me->d_wide;
+        val.d_minInt = me->d_minInt;
         val.d_strLen = me->d_strLen;
     }
 
@@ -425,6 +453,12 @@ struct EvalVisitor : public AstVisitor
                         break;
                     case BuiltIn::BITXOR:
                         val.d_value = lhs ^ rhs;
+                        break;
+                    case BuiltIn::BITSHL:
+                        val.d_value = lhs << rhs;
+                        break;
+                    case BuiltIn::BITSHR:
+                        val.d_value = lhs >> rhs;
                         break;
                     default:
                         Q_ASSERT(false);
@@ -618,7 +652,11 @@ struct EvalVisitor : public AstVisitor
                     me->d_args.last()->accept(this);
                     if( val.d_vtype == Literal::Integer )
                     {
-                        x = x << val.d_value.toULongLong();
+                        const qint32 n = val.d_value.toInt();
+                        if( n < 0 )
+                            x = x >> n;
+                        else
+                            x = x << n;
                         val.d_value = x;
                     }else
                         error( me, Evaluator::tr("invalid argument type") );
@@ -632,18 +670,34 @@ struct EvalVisitor : public AstVisitor
             if( me->d_args.size() == 2 )
             {
                 me->d_args.first()->accept(this);
-                if( val.d_vtype == Literal::Integer )
+                Evaluator::Result lhs = val;
+                if( lhs.d_vtype == Literal::Integer )
                 {
-                    qint64 x = val.d_value.toULongLong();
                     me->d_args.last()->accept(this);
-                    if( val.d_vtype == Literal::Integer )
+                    const qint32 n = val.d_value.toInt();
+                    if( val.d_vtype != Literal::Integer )
+                        error( me, Evaluator::tr("invalid argument type") );
+                    if( lhs.d_wide )
                     {
-                        const qint64 sign = 1 << 63;
-                        x = x >> val.d_value.toULongLong();
-                        x |= sign;
+                        qint64 x = lhs.d_value.toLongLong();
+                        if( x < 0 && n > 0 )
+                            x = x >> n | ~(~((uint64_t)0) >> n);
+                        else
+                            x = x >> n;
+                        val.d_wide = true;
+                        val.d_minInt = false;
                         val.d_value = x;
                     }else
-                        error( me, Evaluator::tr("invalid argument type") );
+                    {
+                        qint32 x = lhs.d_value.toInt();
+                        if( x < 0 && n > 0 )
+                            x = x >> n | ~(~((uint32_t)0) >> n);
+                        else
+                            x = x >> n;
+                        val.d_minInt = true;
+                        val.d_wide = false;
+                        val.d_value = x;
+                    }
                 }else
                     error( me, Evaluator::tr("invalid argument type") );
                 return;
@@ -711,6 +765,8 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::BITAND:
         case BuiltIn::BITOR:
         case BuiltIn::BITXOR:
+        case BuiltIn::BITSHL:
+        case BuiltIn::BITSHR:
             if( evalBitOps(f->d_func,me) )
                 return;
             break;

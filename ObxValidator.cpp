@@ -518,8 +518,6 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::SYS_REG:
         case BuiltIn::SYS_COPY:
         case BuiltIn::ODD:
-        case BuiltIn::LSL:
-        case BuiltIn::ASR:
         case BuiltIn::FLOOR:
         case BuiltIn::FLT:
         case BuiltIn::CHR:
@@ -536,12 +534,35 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::ASH:
         case BuiltIn::ROR:
         case BuiltIn::ENTIER:
-        case BuiltIn::BITAND:
-        case BuiltIn::BITNOT:
-        case BuiltIn::BITOR:
-        case BuiltIn::BITXOR:
             return false; // these can be handled by ordinary arg checker
 
+        case BuiltIn::BITNOT:
+            if( args->d_args.size() == 1 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data());
+                if( !td->isInteger() )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting integer argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting one argument"));
+            break;
+        case BuiltIn::BITAND:
+        case BuiltIn::BITOR:
+        case BuiltIn::BITXOR:
+        case BuiltIn::BITSHL:
+        case BuiltIn::BITSHR:
+        case BuiltIn::LSL:
+        case BuiltIn::ASR:
+            if( args->d_args.size() == 2 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data());
+                if( !td->isInteger() )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting integer argument"));
+                td = derefed(args->d_args.last()->d_type.data());
+                if( !td->isInteger() )
+                    error( args->d_args[1]->d_loc, Validator::tr("expecting integer argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting two arguments"));
+            break;
         case BuiltIn::ADR:
             // TODO: we no longer need ADR
             if( args->d_args.size() == 1 )
@@ -819,7 +840,8 @@ struct ValidatorImp : public AstVisitor
 
                 if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
                         ( lhs == bt.d_intType && rhs == bt.d_setType ) ||
-                        ( lhs == bt.d_setType && isInteger(rhs) ) )
+                        ( lhs == bt.d_setType && isInteger(rhs) ) ||
+                        ( lhs == bt.d_intType && rhs == bt.d_intType ) ) // shortcut for short()/long() sequences
                     ; // ok
                 else
                     error( args->d_loc, Validator::tr("cannot cast type %1 to type %2").
@@ -1080,6 +1102,34 @@ struct ValidatorImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::BITNOT:
+        case BuiltIn::BITSHL:
+        case BuiltIn::BITSHR:
+        case BuiltIn::LSL:
+        case BuiltIn::ASR:
+            if( !args.isEmpty() )
+            {
+                Type* td = derefed(args.first()->d_type.data());
+                if( td && td->getBaseType() == Type::LONGINT )
+                    return bt.d_longType;
+                else
+                    return bt.d_intType;
+            }
+            break;
+        case BuiltIn::BITAND:
+        case BuiltIn::BITOR:
+        case BuiltIn::BITXOR:
+            if( !args.isEmpty() )
+            {
+                Type* lhs = derefed(args.first()->d_type.data());
+                Type* rhs = derefed(args.last()->d_type.data());
+                if( lhs && lhs->getBaseType() == Type::LONGINT ||
+                    rhs && rhs->getBaseType() == Type::LONGINT )
+                    return bt.d_longType;
+                else
+                    return bt.d_intType;
+            }
+            break;
         case BuiltIn::ADR:
         case BuiltIn::SYS_VAL:
         case BuiltIn::SYS_ROT:
@@ -1590,11 +1640,14 @@ struct ValidatorImp : public AstVisitor
         case Literal::Enum:
             break; // keep the Enumeration type
         case Literal::Integer:
-            if( i >= 0 && i <= bt.d_byteType->maxVal().toInt() )
+            if( i >= 0 && i <= bt.d_byteType->maxVal().toInt()
+                    && !me->d_wide && !me->d_minInt )
                 me->d_type = bt.d_byteType;
-            else if( i >= bt.d_shortType->minVal().toInt() && i <= bt.d_shortType->maxVal().toInt() )
+            else if( i >= bt.d_shortType->minVal().toInt() && i <= bt.d_shortType->maxVal().toInt()
+                     && !me->d_wide && !me->d_minInt )
                 me->d_type = bt.d_shortType;
-            else if( i >= bt.d_intType->minVal().toInt() && i <= bt.d_intType->maxVal().toInt() )
+            else if( i >= bt.d_intType->minVal().toInt() && i <= bt.d_intType->maxVal().toInt()
+                     && !me->d_wide )
                 me->d_type = bt.d_intType;
             else
                 me->d_type = bt.d_longType;

@@ -33,10 +33,11 @@ namespace Obx
         {
             QVariant d_value;
             uint d_vtype : 7; // Literal::ValueType
-            uint d_strLen : 23;
-            uint d_wide : 1; // mark WSTRING and WCHAR
+            uint d_strLen : 22;
+            uint d_wide : 1; // mark WSTRING and WCHAR, double vs float, longint vs integer
+            uint d_minInt : 1;
             uint d_dyn : 1;
-            Result():d_vtype(Literal::Invalid),d_wide(false),d_strLen(0),d_dyn(0){}
+            Result():d_vtype(Literal::Invalid),d_wide(false),d_strLen(0),d_dyn(0),d_minInt(0){}
         };
 
         static Result eval( Expression*, Scope*, bool supportVla = false, Ob::Errors* = 0 );

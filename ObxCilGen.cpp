@@ -2306,47 +2306,86 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            assureInteger(ae->d_args.last()->d_type.data(),ae->d_loc);
+            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+#if 1
             line(ae->d_loc).shl_();
+#else
+            // TODO
+            line(ae->d_loc).neg_(); // make rhs negative
+            line(ae->d_loc).ldc_i4(0);
+            if( ae->d_args.first()->d_type->derefed()->getBaseType() == Type::LONGINT )
+                line(ae->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::Shr64(int64,int32,bool)", 2, true );
+            else
+                line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::Shr32(int32,int32,bool)", 2, true );
+#endif
             break;
         case BuiltIn::ASR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            assureInteger(ae->d_args.last()->d_type.data(),ae->d_loc);
+            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+#if 1
             line(ae->d_loc).shr_();
+#else
+            // TODO
+            line(ae->d_loc).ldc_i4(1);
+            if( ae->d_args.first()->d_type->derefed()->getBaseType() == Type::LONGINT )
+                line(ae->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::Shr64(int64,int32,bool)", 2, true );
+            else
+                line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::Shr32(int32,int32,bool)", 2, true );
+#endif
             break;
-        case BuiltIn::ROR:
+        case BuiltIn::ROR: // TODO
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            assureInteger(ae->d_args.last()->d_type.data(),ae->d_loc);
+            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shr_(true);
             break;
         case BuiltIn::BITAND:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            adjustTypes(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
             ae->d_args.last()->accept(this);
+            adjustTypes(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
             line(ae->d_loc).and_();
             break;
         case BuiltIn::BITOR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            adjustTypes(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
             ae->d_args.last()->accept(this);
+            adjustTypes(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
             line(ae->d_loc).or_();
             break;
         case BuiltIn::BITXOR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
+            adjustTypes(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
             ae->d_args.last()->accept(this);
+            adjustTypes(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
             line(ae->d_loc).xor_();
             break;
         case BuiltIn::BITNOT:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
             line(ae->d_loc).not_();
+            break;
+        case BuiltIn::BITSHL:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            ae->d_args.first()->accept(this);
+            ae->d_args.last()->accept(this);
+            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            line(ae->d_loc).shl_();
+            break;
+        case BuiltIn::BITSHR:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            ae->d_args.first()->accept(this);
+            ae->d_args.last()->accept(this);
+            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            line(ae->d_loc).shr_(true);
             break;
         case BuiltIn::WCHR:
             Q_ASSERT( ae->d_args.size() == 1 );
@@ -2845,6 +2884,8 @@ struct ObxCilGenImp : public AstVisitor
 
     void adjustTypes( Type* cur, Type* other, const RowCol& loc )
     {
+        cur = derefed(cur);
+        other = derefed(other);
         Q_ASSERT( cur && other );
         const int c = widenType(cur->getBaseType());
         const int o = widenType(other->getBaseType());

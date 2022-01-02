@@ -1136,7 +1136,7 @@ struct ObxCGenImp : public AstVisitor
             b << val.toInt();
             break;
         case Type::LONGINT:
-            b << val.toLongLong();
+            b << val.toLongLong() << "ll";
             break;
         case Type::ENUMINT:
             b << val.toUInt();
@@ -1548,7 +1548,7 @@ struct ObxCGenImp : public AstVisitor
                 b << ".$a)";
             }
             break;
-        case BuiltIn::ROR:
+        case BuiltIn::ROR: // TODO
             Q_ASSERT( ae->d_args.size() == 2 );
             b << "(((";
             switch( ae->d_args.first()->d_type->derefed()->getBaseType() )
@@ -1580,30 +1580,40 @@ struct ObxCGenImp : public AstVisitor
             switch( ae->d_args.first()->d_type->derefed()->getBaseType() )
             {
             case Type::LONGINT:
-                b << "OBX$Asr64(";
+                b << "OBX$Shr64(";
                 break;
-            case Type::SET:
-            case Type::ENUMINT:
-            case Type::INTEGER:
             default:
-                b << "OBX$Asr32(";
-                break;
-            case Type::SHORTINT:
-                b << "OBX$Asr16(";
+                b << "OBX$Shr32(";
                 break;
             }
             ae->d_args.first()->accept(this);
             b << ", ";
             ae->d_args.last()->accept(this);
-            b << ")";
+            b << ", 1)";
             break;
         case BuiltIn::LSL:
             Q_ASSERT( ae->d_args.size() == 2 );
+#if 0
+            switch( ae->d_args.first()->d_type->derefed()->getBaseType() )
+            {
+            case Type::LONGINT:
+                b << "OBX$Shr64(";
+                break;
+            default:
+                b << "OBX$Shr32(";
+                break;
+            }
+            ae->d_args.first()->accept(this);
+            b << ", -"; // make rhs negative
+            ae->d_args.last()->accept(this);
+            b << ", 0)";
+#else
             b << "(";
             ae->d_args.first()->accept(this);
             b << " << ";
             ae->d_args.last()->accept(this);
             b << ")";
+#endif
             break;
         case BuiltIn::ORD:
             {
@@ -1699,6 +1709,22 @@ struct ObxCGenImp : public AstVisitor
             Q_ASSERT( ae->d_args.size() == 1 );
             b << "~";
             ae->d_args.first()->accept(this);
+            break;
+        case BuiltIn::BITSHL:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            b << "(";
+            ae->d_args.first()->accept(this);
+            b << " << ";
+            ae->d_args.last()->accept(this);
+            b << ")";
+            break;
+        case BuiltIn::BITSHR:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            b << "(";
+            ae->d_args.first()->accept(this);
+            b << " >> ";
+            ae->d_args.last()->accept(this);
+            b << ")";
             break;
         case BuiltIn::HALT:
             Q_ASSERT( ae->d_args.size() == 1 );

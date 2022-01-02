@@ -1,0 +1,16 @@
+module Consts1
+
+const
+	a = "abcd" + "efgh"
+	b = 061x + 062x
+	c = "これは日本語です。" + "cdef " + 20b9x
+	d = 20b9x
+	e = 1234i
+	f = 4567l
+	g = 0ffhl
+begin
+	println(a)
+	println(b)
+	println(c)
+	println(d)
+end Consts1

@@ -464,26 +464,22 @@ uint32_t OBX$MakeSet(int count, ... )
 }
 
 // https://stackoverflow.com/a/2463888/10830469
-int64_t OBX$Asr64(int64_t x, int n)
+int64_t OBX$Shr64(int64_t x, int n, int arithmetic)
 {
-	if( x < 0 && n > 0 )
+	/* if( n < 0 ) // TODO
+		return x >> (64 + n);
+	else */ if( arithmetic && x < 0 && n > 0 )
 		return x >> n | ~(~((uint64_t)0) >> n);
 	else
 		return x >> n;
 }
 
-int32_t OBX$Asr32(int32_t x, int n)
+int32_t OBX$Shr32(int32_t x, int n, int arithmetic)
 {
-	if( x < 0 && n > 0 )
+	/* if( n < 0 ) // TODO
+		return x >> (32 + n);
+	else */ if( arithmetic && x < 0 && n > 0 )
 		return x >> n | ~(~((uint32_t)0) >> n);
-	else
-		return x >> n;
-}
-
-int16_t OBX$Asr16(int16_t x, int n)
-{
-	if( x < 0 && n > 0 )
-		return x >> n | ~(~((uint16_t)0) >> n);
 	else
 		return x >> n;
 }

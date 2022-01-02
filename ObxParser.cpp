@@ -145,12 +145,27 @@ Ref<Literal> Parser::number()
     switch( d_la )
     {
     case Tok_integer:
-        next();
-        if( d_cur.d_val.endsWith('H') || d_cur.d_val.endsWith('h') )
-            val = d_cur.d_val.left(d_cur.d_val.size()-1).toLongLong(0,16);
-        else
-            val = d_cur.d_val.toLongLong();
-        res = new Literal( Literal::Integer, d_cur.toRowCol(),val);
+        {
+            next();
+            bool isInt = false;
+            bool isLong = false;
+            if( d_cur.d_val.endsWith('I') || d_cur.d_val.endsWith('i') )
+            {
+                isInt = true;
+                d_cur.d_val.chop(1);
+            }else if(d_cur.d_val.endsWith('L') || d_cur.d_val.endsWith('l') )
+            {
+                isLong = true;
+                d_cur.d_val.chop(1);
+            }
+            if( d_cur.d_val.endsWith('H') || d_cur.d_val.endsWith('h') )
+                val = d_cur.d_val.left(d_cur.d_val.size()-1).toLongLong(0,16);
+            else
+                val = d_cur.d_val.toLongLong();
+            res = new Literal( Literal::Integer, d_cur.toRowCol(),val);
+            res->d_wide = isLong;
+            res->d_minInt = isInt;
+        }
         break;
     case Tok_real:
         next();

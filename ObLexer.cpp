@@ -329,9 +329,8 @@ static inline bool checkHexNumber( QByteArray str )
     if( pos != -1 )
         str = str.left(pos);
     if( str.size() < 2 || ( !str.endsWith('H') && !str.endsWith('h')
-                        #ifdef OB_BBOX
                             && !str.endsWith('L') && !str.endsWith('l')
-                        #endif
+                            && !str.endsWith('I') && !str.endsWith('i')
                             && !str.endsWith('X') && !str.endsWith('x') ) )
         return false;
     else
@@ -340,8 +339,8 @@ static inline bool checkHexNumber( QByteArray str )
 
 Token Lexer::number()
 {
-    // integer      ::=  digit {digit} | digit {hexDigit} 'H'
-    // real         ::=  digit {digit} '.' {digit} [ScaleFactor]
+    // integer      ::=  digit {digit} ['I' | 'L'] | digit {hexDigit} 'H'
+    // real         ::=  digit {digit} '.' {digit} [ScaleFactor] ['L']
     // ScaleFactor  ::=  'E' ['+' | '-'] digit {digit}
     const int startLine = d_lineNr;
     const int startCol = d_colNr;
@@ -357,17 +356,33 @@ Token Lexer::number()
     }
     lhsPlaces = off;
     bool isHex = false;
+    bool isLong = false;
+    bool isInt = false;
     bool isChar = false;
     bool isReal = false;
     const char o1 = lookAhead(off);
-    if( o1 == 'H' || o1 == 'h'
-#ifdef OB_BBOX
-           || o1 == 'L' || o1 == 'l'
-#endif
-            )
+    if( o1 == 'L' || o1 == 'l' )
+    {
+        isLong = true;
+        off++;
+    }else if( o1 == 'I' || o1 == 'i' )
+    {
+        isInt = true;
+        off++;
+    }else if( o1 == 'H' || o1 == 'h' )
     {
         isHex = true;
         off++;
+        const char o2 = lookAhead(off);
+        if( o2 == 'L' || o2 == 'l' )
+        {
+            isLong = true;
+            off++;
+        }else if( o2 == 'I' || o2 == 'i' )
+        {
+            isInt = true;
+            off++;
+        }
     }else if( o1 == 'X' || o1 == 'x' )
     {
         isChar = true;
@@ -391,6 +406,7 @@ Token Lexer::number()
         const char de = lookAhead(off); // Oberon-2 allows E (REAL) or D (LONGREAL)
         if( de == 'E' || de == 'D' || de == 'e' || de == 'd' )
         {
+            isLong = ( de == 'D' || de == 'd' );
             off++;
             char o = lookAhead(off);
             if( o == '+' || o == '-' )
@@ -431,7 +447,7 @@ Token Lexer::number()
     else if( isReal)
     {
         Token tok = token( Tok_real, off, str );
-        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 ) // double has 52 bit mantissa, i.e. ~15 decimal digits
+        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 || isLong ) // double has 52 bit mantissa, i.e. ~15 decimal digits
             tok.d_double = true; // TODO should we trade decimal places with exponent width?
         return tok;
     }else
