@@ -260,6 +260,14 @@ void Files$ReadInt(struct Files$Rider* r, int32_t* x)
 	*x = ((x3 * 0x100 + x2) * 0x100 + x1) * 0x100 + x0;
 }
 
+void Files$ReadLInt(struct Files$Rider* r, int64_t* x)
+{
+	uint8_t x0 = 0, x1 = 0, x2 = 0, x3 = 0, x4 = 0, x5 = 0, x6 = 0, x7 = 0;
+	Files$Read(r, &x0); Files$Read(r, &x1); Files$Read(r, &x2); Files$Read(r, &x3);
+	Files$Read(r, &x4); Files$Read(r, &x5); Files$Read(r, &x6); Files$Read(r, &x7);
+	*x = ((((((x7 * 0x100 + x6) * 0x100 + x5) * 0x100 + x4) * 0x100 + x3) * 0x100 + x2) * 0x100 + x1) * 0x100 + x0;
+}
+
 void Files$ReadReal(struct Files$Rider* r, float* x)
 {
 	union { uint8_t b[4]; float f; } u;
@@ -268,6 +276,20 @@ void Files$ReadReal(struct Files$Rider* r, float* x)
 	Files$Read(r,&u.b[2]);
 	Files$Read(r,&u.b[3]);
 	*x = u.f;
+}
+
+void Files$ReadLReal(struct Files$Rider* r, double* x)
+{
+	union { uint8_t b[8]; double d; } u;
+	Files$Read(r,&u.b[0]);
+	Files$Read(r,&u.b[1]);
+	Files$Read(r,&u.b[2]);
+	Files$Read(r,&u.b[3]);
+	Files$Read(r,&u.b[4]);
+	Files$Read(r,&u.b[5]);
+	Files$Read(r,&u.b[6]);
+	Files$Read(r,&u.b[7]);
+	*x = u.d;
 }
 
 void Files$ReadNum(struct Files$Rider* R, int32_t* x)
@@ -315,12 +337,24 @@ void Files$ReadBytes(struct Files$Rider* r, struct OBX$Array$1 x, int32_t n )
 	while( i < n ) { Files$Read(r, &b[i]); i++; }
 }
 
-void Files$WriteInt(struct Files$Rider* R, int x)
+void Files$WriteInt(struct Files$Rider* R, int32_t x)
 {
 	Files$Write(R, (uint8_t)(x % 0x100));
 	Files$Write(R, (uint8_t)(x / 0x100 % 0x100));
 	Files$Write(R, (uint8_t)(x / 0x10000 % 0x100));
 	Files$Write(R, (uint8_t)(x / 0x1000000 % 0x100));
+}
+
+void Files$WriteLInt(struct Files$Rider* R, int64_t x)
+{
+	Files$Write(R, (uint8_t)(x % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x100 % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x10000 % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x1000000 % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x100000000 % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x10000000000 % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x1000000000000 % 0x100));
+	Files$Write(R, (uint8_t)(x / 0x100000000000000 % 0x100));
 }
 
 void Files$WriteReal(struct Files$Rider* r, float x)
@@ -331,6 +365,20 @@ void Files$WriteReal(struct Files$Rider* r, float x)
 	Files$Write(r,u.b[1]);
 	Files$Write(r,u.b[2]);
 	Files$Write(r,u.b[3]);
+}
+
+void Files$WriteLReal(struct Files$Rider* r, double x)
+{
+	union { uint8_t b[8]; float d; } u;
+	u.d = x;
+	Files$Write(r,u.b[0]);
+	Files$Write(r,u.b[1]);
+	Files$Write(r,u.b[2]);
+	Files$Write(r,u.b[3]);
+	Files$Write(r,u.b[4]);
+	Files$Write(r,u.b[5]);
+	Files$Write(r,u.b[6]);
+	Files$Write(r,u.b[7]);
 }
 
 void Files$WriteNum(struct Files$Rider* R, int x)

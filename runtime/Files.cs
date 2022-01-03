@@ -218,6 +218,14 @@ public class Files
     	x = ((x3 * 0x100 + x2) * 0x100 + x1) * 0x100 + x0;
 	}
 	
+	public static void ReadLInt(Rider r, ref long x)
+	{
+		byte x0 = 0, x1 = 0, x2 = 0, x3 = 0, x4 = 0, x5 = 0, x6 = 0, x7 = 0;
+  		Read(r, ref x0); Read(r, ref x1); Read(r, ref x2); Read(r, ref x3);
+  		Read(r, ref x4); Read(r, ref x5); Read(r, ref x6); Read(r, ref x7);
+    	x = ((((((x7 * 0x100 + x6) * 0x100 + x5) * 0x100 + x4) * 0x100 + x3) * 0x100 + x2) * 0x100 + x1) * 0x100 + x0;
+	}
+	
 //PROCEDURE ReadReal (VAR R: Rider; VAR x: REAL);
 	public static void ReadReal(Rider r, ref float x)
 	{
@@ -230,6 +238,23 @@ public class Files
 		System.Buffer.BlockCopy(b,0,f,0,4);
 		x = f[0];
 	}
+	
+	public static void ReadLReal(Rider r, ref double x)
+	{
+		byte[] b = new byte[8];
+		Read(r,ref b[0]);
+		Read(r,ref b[1]);
+		Read(r,ref b[2]);
+		Read(r,ref b[3]);
+		Read(r,ref b[4]);
+		Read(r,ref b[5]);
+		Read(r,ref b[6]);
+		Read(r,ref b[7]);
+		double[] d = new double[1];
+		System.Buffer.BlockCopy(b,0,d,0,8);
+		x = d[0];
+	}
+
 //PROCEDURE ReadNum (VAR R: Rider; VAR x: INTEGER);
 	public static void ReadNum(Rider R, ref int x)
 	{
@@ -301,6 +326,17 @@ public class Files
 		Write(R, (byte)(x / 0x10000 % 0x100));
 		Write(R, (byte)(x / 0x1000000 % 0x100));
 	}
+	public static void WriteLInt(Rider R, long x)
+	{
+		Write(R, (byte)(x % 0x100));
+		Write(R, (byte)(x / 0x100 % 0x100));
+		Write(R, (byte)(x / 0x10000 % 0x100));
+		Write(R, (byte)(x / 0x1000000 % 0x100));
+		Write(R, (byte)(x / 0x100000000 % 0x100));
+		Write(R, (byte)(x / 0x10000000000 % 0x100));
+		Write(R, (byte)(x / 0x1000000000000 % 0x100));
+		Write(R, (byte)(x / 0x100000000000000 % 0x100));
+	}
 //PROCEDURE WriteReal (VAR R: Rider; x: REAL);
 	public static void WriteReal(Rider r, float x)
 	{
@@ -312,6 +348,21 @@ public class Files
 		Write(r,b[1]);
 		Write(r,b[2]);
 		Write(r,b[3]);
+	}
+	public static void WriteLReal(Rider r, double x)
+	{
+		byte[] b = new byte[8];
+		double[] d = new double[1];
+		d[0] = x;
+		System.Buffer.BlockCopy(d,0,b,0,8);
+		Write(r,b[0]);
+		Write(r,b[1]);
+		Write(r,b[2]);
+		Write(r,b[3]);
+		Write(r,b[4]);
+		Write(r,b[5]);
+		Write(r,b[6]);
+		Write(r,b[7]);
 	}
 //PROCEDURE WriteNum (VAR R: Rider; x: INTEGER);
 	public static void WriteNum(Rider R, int x)

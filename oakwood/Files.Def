@@ -1,6 +1,6 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
 (* replaced all SYSTEM.BYTE by BYTE, removed SYSTEM import; 
-   removed LONGINT and LONGREAL versions; added Handle type; fixed typos *)
+   replaced LONGINT by INTEGER for position and status info; added Handle type; fixed typos *)
 DEFINITION Files;
 TYPE
 	Handle = RECORD END;
@@ -23,7 +23,9 @@ PROCEDURE Pos (VAR r: Rider): INTEGER;
 PROCEDURE Base (VAR r: Rider): File;
 PROCEDURE Read (VAR r: Rider; VAR x: BYTE);
 PROCEDURE ReadInt (VAR R: Rider; VAR x: INTEGER);
+PROCEDURE ReadLInt (VAR R: Rider; VAR x: LONGINT);
 PROCEDURE ReadReal (VAR R: Rider; VAR x: REAL);
+PROCEDURE ReadLReal (VAR R: Rider; VAR x: LONGREAL);
 PROCEDURE ReadNum (VAR R: Rider; VAR x: INTEGER);
 PROCEDURE ReadString (VAR R: Rider; VAR x: ARRAY OF CHAR);
 PROCEDURE ReadSet (VAR R: Rider; VAR x: SET);
@@ -31,7 +33,9 @@ PROCEDURE ReadBool (VAR R: Rider; VAR x: BOOLEAN );
 PROCEDURE ReadBytes (VAR r: Rider; VAR x: ARRAY OF BYTE; n: INTEGER);
 PROCEDURE Write (VAR r: Rider; x: BYTE);
 PROCEDURE WriteInt (VAR R: Rider; x: INTEGER);
+PROCEDURE WriteLInt (VAR R: Rider; x: LONGINT);
 PROCEDURE WriteReal (VAR R: Rider; x: REAL);
+PROCEDURE WriteLReal (VAR R: Rider; x: LONGREAL);
 PROCEDURE WriteNum (VAR R: Rider; x: INTEGER);
 PROCEDURE WriteString (VAR R: Rider; IN x: ARRAY OF CHAR);
 PROCEDURE WriteSet (VAR R: Rider; x: SET);

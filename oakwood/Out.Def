@@ -1,11 +1,11 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
-(* removed LONGREAL version, replaced LONGINT by INTEGER *)
 DEFINITION Out;
 PROCEDURE Open;
 PROCEDURE Char (ch: CHAR);
 PROCEDURE String (IN str: ARRAY OF CHAR);
-PROCEDURE Int (i, n: INTEGER);
+PROCEDURE Int (i: LONGINT;n: INTEGER);
 PROCEDURE Real (x: REAL; n: INTEGER);
+PROCEDURE LongReal (x: LONGREAL; n: INTEGER);
 PROCEDURE Ln;
 END Out.
 

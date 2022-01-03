@@ -22,12 +22,13 @@
 
 #include "OBX.Runtime.h"
 
-extern void Out$Int(int32_t i, int32_t n);
+extern void Out$Int(int64_t i, int32_t n);
 extern void Out$Ln();
 extern void Out$Char(char);
 extern void Out$Open();
 extern void Out$String(const struct OBX$Array$1 str);
 extern void Out$Real(float x, int32_t n);
+extern void Out$LongReal(double x, int32_t n);
 
 extern void Out$init$();
 extern OBX$Cmd Out$cmd$(const char*);

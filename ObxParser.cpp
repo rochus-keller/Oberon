@@ -2004,7 +2004,8 @@ bool Parser::fPSection(Scope* scope, ProcType* pt)
         pt->d_formals.append(p);
     }
     Q_ASSERT( !pt->d_formals.isEmpty() );
-    t->d_decl = pt->d_formals.first().data();
+    if( t )
+        t->d_decl = pt->d_formals.first().data();
     return true;
 }
 

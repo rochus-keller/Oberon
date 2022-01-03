@@ -107,6 +107,30 @@ public static void Int(ref int i)
 	}
 }
 
+public static void LongInt(ref long i)
+{
+	// IntConst = digit {digit} | digit {hexDigit} “H”
+	string str = blockingRead().ToString().ToUpper();
+	Done = false;
+	i = 0;
+	if( str.Length == 0 )
+		return;
+	try
+	{
+		if( str.EndsWith("H") )
+		{
+			i = Convert.ToInt64(str.Substring(0,str.Length-1), 16);
+			Done = true;
+		}else
+		{
+			i = Convert.ToInt64(str, 10);
+			Done = true;
+		}
+	}catch
+	{
+	}
+}
+
 //PROCEDURE Real (VAR x: REAL);
 public static void Real(ref float x)
 {
@@ -152,6 +176,23 @@ public static void Real(ref float x)
 		}
 		*/
 		x = (float)Convert.ToDouble(str,ci);
+		Done = true;
+	}catch
+	{
+	}
+}
+
+public static void LongReal(ref double x)
+{
+	// RealConst = digit {digit} [ "." {digit} [“E” (“+” | “-”) digit {digit}]]
+	string str = blockingRead().ToString().ToLower();
+	Done = false;
+	x = 0.0f;
+	if( str.Length == 0 )
+		return;
+	try
+	{
+		x = Convert.ToDouble(str,ci);
 		Done = true;
 	}catch
 	{

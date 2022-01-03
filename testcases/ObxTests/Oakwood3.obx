@@ -7,6 +7,8 @@ var
 	r : F.Rider
 	res : integer
 	res2 : real
+	res3 : longint
+	res4 : longreal
 	str : array 32 of char
 begin
 	println("begin Oakwood3")
@@ -14,7 +16,9 @@ begin
  F.Set(r,f,0)
  F.WriteInt(r,33)
  F.WriteInt(r,44)
+ F.WriteLInt(r,55)
  F.WriteReal(r,123.45)
+ F.WriteLReal(r,234.56)
  F.WriteString(r,"hello world")
  F.Register(f)
  F.Close(f)
@@ -28,9 +32,13 @@ begin
  assert(res=33)
  F.ReadInt(r,res)
  assert(res=44)
+ F.ReadLInt(r,res3)
+ assert(res3=55)
  F.ReadReal(r,res2)
  println(res2) // prints 123.449996948242; why?
  assert(res2-123.45<0.001)
+ F.ReadLReal(r,res4)
+ assert(res4-234.56<0.00000001)
  F.ReadString(r,str)
  assert(str="hello world")
  F.Delete("obx_test_file2",res)

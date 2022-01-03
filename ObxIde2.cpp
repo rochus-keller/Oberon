@@ -2336,7 +2336,7 @@ void Ide::fillStack()
                         d_lock = true;
                         edit->dbgRow = loc.row - 1;
                         edit->dbgCol = qMax(0,loc.col - 1);
-                        edit->setCursorPosition( edit->dbgRow, edit->dbgCol, center );
+                        edit->setCursorPosition( edit->dbgRow, edit->dbgCol, true );
                         edit->setPositionMarker(edit->dbgRow);
                         d_lock = false;
                     }
@@ -2357,7 +2357,7 @@ void Ide::fillLocals()
     d_localsView->clear();
     d_il->clear();
 
-    if( d_curLevel >= 0 && d_curLevel < d_stack.size() )
+    if( d_curLevel < d_stack.size() )
     {
         if( d_mode == BytecodeMode )
             d_il->load(d_stack[d_curLevel].method, d_stack[d_curLevel].il_offset );
@@ -3309,7 +3309,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.41");
+    a.setApplicationVersion("0.9.42");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

@@ -19,12 +19,17 @@
 
 #include "Out.h"
 
-void Out$Int(int32_t i, int32_t n)
+void Out$Int(int64_t i, int32_t n)
 {
-    printf("%*d", n, i);
+    printf("%*lld", n, i);
 }
 
 void Out$Real(float x, int32_t n)
+{
+    printf("%*e", n, x);
+}
+
+void Out$LongReal(double x, int32_t n)
 {
     printf("%*e", n, x);
 }

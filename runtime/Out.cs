@@ -50,7 +50,7 @@ public static void String(char[] str)
 }
 
 //PROCEDURE Int (i, n: INTEGER);
-public static void Int(int i, int n)
+public static void Int(long i, int n)
 {
 	if( n > 0 )
 		System.Console.Write("{0,"+n.ToString()+"}",i);
@@ -60,6 +60,14 @@ public static void Int(int i, int n)
 
 //PROCEDURE Real (x: REAL; n: INTEGER);
 public static void Real(float x, int n)
+{
+	if( n > 0 )
+		System.Console.Write(System.String.Format(ci, "{0,"+n.ToString()+":E}", x ));
+	else	
+		System.Console.Write(x); 
+}
+
+public static void LongReal(double x, int n)
 {
 	if( n > 0 )
 		System.Console.Write(System.String.Format(ci, "{0,"+n.ToString()+":E}", x ));

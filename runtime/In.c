@@ -87,6 +87,23 @@ void In$Int(int32_t* i)
 	In$Done = errno == 0;
 }
 
+void In$LongInt(int64_t* i)
+{
+	// IntConst = digit {digit} | digit {hexDigit} “H”
+	char buf[100];
+	const int count = blockingRead(buf,100,0);
+	In$Done = 0;
+	*i = 0;
+	if( count == 0 )
+		return;
+	errno = 0;
+	if( buf[count-1] == 'H' )
+		*i = strtoll(buf, 0,16);
+	else
+		*i = strtoll(buf, 0,10);
+	In$Done = errno == 0;
+}
+
 void In$Real(float* x)
 {
 	// RealConst = digit {digit} [ "." {digit} [“E” (“+” | “-”) digit {digit}]]
@@ -98,6 +115,20 @@ void In$Real(float* x)
 		return;
 	errno = 0;
 	*x = strtof(buf, 0);
+	In$Done = errno == 0;
+}
+
+void In$LongReal(double* x)
+{
+	// RealConst = digit {digit} [ "." {digit} [“E” (“+” | “-”) digit {digit}]]
+	char buf[100];
+	const int count = blockingRead(buf,100,0);
+	In$Done = 0;
+	*x = 0.0f;
+	if( count == 0 )
+		return;
+	errno = 0;
+	*x = strtod(buf, 0);
 	In$Done = errno == 0;
 }
 

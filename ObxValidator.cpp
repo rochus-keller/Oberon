@@ -501,8 +501,8 @@ struct ValidatorImp : public AstVisitor
             default:
                 return false;
             }
-        }else
-            return false;
+        }
+        return false;
     }
 
     bool checkBuiltInArgs( ProcType* p, ArgExpr* args )
@@ -675,12 +675,18 @@ struct ValidatorImp : public AstVisitor
                 b.d_type = bt.d_wcharType;
                 c.d_type = bt.d_setType;
                 d.d_type = derefed(args->d_args[0]->d_type.data());
+                e.d_type = bt.d_boolType;
+
                 if( d.d_type.isNull() )
                     break; // already reported
-                e.d_type = bt.d_boolType;
+
+                if( isCharConst(args->d_args[0].data()) )
+                    break;
+
                 if( d.d_type->getTag() == Thing::T_Pointer ||
                         d.d_type->getBaseType() == Type::REAL || d.d_type->getBaseType() == Type::LONGREAL )
                     break; // undocumented oberon feature
+
                 if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data())
                         && !paramCompatible( &e, args->d_args[0].data())
                         && !paramCompatible( &c, args->d_args[0].data()) && d.d_type && d.d_type->getTag() != Thing::T_Enumeration )
@@ -1162,8 +1168,8 @@ struct ValidatorImp : public AstVisitor
             {
                 Type* lhs = derefed(args.first()->d_type.data());
                 Type* rhs = derefed(args.last()->d_type.data());
-                if( lhs && lhs->getBaseType() == Type::LONGINT ||
-                    rhs && rhs->getBaseType() == Type::LONGINT )
+                if( (lhs && lhs->getBaseType() == Type::LONGINT) ||
+                    (rhs && rhs->getBaseType() == Type::LONGINT) )
                     return bt.d_longType;
                 else
                     return bt.d_intType;
@@ -1247,6 +1253,10 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::ORD:
             if( !args.isEmpty() )
             {
+                bool wide;
+                if( isCharConst(args[0].data(), &wide) )
+                    return wide ? bt.d_shortType: bt.d_byteType;
+
                 Type* t = derefed(args.first()->d_type.data());
                 if( t == bt.d_charType || t == bt.d_boolType )
                     return bt.d_byteType;
@@ -2895,6 +2905,17 @@ struct ValidatorImp : public AstVisitor
                     return true;
                 }
             }
+            Named* id = e->getIdent();
+            if( id && id->getTag() == Thing::T_Const )
+            {
+                Const* c = cast<Const*>(id);
+                if( c->d_strLen == 1 )
+                {
+                    if( wide )
+                        *wide = c->d_wide;
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -3087,6 +3108,10 @@ struct ValidatorImp : public AstVisitor
             return matchingFormalParamLists( lp, rp ) && lp->d_typeBound == rp->d_typeBound;
         }
 
+#if 1
+        if( ( lhsT == bt.d_charType || lhsT == bt.d_wcharType ) && isCharConst(rhs) )
+            return true;
+#else
         if( ( lhsT == bt.d_charType && rhsT == bt.d_stringType ) ||
             ( lhsT == bt.d_wcharType && rhsT->isString() ) )
         {
@@ -3096,6 +3121,7 @@ struct ValidatorImp : public AstVisitor
             if( rhs->getTag() == Thing::T_Literal )
                 return cast<Literal*>(rhs)->d_strLen == 1;
         }
+#endif
 
         if( ltag == Thing::T_Array )
         {

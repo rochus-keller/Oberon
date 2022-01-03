@@ -1,11 +1,12 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
-(* removed LONGINT and LONGREAL versions *)
 DEFINITION In;
 VAR Done: BOOLEAN;
 PROCEDURE Open;
 PROCEDURE Char (VAR ch: CHAR);
 PROCEDURE Int (VAR i: INTEGER);
+PROCEDURE LongInt (VAR i: LONGINT);
 PROCEDURE Real (VAR x: REAL);
+PROCEDURE LongReal (VAR y: LONGREAL);
 PROCEDURE String (VAR str: ARRAY OF CHAR);
 PROCEDURE Name (VAR name: ARRAY OF CHAR);
 END In.
