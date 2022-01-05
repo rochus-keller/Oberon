@@ -244,9 +244,6 @@ definition NAppGui [extern 'C', dll 'NAppGUI']
     type
         orient_t = ( orient_t_invalid, ekHORIZONTAL, ekVERTICAL )
 
-    type
-        uint_least16_t = shortint
-
     proc layout_create(ncols: integer; nrows: integer): *Layout
     proc layout_cell(layout: *Layout; col: integer; row: integer): *Cell
     proc layout_label(layout: *Layout; label: *Label; col: integer; row: integer)
