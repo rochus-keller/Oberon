@@ -1,0 +1,6 @@
+module Test1
+	import C := NAppCore
+
+begin
+	println( C.min_u32(123,234) )
+end Test1

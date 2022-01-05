@@ -2781,7 +2781,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(loc).call_("void [OBX.Runtime]OBX.Runtime::addRef(object)",1); // TODO: consider GC.KeepAlive()
             }
 
-            if( td->d_unsafe && ( !ta->d_unsafe || rhsIsProc ) )
+            if( td->d_unsafe && ( !ta->d_unsafe || rhsIsProc ) && ta->getBaseType() != Type::NIL )
                 line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::GetFunctionPointerForDelegate(class [mscorlib]System.Delegate)",1,true);
 
             if( !td->d_unsafe && ta->d_unsafe && !rhsIsProc )

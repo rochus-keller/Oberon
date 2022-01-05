@@ -591,7 +591,10 @@ OBX$Cmd OBX$LoadProc(void* lib, const char* name)
 #include <dlfcn.h>
 static inline void* loadDynLib(const char* path)
 {
-	return dlopen(path, RTLD_NOW);
+	void* res = dlopen(path, RTLD_LAZY); // RTLD_NOW); 
+	if( res == 0 )
+		fprintf(stderr,"OBX.Runtime loadDynLib: %s\n", dlerror());
+	return res;
 }
 OBX$Cmd OBX$LoadProc(void* lib, const char* name)
 {

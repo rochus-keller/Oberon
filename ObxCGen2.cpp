@@ -1506,7 +1506,7 @@ struct ObxCGenImp : public AstVisitor
             {
                 td = derefed(cast<Pointer*>(td)->d_to.data());
                 Q_ASSERT(td);
-                if( td->getTag() == Thing::T_Array )
+                if( td->getTag() == Thing::T_Array && !td->d_unsafe )
                 {
                     int dims;
                     cast<Array*>(td)->getTypeDim(dims);
