@@ -1858,7 +1858,7 @@ struct ObxCilGenImp : public AstVisitor
             ArgExpr* ae = cast<ArgExpr*>(desig);
             Q_ASSERT( ae->d_sub && ae->d_sub->getIdent() && ae->d_sub->getIdent()->getTag() == Thing::T_BuiltIn &&
                      ( cast<BuiltIn*>(ae->d_sub->getIdent())->d_func == BuiltIn::SYS_VAL ||
-                       cast<BuiltIn*>(ae->d_sub->getIdent())->d_func == BuiltIn::VAL ) );
+                       cast<BuiltIn*>(ae->d_sub->getIdent())->d_func == BuiltIn::CAST ) );
             Q_ASSERT( ae->d_args.size() == 2 );
             emitFetchDesigAddr(ae->d_args.last().data(), omitParams);
         }else
@@ -2457,11 +2457,15 @@ struct ObxCilGenImp : public AstVisitor
                 Q_ASSERT(false);
             }
             break;
-        case BuiltIn::ADR:
+        case BuiltIn::ADR: // TODO obsolete
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
             break;
-        case BuiltIn::VAL:
+        case BuiltIn::BITS:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            ae->d_args.first()->accept(this);
+            break;
+        case BuiltIn::CAST:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.last()->accept(this);
             break;

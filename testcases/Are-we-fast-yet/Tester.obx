@@ -169,9 +169,9 @@ import
             var i: integer
         begin
             Out.String("Point ")
-            Out.Int(elem.key.x,0)
+            Out.LongReal(elem.key.x,0)
             Out.String(":")
-            Out.Int(elem.key.y,0) Out.Ln
+            Out.LongReal(elem.key.y,0) Out.Ln
             for i := 0 to elem.value.getSize()-1 do
                 Out.String(elem.value.at(i)) Out.Ln
             end

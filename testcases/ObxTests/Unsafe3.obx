@@ -1,0 +1,30 @@
+module Unsafe3
+
+type
+	T = cstruct a,b: integer end
+	
+(* generates error:
+proc p1(var t: T)
+begin
+	t.a := 55
+end p1
+*)
+
+proc p2(t: *T)
+begin
+	t.a := 66
+end p2
+
+var
+	t : T
+	pt : cpointer to T
+	
+begin
+	t.a := 33
+	t.b := 44
+	pt := t
+	println(pt.a)
+	p2(pt)
+	println(t.a)
+
+end Unsafe3

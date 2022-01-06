@@ -210,6 +210,45 @@ definition NAppGui [extern 'C', dll 'NAppGUI']
         Menu = cstruct end
         MenuItem = cstruct end
         mouse_t = ( mouse_t_invalid, ekMLEFT, ekMRIGHT, ekMMIDDLE )
+        
+        EvButton = cstruct
+	            index: integer
+					    state: state_t
+					    text: *[]char
+					    end
+				EvSlider = cstruct
+										pos: real
+								    incr: real
+								    step: integer
+								   end
+				EvText = cstruct
+							    text: *[]char
+							    cpos: integer
+							    end
+				EvTextFilter = cstruct
+								apply: boolean
+								text: carray kTEXTFILTER_SIZE of char
+								cpos: integer
+								end
+				EvDraw = cstruct
+									ctx: *D.DCtx
+									x,y,width,height: integer
+									end
+(* TODO
+typedef struct _evmouse_t EvMouse;
+typedef struct _evwheel_t EvWheel;
+typedef struct _evkey_t EvKey;
+typedef struct _evpos_t EvPos;
+typedef struct _evsize_t EvSize;
+typedef struct _evwinclose_t EvWinClose;
+typedef struct _evmenu_t EvMenu;
+
+typedef struct _evheader_t EvHeader;
+typedef struct _evtbpos_t EvTbPos;
+typedef struct _evtbrow_t EvTbRow;
+typedef struct _evtbcell_t EvTbCell;
+*)
+		const kTEXTFILTER_SIZE =  1024
 
     type
         close_t = ( close_t_invalid, ekCLESC, ekCLINTRO, ekCLBUTTON, ekCLDEACT )

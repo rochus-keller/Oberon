@@ -138,8 +138,9 @@ public:
     void setExt( bool on )
     {
         d_hl->setEnableExt(on);
-        for( int i = BuiltIn::ABS; i < BuiltIn::MAXBUILTIN; i++ )
-            d_hl->addBuiltIn(BuiltIn::s_typeName[i]);
+        const QByteArrayList names = BuiltIn::getValidNames();
+        foreach( const QByteArray& name, names )
+            d_hl->addBuiltIn(name);
         for( int i = Type::ANY; i <= Type::SET; i++ )
             d_hl->addBuiltIn(BaseType::s_typeName[i]);
         d_hl->addBuiltIn("ANYREC");
@@ -3309,7 +3310,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.43");
+    a.setApplicationVersion("0.9.44");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

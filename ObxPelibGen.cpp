@@ -1261,6 +1261,7 @@ void PelibGen::addMethod(const IlMethod& m)
     {
     case IlEmitter::Static:
     case IlEmitter::Primary:
+    default:
         hint = SignatureParser::Static;
         break;
     case IlEmitter::Pinvoke:

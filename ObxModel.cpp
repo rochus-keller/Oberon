@@ -1020,7 +1020,9 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::ENTIER, new ProcType( Type::List() << d_longrealType.data(), d_longType.data() ) ) );
 
     // Oberon+
-    d_globals->add( new BuiltIn(BuiltIn::VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) ) );
+    bi = new BuiltIn(BuiltIn::CAST, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) );
+    d_globals->add( bi.data() );
+    d_globals->d_names[Lexer::getSymbol("VAL").constData()] = bi.data(); // backward compatibility for OBS
     d_globals->add( new BuiltIn(BuiltIn::STRLEN, new ProcType( Type::List() << d_anyType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::WCHR, new ProcType( Type::List() << d_intType.data(), d_wcharType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::PRINTLN, new ProcType( Type::List() << d_anyType.data() ) ) );

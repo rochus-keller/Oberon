@@ -581,9 +581,10 @@ struct ValidatorImp : public AstVisitor
                 error( args->d_loc, Validator::tr("expecting one argument"));
            break;
         case BuiltIn::ADR:
-            // TODO: we no longer need ADR
             if( args->d_args.size() == 1 )
             {
+                // TODO: we no longer need ADR
+                warning( args->d_loc, Validator::tr("the ADR() built-in function is deprecated") );
                 if( !isMemoryLocation(args->d_args.first().data()) )
                 {
                     error( args->d_args.first()->d_loc, Validator::tr("cannot take address of expression"));
@@ -846,7 +847,7 @@ struct ValidatorImp : public AstVisitor
                     error( args->d_loc, Validator::tr("incompatible arguments"));
             }
             break;
-        case BuiltIn::VAL:
+        case BuiltIn::CAST:
             if( args->d_args.size() == 2 )
             {
                 Named* n = args->d_args.first()->getIdent();
@@ -860,6 +861,18 @@ struct ValidatorImp : public AstVisitor
                 if( lhs == 0 || rhs == 0 )
                     break; // already reported
                 const int ltag = lhs->getTag();
+
+                if( ltag == Thing::T_Pointer && lhs->d_unsafe &&
+                        rhs->getTag() == Thing::T_Pointer && rhs->d_unsafe )
+                {
+                    Type* l = derefed(cast<Pointer*>(lhs)->d_to.data());
+                    Type* r = derefed(cast<Pointer*>(rhs)->d_to.data());
+                    if( l == 0 || r == 0 )
+                        break; // already reported
+                    if( ( ( l->getTag() == Thing::T_Record && !l->d_union ) || l->getBaseType() == Type::CVOID ) &&
+                            ( ( r->getTag() == Thing::T_Record && !l->d_union ) || r->getBaseType() == Type::CVOID) )
+                        return true; // we allow like C to cast void* to struct* and struct* to struct*
+                }
 
                 if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
                         ( lhs == bt.d_intType && rhs == bt.d_setType ) ||
@@ -938,7 +951,7 @@ struct ValidatorImp : public AstVisitor
         {
             Array* a = cast<Array*>(t);
             t = derefed(a->d_type.data());
-            if( t && !t->isStructured(true) )
+            if( t && ( !t->isStructured() || ( t->d_unsafe && t->getTag() == Thing::T_Pointer ) ) )
                 return true;
         }
         return false;
@@ -1038,12 +1051,18 @@ struct ValidatorImp : public AstVisitor
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
                                            || ta == bt.d_stringType || ta == bt.d_wstringType ) )
         {
-            if( pt->d_unsafe && tf->d_unsafe &&
-                isMemoryLocation(actual.data()) && actual->visibilityFor(mod) != Named::Private &&
-                ( ta->d_unsafe || ta == bt.d_stringType || ta == bt.d_wstringType || isArrayOfUnstructuredType(ta) ) )
+            const bool memloc = isMemoryLocation(actual.data());
+            const bool notpriv = actual->visibilityFor(mod) != Named::Private;
+            const bool scalarr = isArrayOfUnstructuredType(ta);
+            const bool strlit = ta == bt.d_stringType || ta == bt.d_wstringType;
+            if( /* pt->d_unsafe && */ // no, allow it for all params; doesnt make sense to allow it
+                    // on assignment everywhere, but at the same time only for passing to unsafe procs
+                    tf->d_unsafe &&
+                memloc && notpriv &&
+                ( ta->d_unsafe || ( pt->d_unsafe && (strlit || scalarr ) ) ) )
                 // ok, if actual is unsafe,
-                // or string literal
-                // or safe array to unstructured type
+                // or proc is unsafe and actual is string literal
+                // or proc is unsafe and actual is safe array to unstructured type
                 ta = addAddrOf(actual);
         }
 #endif
@@ -1115,8 +1134,10 @@ struct ValidatorImp : public AstVisitor
             Expression* a = me->d_args[i].data();
             Type* t = derefed(a->d_type.data());
             if( isArrayOfUnstructuredType(t) || t->isString() )
+            {
+                Q_ASSERT( p->d_unsafe ); // only unsafe procs can be variadic
                 addAddrOf(me->d_args[i]);
-            else if( !( t->d_unsafe || !t->isStructured(true) ) )
+            }else if( !( t->d_unsafe || !t->isStructured(true) ) )
                 error( a->d_loc, Validator::tr("actual parameter type not supported in variadic procedure call"));
         }
     }
@@ -1179,7 +1200,7 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::SYS_VAL:
         case BuiltIn::SYS_ROT:
         case BuiltIn::SYS_LSH:
-        case BuiltIn::VAL:
+        case BuiltIn::CAST:
         case BuiltIn::ABS:
         case BuiltIn::CAP:
             if( !args.isEmpty() )
@@ -1330,8 +1351,19 @@ struct ValidatorImp : public AstVisitor
                 // this is a type guard
                 me->d_op = UnExpr::CAST;
                 me->d_type = decl->d_type.data();
-                // TODO: in case of unsafe: let the user dedicate a procedure which is called with the guard argument (e.g. as string)
-                // An unsafe module could have a typeguard override, and maybe also an IS operator override.
+                bool fromPtr, toPtr;
+                Record* rfrom = subType ? subType->toRecord(&fromPtr) : 0;
+                Record* rto = decl->d_type->toRecord(&toPtr);
+                Named* subId = me->d_sub->getIdent();
+                if( rfrom && !fromPtr && rto && !toPtr &&
+                        ( subId == 0
+                               || subId->getTag() != Thing::T_Parameter
+                               || !cast<Parameter*>(subId)->d_var ) )
+                    error(me->d_loc, Validator::tr("type guard not supported on record type unless it's a VAR/IN parameter"));
+                else if( rfrom == 0 || rto == 0 || fromPtr != toPtr )
+                    error( me->d_loc, Validator::tr("type guard requires both operand and type to be record or pointer to record") );
+                else if( rfrom->d_unsafe || rto->d_unsafe )
+                    error(me->d_loc, Validator::tr("type guard not supported on unsafe types"));
             }else
                 error( me->d_loc, Validator::tr("this expression cannot be called") );
         }else if( me->d_op == UnExpr::IDX )
@@ -2096,8 +2128,11 @@ struct ValidatorImp : public AstVisitor
             checkNoAnyRecType(me->d_type.data());
 
         checkNoBooleanTypeInUnsafe(me->d_type.data(), me->d_unsafe, me->d_loc);
+        Type* td = derefed(me->d_type.data());
         if( me->d_unsafe && me->d_var )
             error(me->d_loc, Validator::tr("VAR not supported in external library modules") );
+        else if( td && td->d_unsafe && me->d_var && td->isStructured() )
+            error(me->d_loc, Validator::tr("VAR not supported with unsafe structured types") );
         if( me->d_unsafe )
             checkNoArrayByVal(me->d_type.data(),me->d_loc);
 
@@ -2289,8 +2324,11 @@ struct ValidatorImp : public AstVisitor
             // in BBOX the assignment of a structured value to an unsafe pointer is an "address of" operation
             // in Oberon+ this is only allowed for unsafe types
             if( lhsT->d_unsafe && rhsT->d_unsafe )
-                // don't allow taking the address of safe structured types
+                // don't allow taking the address of safe types
             {
+#if 1
+                rhsT = addAddrOf(me->d_rhs);
+#else
                 Ref<UnExpr> ue = new UnExpr();
                 ue->d_loc = me->d_rhs->d_loc;
                 ue->d_op = UnExpr::ADDROF;
@@ -2303,6 +2341,7 @@ struct ValidatorImp : public AstVisitor
                 ue->d_type = ptr.data();
                 me->d_rhs = ue.data();
                 mod->d_helper2.append(ptr.data()); // otherwise ptr gets deleted when leaving this scope
+#endif
             }
         }
 #endif
@@ -2424,10 +2463,12 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("cannot call this expression") );
                 return;
             }
+#if 0 // called twice?? already called in me->d_what->accept(this); above
             ProcType* pt = cast<ProcType*>(t);
             const bool isBuiltIn = pt->d_decl && pt->d_decl->getTag() == Thing::T_BuiltIn;
             if( !isBuiltIn || !checkBuiltInArgs( pt, ae ) )
                 checkCallArgs( pt, ae );
+#endif
             Named* id = proc->getIdent();
             if( id )
             {
@@ -3378,10 +3419,10 @@ struct ValidatorImp : public AstVisitor
         switch( v )
         {
         case Named::ReadOnly:
-            error( lhs->d_loc, Validator::tr("cannot assign to read-only designator"));
+            error( lhs->d_loc, Validator::tr("cannot modify read-only designator"));
             return false;
         case Named::Private:
-            error( lhs->d_loc, Validator::tr("cannot assign to private designator"));
+            error( lhs->d_loc, Validator::tr("cannot modify private designator"));
             return false;
         }
         return true;

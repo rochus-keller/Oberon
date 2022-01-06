@@ -224,7 +224,7 @@ namespace Obx
         bool isChar(bool* wide = 0) const;
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0, bool resolvePtr = false) const;
-        Record* toRecord() const;
+        Record* toRecord(bool* isPtr = 0) const;
         Module* declaredIn();
     };
 
@@ -463,7 +463,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               VAL, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
+               CAST, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
                BITSHL, BITSHR, BITASR,
                ADR, // obsolete
                MAXBUILTIN
@@ -473,6 +473,7 @@ namespace Obx
         BuiltIn(quint8 f, ProcType* = 0 );
         int getTag() const { return T_BuiltIn; }
         void accept(AstVisitor* v) { v->visit(this); }
+        static QByteArrayList getValidNames();
     };
 
     struct Scope : public Named

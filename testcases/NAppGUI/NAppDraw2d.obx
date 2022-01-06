@@ -13,6 +13,18 @@ definition NAppDraw2d [extern 'C', dll 'NAppGUI']
 		
     // from color.h
 
+		const
+			kCOLOR_TRANSPARENT = 0
+			kCOLOR_DEFAULT = 0
+			kCOLOR_BLACK = 0FF000000h
+			kCOLOR_WHITE = 0FFFFFFFFh
+			kCOLOR_RED = 0FF0000FFh
+			kCOLOR_GREEN = 0FF00FF00h
+			kCOLOR_BLUE = 0FFFF0000h
+			kCOLOR_YELLOW = 0FF00FFFFh
+			kCOLOR_CYAN = 0FFFFFF00h
+			kCOLOR_MAGENTA = 0FFFF00FFh
+
     proc color_rgb(r: byte; g: byte; b: byte): integer
     proc color_rgba(r: byte; g: byte; b: byte; a: byte): integer
     proc color_rgbaf(r: real; g: real; b: real; a: real): integer

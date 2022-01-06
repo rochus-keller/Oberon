@@ -52,7 +52,7 @@ const char* BuiltIn::s_typeName[] =
     // Blackbox
     "TYP",
     // Oberon+
-    "VAL", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR",
+    "CAST", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR",
     "BITSHL", "BITSHR", "BITASR", "ADR"
 };
 
@@ -569,6 +569,19 @@ BuiltIn::BuiltIn(quint8 f, ProcType* pt):d_func(f)
         d_type = new ProcType();
     Q_ASSERT( d_type->d_decl == 0 );
     d_type->d_decl = this;
+}
+
+QByteArrayList BuiltIn::getValidNames()
+{
+    QByteArrayList res;
+    for( int i = 0; i < MAXBUILTIN; i++ )
+    {
+        if( (i >= SYS_ADR && i <= SYS_COPY) ||
+                (i >= SYS_MOVE && i <= SYS_TYP) )
+            continue;
+        res.append(s_typeName[i]);
+    }
+    return res;
 }
 
 ProcType::ProcType(const Type::List& f, Type* r):d_return(r)
@@ -1385,11 +1398,17 @@ bool Type::isText(bool* wide, bool resolvePtr) const
     return false;
 }
 
-Record*Type::toRecord() const
+Record*Type::toRecord(bool* isPtr) const
 {
+    if( isPtr )
+        *isPtr = false;
     Type* t = const_cast<Type*>(this)->derefed();
     if( t && t->getTag() == Thing::T_Pointer )
+    {
+        if( isPtr )
+            *isPtr = true;
         t = cast<Pointer*>(t)->d_to.data();
+    }
     if( t )
         t = t->derefed();
     if( t && t->getTag() == Thing::T_Record )

@@ -627,8 +627,8 @@ module CD2
           x,y: longreal
           res: Vector2D
   begin
-    xDiv := floor(position.x / GOOD_VOXEL_SIZE)
-    yDiv := floor(position.y / GOOD_VOXEL_SIZE)
+    xDiv := short(floor(position.x / GOOD_VOXEL_SIZE))
+    yDiv := short(floor(position.y / GOOD_VOXEL_SIZE))
 
     x := GOOD_VOXEL_SIZE * flt(xDiv)
     y := GOOD_VOXEL_SIZE * flt(yDiv)

@@ -813,7 +813,7 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::SYS_GETREG:
         case BuiltIn::SYS_PUTREG:
         case BuiltIn::SYS_TYP:
-        case BuiltIn::VAL:
+        case BuiltIn::CAST:
         case BuiltIn::WCHR:
         default:
             // TODO: some should be implemented!

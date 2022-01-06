@@ -2197,7 +2197,11 @@ struct ObxCGenImp : public AstVisitor
                 b << "))";
             }
             break;
-        case BuiltIn::VAL:
+        case BuiltIn::BITS:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            ae->d_args.first()->accept(this);
+            break;
+        case BuiltIn::CAST:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.last()->accept(this);
             break;
