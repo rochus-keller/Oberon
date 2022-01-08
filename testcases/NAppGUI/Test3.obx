@@ -1,0 +1,55 @@
+// this works well with Cgen, but just prints "start Test3" and then waits forever with CilGen
+module Test3
+	import C := NAppCore
+
+type
+	Data = cstruct count: integer end
+	
+	proc fibonacci( n : integer ): longint
+		var a,b: longint
+	begin
+	  if n > 1 then 
+		   a := fibonacci( n - 1 )
+		   b := fibonacci( n - 2 )
+			return ( a + b )
+	  elsif n = 0 then 
+			return 0
+	  else 
+			return 1
+	  end
+	end fibonacci
+	
+	proc worker(data: *void): integer
+		type DataPtr = *Data
+		var
+			p: DataPtr
+	begin
+		println("start worker")
+		p := cast(DataPtr,data)
+		println(p.count)
+		println(fibonacci(p.count))
+		println("end worker")
+		return 0
+	end worker
+
+const
+	numOfThreads = 4
+		
+var
+	t: array numOfThreads of *C.Thread
+	i: integer
+	d: carray numOfThreads of Data
+begin
+	println("start Test3")
+	C.core_start()
+	for i := 0 to numOfThreads-1 do
+		d[i].count := 35 + i
+		t[i] := C.bthread_create_imp(worker, d[i])
+	end
+	for i := 0 to numOfThreads-1 do
+		C.bthread_wait(t[i])
+	end
+	//C.bthread_sleep(2000)
+	C.core_finish()
+	println("end Test3")
+end Test3

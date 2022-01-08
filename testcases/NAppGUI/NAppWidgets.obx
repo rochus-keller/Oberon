@@ -7,7 +7,7 @@
 // and then manually improved by Rochus Keller
 // Original NAppGUI C API by Francisco Garcia Collado, MIT Licence
 
-definition NAppGui [extern 'C', dll 'NAppGUI']
+definition NAppWidgets [extern 'C', dll 'NAppGUI']
 
 	import C := NAppCore, D := NAppDraw2d
 	
@@ -534,4 +534,4 @@ typedef struct _evtbcell_t EvTbCell;
 			func_create: FPtr_app_create; func_update: FPtr_app_update; func_destroy: FPtr_destroy; 
 			options: *[]char)
 		  
-end NAppGui
+end NAppWidgets

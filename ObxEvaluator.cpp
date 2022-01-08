@@ -688,7 +688,7 @@ struct EvalVisitor : public AstVisitor
                     {
                         qint64 x = lhs.d_value.toLongLong();
                         if( x < 0 && n > 0 )
-                            x = x >> n | ~(~((uint64_t)0) >> n);
+                            x = x >> n | ~(~((quint64)0) >> n);
                         else
                             x = x >> n;
                         val.d_wide = true;
@@ -698,7 +698,7 @@ struct EvalVisitor : public AstVisitor
                     {
                         qint32 x = lhs.d_value.toInt();
                         if( x < 0 && n > 0 )
-                            x = x >> n | ~(~((uint32_t)0) >> n);
+                            x = x >> n | ~(~((quint32)0) >> n);
                         else
                             x = x >> n;
                         val.d_minInt = true;

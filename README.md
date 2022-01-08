@@ -80,16 +80,18 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 ### Binary versions
 
 Here is a binary version of the Oberon+ IDE for Windows: http://software.rochus-keller.ch/OberonIDE_win32.zip.
-Just unpack the ZIP somewhere on your drive and double-click either ObxIDE_Mono.exe or ObxIDE_LuaJIT; Qt libraries are included, as well as the OBXLJ and OBXMC command line tools, the demo Oberon System and some other example projects (open the project using CTRL+O and then run it using CTRL+R, or right-click to open context menus and select the commands from there).
+Just unpack the ZIP somewhere on your drive and double-click either ObxIDE.exe; Qt libraries are included, as well as the OBXMC command line tool, the demo Oberon System and some other example projects (open the project using CTRL+O and then run it using CTRL+R, or right-click to open context menus and select the commands from there).
 
 Here is a version of the Oberon+ IDE (Mono) for Linux x86: http://software.rochus-keller.ch/OberonIDE_linux_i386.tar.gz.
 Qt 5.4.2 is statically linked with the executables. OBXMC, Mono3 and examples are included as well.
 
-Here is the old version of the Oberon+ IDE (LuaJIT) for Linux x86: http://software.rochus-keller.ch/OberonIDE_LuaJIT_linux_i386.tar.gz.
-It requires a preinstalled Qt version >= 5.4.
-
 Here is a version of the Oberon IDE (Mono) for macOS x86_64 (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg.
 The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
+
+Here is the old version of the Oberon+ IDE (LuaJIT) for Windows: http://software.rochus-keller.ch/OberonIDE_LuaJIT_win32.zip.
+
+Here is the old version of the Oberon+ IDE (LuaJIT) for Linux x86: http://software.rochus-keller.ch/OberonIDE_LuaJIT_linux_i386.tar.gz.
+It requires a preinstalled Qt version >= 5.4.
 
 Hier is the old version of the Oberon IDE (LuaJIT) for macOS x86_64: http://software.rochus-keller.ch/OberonIDE_LuaJIT_macOS_x64.dmg.
 

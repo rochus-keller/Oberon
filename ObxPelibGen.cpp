@@ -557,6 +557,7 @@ protected:
         if( node->thing == 0 )
             createClassFor(node,isValueType);
 
+#if 0
         QByteArray pointer;
         int pointerLevel = 0;
         while( lex.peek().d_tt == SignatureLexer::STAR )
@@ -596,13 +597,21 @@ protected:
                 node = suffix;
             }
         }
+#endif
 
-        QByteArray array;
+        QByteArray pattern;
+        int pointerLevel = 0;
+        while( lex.peek().d_tt == SignatureLexer::STAR )
+        {
+            lex.next();
+            pattern += "*";
+            pointerLevel++;
+        }
         int arrayLevel = 0;
         while( lex.peek().d_tt == SignatureLexer::ARR )
         {
             lex.next();
-            array += "[]";
+            pattern += "[]";
             arrayLevel++;
         }
         bool pinned = false;
@@ -611,20 +620,21 @@ protected:
             lex.next();
             pinned = true;
             Q_ASSERT( arrayLevel > 0 ); // we currently only support pinned arrays
-            array += " pinned";
+            pattern += " pinned";
         }
         if( Type* primitive = dynamic_cast<Type*>(node->thing) )
         {
-            if( arrayLevel == 0 )
+            if( pattern.isEmpty() )
                 return node;
             // else
-            Node* suffix = node->subs.value(array);
+            Node* suffix = node->subs.value(pattern);
             if( suffix == 0 )
             {
-                suffix = new Node(node,array);
-                node->subs.insert(array,suffix);
+                suffix = new Node(node,pattern);
+                node->subs.insert(pattern,suffix);
                 Type* t = new Type(primitive->GetBasicType());
                 t->ArrayLevel(arrayLevel);
+                t->PointerLevel(pointerLevel);
                 t->Pinned(pinned);
                 suffix->thing = t;
             }
@@ -633,16 +643,17 @@ protected:
         {
             DataContainer* dc = dynamic_cast<DataContainer*>(node->thing);
             Q_ASSERT(dc);
-            Node* suffix = node->subs.value(array);
+            Node* suffix = node->subs.value(pattern);
             if( suffix == 0 )
             {
-                suffix = new Node(node,array);
-                node->subs.insert(array,suffix);
+                suffix = new Node(node,pattern);
+                node->subs.insert(pattern,suffix);
                 Type* t = new Type(dc);
                 t->ArrayLevel(arrayLevel);
-                if( arrayLevel )
+                if( arrayLevel || pointerLevel )
                     t->ShowType(); // otherwise refs in stelem or newarr only show record not array level
                     // see Record3.obx and Gen4Tests T3VariableDeclarations.obn
+                t->PointerLevel(pointerLevel);
                 t->Pinned(pinned);
                 suffix->thing = t;
             }
@@ -1530,6 +1541,17 @@ void PelibGen::addField(const QByteArray& fieldName, const QByteArray& typeRef, 
     // this features is acutally missing in the ECMA-335 issue 3 to 5, but not in Lidins book, see p. 142 there.
     SignatureParser::Node* type = d_imp->find(SignatureParser::TypeRef,typeRef);
     Q_ASSERT( type );
+#if 0
+    if( d_imp->moduleName == "Test2" )
+    {
+                // TEST
+                qDebug() << "***" << type->path().join(' ');
+                QList<Resource*> path = type->thingsPath();
+                foreach( Resource* r, path )
+                    qDebug() << dump(r);
+    }
+#endif
+
     SignatureParser::Node* field = SignatureParser::findOrCreateField(d_imp->level.back(),unescape(fieldName), type, hint);
     if( explicitOffset >= 0 && field->thing )
         static_cast<Field*>(field->thing)->ExplicitOffset(explicitOffset);

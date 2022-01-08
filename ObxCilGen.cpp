@@ -1343,6 +1343,7 @@ struct ObxCilGenImp : public AstVisitor
             else if( !prefix.isEmpty() )
                 useName = prefix + me->d_name;
             emitter->setPinvoke(dll,useName);
+            //qDebug() << "*EXPORT*" << ( useName.isEmpty() ? me->d_name : useName );
         }
 
         if( isVararg && extraArgs.isEmpty() ) // extraArgs is to substitute vararg, so we dont need the flag in this case
@@ -1575,7 +1576,11 @@ struct ObxCilGenImp : public AstVisitor
             Q_ASSERT(false);
             break;
         case Thing::T_Record:
-            line(loc).ldobj_(formatType(t));
+            // No, dont do that: line(loc).ldobj_(formatType(t));
+            // we arrive here e.g. indexing an array; the "field value" in case of a record field is
+            // usually the address of the record; so when accessing a cstruct we don't copy the struct
+            // here to the stack, but just leave the address of the field, which is on the stack
+            // when we arrive here, where it is
             break;
         case Thing::T_Pointer:
         case Thing::T_ProcType:
@@ -2737,28 +2742,28 @@ struct ObxCilGenImp : public AstVisitor
     void inline prepareRhs(Type* tf, Expression* ea, const RowCol& loc)
     {
         Q_ASSERT(ea);
-        Type* td = derefed(tf);
+        Type* tfd = derefed(tf);
         Type* ta = derefed(ea->d_type.data());
-        if( ta == 0 || td == 0 )
+        if( ta == 0 || tfd == 0 )
             return; // error already reported
 
-        const int tag = td->getTag();
-        if( td->isChar() && !ta->isChar() )
+        const int tagf = tfd->getTag();
+        if( tfd->isChar() && !ta->isChar() )
         {
             // convert len-1-string to char
             Q_ASSERT( ta->isString() || ta->isStructured() );
             line(loc).ldc_i4(0);
             line(loc).ldelem_("char");
-        }else if( td->isText() && !td->isChar() && ta->isChar() )
+        }else if( tfd->isText() && !tfd->isChar() && ta->isChar() )
         {
             line(loc).call_("char[] [OBX.Runtime]OBX.Runtime::toString(char)", 1, true ); // works for both char and wchar
-        }else if( tag == Thing::T_ProcType )
+        }else if( tagf == Thing::T_ProcType )
         {
             Named* n = ea->getIdent();
             const bool rhsIsProc = n && n->getTag() == Thing::T_Procedure;
             if( rhsIsProc )
             {
-                ProcType* pt = cast<ProcType*>(td);
+                ProcType* pt = cast<ProcType*>(tfd);
 
                 if( ta->d_typeBound )
                 {
@@ -2776,7 +2781,7 @@ struct ObxCilGenImp : public AstVisitor
                 }
             }//else: we copy a proc type variable, i.e. delegate already exists
 
-            if( td && td->d_unsafe && ( rhsIsProc && ( !ta->d_unsafe || td == ta ) ) )
+            if( tfd && tfd->d_unsafe && ( rhsIsProc && ( !ta->d_unsafe || tfd == ta ) ) )
             {
                 // we assign a newly created or existing deleg to an unsafe proc pointer
                 // add a reference to it so the GC doesn't collect it while in callback
@@ -2785,17 +2790,17 @@ struct ObxCilGenImp : public AstVisitor
                 line(loc).call_("void [OBX.Runtime]OBX.Runtime::addRef(object)",1); // TODO: consider GC.KeepAlive()
             }
 
-            if( td->d_unsafe && ( !ta->d_unsafe || rhsIsProc ) && ta->getBaseType() != Type::NIL )
+            if( tfd->d_unsafe && ( !ta->d_unsafe || rhsIsProc ) && ta->getBaseType() != Type::NIL )
                 line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::GetFunctionPointerForDelegate(class [mscorlib]System.Delegate)",1,true);
 
-            if( !td->d_unsafe && ta->d_unsafe && !rhsIsProc )
+            if( !tfd->d_unsafe && ta->d_unsafe && !rhsIsProc )
                 // TODO consider Marshal.GetDelegateForFunctionPointer(IntPtr, Type) if rhsIsProc and unsafe
                 err->error(Errors::Generator, Loc(loc,thisMod->d_file), "assignment of unsafe to a safe procedure pointer is not supported");
 
-        }else if( td->d_unsafe && tag == Thing::T_Record )
-            line(loc).ldobj_(formatType(tf));
-        else if( tag == Thing::T_BaseType )
-            convertTo(td->getBaseType(), ta, ea->d_loc);
+        }else if( tfd->d_unsafe && tagf == Thing::T_Record )
+            line(loc).ldobj_(formatType(tf)); // the formal requires a cstruct by value, so we fetch it
+        else if( tagf == Thing::T_BaseType )
+            convertTo(tfd->getBaseType(), ta, ea->d_loc);
     }
 
     void visit( ArgExpr* me )
@@ -2915,6 +2920,8 @@ struct ObxCilGenImp : public AstVisitor
             convertTo(Type::LONGINT, cur, loc);
         else if( o == Type::LONGREAL && c != Type::LONGREAL )
             convertTo(Type::LONGREAL, cur, loc);
+        else if( o == Type::REAL && c == Type::INTEGER )
+            convertTo(Type::REAL, cur, loc);
     }
 
     void visit( BinExpr* me)
@@ -3702,7 +3709,7 @@ struct ObxCilGenImp : public AstVisitor
                         if( r->d_unsafe )
                         {
                             what->accept(this);
-                            line(loc).ldobj_(formatType(r));
+                            line(loc).ldobj_(formatType(r)); // return type requires a cstruct by value
                         }else
                         {
                             emitInitializer(lt,false,loc); // create new record or array

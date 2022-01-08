@@ -7,17 +7,21 @@ MainProc=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
+[.]
+size=0
+
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppCore.obx
 1\RelPath=NAppCore.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppDraw2d.obx
 2\RelPath=NAppDraw2d.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppGui.obx
-3\RelPath=NAppGui.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppWidgets.obx
+3\RelPath=NAppWidgets.obx
 4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/Hello.obx
 4\RelPath=Hello.obx
 size=4
 
 [Packages]
 1\Name=@ByteArray()
-size=1
+2\Name=@ByteArray()
+size=2

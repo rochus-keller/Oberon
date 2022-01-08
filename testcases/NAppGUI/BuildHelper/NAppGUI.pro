@@ -95,8 +95,6 @@ SOURCES += \
     ../src/osbs/log.c \
     ../src/osbs/bsocket.c \
     ../src/osgui/osguictx.c \
-    ../src/sewer/unix/bmem_unix.c \
-    ../src/sewer/unix/bstdimp.c \
     ../src/sewer/blib.c \
     ../src/sewer/bmem.c \
     ../src/sewer/cassert.c \
@@ -105,7 +103,6 @@ SOURCES += \
     ../src/sewer/types.c \
     ../src/sewer/unicode.c \
     res_assert.c
-
 
 HEADERS +=  \
     ../src/core/array.h \
@@ -267,14 +264,59 @@ SOURCES += \
     ../src/osgui/gtk3/osupdown.c \
     ../src/osgui/gtk3/osview.c \
     ../src/osgui/gtk3/oswindow.c \
+    ../src/sewer/unix/bstdimp.c \
+    ../src/sewer/unix/bmem_unix.c \
     ../src/osbs/unix/bsocket.c \
     ../src/osbs/unix/sinfo.c
 HEADERS += ../src/osapp/osmain_gtk.h
 }
 
 win32 {
-#TODO: complete, create DEF file
+DEFINES += _WINDOWS
 HEADERS += ../src/osapp/osmain_win.h 
+SOURCES += \
+    ../src/draw2d/win/dctx_win.cpp \
+    ../src/draw2d/win/draw2d_win.cpp \
+    ../src/draw2d/win/osfont.cpp \
+    ../src/draw2d/win/osimage.cpp \
+    ../src/osgui/win/oscontrol.cpp \
+    ../src/osgui/win/osdrawctrl.cpp \
+    ../src/osgui/win/osgui_win.cpp \
+    ../src/osgui/win/osview.cpp \
+    ../src/osapp/win/osapp_win.c \
+    ../src/osbs/win/bfile.c \
+    ../src/osbs/win/bmutex.c \
+    ../src/osbs/win/bproc.c \
+    ../src/osbs/win/bsocket.c \
+    ../src/osbs/win/bthread.c \
+    ../src/osbs/win/btime.c \
+    ../src/osbs/win/sinfo.c \
+    ../src/osgui/win/osbutton.c \
+    ../src/osgui/win/oscombo.c \
+    ../src/osgui/win/oscomwin.c \
+    ../src/osgui/win/osedit.c \
+    ../src/osgui/win/osglobals.c \
+    ../src/osgui/win/osimglist.c \
+    ../src/osgui/win/oslabel.c \
+    ../src/osgui/win/oslistener.c \
+    ../src/osgui/win/osmenu.c \
+    ../src/osgui/win/osmenuitem.c \
+    ../src/osgui/win/ospanel.c \
+    ../src/osgui/win/ospopup.c \
+    ../src/osgui/win/osprogress.c \
+    ../src/osgui/win/osscroll.c \
+    ../src/osgui/win/osslider.c \
+    ../src/osgui/win/ossplit.c \
+    ../src/osgui/win/osstyleXP.c \
+    ../src/osgui/win/ostext.c \
+    ../src/osgui/win/ostooltip.c \
+    ../src/osgui/win/osupdown.c \
+    ../src/osgui/win/oswindow.c \
+    ../src/sewer/win/bmem_win.c \
+    ../src/sewer/win/bstdimp.c
+LIBS += -lGdi32 -lUser32 -lShell32 -lComdlg32
+QMAKE_LFLAGS += "/DEF:$$PWD/NAppGUI.def"
+#DEF_FILE = 
 }
 
 macx {

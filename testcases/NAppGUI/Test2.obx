@@ -1,0 +1,14 @@
+module Test2
+
+	import C := NAppCore
+var
+	clock: *C.Clock
+	tmp: array 1 of *C.Clock 
+
+begin
+    clock := C.clock_create(0)
+
+    tmp[0] := clock
+    C.clock_destroy(tmp)
+    clock := nil
+end Test2

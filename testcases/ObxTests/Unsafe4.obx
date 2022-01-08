@@ -1,0 +1,26 @@
+module Unsafe4
+
+type
+	ThData = cstruct 
+			    fct: longreal
+		    end
+		    
+	 T2 = cstruct 
+			 x: shortint
+			 arr: carray 3 of cstruct
+							 a: integer
+							 b: shortint
+							end
+			 y: byte
+			 end
+			 
+		    
+var 
+	data: carray 1 of ThData
+	t2 : T2
+begin
+	t2.arr[1].a := 33
+	println(t2.arr[1].a)
+	data[0].fct := 1.0
+	println(data[0].fct)
+end Unsafe4

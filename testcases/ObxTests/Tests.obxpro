@@ -11,8 +11,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Unsafe3.obx
-1\RelPath=Unsafe3.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Unsafe4.obx
+1\RelPath=Unsafe4.obx
 size=1
 
 [Packages]

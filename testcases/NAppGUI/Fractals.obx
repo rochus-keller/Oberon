@@ -1,11 +1,10 @@
 // Original Hello C app by Francisco Garcia Collado, MIT Licence
 // Translated to Oberon+ by Rochus Keller
 
-
-// TODO: CGen code works, but CILgen crashes, both with Pelib and ILASM
+// TODO: Mono crashes when we switch to multi-threading
 
 module Fractals
-	import G := NAppGui, C := NAppCore, D := NAppDraw2d
+	import G := NAppWidgets, C := NAppCore, D := NAppDraw2d
 	
 const
 	i_FCT = 2.85
@@ -289,7 +288,7 @@ type
 
 	proc i_destroy(item: *[]*void)
 		var w: carray 1 of *G.Window
-			c: carray 1 of *C.Clock // TODO: when array instead of carray PelibGen crashes
+			c: carray 1 of *C.Clock 
 	begin
 		w[0] := window
     G.window_destroy(w)
