@@ -1,5 +1,5 @@
 [General]
-BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
+BuildDir=%APPDIR%/build
 BuiltInOakwood=false
 BuiltInObSysInner=false
 MainModule=@ByteArray()
@@ -15,7 +15,7 @@ size=0
 1\RelPath=NAppCore.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/Test1.obx
 2\RelPath=Test1.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppDraw2d.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppDraw.obx
 3\RelPath=NAppDraw2d.obx
 4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppWidgets.obx
 4\RelPath=NAppWidgets.obx

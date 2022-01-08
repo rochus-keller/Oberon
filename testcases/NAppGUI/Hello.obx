@@ -2,7 +2,7 @@
 // Translated to Oberon+ by Rochus Keller
 
 module Hello
-  import G := NAppWidgets, C := NAppCore, D := NAppDraw2d
+  import G := NAppWidgets, C := NAppCore, D := NAppDraw
 var 
     window : *G.Window
     text : *G.TextView

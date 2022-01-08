@@ -7,7 +7,7 @@
 // and then manually improved by Rochus Keller
 // Original NAppGUI C API by Francisco Garcia Collado, MIT Licence
 
-definition NAppDraw2d [extern 'C', dll 'NAppGUI']
+definition NAppDraw [extern 'C', dll 'NAppGUI']
 
 		import C := NAppCore
 		
@@ -615,4 +615,4 @@ definition NAppDraw2d [extern 'C', dll 'NAppGUI']
     proc v2d_rotatef(v: *V2Df; a: real)
     proc v2d_rotated(v: *V2Dd; a: longreal)
 
-end NAppDraw2d
+end NAppDraw

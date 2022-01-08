@@ -1125,7 +1125,7 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
             out << "\"" << m.d_library << "\"";
         if( !m.d_origName.isEmpty() )
             out << " as \"" << m.d_origName << "\"";
-        out << ") ";
+        out << " cdecl) ";
         break;
     case IlEmitter::Virtual:
         out << "virtual "; // a virtual instance method

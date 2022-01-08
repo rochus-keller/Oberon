@@ -1760,7 +1760,7 @@ bool Ide::generate()
     // Pelib is factor 1.4 faster than Fastasm for generating the IL and factor ~3 incl. IL to assembly compilation;
     // compared to ilasm.exe for compilation (instead of fastasm.exe) Pelib is even a factor 29 faster.
 
-    const QString buildPath = d_pro->getBuildDir();
+    const QString buildPath = d_pro->getBuildDir(true);
     QDir buildDir(buildPath);
     if( !buildDir.mkpath(buildPath) )
     {
@@ -1816,7 +1816,7 @@ bool Ide::run()
         return false;
     if( !checkEngine() )
         return false;
-    QDir buildDir( d_pro->getBuildDir() );
+    QDir buildDir( d_pro->getBuildDir(true) );
     if( d_debugging && buildDir.entryList(QStringList() << "*.mdb", QDir::Files ).isEmpty() )
     {
         logMessage("No debugging information found, using bytecode level debugger",SysInfo);
@@ -1824,7 +1824,7 @@ bool Ide::run()
     }
     logMessage("\nStarting application...\n\n",SysInfo,false);
     d_eng->init( d_debugging ? d_dbg->open() : 0 );
-    d_eng->setAssemblySearchPaths( QStringList() << d_pro->getBuildDir(), true );
+    d_eng->setAssemblySearchPaths( QStringList() << d_pro->getBuildDir(true), true );
     d_eng->setEnv( "OBERON_FILE_SYSTEM_ROOT", d_pro->getWorkingDir(true) );
     d_eng->run( buildDir.absoluteFilePath("Main#.exe"));
     d_status = Running;
@@ -3141,7 +3141,7 @@ void Ide::onFinished(int exitCode, bool normalExit)
 {
     if( d_status == Generating )
     {
-        QDir outDir(d_pro->getBuildDir());
+        QDir outDir(d_pro->getBuildDir(true));
         QFile files(outDir.absoluteFilePath("modules"));
         if( files.open(QIODevice::ReadOnly) )
         {
@@ -3310,7 +3310,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.45");
+    a.setApplicationVersion("0.9.46");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

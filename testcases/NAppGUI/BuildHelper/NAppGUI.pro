@@ -316,6 +316,7 @@ SOURCES += \
     ../src/sewer/win/bstdimp.c
 LIBS += -lGdi32 -lUser32 -lShell32 -lComdlg32
 QMAKE_LFLAGS += "/DEF:$$PWD/NAppGUI.def"
+#NOTE: /Gd i.e. __cdecl is default for MSVC CL
 #DEF_FILE = 
 }
 

@@ -798,8 +798,13 @@ struct ObxCilGenImp : public AstVisitor
         emitter->addArgument("native int", "MethodPtr");
         emitter->endMethod();
         emitter->beginMethod("Invoke",true,IlEmitter::Instance,true);
-        if( !sig->d_return.isNull() )
-            emitter->setReturnType(formatType(sig->d_return.data(),sig->d_unsafe));
+        if( !sig->d_return.isNull() || sig->d_unsafe )
+        {
+            QByteArray ret = formatType(sig->d_return.data(),sig->d_unsafe);
+            if( sig->d_unsafe )
+                ret += " modopt([mscorlib]System.Runtime.CompilerServices.CallConvCdecl)";
+            emitter->setReturnType(ret);
+        }
         for( int i = 0; i < sig->d_formals.size(); i++ )
         {
             QByteArray type = formatType(sig->d_formals[i]->d_type.data(),sig->d_unsafe);
@@ -2721,7 +2726,10 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).call_(memberRef(func,varargs),pt->d_formals.size(),!pt->d_return.isNull());
         }else
         {
-            const QByteArray what = formatType(pt->d_return.data(), pt->d_unsafe) + " " + delegateRef(pt) + "::Invoke"
+            QByteArray ret = formatType(pt->d_return.data(), pt->d_unsafe);
+            if( pt->d_unsafe )
+                ret += " modopt([mscorlib]System.Runtime.CompilerServices.CallConvCdecl)";
+            const QByteArray what = ret + " " + delegateRef(pt) + "::Invoke"
                 + formatFormals(pt,false); // we don't support callbacks with varargs
 
             line(me->d_loc).callvirt_(what, pt->d_formals.size(),!pt->d_return.isNull());

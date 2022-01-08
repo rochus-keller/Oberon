@@ -9,7 +9,7 @@
 
 definition NAppWidgets [extern 'C', dll 'NAppGUI']
 
-	import C := NAppCore, D := NAppDraw2d
+	import C := NAppCore, D := NAppDraw
 	
     // from button.h
     proc button_push(): *Button
