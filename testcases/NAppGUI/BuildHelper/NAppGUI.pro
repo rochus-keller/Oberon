@@ -102,7 +102,7 @@ SOURCES += \
     ../src/sewer/qsort.c \
     ../src/sewer/types.c \
     ../src/sewer/unicode.c \
-    res_assert.c
+	res_assert.c
 
 HEADERS +=  \
     ../src/core/array.h \
@@ -223,7 +223,7 @@ HEADERS +=  \
     ../src/sewer/ptr.h \
     ../src/sewer/sewer.h \
     ../src/sewer/types.h \
-    ../src/sewer/unicode.h
+	../src/sewer/unicode.h
 
 linux {
 INCLUDEPATH += ../src/osgui/gtk3 ../src/draw2d/gtk3
@@ -321,7 +321,6 @@ QMAKE_LFLAGS += "/DEF:$$PWD/NAppGUI.def"
 }
 
 macx {
-#TODO: complete
 SOURCES += \
     ../src/osbs/unix/bfile.c \
     ../src/osbs/unix/bmutex.c \
@@ -329,7 +328,39 @@ SOURCES += \
     ../src/osbs/unix/bthread.c \
     ../src/osbs/unix/btime.c \
     ../src/osbs/unix/bsocket.c \
-    ../src/osbs/unix/sinfo.c
+	../src/osbs/unix/sinfo.c \
+	../src/sewer/unix/bmem_unix.c \
+	../src/sewer/unix/bstdimp.c \
+	../src/osbs/osx/sinfo.m \
+	../src/draw2d/osx/dctx_osx.m \
+	../src/draw2d/osx/draw2d_osx.m \
+	../src/draw2d/osx/osfont.m \
+	../src/draw2d/osx/osimage.m \
+	../src/osapp/osx/osapp_osx.m \
+	../src/osgui/osx/osbutton.m \
+	../src/osgui/osx/oscolor.m \
+	../src/osgui/osx/oscombo.m \
+	../src/osgui/osx/oscomwin.m \
+	../src/osgui/osx/oscontrol.m \
+	../src/osgui/osx/osedit.m \
+	../src/osgui/osx/osglobals.m \
+	../src/osgui/osx/osgui_osx.m \
+	../src/osgui/osx/oslabel.m \
+	../src/osgui/osx/oslistener.m \
+	../src/osgui/osx/ospanel.m \
+	../src/osgui/osx/ospopup.m \
+	../src/osgui/osx/osprogress.m \
+	../src/osgui/osx/osslider.m \
+	../src/osgui/osx/ostext.m \
+	../src/osgui/osx/osupdown.m \
+	../src/osgui/osx/osview.m \
+	../src/osgui/osx/osdrawctrl.m \
+	../src/osgui/osx/osmenu.m \
+	../src/osgui/osx/osmenuitem.m \
+	../src/osgui/osx/ossplit.m \
+	../src/osgui/osx/oswindow.m
 HEADERS += ../src/osapp/osmain_osx.h
+LIBS += -framework CoreFoundation -framework CoreGraphics -framework CoreText -framework AppKit
 }
+
 
