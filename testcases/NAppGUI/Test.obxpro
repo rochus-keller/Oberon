@@ -13,11 +13,9 @@ size=0
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppCore.obx
 1\RelPath=NAppCore.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppDraw.obx
-2\RelPath=NAppDraw.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/NAppWidgets.obx
-3\RelPath=NAppWidgets.obx
-size=3
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/Test3b.obx
+2\RelPath=Test3b.obx
+size=2
 
 [Packages]
 1\Name=@ByteArray()

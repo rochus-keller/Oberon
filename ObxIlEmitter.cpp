@@ -1006,7 +1006,10 @@ void IlEmitter::delta(int d)
     int s = d_stackDepth;
     s += d;
    // TODO Q_ASSERT( s >= 0 );
-    d_stackDepth = s;
+    if( s >= 0 )
+        d_stackDepth = s;
+    else
+        d_stackDepth = 0;
     if( d_stackDepth > d_maxStackDepth )
         d_maxStackDepth = d_stackDepth;
 }

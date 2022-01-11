@@ -95,4 +95,9 @@ public class Strings
 		for( int i = 0; i < len; i++ )
 			s[i] = System.Char.ToUpper(s[i]);
 	}
+	
+	public static void begïn()
+	{
+	}
+
 }

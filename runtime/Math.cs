@@ -116,5 +116,9 @@ public class Math
 	{
 		throw new System.Exception("not implemented");
 	}
+	
+	public static void begïn()
+	{
+	}
 
 }

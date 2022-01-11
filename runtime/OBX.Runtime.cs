@@ -337,9 +337,12 @@ namespace OBX
 				Type t = a.GetType(n);
 				if( t == null )
 					return false;
-				MethodInfo m = t.GetMethod("ping#");
+				MethodInfo m = t.GetMethod("begïn");
 				if( m == null )
+				{
+					System.Console.WriteLine("cannot find begïn method in " + n);
 					return false;
+				}
 				m.Invoke(null,null);
 				return true;
 			}catch

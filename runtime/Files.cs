@@ -395,4 +395,9 @@ public class Files
 		int i = 0; 
     	while( i < n ) { Write(r, x[i]); i++; }
 	}
+	
+	public static void begïn()
+	{
+	}
+
 }

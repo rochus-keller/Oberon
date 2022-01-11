@@ -67,4 +67,8 @@ public class Input
 		return (int)( ( System.DateTime.Now.Ticks - start.Ticks ) / 10 ); // microseconds
 	}
 	
+	public static void begïn()
+	{
+	}
+
 }

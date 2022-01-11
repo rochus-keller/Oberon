@@ -1,5 +1,5 @@
-module Test3
-	import C := NAppCore
+module Test4
+	import C := NAppCore, T := NAppCore
 
 type
 	Data = cstruct count: integer end
@@ -22,33 +22,32 @@ type
 		type DataPtr = *Data
 		var
 			p: DataPtr
+			res: longint
+			count: integer
 	begin
-		println("start worker")
+		C.log_printf("start worker")
 		p := cast(DataPtr,data)
-		println(p.count)
-		println(fibonacci(p.count))
-		println("end worker")
+		count := p.count
+		count := 35
+		res := fibonacci(count)
+		C.log_printf("count %d, result %lld", p.count, res )
+		C.log_printf("end worker")
 		return 0
 	end worker
-
-const
-	numOfThreads = 4
-		
+	
 var
-	t: carray numOfThreads of *C.Thread
+	t: *T.Thread
 	i: integer
-	d: carray numOfThreads of Data
+	d: Data
 begin
-	println("start Test3")
+	println("start Test4")
 	C.core_start()
-	for i := 0 to numOfThreads-1 do
-		d[i].count := 35 + i
-		t[i] := C.bthread_create_imp(worker, d[i])
-	end
-	for i := 0 to numOfThreads-1 do
-		C.bthread_wait(t[i])
-	end
+	d.count := 35
+	// check https://bugzilla.xamarin.com/15/15695/bug.html
+	t := T.bthread_create_imp(worker, d)
+	println("thread started")
+	T.bthread_wait(t)
 	//C.bthread_sleep(2000)
 	C.core_finish()
-	println("end Test3")
-end Test3
+	println("end Test4")
+end Test4

@@ -911,7 +911,7 @@ void Ide::onOpenPro()
     if( !checkSaved( tr("New Project")) )
         return;
 
-    const QString fileName = QFileDialog::getOpenFileName(this, tr("Open Project"),QString(),
+    const QString fileName = QFileDialog::getOpenFileName(this, tr("Open Project"),QDir::currentPath(),
                                                           tr("Oberon+ Project (*.obxpro)") );
     if (fileName.isEmpty())
         return;
@@ -3310,9 +3310,17 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.46");
+    a.setApplicationVersion("0.9.47");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
+
+#ifdef Q_OS_MAC
+    QDir cur = QCoreApplication::applicationDirPath();
+    cur.cdUp();
+    cur.cdUp();
+    cur.cdUp();
+    QDir::setCurrent(cur.path());
+#else
 
     Ide w;
     if( a.arguments().size() > 1 )

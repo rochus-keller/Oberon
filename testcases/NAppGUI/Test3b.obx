@@ -1,4 +1,4 @@
-module Test3
+module Test3b
 	import C := NAppCore
 
 type
@@ -31,24 +31,22 @@ type
 		return 0
 	end worker
 
-const
-	numOfThreads = 4
-		
 var
-	t: carray numOfThreads of *C.Thread
-	i: integer
-	d: carray numOfThreads of Data
+	//t0,t1: *C.Thread // works
+	t : carray 2 of *C.Thread 
+	//d0,d1,d2: Data // works
+	d : carray 2 of Data // works
 begin
 	println("start Test3")
 	C.core_start()
-	for i := 0 to numOfThreads-1 do
-		d[i].count := 35 + i
-		t[i] := C.bthread_create_imp(worker, d[i])
-	end
-	for i := 0 to numOfThreads-1 do
-		C.bthread_wait(t[i])
-	end
-	//C.bthread_sleep(2000)
+	d[0].count := 35
+	t[0] := C.bthread_create_imp(worker, d[0])
+	d[1].count := 36
+	t[1] := C.bthread_create_imp(worker, d[1])
+
+	C.bthread_wait(t[0])
+	C.bthread_wait(t[1])
+
 	C.core_finish()
 	println("end Test3")
-end Test3
+end Test3b

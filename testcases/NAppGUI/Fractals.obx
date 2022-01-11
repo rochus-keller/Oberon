@@ -1,8 +1,6 @@
 // Original Hello C app by Francisco Garcia Collado, MIT Licence
 // Translated to Oberon+ by Rochus Keller
 
-// TODO: Multi-threading from within NAppGUI does not yet work with Mono
-
 module Fractals
   import G := NAppWidgets, C := NAppCore, D := NAppDraw
   

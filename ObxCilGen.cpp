@@ -52,6 +52,7 @@ Q_DECLARE_METATYPE( Obx::Literal::SET )
 #define _CLI_VARARG_SUBST_PROCS_ // generated local substitution methods with the required signature instead of relying on
                                  // CLI pinvoke vararg implementation (which apparently doesn't work on all platforms/architectures).
 
+// #define _CLI_PASS_RAW_FUNCTION_POINTER // TODO
 
 // NOTE: even though CoreCLR replaced mscorlib by System.Private.CoreLib the generated code still runs with "dotnet Main.exe",
 // but the directory with the OBX assemblies requires a Main.runtimeconfig.json file as generated below
@@ -470,7 +471,7 @@ struct ObxCilGenImp : public AstVisitor
 #else
         const QByteArray sig = procTypeSignature(pt);
 #endif
-        const QByteArray name = "@" + delegateName(sig);
+        const QByteArray name = "Ð" + delegateName(sig); // using Ð (U+00D0) instead of @ for C# compatibility
         if( pt->declaredIn() == thisMod )
             delegates.insert(name,pt);
 
@@ -900,8 +901,35 @@ struct ObxCilGenImp : public AstVisitor
 
         if( !me->d_externC )
         {
-            emitter->beginMethod(".cctor", false, IlEmitter::Static ); // MODULE BEGIN
+            // instead of .cctor we now have an ordinary begïn method which is explicitly called via import
+            // dependency chain; this was necessary because during .cctor apparently not all relevant parts of
+            // Mono are ready, e.g. Thread.Join doesn't work an blocks all running threads instead.
+            // "begïn" (note the ï, U+00EF) is a compatible ident with C# (in contrast to e.g. begin#)
+            emitter->addField(escape("beginCalled#"),"bool",false,true);
+
+            emitter->beginMethod(".cctor", false, IlEmitter::Static );
+            line(me->d_end).ldc_i4(0);
+            line(me->d_end).stsfld_("bool " + moduleRef(thisMod)+"::'beginCalled#'");
+            line(me->d_end).ret_(false);
+            emitter->endMethod();
+
+            emitter->beginMethod(escape("begïn"), false, IlEmitter::Static ); // MODULE BEGIN
             beginBody();
+            line(me->d_end).ldsfld_("bool " + moduleRef(thisMod)+"::'beginCalled#'");
+            const int callPending = emitter->newLabel();
+            line(me->d_end).brfalse_(callPending);
+            line(me->d_end).ret_(callPending);
+            line(me->d_end).label_(callPending);
+            line(me->d_end).ldc_i4(1);
+            line(me->d_end).stsfld_("bool " + moduleRef(thisMod)+"::'beginCalled#'");
+
+            foreach( Import* imp, me->d_imports )
+            {
+                if(imp->d_mod->d_synthetic )
+                    continue; // ignore SYSTEM
+                const QByteArray mod = moduleRef(imp->d_mod.data());
+                line(me->d_end).call_("void " + mod + "::'begïn'()");
+            }
 
 #ifndef _MY_GENERICS_
             if( !me->d_metaParams.isEmpty() && me->d_metaActuals.isEmpty() )
@@ -936,38 +964,24 @@ struct ObxCilGenImp : public AstVisitor
                 s->accept(this);
             }
 
-#if 0  // TEST
-            foreach( Import* imp, me->d_imports )
-            {
-                if( imp->d_mod->d_synthetic || imp->d_mod->d_isDef )
-                    continue;
-                emitOpcode("call void class ['" + getName(imp->d_mod.data()) + "']'" +
-                           getName(imp->d_mod.data()) + "'" + formatMetaActuals(imp->d_mod.data()) + "::'ping#'()",0, me->d_begin );
-            }
-#if 0
-            emitOpcode( "ldstr \"this is " + me->getName() + "\"", 1, me->d_begin );
-            emitOpcode( "call void [mscorlib]System.Console::WriteLine (string)", -1, me->d_begin );
-#endif
-#endif
             line(me->d_end).ret_(false);
 
             emitLocalVars();
 
             emitter->endMethod();
-        }else if( checkPtrSize )
+        }else
         {
-            emitter->beginMethod(".cctor", false, IlEmitter::Static ); // MODULE BEGIN
-            beginBody();
-            emitCheckPtrSize(me->d_begin);
+            emitter->beginMethod(escape("begïn"), false, IlEmitter::Static ); // MODULE BEGIN
+            if( checkPtrSize )
+            {
+                beginBody();
+                emitCheckPtrSize(me->d_begin);
+            }
             line(me->d_end).ret_(false);
             emitter->endMethod();
         }
 
-#if 1 // NOP, can be removed later
-        emitter->beginMethod("'ping#'", true, IlEmitter::Static );
-        line(me->d_end).ret_();
-        emitter->endMethod();
-#endif
+        // ping# is no longer required because we explicitly call begïn of each module
 
         QSet<QByteArray> done;
         while( !copiers.isEmpty() )
@@ -1224,7 +1238,7 @@ struct ObxCilGenImp : public AstVisitor
 #endif
         emitter->addField(escape(me->d_name),formatType(me->d_type.data()), // there are no unsafe variables
                          me->d_visibility == Named::ReadWrite || me->d_visibility == Named::ReadOnly, true );
-        // initializer is emitted in module .cctor
+        // initializer is emitted in begïn
         structAsPointer = false;
     }
 
@@ -1809,6 +1823,12 @@ struct ObxCilGenImp : public AstVisitor
                 // stack: pointer to array
                 args->d_args.first()->accept(this);
                 // stack: pointer to array, index
+                const int len = desig->d_type->getByteSize();
+                if( len > 1 )
+                {
+                    line(desig->d_loc).ldc_i4(len);
+                    line(desig->d_loc).mul_();
+                }
                 line(desig->d_loc).add_();
                 return true;
             }else
@@ -2780,6 +2800,7 @@ struct ObxCilGenImp : public AstVisitor
                     line(loc).dup_(); // stack: this, this
                     line(loc).ldvirtftn_(memberRef(n)); // stack: this, fn
                     line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native int)", 2 );
+#ifndef _CLI_PASS_RAW_FUNCTION_POINTER
                 }else
                 {
                     // assign a normal procedure to a normal proc type variable
@@ -2787,8 +2808,19 @@ struct ObxCilGenImp : public AstVisitor
                     line(loc).ldftn_(memberRef(n));
                     line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native int)",2);
                 }
+#else
+                }else if( tfd == 0 || !tfd->d_unsafe )
+                {
+                    // assign a normal procedure to a normal proc type variable
+                    line(loc).ldnull_();
+                    line(loc).ldftn_(memberRef(n));
+                    line(loc).newobj_("void class " + delegateRef(pt) + "::.ctor(object, native int)",2);
+                }else
+                    line(loc).ldftn_(memberRef(n));
+#endif
             }//else: we copy a proc type variable, i.e. delegate already exists
 
+#ifndef _CLI_PASS_RAW_FUNCTION_POINTER
             if( tfd && tfd->d_unsafe && ( rhsIsProc && ( !ta->d_unsafe || tfd == ta ) ) )
             {
                 // we assign a newly created or existing deleg to an unsafe proc pointer
@@ -2800,7 +2832,7 @@ struct ObxCilGenImp : public AstVisitor
 
             if( tfd->d_unsafe && ( !ta->d_unsafe || rhsIsProc ) && ta->getBaseType() != Type::NIL )
                 line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::GetFunctionPointerForDelegate(class [mscorlib]System.Delegate)",1,true);
-
+#endif
             if( !tfd->d_unsafe && ta->d_unsafe && !rhsIsProc )
                 // TODO consider Marshal.GetDelegateForFunctionPointer(IntPtr, Type) if rhsIsProc and unsafe
                 err->error(Errors::Generator, Loc(loc,thisMod->d_file), "assignment of unsafe to a safe procedure pointer is not supported");
@@ -4254,31 +4286,31 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
     imports.append( "OBX.Runtime" );
     e->beginModule(mod, mod, imports,QString(),IlEmitter::ConsoleApp);
     e->beginMethod("main",false,IlEmitter::Primary);
-#if 1
+
     // call indirectly so that every exception is caught (Mono 3 & 5 debugger doesn't handle uncaught exceptions)
     e->ldnull_();
     QByteArray func;
-    if( !callFunc.isEmpty() )
-        func = "void ['" + callMod + "']'" + callMod + "'::'" + callFunc + "'()";
-    else
-        func = "void ['" + callMod + "']'" + callMod + "'::'ping#'()";
+    func = "void ['" + callMod + "']'" + callMod + "'::'begïn'()";
     e->ldftn_(func);
     e->newobj_("void class [OBX.Runtime]OBX.Command::'.ctor'(object, native int)");
-    //e->callvirt_("void [OBX.Runtime]OBX.Command::Invoke()",0);
     e->ldc_i4(1);
     e->call_("bool [OBX.Runtime]OBX.Runtime::pcall(class [OBX.Runtime]OBX.Command,bool)",2,true);
     // NOTE: this is delicate code an mishaps happen quickly leading to Mono runtime crashes!
     e->pop_();
-#else
+
     if( !callFunc.isEmpty() )
-        e->call_("void ['" + callMod + "']'" + callMod + "'::'" + callFunc + "'()");
-    else
-        e->call_("void ['" + callMod + "']'" + callMod + "'::'ping#'()");
-#if 0 // TEST
-    out << "    ldstr \"this is " << name << ".main\"" << endl;
-    out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
-#endif
-#endif
+    {
+        e->ldnull_();
+        func = "void ['" + callMod + "']'" + callMod + "'::'" + callFunc + "'()";
+        e->ldftn_(func);
+        e->newobj_("void class [OBX.Runtime]OBX.Command::'.ctor'(object, native int)");
+        //e->callvirt_("void [OBX.Runtime]OBX.Command::Invoke()",0);
+        e->ldc_i4(1);
+        e->call_("bool [OBX.Runtime]OBX.Runtime::pcall(class [OBX.Runtime]OBX.Command,bool)",2,true);
+        // NOTE: this is delicate code an mishaps happen quickly leading to Mono runtime crashes!
+        e->pop_();
+    }
+
     e->ret_();
     e->endMethod();
     e->endModule();
@@ -4300,25 +4332,18 @@ bool CilGen::generateMain(IlEmitter* e, const QByteArray& thisMod, const QByteAr
     e->beginModule(ObxCilGenImp::escape(thisMod),ObxCilGenImp::escape(thisMod), imports,QString(),IlEmitter::ConsoleApp);
 
     e->beginMethod("main",false,IlEmitter::Primary);
-#if 1
+
     foreach( const QByteArray& mod, callMods )
     {
         e->ldnull_();
-        const QByteArray func = "void ['" + mod + "']'" + mod + "'::'ping#'()";
+        const QByteArray func = "void ['" + mod + "']'" + mod + "'::'begïn'()";
         e->ldftn_(func);
         e->newobj_("void class [OBX.Runtime]OBX.Command::'.ctor'(object, native int)");
         e->ldc_i4(1);
         e->call_("bool [OBX.Runtime]OBX.Runtime::pcall(class [OBX.Runtime]OBX.Command,bool)",2,true);
         e->pop_();
     }
-#else
-    foreach( const QByteArray& mod, callMods )
-        e->call_("void ['" + mod + "']'" + mod + "'::'ping#'()");
-#if 0 // TEST
-    out << "    ldstr \"this is " << name << ".main\"" << endl;
-    out << "    call void [mscorlib]System.Console::WriteLine (string)" << endl;
-#endif
-#endif
+
     e->ret_();
     e->endMethod();
     e->endModule();

@@ -81,4 +81,8 @@ public static void Ln()
  	System.Console.Write("\n");
 }
 
+public static void begïn()
+{
+}
+
 }

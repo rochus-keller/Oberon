@@ -245,4 +245,8 @@ public class ObFiles
 			return 0;
 	}
 
+	public static void begïn()
+	{
+	}
+
 }

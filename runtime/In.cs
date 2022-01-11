@@ -255,4 +255,8 @@ public static void Name(char[] name)
 	name[i] = '\0';
 }
 
+	public static void begïn()
+	{
+	}
+
 }

@@ -327,4 +327,9 @@ public class XYplane
 			processEvents();
 		return dequeue();
 	}
+	
+	public static void begïn()
+	{
+	}
+
 }

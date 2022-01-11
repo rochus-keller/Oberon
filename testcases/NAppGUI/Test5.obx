@@ -1,0 +1,15 @@
+module Test5
+import T := NAppCore
+	proc worker(data: *void): integer 
+	begin 
+		println("hello from worker") 
+		return 0 
+	end worker
+var t: *T.Thread
+begin
+  println("start Test4")
+  t := T.bthread_create_imp(worker, nil)
+  println("thread created")
+  T.bthread_wait(t)
+  println("end Test4")
+end Test5
