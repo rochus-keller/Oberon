@@ -528,7 +528,7 @@ typedef struct _evtbcell_t EvTbCell;
 		proc osapp_finish()
 		proc osapp_task_imp(data: *void; updtime: integer; func_task_main: FPtr_task_main; 
 			func_task_update: FPtr_task_update; func_task_end: FPtr_task_end)
-		proc osapp_menubar(menu: Menu; window: Window)
+		proc osapp_menubar(menu: *Menu; window: *Window)
 		proc osapp_open_url(url: *[]char)
 		proc osmain_imp(argc: integer; argv: *[]*[]char; instance: *void; lframe: longreal; 
 			func_create: FPtr_app_create; func_update: FPtr_app_update; func_destroy: FPtr_destroy; 

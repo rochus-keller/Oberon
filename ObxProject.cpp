@@ -1071,7 +1071,17 @@ QString Project::getBuildDir(bool resolved) const
     // else
     QString bd = d_buildDir;
     bd.replace("%PRODIR%", QFileInfo(d_filePath).dir().path() );
-    bd.replace("%APPDIR%", QCoreApplication::applicationDirPath() );
+    QString path;
+#ifdef Q_OS_MAC
+    QDir cur = QCoreApplication::applicationDirPath();
+    cur.cdUp();
+    cur.cdUp();
+    cur.cdUp();
+    path = cur.path();
+#else
+    path = QCoreApplication::applicationDirPath();
+#endif
+    bd.replace("%APPDIR%", path );
     return bd;
 }
 

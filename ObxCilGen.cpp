@@ -2902,14 +2902,14 @@ struct ObxCilGenImp : public AstVisitor
         from = derefed(from);
         if( from == 0 )
             return;
-        const int bt = from->getBaseType();
-        if( toBaseType == bt )
+        const int fromBaseType = from->getBaseType();
+        if( toBaseType == fromBaseType )
             return;
         switch( toBaseType )
         {
         case Type::LONGREAL:
         case Type::REAL:
-            if( bt != Type::REAL && bt != Type::LONGREAL )
+            if( fromBaseType != Type::LONGREAL )
                 line(loc).conv_(IlEmitter::ToR8); // always r8 on stack
             break;
         case Type::LONGINT:
