@@ -319,7 +319,7 @@ namespace Obx
         Parameter* find( const QByteArray& ) const;
         void accept(AstVisitor* v) { v->visit(this); }
         bool isBuiltIn() const;
-        QString pretty() const { return d_typeBound ? "PROC^" : "PROC"; }
+        QString pretty() const { return d_typeBound ? "PROC(^)" : "PROC"; }
         quint32 getByteSize() const { return Pointer::s_pointerByteSize; }
     };
 

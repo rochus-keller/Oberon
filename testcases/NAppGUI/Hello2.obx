@@ -1,0 +1,110 @@
+// Original Hello C app by Francisco Garcia Collado, MIT Licence
+// Translated to Oberon+ by Rochus Keller
+
+module Hello
+  import G := NAppWidgets, C := NAppCore, D := NAppDraw
+  
+type
+		App = pointer to record
+			    window : *G.Window
+			    text : *G.TextView
+			    clicks1, clicks2 : integer
+		    end
+		    
+var 
+    app : App
+    callbacks : array 2 of proc(^)(data: *void; e: *C.Event)
+    
+  proc (this: App) OnButton1(data: *void; e: *C.Event)
+    var msg: [1]*C.String
+  begin
+    msg[0] := C.str_printf("Button 1 click (%d)"+0ax, this.clicks1) 
+    G.textview_writef(this.text, C.tc(msg[0])) 
+    C.str_destroy(msg)
+    inc(this.clicks1)
+  end OnButton1
+ 
+  proc (this: App) OnButton2(data: *void; e: *C.Event)
+    var msg: carray 1 of *C.String
+  begin
+    msg[0] := C.str_printf("Button 2 click (%d)"+0ax, this.clicks2) 
+    G.textview_writef(this.text, C.tc(msg[0])) 
+    C.str_destroy(msg)
+    inc(this.clicks2)
+  end OnButton2
+
+  proc i_OnButton(data: *void; e: *C.Event)
+  begin
+	  callbacks[cast(integer,data)](data,e)
+  end i_OnButton
+ 
+  proc i_panel(): *G.Panel
+  var
+    panel: *G.Panel
+    layout: *G.Layout
+    label: *G.Label
+    button1, button2: *G.Button
+  begin
+    panel := G.panel_create()
+    layout := G.layout_create(1, 4)
+    label := G.label_create()
+    button1 := G.button_push()
+    app.text := G.textview_create()
+    G.label_text(label, "Hello!, I'm a label")
+    G.button_text(button1, "Click One!")
+    callbacks[0] := app.OnButton1
+    G.button_OnClick(button1, C.listener_imp(0,i_OnButton))
+    G.layout_label(layout, label, 0, 0)
+    G.layout_button(layout, button1, 0, 1)
+    button2 := G.button_push()
+    G.button_text(button2, "Click Two!")
+    callbacks[1] := app.OnButton2
+    G.button_OnClick(button2, C.listener_imp(1,i_OnButton))
+    G.layout_button(layout, button2, 0, 2)
+    G.layout_textview(layout, app.text, 0, 3)
+    G.layout_hsize(layout, 0, 250)
+    G.layout_vsize(layout, 3, 100)
+    G.layout_margin(layout, 5)
+    G.layout_vmargin(layout, 0, 5)
+    G.layout_vmargin(layout, 1, 5)
+    G.layout_vmargin(layout, 2, 5)
+    G.panel_layout(panel, layout)
+    return panel
+  end i_panel
+  
+  proc i_OnClose(app: *void; e: *C.Event)
+  begin
+    G.osapp_finish()
+    //unref(app);
+    //unref(e);
+  end i_OnClose
+  
+  proc i_create()
+    var
+      panel: *G.Panel
+  begin
+    panel := i_panel()
+    app.window := G.window_create(G.ekWNSTD)
+    G.window_panel(app.window, panel)
+    G.window_title(app.window, "Hello, World!")
+    G.window_origin(app.window, D.v2df(500, 200))
+    G.window_OnClose(app.window, C.listener_imp(nil,i_OnClose))
+    G.window_show(app.window)
+  end i_create
+
+  proc i_destroy(item: *[]*void)
+    var w: carray 1 of *G.Window
+  begin
+    w[0] := app.window
+    G.window_destroy(w)
+    app.window := nil
+  end i_destroy
+  
+  proc i_update(app: *void; prtime: longreal; ctime: longreal)
+  begin
+  end i_update
+  
+begin
+	new(app)
+  G.osmain_imp(0, nil, nil, 0.0, i_create, nil, i_destroy, nil)
+end Hello

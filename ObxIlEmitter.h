@@ -148,7 +148,7 @@ namespace Obx
         void cgt_(bool withUnsigned = false);
         void clt_(bool withUnsigned = false);
         void cpblk_();
-        enum ToType { ToI1, ToI2, ToI4, ToI8, ToR4, ToR8, ToU1, ToU2, ToU4, ToU8 };
+        enum ToType { ToI1, ToI2, ToI4, ToI8, ToR4, ToR8, ToU1, ToU2, ToU4, ToU8, ToI };
         void conv_( ToType, bool withOverflow = false, bool withUnsignedOverflow = false );
         void div_(bool withUnsigned = false);
         void dup_();
@@ -234,7 +234,7 @@ namespace Obx
         IL_brinst_s, IL_brnull, IL_brnull_s, IL_brtrue, IL_brtrue_s, IL_brzero, IL_brzero_s, IL_call,
         IL_calli, IL_callvirt, IL_castclass, IL_ceq, IL_cgt, IL_cgt_un, IL_ckfinite, IL_clt,
         IL_clt_un, IL_constrained_, IL_conv_i, IL_conv_i1, IL_conv_i2, IL_conv_i4, IL_conv_i8, IL_conv_ovf_i,
-        IL_conv_ovf_IL_un, IL_conv_ovf_i1, IL_conv_ovf_i1_un, IL_conv_ovf_i2, IL_conv_ovf_i2_un, IL_conv_ovf_i4, IL_conv_ovf_i4_un, IL_conv_ovf_i8,
+        IL_conv_ovf_i_un, IL_conv_ovf_i1, IL_conv_ovf_i1_un, IL_conv_ovf_i2, IL_conv_ovf_i2_un, IL_conv_ovf_i4, IL_conv_ovf_i4_un, IL_conv_ovf_i8,
         IL_conv_ovf_i8_un, IL_conv_ovf_u, IL_conv_ovf_u_un, IL_conv_ovf_u1, IL_conv_ovf_u1_un, IL_conv_ovf_u2, IL_conv_ovf_u2_un, IL_conv_ovf_u4,
         IL_conv_ovf_u4_un, IL_conv_ovf_u8, IL_conv_ovf_u8_un, IL_conv_r_un, IL_conv_r4, IL_conv_r8, IL_conv_u, IL_conv_u1,
         IL_conv_u2, IL_conv_u4, IL_conv_u8, IL_cpblk, IL_cpobj, IL_div, IL_div_un, IL_dup,

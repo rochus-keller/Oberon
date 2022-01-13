@@ -2496,8 +2496,13 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             break;
         case BuiltIn::CAST:
-            Q_ASSERT( ae->d_args.size() == 2 );
-            ae->d_args.last()->accept(this);
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+                ae->d_args.last()->accept(this);
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                if( td && td->isInteger() )
+                    convertTo( td->getBaseType(), ae->d_args.last()->d_type.data(), ae->d_loc );
+            }
             break;
         case BuiltIn::ASSERT:
             {
@@ -2821,7 +2826,7 @@ struct ObxCilGenImp : public AstVisitor
             }//else: we copy a proc type variable, i.e. delegate already exists
 
 #ifndef _CLI_PASS_RAW_FUNCTION_POINTER
-            if( tfd && tfd->d_unsafe && ( rhsIsProc && ( !ta->d_unsafe || tfd == ta ) ) )
+            if( tfd->d_unsafe && ( rhsIsProc && ( !ta->d_unsafe || tfd == ta ) ) )
             {
                 // we assign a newly created or existing deleg to an unsafe proc pointer
                 // add a reference to it so the GC doesn't collect it while in callback
@@ -2841,6 +2846,8 @@ struct ObxCilGenImp : public AstVisitor
             line(loc).ldobj_(formatType(tf)); // the formal requires a cstruct by value, so we fetch it
         else if( tagf == Thing::T_BaseType )
             convertTo(tfd->getBaseType(), ta, ea->d_loc);
+        else if( tagf == Thing::T_Pointer && tfd->d_unsafe && ta->isInteger() )
+            line(ea->d_loc).conv_(IlEmitter::ToI);
     }
 
     void visit( ArgExpr* me )

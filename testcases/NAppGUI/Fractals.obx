@@ -269,7 +269,7 @@ type
     // unref(app);
     // unref(e);
   end i_OnClose
-
+  
   proc i_create()
     var panel: *G.Panel
   begin

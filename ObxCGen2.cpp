@@ -2202,8 +2202,13 @@ struct ObxCGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             break;
         case BuiltIn::CAST:
-            Q_ASSERT( ae->d_args.size() == 2 );
-            ae->d_args.last()->accept(this);
+            {
+                Q_ASSERT( ae->d_args.size() == 2 );
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                if( td && td->isInteger() )
+                    b << "(" << formatBaseType(td->getBaseType()) << ")";
+                ae->d_args.last()->accept(this);
+            }
             break;
         default:
              qCritical() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];

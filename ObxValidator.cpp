@@ -861,9 +861,10 @@ struct ValidatorImp : public AstVisitor
                 if( lhs == 0 || rhs == 0 )
                     break; // already reported
                 const int ltag = lhs->getTag();
+                const int rtag = rhs->getTag();
 
                 if( ltag == Thing::T_Pointer && lhs->d_unsafe &&
-                        rhs->getTag() == Thing::T_Pointer && rhs->d_unsafe )
+                        rtag == Thing::T_Pointer && rhs->d_unsafe )
                 {
                     Type* l = derefed(cast<Pointer*>(lhs)->d_to.data());
                     Type* r = derefed(cast<Pointer*>(rhs)->d_to.data());
@@ -872,6 +873,13 @@ struct ValidatorImp : public AstVisitor
                     if( ( ( l->getTag() == Thing::T_Record && !l->d_union ) || l->getBaseType() == Type::CVOID ) &&
                             ( ( r->getTag() == Thing::T_Record && !l->d_union ) || r->getBaseType() == Type::CVOID) )
                         return true; // we allow like C to cast void* to struct* and struct* to struct*
+                }
+
+                if( lhs->isInteger() && rtag == Thing::T_Pointer && rhs->d_unsafe )
+                {
+                    Type* r = derefed(cast<Pointer*>(rhs)->d_to.data());
+                    if( r && r->getBaseType() == Type::CVOID )
+                        return true; // we allow to cast void* to integer
                 }
 
                 if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
@@ -1068,6 +1076,29 @@ struct ValidatorImp : public AstVisitor
 #endif
 #endif
 
+#ifdef OBX_SUPPORT_CB_DELEG_
+        if( tftag == Thing::T_ProcType && tf->d_unsafe && !tf->d_typeBound
+                && tatag == Thing::T_ProcType && ta->d_typeBound )
+        {
+            ProcType* pf = cast<ProcType*>(tf);
+            ProcType* pa = cast<ProcType*>(ta);
+            if( matchingFormalParamLists(pf,pa) )
+                return; // works with CilGen out of the box; not feasible in plain C because we need a
+                        // unique function pointer per callback (i.e. the function pointer must
+                        // uniquely represent the receiver id too)
+        }
+#endif
+#ifdef _OBX_USE_NEW_FFI_
+        if( pt->d_unsafe && tf->d_unsafe && tftag == Thing::T_Pointer &&
+                ta->isInteger() && ta->getBaseType() != Type::LONGINT )
+        {
+            Type* fpt = derefed(cast<Pointer*>(tf)->d_to.data());
+            if( fpt->getBaseType() == Type::CVOID )
+                return; // allow passing up to 32 bit integers to *void params of unsafe procedures
+                        // if we allow it for all procedures this could be misused for pointer arithmetic
+        }
+#endif
+
         if( formal->d_var && !formal->d_const )
         {
             // check if VAR really gets a physical location
@@ -1133,6 +1164,8 @@ struct ValidatorImp : public AstVisitor
         {
             Expression* a = me->d_args[i].data();
             Type* t = derefed(a->d_type.data());
+            if( t == 0 )
+                continue; // error reported
             if( isArrayOfUnstructuredType(t) || t->isString() )
             {
                 Q_ASSERT( p->d_unsafe ); // only unsafe procs can be variadic
@@ -2070,6 +2103,10 @@ struct ValidatorImp : public AstVisitor
             checkRecordUse(me->d_return.data());
 
         }
+
+        if( me->d_unsafe && me->d_typeBound )
+            error(me->d_loc, Validator::tr("type-bound procedure types are not supported in external library modules") );
+
         checkNoAnyRecType(me->d_return.data());
         foreach( const Ref<Parameter>& p, me->d_formals )
         {
