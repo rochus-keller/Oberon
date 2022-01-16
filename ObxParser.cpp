@@ -20,6 +20,7 @@
 #include "ObxParser.h"
 #include "ObErrors.h"
 #include <QtDebug>
+#include <limits>
 using namespace Obx;
 using namespace Ob;
 
@@ -159,19 +160,55 @@ Ref<Literal> Parser::number()
                 d_cur.d_val.chop(1);
             }
             if( d_cur.d_val.endsWith('H') || d_cur.d_val.endsWith('h') )
-                val = d_cur.d_val.left(d_cur.d_val.size()-1).toLongLong(0,16);
-            else
-                val = d_cur.d_val.toLongLong();
+            {
+                bool ok;
+                const quint64 v = d_cur.d_val.left(d_cur.d_val.size()-1).toULongLong(&ok,16);
+                if( isInt )
+                {
+                    if( !ok || v > std::numeric_limits<quint32>::max() )
+                        semanticError(d_cur.toLoc(), tr("hex literal too large for INTEGER"));
+                    val = (qint32)(quint32)v;
+                }else
+                {
+                    if( !ok )
+                        semanticError(d_cur.toLoc(), tr("hex literal too large for LONGINT"));
+                    val = (qint64)v;
+                }
+            }else
+            {
+                bool ok;
+                const qint64 v = d_cur.d_val.toLongLong(&ok);
+                if( isInt )
+                {
+                    if( !ok || v > std::numeric_limits<qint32>::max() || v < std::numeric_limits<qint32>::min() )
+                        semanticError(d_cur.toLoc(), tr("literal too large for INTEGER"));
+                }
+                val = v;
+            }
             res = new Literal( Literal::Integer, d_cur.toRowCol(),val);
             res->d_wide = isLong;
             res->d_minInt = isInt;
         }
         break;
     case Tok_real:
-        next();
-        val = d_cur.d_val.toDouble(); // we save double in any case (JitComposer depends on it)
-        res = new Literal( Literal::Real, d_cur.toRowCol(),val);
-        res->d_wide = d_cur.d_double; // here we notice whether it is a float or a double
+        {
+            next();
+            QByteArray str = d_cur.d_val;
+            // NOTE strtof is not useful to find out whether float is good enough precision;
+            // a number like pi is just cut to float without error or HUGE_VALF
+            if( str.contains('d') || str.contains('D') )
+            {
+                str.replace('d','e');
+                str.replace('D','E');
+            }else if( str.contains('s') || str.contains('S') )
+            {
+                str.replace('s','e');
+                str.replace('S','E');
+            }
+            val = str.toDouble(); // we save double in any case (JitComposer depends on it)
+            res = new Literal( Literal::Real, d_cur.toRowCol(),val);
+            res->d_wide = d_cur.d_double;
+        }
         break;
     default:
         syntaxError( tr("expecting a number") );

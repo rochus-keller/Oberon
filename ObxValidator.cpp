@@ -554,6 +554,8 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 2 )
             {
                 Type* td = derefed(args->d_args.first()->d_type.data());
+                if( td == 0 )
+                    break; // already reported
                 if( !td->isInteger() )
                     error( args->d_args[0]->d_loc, Validator::tr("expecting integer argument"));
                 td = derefed(args->d_args.last()->d_type.data());
@@ -902,6 +904,8 @@ struct ValidatorImp : public AstVisitor
                 const int ltag = lhs->getTag();
                 if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
+                if( !lhs->isText() )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting array to char or wchar"));
                 // TODO: can we support carray of char/wchar here?
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
@@ -3162,16 +3166,23 @@ struct ValidatorImp : public AstVisitor
         const int ltag = lhsT->getTag();
         const int rtag = rhsT->getTag();
 
-        // T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~ or the pointers have _equal_ base types
+        // T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~
+        // or the pointers have _equal_ base types
         if( ltag == Thing::T_Pointer )
         {
             if( rtag == Thing::T_Pointer && equalType( lhsT, rhsT ) )
                 return true;
 
+#if 0
+            // TODO: why do we need this rule? There are actually two cases in BB which need it,
+            // but the original rule would allow assignment of safe to unsafe text pointer und vice versa
+            // which is not good
             bool lwide, rwide;
-            if( rtag == Thing::T_Pointer && ( lhsT->d_unsafe || rhsT->d_unsafe ) &&
+            if( rtag == Thing::T_Pointer &&
+                    ( lhsT->d_unsafe == rhsT->d_unsafe ) && // TODO: was || instead of == before, but makes no sense
                     lhsT->isText(&lwide,true) && rhsT->isText(&rwide,true) && lwide == rwide )
                 return true;
+#endif
         }
 
         // T~v~ is a pointer or a procedure type and `e` is NIL

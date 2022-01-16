@@ -56,7 +56,7 @@ struct EvalVisitor : public AstVisitor
     {
         if( r.d_vtype == Literal::Real )
             push( -r.d_value.toDouble(), r.d_vtype, r.d_wide );
-        if( r.d_vtype == Literal::Integer )
+        else if( r.d_vtype == Literal::Integer )
             push( -r.d_value.toLongLong(), r.d_vtype, r.d_wide, r.d_minInt );
         else
             error( e, Evaluator::tr("cannot invert sign of non numerical expression"));

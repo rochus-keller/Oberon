@@ -671,6 +671,26 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
 
 
     // from bmath.h
+    const
+			kBMATH_Ef = 2.7182818s0
+			kBMATH_Ed = 2.7182818284590452353602874713526624977572470937000
+			kBMATH_LN2f = 0.6931472s0
+			kBMATH_LN2d = 0.69314718055994530941723212145817656807550013436026
+			kBMATH_LN10f = 2.3025851s0
+			kBMATH_LN10d = 2.3025850929940456840179914546843642076011014886288
+			kBMATH_PIf = 3.1415927s0
+			kBMATH_PId = 3.1415926535897932384626433832795028841971693993751
+			kBMATH_SQRT2f = 1.4142136s0
+			kBMATH_SQRT2d = 1.4142135623730950488016887242096980785696718753769
+			kBMATH_SQRT3f = 1.7320508s0
+			kBMATH_SQRT3d = 1.732050807568877293527446
+			kBMATH_DEG2RADf = 0.0174533s0
+			kBMATH_DEG2RADd = 0.017453292519943
+			kBMATH_RAD2DEGf = 57.29578s0
+			kBMATH_RAD2DEGd = 57.29577951308232
+			kBMATH_INFINITYf = 1.s20
+			kBMATH_INFINITYd = 1.d38
+    
     proc bmath_cosf(angle: real): real
     proc bmath_cosd(angle: longreal): longreal
     proc bmath_sinf(angle: real): real
@@ -797,19 +817,19 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc to_u8(v: integer): byte
 
     // from unicode.h
-    proc unicode_convers(from_str: *[]char; to_str: *[]char; from: unicode_t; to_: unicode_t; osize: integer): integer
-    proc unicode_convers_n(from_str: *[]char; to_str: *[]char; from: unicode_t; to_: unicode_t; isize: integer; osize: integer): integer
-    proc unicode_convers_nbytes(str: *[]char; from: unicode_t; to_: unicode_t): integer
-    proc unicode_nbytes(str: *[]char; format: unicode_t): integer
-    proc unicode_nchars(str: *[]char; format: unicode_t): integer
-    proc unicode_to_u32(str: *[]char; format: unicode_t): integer
-    proc unicode_to_u32b(str: *[]char; format: unicode_t; bytes: *[]integer): integer
-    proc unicode_to_char(codepoint: integer; str: *[]char; format: unicode_t): integer
-    proc unicode_valid_str(str: *[]char; format: unicode_t): boolean
-    proc unicode_valid_str_n(str: *[]char; size: integer; format: unicode_t): boolean
+    proc unicode_convers(from_str: *void; to_str: *void; from: unicode_t; to_: unicode_t; osize: integer): integer
+    proc unicode_convers_n(from_str: *void; to_str: *void; from: unicode_t; to_: unicode_t; isize: integer; osize: integer): integer
+    proc unicode_convers_nbytes(str: *void; from: unicode_t; to_: unicode_t): integer
+    proc unicode_nbytes(str: *void; format: unicode_t): integer
+    proc unicode_nchars(str: *void; format: unicode_t): integer
+    proc unicode_to_u32(str: *void; format: unicode_t): integer
+    proc unicode_to_u32b(str: *void; format: unicode_t; bytes: *[]integer): integer
+    proc unicode_to_char(codepoint: integer; str: *void; format: unicode_t): integer
+    proc unicode_valid_str(str: *void; format: unicode_t): boolean
+    proc unicode_valid_str_n(str: *void; size: integer; format: unicode_t): boolean
     proc unicode_valid(codepoint: integer): boolean
-    proc unicode_next(str: *[]char; format: unicode_t): *[]char
-    proc unicode_back(str: *[]char; format: unicode_t): *[]char
+    proc unicode_next(str: *void; format: unicode_t): *void
+    proc unicode_back(str: *void; format: unicode_t): *void
     proc unicode_isascii(codepoint: integer): boolean
     proc unicode_isalnum(codepoint: integer): boolean
     proc unicode_isalpha(codepoint: integer): boolean

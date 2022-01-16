@@ -31,8 +31,8 @@ definition NAppWidgets [extern 'C', dll 'NAppGUI']
     // from cell.h
     proc cell_control_imp(cell: *Cell; type_: *[]char): *void
     proc cell_layout(cell: *Cell): *Layout
-    proc cell_enabled(cell: *Cell; enabled: char)
-    proc cell_visible(cell: *Cell; visible: char)
+    proc cell_enabled(cell: *Cell; enabled: boolean)
+    proc cell_visible(cell: *Cell; visible: boolean)
     proc cell_focus(cell: *Cell)
     proc cell_padding(cell: *Cell; pall: real)
     proc cell_padding2(cell: *Cell; ptb: real; plr: real)

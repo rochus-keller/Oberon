@@ -2158,6 +2158,18 @@ struct ObxCilGenImp : public AstVisitor
                 }
             }
             break;
+        case BuiltIn::STRLEN:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() );
+                Type* t = derefed(ae->d_args.first()->d_type.data() );
+                bool wide;
+                if( t->isText(&wide) )
+                {
+                    ae->d_args.first()->accept(this);
+                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
+                }
+            }
+            break;
         case BuiltIn::NEW:
             {
                 Q_ASSERT( !ae->d_args.isEmpty() );

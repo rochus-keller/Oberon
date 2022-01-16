@@ -13,17 +13,19 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
 		
     // from color.h
 
+		type color_t = integer
+		
 		const
 			kCOLOR_TRANSPARENT = 0
 			kCOLOR_DEFAULT = 0
-			kCOLOR_BLACK = 0FF000000h
-			kCOLOR_WHITE = 0FFFFFFFFh
-			kCOLOR_RED = 0FF0000FFh
-			kCOLOR_GREEN = 0FF00FF00h
-			kCOLOR_BLUE = 0FFFF0000h
-			kCOLOR_YELLOW = 0FF00FFFFh
-			kCOLOR_CYAN = 0FFFFFF00h
-			kCOLOR_MAGENTA = 0FFFF00FFh
+			kCOLOR_BLACK = 0FF000000hi
+			kCOLOR_WHITE = 0FFFFFFFFhi
+			kCOLOR_RED = 0FF0000FFhi
+			kCOLOR_GREEN = 0FF00FF00hi
+			kCOLOR_BLUE = 0FFFF0000hi
+			kCOLOR_YELLOW = 0FF00FFFFhi
+			kCOLOR_CYAN = 0FFFFFF00hi
+			kCOLOR_MAGENTA = 0FFFF00FFhi
 
     proc color_rgb(r: byte; g: byte; b: byte): integer
     proc color_rgba(r: byte; g: byte; b: byte; a: byte): integer
@@ -72,7 +74,7 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
         ekTOP = 1
 
     proc draw_line(ctx: *DCtx; x0: real; y0: real; x1: real; y1: real)
-    proc draw_polyline(ctx: *DCtx; closed: char; points: *V2Df; n: integer)
+    proc draw_polyline(ctx: *DCtx; closed: boolean; points: *[]V2Df; n: integer)
     proc draw_arc(ctx: *DCtx; x: real; y: real; radius: real; start: real; sweep: real)
     proc draw_bezier(ctx: *DCtx; x0: real; y0: real; x1: real; y1: real; x2: real; y2: real; x3: real; y3: real)
     proc draw_line_color(ctx: *DCtx; color: integer)
@@ -85,7 +87,7 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc draw_rndrect(ctx: *DCtx; op: drawop_t; x: real; y: real; width: real; height: real; radius: real)
     proc draw_circle(ctx: *DCtx; op: drawop_t; x: real; y: real; radius: real)
     proc draw_ellipse(ctx: *DCtx; op: drawop_t; x: real; y: real; radx: real; rady: real)
-    proc draw_polygon(ctx: *DCtx; op: drawop_t; points: *V2Df; n: integer)
+    proc draw_polygon(ctx: *DCtx; op: drawop_t; points: *[]V2Df; n: integer)
     proc draw_fill_color(ctx: *DCtx; color: integer)
     proc draw_fill_linear(ctx: *DCtx; color: *[]integer; stop: *[]real; n: integer; x0: real; y0: real; x1: real; y1: real)
     proc draw_fill_matrix(ctx: *DCtx; t2d: *T2Df)

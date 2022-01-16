@@ -337,11 +337,21 @@ static inline bool checkHexNumber( QByteArray str )
         return true;
 }
 
+static inline bool checkDecNumber( QByteArray str )
+{
+    for( int i = 0; i < str.size(); i++ )
+    {
+        if( !::isdigit(str[i]) )
+            return false;
+    }
+    return true;
+}
+
 Token Lexer::number()
 {
-    // integer      ::=  digit {digit} ['I' | 'L'] | digit {hexDigit} 'H'
-    // real         ::=  digit {digit} '.' {digit} [ScaleFactor] ['L']
-    // ScaleFactor  ::=  'E' ['+' | '-'] digit {digit}
+    // integer      ::=  digit {digit} ['I' | 'L'] | digit {hexDigit} 'H' ['I' | 'L']
+    // real         ::=  digit {digit} '.' {digit} [ScaleFactor]
+    // ScaleFactor  ::=  ('E'|'D'|'S') ['+' | '-'] digit {digit}
     const int startLine = d_lineNr;
     const int startCol = d_colNr;
     int lhsPlaces = 0, rhsPlaces = 0, expPlaces = 0;
@@ -349,25 +359,26 @@ Token Lexer::number()
     while( true )
     {
         const char c = lookAhead(off);
-        if( !isHexDigit(c) )
+        if( !isHexDigit(c) ) // also accepts d and e!
             break;
         else
             off++;
     }
     lhsPlaces = off;
     bool isHex = false;
-    bool isLong = false;
-    bool isInt = false;
+    bool is64bit = false;
+    bool is32bit = false;
     bool isChar = false;
     bool isReal = false;
+    int commaPos = -1, ePos = -1;
     const char o1 = lookAhead(off);
     if( o1 == 'L' || o1 == 'l' )
     {
-        isLong = true;
+        is64bit = true;
         off++;
     }else if( o1 == 'I' || o1 == 'i' )
     {
-        isInt = true;
+        is32bit = true;
         off++;
     }else if( o1 == 'H' || o1 == 'h' )
     {
@@ -376,11 +387,11 @@ Token Lexer::number()
         const char o2 = lookAhead(off);
         if( o2 == 'L' || o2 == 'l' )
         {
-            isLong = true;
+            is64bit = true;
             off++;
         }else if( o2 == 'I' || o2 == 'i' )
         {
-            isInt = true;
+            is32bit = true;
             off++;
         }
     }else if( o1 == 'X' || o1 == 'x' )
@@ -392,6 +403,9 @@ Token Lexer::number()
         ; // look for decimal point but not for range
     }else if( o1 == '.'  )
     {
+        if( !checkDecNumber(d_line.mid(d_colNr, off) ) )
+                return token( Tok_Invalid, off, "invalid mantissa" );
+        commaPos = off;
         off++;
         isReal = true;
         while( true )
@@ -403,10 +417,13 @@ Token Lexer::number()
                 off++;
             rhsPlaces++;
         }
-        const char de = lookAhead(off); // Oberon-2 allows E (REAL) or D (LONGREAL)
-        if( de == 'E' || de == 'D' || de == 'e' || de == 'd' )
+        const char de = lookAhead(off);
+        if( de == 'E' || de == 'D' || de == 'S' || de == 'e' || de == 'd' || de == 's' )
         {
-            isLong = ( de == 'D' || de == 'd' );
+            is64bit = ( de == 'D' || de == 'd' );
+            is32bit = ( de == 'S' || de == 's' );
+
+            ePos = off;
             off++;
             char o = lookAhead(off);
             if( o == '+' || o == '-' )
@@ -447,10 +464,40 @@ Token Lexer::number()
     else if( isReal)
     {
         Token tok = token( Tok_real, off, str );
-        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 || isLong ) // double has 52 bit mantissa, i.e. ~15 decimal digits
-            tok.d_double = true; // TODO should we trade decimal places with exponent width?
+#if 0
+        int i = 0;
+        while( lhsPlaces > 0 && i < str.size()  )
+        {
+            if(str[i++] == '0')
+                lhsPlaces--;
+            else
+                break;
+        }
+        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 || is64bit ) // double has 52 bit mantissa, i.e. ~15 decimal digits
+            tok.d_double = true;
+#else
+        QByteArray mantissa = ePos != -1 ? str.left(ePos) : str;
+        QByteArray lhs = mantissa;
+        if( commaPos != -1 )
+        {
+            lhs = lhs.left(commaPos);
+            mantissa.remove(commaPos,1);
+        }
+        bool mOk, lOk;
+        const quint64 l = lhs.toULongLong(&lOk);
+        const quint64 m = mantissa.toULongLong(&mOk); // !ok if mantissa is too large
+        const int e = ePos != -1 ? str.mid(ePos+1).toInt() : 0;
+        tok.d_double = !is32bit && ( !mOk || is64bit || e > 127 || e < -126 || m > 8388607 );
+        if( is32bit && ( !lOk || e > 127 || e < -126 || l > 8388607 ) )
+            return token( Tok_Invalid, off, "literal too large for REAL" );
+        if( tok.d_double && ( e > 1023 || e < -1022 || l > 9007199254740991L ) )
+            return token( Tok_Invalid, off, "literal too large for LONGREAL" );
+#endif
         return tok;
-    }else
+    }else if( !isHex && !checkDecNumber(str) )
+        return token( Tok_Invalid, off, "invalid decimal integer" );
+    else
+        // NOTE: we dont have to deal with is32bit and is64bit here because the string includes the suffices
         return token( Tok_integer, off, str );
 }
 

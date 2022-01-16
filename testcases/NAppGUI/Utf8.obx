@@ -1,0 +1,70 @@
+// Translated from various C sources to Oberon+ by Rochus Keller
+
+module Utf8
+
+	type
+		Utf8Str = pointer to array of char
+		
+	proc byteLenW*(in str: array of wchar):integer
+	var i,l, count, cp: integer
+	begin
+		l := strlen(str)
+		count := 0
+		for i := 0 to l-1 do
+			cp := ord(str[i])
+			if cp <= 80h then
+				count := count + 1
+			elsif cp <= 7FFh then
+				count := count + 2
+			elsif cp <= 0FFFFh then
+				count := count + 3
+			elsif cp <= 10FFFFh then
+				count := count + 4
+			else
+				assert(false)
+			end
+		end
+		return count
+	end byteLenW
+	
+	proc encode*(ch: wchar; var out: array of char; var i: integer)
+	var cp: integer
+	begin
+			cp := ord(ch)
+			if cp <= 80h then
+				out[i] := chr(cp)
+				i := i + 1
+			elsif cp <= 7FFh then
+				out[i] := chr(bitor(bitshr(cp,6),0C0h))
+				out[i+1] := chr(bitor(bitand(cp,3Fh),80h))
+				i := i + 2
+			elsif cp <= 0FFFFh then
+			  out[i] := chr(bitor(bitshr(cp, 12), 0E0h))
+        out[i+1] := chr(bitor(bitand(bitshr(cp, 6), 3Fh), 80h))
+        out[i+2] := chr(bitor(bitand(cp, 3Fh), 80h))
+				i := i + 3
+			elsif cp <= 10FFFFh then
+        out[i] := chr(bitor(bitshr(cp, 18), 0F0h))
+        out[i+1] := chr(bitor(bitand(bitshr(cp, 12), 03Fh), 080h))
+        out[i+2] := chr(bitor(bitand(bitshr(cp, 6), 03Fh), 080h))
+        out[i+3] := chr(bitor(bitand(cp, 03Fh), 080h))
+				i := i + 4
+			else
+				assert(false)
+			end
+	end encode
+
+	proc createW*(in str: array of wchar): Utf8Str
+	var res: Utf8Str
+		l, i, j: integer
+	begin
+		new(res, byteLenW(str)+1)
+		l := strlen(str)
+		j := 0
+		for i := 0 to l-1 do
+			encode(str[i],res^,j)
+		end
+		return res
+	end createW
+
+end Utf8

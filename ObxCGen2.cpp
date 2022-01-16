@@ -1954,6 +1954,22 @@ struct ObxCGenImp : public AstVisitor
                 }
             }
             break;
+        case BuiltIn::STRLEN:
+            {
+                Q_ASSERT( !ae->d_args.isEmpty() );
+                Type* t = derefed(ae->d_args.first()->d_type.data() );
+                bool wide;
+                if( t->isText(&wide) )
+                {
+                    if( wide )
+                        b << "wcslen((wchar_t*)";
+                    else
+                        b << "strlen((char*)";
+                    renderArg(0, ae->d_args.first().data(),false);
+                    b << ".$a)";
+                }
+            }
+            break;
         case BuiltIn::NEW:
             {
                 Q_ASSERT( !ae->d_args.isEmpty() );
@@ -2527,6 +2543,7 @@ struct ObxCGenImp : public AstVisitor
                 b << "}";
             }else
             {
+                // TODO: convert array of char to array of wchar if necessary
                 const bool addrOf = passByRef(p) && ( ta->getTag() != Thing::T_Array && !ta->isString() );
                 renderArg2(p->d_type.data(), me->d_args[i].data(), addrOf );
             }
