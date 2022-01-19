@@ -717,8 +717,9 @@ struct ValidatorImp : public AstVisitor
                 if( lhs == 0 )
                     return false; // already reported
                 const int ltag = lhs->getTag();
-                if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType )
-                    error( args->d_args.first()->d_loc, Validator::tr("expecting array or string argument"));
+                if( ltag != Thing::T_Array && lhs != bt.d_stringType && lhs != bt.d_wstringType
+                        && lhs != bt.d_byteArrayType )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting array, string or bytearray argument"));
                 if( ltag == Thing::T_Array )
                 {
                     Array* a = cast<Array*>(lhs);
@@ -1061,12 +1062,13 @@ struct ValidatorImp : public AstVisitor
         // BBOX supports passing RECORD and ARRAY to var/in or value UNSAFE POINTER parameters,
         // implicit address of supported in Oberon+ in calls to external library module procedures
         if( tftag == Thing::T_Pointer && ( tatag == Thing::T_Record || tatag == Thing::T_Array
-                                           || ta == bt.d_stringType || ta == bt.d_wstringType ) )
+                                           || ta == bt.d_stringType || ta == bt.d_wstringType ||
+                                           ta == bt.d_byteArrayType ) )
         {
             const bool memloc = isMemoryLocation(actual.data());
             const bool notpriv = actual->visibilityFor(mod) != Named::Private;
             const bool scalarr = isArrayOfUnstructuredType(ta);
-            const bool strlit = ta == bt.d_stringType || ta == bt.d_wstringType;
+            const bool strlit = ta == bt.d_stringType || ta == bt.d_wstringType || ta == bt.d_byteArrayType;
             if( /* pt->d_unsafe && */ // no, allow it for all params; doesnt make sense to allow it
                     // on assignment everywhere, but at the same time only for passing to unsafe procs
                     tf->d_unsafe &&
@@ -3321,6 +3323,9 @@ struct ValidatorImp : public AstVisitor
                              // not var. So we could well remove this rule and fix the BBOX code, but too many places.
 #endif
 #endif
+            if( lhs->d_const && rhs->getTag() == Thing::T_Literal &&
+                    lat == bt.d_byteType && ta == bt.d_byteArrayType )
+                return true; // support passing bytearray literals to IN ARRAY TO BYTE
 
             return false;
         }else
@@ -3333,6 +3338,8 @@ struct ValidatorImp : public AstVisitor
                 Type* fpt = derefed(cast<Pointer*>(tf)->d_to.data());
                 Type* apt = derefed(cast<Pointer*>(ta)->d_to.data());
                 if( fpt->isText() && apt->isText() ) // covers literals and c/array of char
+                    return true;
+                if( fpt->isByteArray() && apt->isByteArray() ) // covers bytearray literals and c/array of byte
                     return true;
                 if( fpt->getTag() == Thing::T_Array && apt->getTag() == Thing::T_Array && // covers all other arrays
                         equalType( cast<Array*>(fpt)->d_type.data(), cast<Array*>(apt)->d_type.data() ) )

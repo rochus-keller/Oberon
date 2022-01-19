@@ -101,7 +101,7 @@ void Highlighter::highlightBlock(const QString& text)
 
 
     int start = 0;
-    if( lexerState > 0 )
+    if( lexerState == 1 )
     {
         // wir sind in einem Multi Line Comment
         // suche das Ende
@@ -123,6 +123,26 @@ void Highlighter::highlightBlock(const QString& text)
             braceDepth--;
             start = pos;
         }
+    }else if( lexerState == 2 )
+    {
+        // wir sind in einem multi line hex string
+        QTextCharFormat f = formatForCategory(C_Str);
+        f.setProperty( TokenProp, int(Tok_hexstring) );
+        const int pos = text.indexOf('$');
+        if( pos == -1 )
+        {
+            // the whole block ist part of the hex string
+            setFormat( start, text.size(), f );
+            setCurrentBlockState( (braceDepth << 8) | lexerState);
+            return;
+        }else
+        {
+            // End of hex string found
+            setFormat( start, pos , f );
+            lexerState = 0;
+            braceDepth--;
+            start = pos;
+        }
     }
 
 
@@ -131,7 +151,7 @@ void Highlighter::highlightBlock(const QString& text)
     lex.setPackComments(false);
     lex.setEnableExt(d_enableExt);
 
-    QList<Token> tokens =  lex.tokens(text.mid(start));
+    QList<Token> tokens = lex.tokens(text.mid(start));
     for( int i = 0; i < tokens.size(); ++i )
     {
         Token &t = tokens[i];
@@ -145,12 +165,28 @@ void Highlighter::highlightBlock(const QString& text)
             braceDepth++;
             f = formatForCategory(C_Cmt);
             lexerState = 1;
+        }else if(t.d_type == Tok_hexstring )
+        {
+            f = formatForCategory(C_Str);
+        }else if( t.d_type == Tok_Dlr )
+        {
+            if( !t.d_val.isEmpty() )
+            {
+                braceDepth++;
+                lexerState = 2;
+                // multi line hex string
+            }else
+            {
+                braceDepth--;
+                lexerState = 0;
+            }
+            f = formatForCategory(C_Str);
         }else if( t.d_type == Tok_Ratt )
         {
             braceDepth--;
             f = formatForCategory(C_Cmt);
             lexerState = 0;
-        }else if( t.d_type == Tok_string || t.d_type == Tok_hexchar || t.d_type == Tok_hexstring )
+        }else if( t.d_type == Tok_string || t.d_type == Tok_hexchar )
             f = formatForCategory(C_Str);
         else if( t.d_type == Tok_real || t.d_type == Tok_integer )
             f = formatForCategory(C_Num);

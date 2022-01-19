@@ -1398,6 +1398,36 @@ bool Type::isText(bool* wide, bool resolvePtr) const
     return false;
 }
 
+bool Type::isByteArray(bool resolvePtr) const
+{
+    Type* t = const_cast<Type*>(this);
+    int tag = t->getTag();
+    if( resolvePtr && tag == Thing::T_Pointer )
+    {
+        Pointer* p = cast<Pointer*>(t);
+        t = p->d_to.data();
+        if( t )
+            t = t->derefed();
+        tag = t ? t->getTag() : 0;
+    }
+    if( t->getBaseType() == Type::BYTEARRAY )
+    {
+        // we also accept pointer to bytearray literal
+        // this can happen with automatic ADDROF
+        return true;
+    }
+    if( tag == Thing::T_Array )
+    {
+        Array* a = cast<Array*>(t);
+        t = a->d_type.data();
+        if( t )
+            t = t->derefed();
+        if( t && t->getBaseType() == Type::BYTE )
+            return true;
+    }
+    return false;
+}
+
 Record*Type::toRecord(bool* isPtr) const
 {
     if( isPtr )

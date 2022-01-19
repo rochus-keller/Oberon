@@ -6,6 +6,7 @@ namespace Ob {
 		switch(r) {
 			case Tok_Invalid: return "<invalid>";
 			case Tok_Hash: return "#";
+			case Tok_Dlr: return "$";
 			case Tok_Amp: return "&";
 			case Tok_Lpar: return "(";
 			case Tok_Latt: return "(*";
@@ -92,6 +93,7 @@ namespace Ob {
 		switch(r) {
 			case Tok_Invalid: return "Tok_Invalid";
 			case Tok_Hash: return "Tok_Hash";
+			case Tok_Dlr: return "Tok_Dlr";
 			case Tok_Amp: return "Tok_Amp";
 			case Tok_Lpar: return "Tok_Lpar";
 			case Tok_Latt: return "Tok_Latt";
@@ -192,6 +194,9 @@ namespace Ob {
 		switch( at(str,i) ){
 		case '#':
 			res = Tok_Hash; i += 1;
+			break;
+		case '$':
+			res = Tok_Dlr; i += 1;
 			break;
 		case '&':
 			res = Tok_Amp; i += 1;

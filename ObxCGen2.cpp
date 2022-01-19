@@ -1193,7 +1193,11 @@ struct ObxCGenImp : public AstVisitor
                 b << "(const struct OBX$Array$1){";
                 b << ba.length() << ",1,&(const uint8_t[]){";
                 for( int i = 0; i < ba.size(); i++ )
+                {
+                    if( i != 0 && i % 16 == 0 )
+                        b << endl << ws();
                     b << "0x" << QByteArray::number(quint8(ba[i]),16) << ", ";
+                }
                 b << "}}";
             }
             break;
@@ -1436,10 +1440,12 @@ struct ObxCGenImp : public AstVisitor
             }
             break;
         case UnExpr::ADDROF:
-            if( prevT && ( prevT->getTag() == Thing::T_Array || prevT->isString() ) )
+            if( prevT && ( prevT->getTag() == Thing::T_Array ||
+                           prevT->isString() || prevT->getBaseType() == Type::BYTEARRAY ) )
             {
                 me->d_sub->accept(this); // the address of a safe and unsafe array is just the array
-                if( ( me->d_sub->getUnOp() == UnExpr::DEREF && !prevT->d_unsafe ) || prevT->isString() )
+                if( ( me->d_sub->getUnOp() == UnExpr::DEREF && !prevT->d_unsafe )
+                        || prevT->isString() || prevT->getBaseType() == Type::BYTEARRAY )
                     b << ".$a";
             }else
             {
@@ -1934,11 +1940,23 @@ struct ObxCGenImp : public AstVisitor
                 Type* t = derefed(ae->d_args.first()->d_type.data() );
                 if( t && t->getTag() == Thing::T_Pointer )
                     t = derefed( cast<Pointer*>(t)->d_to.data() );
-                if( t->isString() )
+                if( t->isString() || t->getBaseType() == Type::BYTEARRAY )
                 {
-                    Q_ASSERT(ae->d_args.first()->getTag() == Thing::T_Literal);
-                    Literal* l = cast<Literal*>(ae->d_args.first().data());
-                    b << "( " << l->d_strLen << " + 1 )";
+                    b << "( ";
+                    if( ae->d_args.first()->getTag() == Thing::T_Literal )
+                    {
+                        Literal* l = cast<Literal*>(ae->d_args.first().data());
+                        b << l->d_strLen;
+                    }else if( ae->d_args.first()->getIdent() &&
+                              ae->d_args.first()->getIdent()->getTag() == Thing::T_Const )
+                    {
+                        Const* c = cast<Const*>(ae->d_args.first()->getIdent());
+                        b << c->d_strLen;
+                    }else
+                        Q_ASSERT(false);
+                    if( t->isString() )
+                        b << " + 1";
+                    b << ")";
                 }else
                 {
                     Q_ASSERT( t->getTag() == Thing::T_Array );
@@ -2535,7 +2553,8 @@ struct ObxCGenImp : public AstVisitor
                 b << ", ";
             Parameter* p = pt->d_formals[i].data();
             Type* ta = derefed(me->d_args[i]->d_type.data());
-            if( p->d_const && !ta->isStructured(true) && !ta->isString() && !isLvalue(me->d_args[i].data()) )
+            if( p->d_const && !ta->isStructured(true) && !ta->isString() &&
+                    ta->getBaseType() != Type::BYTEARRAY && !isLvalue(me->d_args[i].data()) )
             {
                 // if IN and not an lvalue and not structured use a compound literal
                 b << "&(" << formatType(ta) << "){";
@@ -2544,7 +2563,8 @@ struct ObxCGenImp : public AstVisitor
             }else
             {
                 // TODO: convert array of char to array of wchar if necessary
-                const bool addrOf = passByRef(p) && ( ta->getTag() != Thing::T_Array && !ta->isString() );
+                const bool addrOf = passByRef(p) &&
+                        ( ta->getTag() != Thing::T_Array && !ta->isString() && ta->getBaseType() != Type::BYTEARRAY );
                 renderArg2(p->d_type.data(), me->d_args[i].data(), addrOf );
             }
         }

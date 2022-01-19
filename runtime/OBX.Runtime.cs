@@ -498,5 +498,27 @@ namespace OBX
 			else
 				return x >> (-n); // uses shr.un
 		}
+		
+		// https://stackoverflow.com/a/9995303/10830469
+		public static byte[] StringToByteArray(string hex) {
+			int len = hex.Length >> 1;
+		    byte[] arr = new byte[len];
+
+		    for (int i = 0; i < len; ++i)
+		    {
+		        arr[i] = (byte)((GetHexVal(hex[i << 1]) << 4) + (GetHexVal(hex[(i << 1) + 1])));
+		    }
+
+		    return arr;
+		}
+		public static int GetHexVal(char hex) {
+		    int val = (int)hex;
+		    //For uppercase A-F letters:
+		    //return val - (val < 58 ? 48 : 55);
+		    //For lowercase a-f letters:
+		    //return val - (val < 58 ? 48 : 87);
+		    //Or the two combined, but a bit slower:
+        	return val - (val < 58 ? 48 : (val < 97 ? 55 : 87));
+    	}
 	}
 }

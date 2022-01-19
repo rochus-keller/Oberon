@@ -1,4 +1,4 @@
-// Original Hello C app by Francisco Garcia Collado, MIT Licence
+// Original Fractals C app by Francisco Garcia Collado, MIT Licence
 // Translated to Oberon+ by Rochus Keller
 
 module Fractals

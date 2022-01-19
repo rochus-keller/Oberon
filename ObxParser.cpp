@@ -789,8 +789,14 @@ Ref<Expression> Parser::literal()
         }
         break;
     case Tok_hexstring:
-        next();
-        return new Literal(Literal::Bytes, d_cur.toRowCol(), QByteArray::fromHex( d_cur.d_val.mid(1, d_cur.d_val.size() - 2)));
+        {
+            next();
+            const QByteArray bytes = QByteArray::fromHex( d_cur.d_val );
+            Ref<Literal> lit =  new Literal(Literal::Bytes, d_cur.toRowCol(), bytes );
+            lit->d_strLen = bytes.size();
+            return lit.data();
+        }
+        break;
     case Tok_hexchar:
         {
             next();

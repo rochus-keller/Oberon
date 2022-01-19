@@ -9,8 +9,8 @@
 
 definition NAppWidgets [extern 'C', dll 'NAppGUI']
 
-	import C := NAppCore, D := NAppDraw
-	
+  import C := NAppCore, D := NAppDraw
+  
     // from button.h
     proc button_push(): *Button
     proc button_check(): *Button
@@ -59,7 +59,7 @@ definition NAppWidgets [extern 'C', dll 'NAppGUI']
     proc combo_set_elem(combo: *Combo; index: integer; text: *[]char; image: *D.Image)
     proc combo_ins_elem(combo: *Combo; index: integer; text: *[]char; image: *D.Image)
     proc combo_del_elem(combo: *Combo; index: integer)
-    proc combo_duplicates(combo: *Combo; duplicates: char)
+    proc combo_duplicates(combo: *Combo; duplicates: boolean)
 
     // from comwin.h
     proc comwin_open_file(parent: *Window; ftypes: *[]*[]char; size: integer; start_dir: *[]char): *[]char
@@ -74,9 +74,9 @@ definition NAppWidgets [extern 'C', dll 'NAppGUI']
     proc edit_text(edit: *Edit; text: *[]char)
     proc edit_font(edit: *Edit; font: *D.Font)
     proc edit_align(edit: *Edit; align: D.align_t)
-    proc edit_passmode(edit: *Edit; passmode: char)
-    proc edit_editable(edit: *Edit; is_editable: char)
-    proc edit_autoselect(edit: *Edit; autoselect: char)
+    proc edit_passmode(edit: *Edit; passmode: boolean)
+    proc edit_editable(edit: *Edit; is_editable: boolean)
+    proc edit_autoselect(edit: *Edit; autoselect: boolean)
     proc edit_tooltip(edit: *Edit; text: *[]char)
     proc edit_color(edit: *Edit; color: integer)
     proc edit_color_focus(edit: *Edit; color: integer)
@@ -104,7 +104,7 @@ definition NAppWidgets [extern 'C', dll 'NAppGUI']
     proc gui_text(id: ResId): *[]char
     proc gui_image(id: ResId): *D.Image
     proc gui_file(id: ResId; size: *[]integer): *[]byte
-    proc gui_dark_mode(): char
+    proc gui_dark_mode(): boolean
     proc gui_alt_color(light_color: integer; dark_color: integer): integer
     proc gui_label_color(): integer
     proc gui_view_color(): integer
@@ -115,7 +115,7 @@ definition NAppWidgets [extern 'C', dll 'NAppGUI']
     proc gui_mouse_pos(): D.V2Df
     proc gui_OnThemeChanged(listener: *C.Listener)
     proc evbind_object_imp(e: *C.Event; type_: *[]char): *void
-    proc evbind_modify_imp(e: *C.Event; type_: *[]char; size: shortint; mname: *[]char; mtype: *[]char; moffset: shortint; msize: shortint): char
+    proc evbind_modify_imp(e: *C.Event; type_: *[]char; size: shortint; mname: *[]char; mtype: *[]char; moffset: shortint; msize: shortint): boolean
 
     // from gui.hxx
     type
@@ -212,48 +212,74 @@ definition NAppWidgets [extern 'C', dll 'NAppGUI']
         mouse_t = ( mouse_t_invalid, ekMLEFT, ekMRIGHT, ekMMIDDLE )
         
         EvButton = cstruct
-	            index: integer
-					    state: state_t
-					    text: *[]char
-					    end
-				EvSlider = cstruct
-										pos: real
-								    incr: real
-								    step: integer
-								   end
-				EvText = cstruct
-							    text: *[]char
-							    cpos: integer
-							    end
-				EvTextFilter = cstruct
-								apply: boolean
-								text: carray kTEXTFILTER_SIZE of char
-								cpos: integer
-								end
-				EvDraw = cstruct
-									ctx: *D.DCtx
-									x,y,width,height: integer
-									end
-(* TODO
-typedef struct _evmouse_t EvMouse;
-typedef struct _evwheel_t EvWheel;
-typedef struct _evkey_t EvKey;
-typedef struct _evpos_t EvPos;
-typedef struct _evsize_t EvSize;
-typedef struct _evwinclose_t EvWinClose;
-typedef struct _evmenu_t EvMenu;
+                index: integer
+                state: state_t
+                text: *[]char
+                end
+        EvSlider = cstruct
+                pos: real
+                incr: real
+                step: integer
+                end
+        EvText = cstruct
+                text: *[]char
+                cpos: integer
+                end
+        EvTextFilter = cstruct
+                apply: boolean
+                text: carray kTEXTFILTER_SIZE of char
+                cpos: integer
+                end
+        EvDraw = cstruct
+                ctx: *D.DCtx
+                x,y,width,height: integer
+                end
+        EvMouse = cstruct
+                x, y: real
+                button: mouse_t
+                count: integer
+                end
+        EvWheel = cstruct
+                x, y, dx, dy, dz: real
+                end
+        EvKey = cstruct
+                key: C.vkey_t
+                end
+        EvPos = cstruct
+                x, y: real
+                end
+        EvSize = cstruct
+                width, height: real
+                end
+        EvWinClose = cstruct
+                origin: close_t
+                end
+        EvMenu = cstruct
+                index: integer
+                state: state_t
+                str: *[]char
+                end
+        EvHeader = cstruct
+                index: integer
+                width: real
+                end
+        EvTbPos = cstruct
+                col, row: integer
+                end
+        EvTbRow = cstruct
+                bgcolor: D.color_t
+                end
+        EvTbCell = cstruct
+                flags: integer
+                text: *[]char
+                checked: boolean
+                bgcolor: D.color_t
+                end
 
-typedef struct _evheader_t EvHeader;
-typedef struct _evtbpos_t EvTbPos;
-typedef struct _evtbrow_t EvTbRow;
-typedef struct _evtbcell_t EvTbCell;
-*)
-		const kTEXTFILTER_SIZE =  1024
+    const kTEXTFILTER_SIZE =  1024
 
     type
         close_t = ( close_t_invalid, ekCLESC, ekCLINTRO, ekCLBUTTON, ekCLDEACT )
-
-    //proc arrst_FPtrCResPack_end
 
     // from imageview.h
     type
@@ -303,7 +329,7 @@ typedef struct _evtbcell_t EvTbCell;
     proc layout_layout(layout: *Layout; sublayout: *Layout; col: integer; row: integer)
     proc layout_control_imp(layout: *Layout; col: integer; row: integer; type_: *[]char): *void
     proc layout_taborder(layout: *Layout; order: orient_t)
-    proc layout_tabstop(layout: *Layout; col: integer; row: integer; tabstop: char)
+    proc layout_tabstop(layout: *Layout; col: integer; row: integer; tabstop: boolean)
     // TODO proc layout_content_size(layout: *Layout; size: D.S2Df)
     proc layout_hsize(layout: *Layout; col: integer; width: real)
     proc layout_vsize(layout: *Layout; row: integer; height: real)
@@ -317,8 +343,8 @@ typedef struct _evtbcell_t EvTbCell;
     proc layout_vexpand3(layout: *Layout; row1: integer; row2: integer; row3: integer; exp1: real; exp2: real)
     proc layout_halign(layout: *Layout; col: integer; row: integer; align: D.align_t)
     proc layout_valign(layout: *Layout; col: integer; row: integer; align: D.align_t)
-    proc layout_show_col(layout: *Layout; col: integer; visible: char)
-    proc layout_show_row(layout: *Layout; row: integer; visible: char)
+    proc layout_show_col(layout: *Layout; col: integer; visible: boolean)
+    proc layout_show_row(layout: *Layout; row: integer; visible: boolean)
     proc layout_margin(layout: *Layout; mall: real)
     proc layout_margin2(layout: *Layout; mtb: real; mlr: real)
     proc layout_margin4(layout: *Layout; mt: real; mr: real; mb: real; ml: real)
@@ -333,18 +359,18 @@ typedef struct _evtbcell_t EvTbCell;
     proc listbox_create(): *ListBox
     proc listbox_OnSelect(listbox: *ListBox; listener: *C.Listener)
     proc listbox_size(listbox: *ListBox; size: D.S2Df)
-    proc listbox_checkbox(listbox: *ListBox; show: char)
-    proc listbox_multisel(listbox: *ListBox; multisel: char)
+    proc listbox_checkbox(listbox: *ListBox; show: boolean)
+    proc listbox_multisel(listbox: *ListBox; multisel: boolean)
     proc listbox_add_elem(listbox: *ListBox; text: *[]char; image: *D.Image)
     proc listbox_set_elem(listbox: *ListBox; index: integer; text: *[]char; image: *D.Image)
     proc listbox_clear(listbox: *ListBox)
     proc listbox_color(listbox: *ListBox; index: integer; color: integer)
-    proc listbox_select(listbox: *ListBox; index: integer; select: char)
-    proc listbox_check(listbox: *ListBox; index: integer; check: char)
+    proc listbox_select(listbox: *ListBox; index: integer; select: boolean)
+    proc listbox_check(listbox: *ListBox; index: integer; check: boolean)
     proc listbox_count(listbox: *ListBox): integer
     proc listbox_text(listbox: *ListBox; index: integer): *[]char
-    proc listbox_selected(listbox: *ListBox; index: integer): char
-    proc listbox_checked(listbox: *ListBox; index: integer): char
+    proc listbox_selected(listbox: *ListBox; index: integer): boolean
+    proc listbox_checked(listbox: *ListBox; index: integer): boolean
 
     // from menu.h
     proc menu_create(): *Menu
@@ -363,8 +389,8 @@ typedef struct _evtbcell_t EvTbCell;
     proc menuitem_create(): *MenuItem
     proc menuitem_separator(): *MenuItem
     proc menuitem_OnClick(item: *MenuItem; listener: *C.Listener)
-    proc menuitem_enabled(item: *MenuItem; enabled: char)
-    proc menuitem_visible(item: *MenuItem; visible: char)
+    proc menuitem_enabled(item: *MenuItem; enabled: boolean)
+    proc menuitem_visible(item: *MenuItem; visible: boolean)
     proc menuitem_text(item: *MenuItem; text: *[]char)
     proc menuitem_image(item: *MenuItem; image: *D.Image)
     proc menuitem_key(item: *MenuItem; key: C.vkey_t; modifiers: integer)
@@ -373,7 +399,7 @@ typedef struct _evtbcell_t EvTbCell;
 
     // from panel.h
     proc panel_create(): *Panel
-    proc panel_scroll(hscroll: char; vscroll: char): *Panel
+    proc panel_scroll(hscroll: boolean; vscroll: boolean): *Panel
     proc panel_data_imp(panel: *Panel; data: *[]*void; func_destroy_item: FPtr_destroy)
     proc panel_get_data_imp(panel: *Panel): *void
     proc panel_size(panel: *Panel; size: D.S2Df)
@@ -398,7 +424,7 @@ typedef struct _evtbcell_t EvTbCell;
 
     // from progress.h
     proc progress_create(): *Progress
-    proc progress_undefined(progress: *Progress; running: char)
+    proc progress_undefined(progress: *Progress; running: boolean)
     proc progress_value(progress: *Progress; value: real)
 
     // from slider.h
@@ -452,7 +478,7 @@ typedef struct _evtbcell_t EvTbCell;
     proc textview_bfspace(view: *TextView; space: real)
     proc textview_afspace(view: *TextView; space: real)
     proc textview_scroll_down(view: *TextView)
-    proc textview_editable(view: *TextView; is_editable: char)
+    proc textview_editable(view: *TextView; is_editable: boolean)
 
     // from updown.h
     proc updown_create(): *UpDown
@@ -495,7 +521,7 @@ typedef struct _evtbcell_t EvTbCell;
     // from window.h
     type
         cursor_t = ( cursor_t_invalid, ekCARROW, ekCHAND, ekCIBEAM,
-    					ekCCROSS, ekCSIZEWE, ekCSIZENS, ekCUSER )
+              ekCCROSS, ekCSIZEWE, ekCSIZENS, ekCUSER )
 
     proc window_create(flags: integer): *Window
     proc window_destroy(window: *[1]*Window)
@@ -517,21 +543,21 @@ typedef struct _evtbcell_t EvTbCell;
     proc window_defbutton(window: *Window; button: *Button)
     proc window_cursor(window: *Window; cursor: cursor_t; image: *D.Image; hot_x: real; hot_y: real)
 
-	  // from osmain.h, manually added
-	  type
-		  FPtr_app_create = proc 
-		  FPtr_app_update = proc(app: *void; prtime: longreal; ctime: longreal)
-		  FPtr_task_main = proc(data: *void)
-		  FPtr_task_update = proc(data: *void)
-		  FPtr_task_end = proc(data: *void; rvalue: integer)
-		  
-		proc osapp_finish()
-		proc osapp_task_imp(data: *void; updtime: integer; func_task_main: FPtr_task_main; 
-			func_task_update: FPtr_task_update; func_task_end: FPtr_task_end)
-		proc osapp_menubar(menu: *Menu; window: *Window)
-		proc osapp_open_url(url: *[]char)
-		proc osmain_imp(argc: integer; argv: *[]*[]char; instance: *void; lframe: longreal; 
-			func_create: FPtr_app_create; func_update: FPtr_app_update; func_destroy: FPtr_destroy; 
-			options: *[]char)
-		  
+    // from osmain.h, manually added
+    type
+      FPtr_app_create = proc 
+      FPtr_app_update = proc(app: *void; prtime: longreal; ctime: longreal)
+      FPtr_task_main = proc(data: *void)
+      FPtr_task_update = proc(data: *void)
+      FPtr_task_end = proc(data: *void; rvalue: integer)
+      
+    proc osapp_finish()
+    proc osapp_task_imp(data: *void; updtime: integer; func_task_main: FPtr_task_main; 
+      func_task_update: FPtr_task_update; func_task_end: FPtr_task_end)
+    proc osapp_menubar(menu: *Menu; window: *Window)
+    proc osapp_open_url(url: *[]char)
+    proc osmain_imp(argc: integer; argv: *[]*[]char; instance: *void; lframe: longreal; 
+      func_create: FPtr_app_create; func_update: FPtr_app_update; func_destroy: FPtr_destroy; 
+      options: *[]char)
+      
 end NAppWidgets

@@ -1213,6 +1213,7 @@ struct ObxCilGenImp : public AstVisitor
         case Type::CVOID:
             return "native int";
         case Type::STRING:
+        case Type::BYTEARRAY:
             return "uint8";
         case Type::WSTRING:
             return "uint16";
@@ -1471,7 +1472,7 @@ struct ObxCilGenImp : public AstVisitor
             line(loc).ldc_i4(val.toInt());
             break;
         case Type::LONGINT:
-            line(loc).ldc_i8(val.toInt());
+            line(loc).ldc_i8(val.toLongLong());
             break;
         case Type::BYTE:
             line(loc).ldc_i4(val.toInt());
@@ -1506,6 +1507,7 @@ struct ObxCilGenImp : public AstVisitor
         case Type::BYTEARRAY:
             {
                 const QByteArray ba = val.toByteArray();
+#if 0
                 line(loc).ldc_i4(ba.size());
                 line(loc).newarr_("uint8");
 
@@ -1516,6 +1518,10 @@ struct ObxCilGenImp : public AstVisitor
                     line(loc).ldc_i4((quint8)ba[i]);
                     line(loc).stelem_("uint8");
                 }
+#else
+                line(loc).ldstr_( "\"" + ba.toHex() + "\"");
+                line(loc).call_("uint8[] [OBX.Runtime]OBX.Runtime::StringToByteArray(string)", 1, true );
+#endif
             }
             break;
         case Type::CHAR:
@@ -2137,11 +2143,37 @@ struct ObxCilGenImp : public AstVisitor
                 if( t && t->getTag() == Thing::T_Pointer )
                     t = derefed( cast<Pointer*>(t)->d_to.data() );
 
+#if 1
+                if( t->isString() || t->getBaseType() == Type::BYTEARRAY )
+                {
+                    int len = 0;
+                    if( ae->d_args.first()->getTag() == Thing::T_Literal )
+                    {
+                        Literal* l = cast<Literal*>(ae->d_args.first().data());
+                        len = l->d_strLen;
+                    }else if( ae->d_args.first()->getIdent() &&
+                              ae->d_args.first()->getIdent()->getTag() == Thing::T_Const )
+                    {
+                        Const* c = cast<Const*>(ae->d_args.first()->getIdent());
+                        len = c->d_strLen;
+                    }else
+                        Q_ASSERT(false);
+                    if( t->isString() )
+                        len++;
+                    line(ae->d_loc).ldc_i4(len);
+                }
+#else
                 if( t->isString() )
                 {
                     ae->d_args.first()->accept(this);
                     line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true); // TODO: likely wrong!
-                }else
+                }else if( t->getBaseType() == Type::BYTEARRAY )
+                {
+                    ae->d_args.first()->accept(this);
+                    line(ae->d_loc).ldlen_();
+                }
+#endif
+                else
                 {
                     Q_ASSERT( t->getTag() == Thing::T_Array );
                     Array* a = cast<Array*>(t);
@@ -2600,7 +2632,10 @@ struct ObxCilGenImp : public AstVisitor
         {
             Pointer* p = cast<Pointer*>(td);
             Type* tp = derefed(p->d_to.data());
-            if( tp == 0 || ( tp->getTag() != Thing::T_Array && !tp->isString() ) || tp->d_unsafe )
+            if( tp == 0
+                    || ( tp->getTag() != Thing::T_Array &&
+                         !( tp->isString() || tp->getBaseType() == Type::BYTEARRAY ) )
+                              || tp->d_unsafe )
                 return;
             t = p->d_to.data();
             td = tp;
@@ -2631,15 +2666,19 @@ struct ObxCilGenImp : public AstVisitor
 #else
             line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::UnsafeAddrOfPinnedArrayElement([mscorlib]System.Array,int32)", 2, true );
 #endif
-        }else if( td->getTag() == Thing::T_Array )
+        }else if( td->getTag() == Thing::T_Array || td->getBaseType() == Type::BYTEARRAY )
         {
             line(loc).dup_();
-            const int slot = temps.buy(formatType(t) + " pinned");
+            const int slot = temps.buy( td->getBaseType() == Type::BYTEARRAY ?
+                                            "uint8[] pinned" : formatType(t) + " pinned");
             Q_ASSERT( slot >= 0 );
             pinnedTemps << qMakePair(slot,-1);
             line(loc).stloc_(slot);
             line(loc).ldc_i4(0);
-            line(loc).ldelema_(formatType(cast<Array*>(td)->d_type.data()));
+            if( td->getBaseType() == Type::BYTEARRAY )
+                line(loc).ldelema_("uint8");
+            else
+                line(loc).ldelema_(formatType(cast<Array*>(td)->d_type.data()));
         }
     }
 

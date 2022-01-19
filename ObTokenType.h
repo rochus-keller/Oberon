@@ -11,6 +11,7 @@ namespace Ob {
 
 		TT_Literals,
 		Tok_Hash,
+		Tok_Dlr,
 		Tok_Amp,
 		Tok_Lpar,
 		Tok_Latt,

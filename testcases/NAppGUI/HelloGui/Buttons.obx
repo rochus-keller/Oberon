@@ -1,0 +1,163 @@
+// Original GuiHello C app by Francisco Garcia Collado, MIT Licence
+// Translated to Oberon+ by Rochus Keller
+
+module Buttons
+
+	import D := NAppDraw, C := NAppCore, G := NAppWidgets, I := Icons
+
+	proc i_flatbuttons(): *G.Layout
+	var
+		layout: *G.Layout
+		button1, button2, button3, button4, button5, button6: *G.Button
+		tmp: carray 1 of *D.Image
+	begin
+    layout := G.layout_create(6, 1)
+    button1 := G.button_flat()
+    button2 := G.button_flat()
+    button3 := G.button_flat()
+    button4 := G.button_flat()
+    button5 := G.button_flat()
+    button6 := G.button_flat()
+    G.button_text(button1, "Open File")
+    G.button_text(button2, "Save File")
+    G.button_text(button3, "Search File")
+    G.button_text(button4, "Edit File")
+    G.button_text(button5, "Add File")
+    G.button_text(button6, "Delete File")
+    tmp[0] := D.image_from_data(I.FOLDER24,len(I.FOLDER24))
+    G.button_image(button1, tmp[0])
+    D.image_destroy(tmp)
+    G.button_image(button2, D.image_from_data(I.DISK24,len(I.DISK24)))
+    G.button_image(button3, D.image_from_data(I.SEARCH24,len(I.SEARCH24)))
+    G.button_image(button4, D.image_from_data(I.EDIT24,len(I.EDIT24)))
+    G.button_image(button5, D.image_from_data(I.PLUS24,len(I.PLUS24)))
+    G.button_image(button6, D.image_from_data(I.ERROR24,len(I.ERROR24)))
+    G.layout_button(layout, button1, 0, 0)
+    G.layout_button(layout, button2, 1, 0)
+    G.layout_button(layout, button3, 2, 0)
+    G.layout_button(layout, button4, 3, 0)
+    G.layout_button(layout, button5, 4, 0)
+    G.layout_button(layout, button6, 5, 0)
+    return layout
+	end i_flatbuttons
+
+	proc i_radios(): *G.Layout
+	var
+		layout: *G.Layout
+		radio1, radio2, radio3, radio4: *G.Button
+	begin
+    layout := G.layout_create(1, 4)
+    radio1 := G.button_radio()
+    radio2 := G.button_radio()
+    radio3 := G.button_radio()
+    radio4 := G.button_radio()
+    G.button_text(radio1, "Wireframe")
+    G.button_text(radio2, "Shaded")
+    G.button_text(radio3, "Realistic")
+    G.button_text(radio4, "V-Ray")
+    G.button_state(radio1, G.ekON)
+    G.layout_button(layout, radio1, 0, 0)
+    G.layout_button(layout, radio2, 0, 1)
+    G.layout_button(layout, radio3, 0, 2)
+    G.layout_button(layout, radio4, 0, 3)
+    G.layout_margin(layout, 5)
+    G.layout_vmargin(layout, 0, 3)
+    G.layout_vmargin(layout, 1, 3)
+    G.layout_vmargin(layout, 2, 3)
+    return layout;
+	end i_radios
+	
+	proc i_checks(): *G.Layout
+	var
+		layout: *G.Layout
+		check1, check2, check3, check4: *G.Button
+	begin
+    layout := G.layout_create(1, 4)
+    check1 := G.button_check()
+    check2 := G.button_check()
+    check3 := G.button_check()
+    check4 := G.button_check()
+    G.button_text(check1, "Lines")
+    G.button_text(check2, "Meshes")
+    G.button_text(check3, "Materials")
+    G.button_text(check4, "Lights")
+    G.button_state(check1, G.ekON)
+    G.button_state(check2, G.ekOFF)
+    G.button_state(check3, G.ekOFF)
+    G.button_state(check4, G.ekON)
+    G.layout_button(layout, check1, 0, 0)
+    G.layout_button(layout, check2, 0, 1)
+    G.layout_button(layout, check3, 0, 2)
+    G.layout_button(layout, check4, 0, 3)
+    G.layout_margin(layout, 5)
+    G.layout_vmargin(layout, 0, 3)
+    G.layout_vmargin(layout, 1, 3)
+    G.layout_vmargin(layout, 2, 3)
+    return layout
+	end i_checks
+	
+	proc i_pushes(): *G.Layout
+	var
+		layout: *G.Layout
+		button1, button2, button3: *G.Button
+	begin
+    layout := G.layout_create(4, 1)
+    button1 := G.button_push()
+    button2 := G.button_push()
+    button3 := G.button_push()
+    G.button_text(button1, "Retry")
+    G.button_text(button2, "Cancel")
+    G.button_text(button3, "Ok")
+    G.button_image(button1, D.image_from_data(I.RETRY,len(I.RETRY)))
+    G.layout_button(layout, button1, 0, 0)
+    G.layout_button(layout, button2, 2, 0)
+    G.layout_button(layout, button3, 3, 0)
+    G.layout_hmargin(layout, 2, 5)
+    G.layout_hexpand(layout, 1)
+    return layout
+	end i_pushes
+
+
+	proc i_buttons(): *G.Layout
+	var
+		layout, layout1, layout2, layout3, layout4, layout5: *G.Layout
+		check1, check2: *G.Button
+	begin
+    layout := G.layout_create(1, 3)
+    layout1 := i_flatbuttons()
+    layout2 := G.layout_create(2, 2)
+    layout3 := i_radios()
+    layout4 := i_checks()
+    layout5 := i_pushes()
+    check1 := G.button_check()
+    check2 := G.button_check3()
+    G.button_text(check1, "Enable 3D Render")
+    G.button_text(check2, "Enable Preview Settings")
+    G.button_state(check1, G.ekON);
+    G.button_state(check2, G.ekMIXED);
+    G.layout_layout(layout, layout1, 0, 0)
+    G.layout_button(layout2, check1, 0, 0)
+    G.layout_layout(layout2, layout3, 0, 1)
+    G.layout_button(layout2, check2, 1, 0)
+    G.layout_layout(layout2, layout4, 1, 1)
+    G.layout_layout(layout, layout2, 0, 1)
+    G.layout_layout(layout, layout5, 0, 2)
+    G.layout_halign(layout, 0, 0, D.ekLEFT)
+    G.layout_margin(layout2, 5)
+    G.layout_hmargin(layout2, 0, 10)
+    G.layout_margin(layout5, 5)
+    return layout;
+	end i_buttons
+
+	proc buttons_basics*(): *G.Panel
+	var
+		layout: *G.Layout
+		panel: *G.Panel
+	begin
+    layout := i_buttons()
+    panel := G.panel_create()
+    G.panel_layout(panel, layout)
+    return panel
+	end buttons_basics
+
+end Buttons

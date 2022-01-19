@@ -1,0 +1,195 @@
+// Original GuiHello C app by Francisco Garcia Collado, MIT Licence
+// Translated to Oberon+ by Rochus Keller
+
+module GuiHello
+
+	import D := NAppDraw, C := NAppCore, G := NAppWidgets
+					L := Labels, B := Buttons
+	
+	var
+		window: *G.Window
+		layout: *G.Layout
+		listcell: *G.Cell
+		
+	proc i_set_panel(layout: *G.Layout; index: integer)
+	var
+		panel: *G.Panel
+	begin
+    case index of
+    | 0:
+        panel := L.labels_single_line()
+    | 1:
+        panel := L.labels_multi_line()
+    | 2:
+        panel := L.labels_mouse_over()
+    | 3:
+        panel := B.buttons_basics()
+	(*
+    | 4:
+        panel = popup_combo()
+    | 5:
+        panel = listboxes()
+    | 6:
+        panel = form_basic()
+    | 7:
+        panel = sliders()
+    | 8:
+        panel = textviews()
+    | 9:
+        panel = split_panel()
+    | 10:
+        panel = guibind()
+    | 11:
+        panel = layoutbind()
+    | 12:
+        panel = basic_layout()
+    | 13:
+        panel = sublayouts()
+    | 14:
+        panel = subpanels()
+    | 15:
+        panel = multilayouts()
+	*)
+    | 16:
+        panel := scrollpanel()
+		else
+    end
+    if panel # nil then G.layout_panel(layout, panel, 1, 0) end
+	end i_set_panel
+	
+	proc scrollpanel(): *G.Panel
+	const
+		i_ROWS = 100
+	var
+		panel: *G.Panel
+		layout: *G.Layout
+		margin: real
+		i: integer
+		label: *G.Label
+		edit: *G.Edit
+		button: *G.Button
+		text: array 128 of char
+	begin
+    panel := G.panel_scroll(false, true)
+    layout := G.layout_create(3, i_ROWS)
+    margin := G.panel_scroll_width(panel)
+    G.panel_size(panel, D.s2df(-1, 400))
+    for i := 0 to i_ROWS-1 do
+        label := G.label_create()
+        edit := G.edit_create()
+        button := G.button_push()
+        C.bstd_sprintf(text, len(text), "User %d", i + 1)
+        G.label_text(label, text)
+        C.bstd_sprintf(text, len(text), "Name of User %d", i + 1)
+        G.edit_text(edit, text)
+        C.bstd_sprintf(text, len(text), "Edit %d", i + 1)
+        G.button_text(button, text)
+        G.layout_label(layout, label, 0, i)
+        G.layout_edit(layout, edit, 1, i)
+        G.layout_button(layout, button, 2, i)
+    end
+
+    for i := 0 to i_ROWS - 2 do
+        G.layout_vmargin(layout, i, 5)
+    end
+
+    G.layout_hmargin(layout, 0, 10)
+    G.layout_hmargin(layout, 1, 10)
+    G.layout_hsize(layout, 1, 150)
+    G.layout_margin4(layout, 0, margin, 0, 0)
+    G.panel_layout(panel, layout)
+    return panel
+	end scrollpanel
+	
+	proc i_OnSelect(data: *void; e: *C.Event)
+	type EvButtonPtr = *G.EvButton
+	var
+		p: EvButtonPtr
+	begin
+    p := cast(EvButtonPtr, C.event_params_imp(e, "EvButton") )
+    if p.index # -1 then
+        i_set_panel(layout, p.index)
+        G.window_update(window)
+    end
+	end i_OnSelect
+	
+	proc i_panel(): *G.Panel
+	var
+		panel: *G.Panel
+		l: *G.Layout
+		list: *G.ListBox
+	begin
+    panel := G.panel_create()
+    l := G.layout_create(2, 1)
+    list := G.listbox_create()
+    G.listbox_size(list, D.s2df(180, 256))
+    G.listbox_add_elem(list, "Labels single line", nil)
+    G.listbox_add_elem(list, "Labels multi line", nil)
+    G.listbox_add_elem(list, "Labels mouse sensitive", nil)
+    G.listbox_add_elem(list, "Buttons", nil)
+    G.listbox_add_elem(list, "PopUp Combo", nil)
+    G.listbox_add_elem(list, "ListBoxes", nil)
+    G.listbox_add_elem(list, "Form", nil)
+    G.listbox_add_elem(list, "Sliders", nil)
+    G.listbox_add_elem(list, "TextViews", nil)
+    G.listbox_add_elem(list, "SplitViews", nil)
+    G.listbox_add_elem(list, "Data Binding", nil)
+    G.listbox_add_elem(list, "Struct Binding", nil)
+    G.listbox_add_elem(list, "Basic Layout", nil)
+    G.listbox_add_elem(list, "SubLayouts", nil)
+    G.listbox_add_elem(list, "Subpanels", nil)
+    G.listbox_add_elem(list, "Multi-Layouts", nil)
+    G.listbox_add_elem(list, "Scroll panel", nil)
+    G.listbox_select(list, 0, true); 
+    G.listbox_OnSelect(list, C.listener_imp(nil, i_OnSelect))
+    G.layout_listbox(l, list, 0, 0)
+    i_set_panel(l, 0)
+    G.panel_layout(panel, l)
+    G.layout_valign(l, 0, 0, D.ekTOP)
+    G.layout_valign(l, 1, 0, D.ekTOP)
+    G.layout_margin(l, 10)
+    G.layout_hmargin(l, 0, 10)
+    layout := l;
+    listcell := G.layout_cell(layout, 0, 0)
+    return panel
+	end i_panel
+	
+	proc i_window(): *G.Window
+	var
+		panel: *G.Panel
+		window: *G.Window
+	begin
+    panel := i_panel()
+    window := G.window_create(G.ekWNSTD)
+    G.window_panel(window, panel)
+    G.window_title(window, "NAppGUI GUI Basics")
+    return window
+  end i_window
+  
+  proc i_OnClose(data: *void; e: *C.Event)
+  begin
+    G.osapp_finish()
+    // unref(e);
+  end i_OnClose
+  
+  proc i_create()
+	begin
+    window := i_window()
+    G.window_origin(window, D.v2df(500., 200.))
+    G.window_OnClose(window, C.listener_imp(nil, i_OnClose))
+    G.window_show(window)
+    G.cell_focus(listcell)
+  end i_create
+	
+  proc i_destroy(item: *[]*void)
+    var w: carray 1 of *G.Window
+  begin
+    w[0] := window
+    G.window_destroy(w)
+    window := nil
+  end i_destroy
+
+begin
+  G.osmain_imp(0, nil, nil, 0.0, i_create, nil, i_destroy, nil)
+
+end GuiHello

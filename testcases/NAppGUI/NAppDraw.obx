@@ -54,7 +54,7 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc draw_matrixd(ctx: *DCtx; t2d: *T2Dd)
     proc draw_matrix_cartesianf(ctx: *DCtx; t2d: *T2Df)
     proc draw_matrix_cartesiand(ctx: *DCtx; t2d: *T2Dd)
-    proc draw_antialias(ctx: *DCtx; on: char)
+    proc draw_antialias(ctx: *DCtx; on: boolean)
 
     // from draw.h
     type
@@ -159,7 +159,7 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc font_with_style(font: *Font; style: integer): *Font
     proc font_copy(font: *Font): *Font
     proc font_destroy(font: *[]*Font)
-    proc font_equals(font1: *Font; font2: *Font): char
+    proc font_equals(font1: *Font; font2: *Font): boolean
     proc font_regular_size(): real
     proc font_small_size(): real
     proc font_mini_size(): real
@@ -168,7 +168,7 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc font_height(font: *Font): real
     proc font_style(font: *Font): integer
     proc font_extents(font: *Font; text: *[]char; refwidth: real; width: *[]real; height: *[]real)
-    proc font_exists_family(family: *[]char): char
+    proc font_exists_family(family: *[]char): boolean
     proc font_installed_families(): *[]C.String
 
     // from image.h
@@ -182,24 +182,24 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc image_from_resource(pack: *C.ResPack; id: C.ResId): *Image
     proc image_copy(image: *Image): *Image
     proc image_trim(image: *Image; x: integer; y: integer; width: integer; height: integer): *Image
-    proc image_rotate(image: *Image; angle: real; nsize: char; background: integer; t2d: *T2Df): *Image
+    proc image_rotate(image: *Image; angle: real; nsize: boolean; background: integer; t2d: *T2Df): *Image
     proc image_scale(image: *Image; nwidth: integer; nheight: integer): *Image
     proc image_read(stm: *C.Stream): *Image
-    proc image_to_file(image: *Image; pathname: *[]char; error: *[1]C.ferror_t): char
+    proc image_to_file(image: *Image; pathname: *[]char; error: *[1]C.ferror_t): boolean
     proc image_write(stream: *C.Stream; image: *Image)
     proc image_destroy(image: *[]*Image)
     proc image_format(image: *Image): pixformat_t
     proc image_width(image: *Image): integer
     proc image_height(image: *Image): integer
     proc image_pixels(image: *Image; format: pixformat_t): *Pixbuf
-    proc image_codec(image: *Image; codec: codec_t): char
+    proc image_codec(image: *Image; codec: codec_t): boolean
     proc image_get_codec(image: *Image): codec_t
     proc image_num_frames(image: *Image): integer
     proc image_frame_length(image: *Image; findex: integer): real
 
     // from palette.h
     proc palette_create(size: integer): *Palette
-    proc palette_cga2(mode: char; intense: char): *Palette
+    proc palette_cga2(mode: boolean; intense: boolean): *Palette
     proc palette_ega4(): *Palette
     proc palette_rgb8(): *Palette
     proc palette_gray1(): *Palette
@@ -259,8 +259,8 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc box2d_segmentsd(box: *Box2Dd; segs: *Seg2Dd)
     proc box2d_areaf(box: *Box2Df): real
     proc box2d_aread(box: *Box2Dd): longreal
-    proc box2d_is_nullf(box: *Box2Df): char
-    proc box2d_is_nulld(box: *Box2Dd): char
+    proc box2d_is_nullf(box: *Box2Df): boolean
+    proc box2d_is_nulld(box: *Box2Dd): boolean
 
     // from cir2d.h
     type
@@ -281,70 +281,70 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc cir2d_minimumd(p: *V2Dd; n: integer): Cir2Dd
     proc cir2d_areaf(cir: *Cir2Df): real
     proc cir2d_aread(cir: *Cir2Dd): longreal
-    proc cir2d_is_nullf(cir: *Cir2Df): char
-    proc cir2d_is_nulld(cir: *Cir2Dd): char
+    proc cir2d_is_nullf(cir: *Cir2Df): boolean
+    proc cir2d_is_nulld(cir: *Cir2Dd): boolean
 
     // from col2d.h
-    proc col2d_point_pointf(pnt1: *V2Df; pnt2: *V2Df; tol: real; col: *Col2Df): char
-    proc col2d_point_pointd(pnt1: *V2Dd; pnt2: *V2Dd; tol: longreal; col: *Col2Dd): char
-    proc col2d_segment_pointf(seg: *Seg2Df; pnt: *V2Df; tol: real; col: *Col2Df): char
-    proc col2d_segment_pointd(seg: *Seg2Dd; pnt: *V2Dd; tol: longreal; col: *Col2Dd): char
-    proc col2d_segment_segmentf(seg1: *Seg2Df; seg2: *Seg2Df; col: *Col2Df): char
-    proc col2d_segment_segmentd(seg1: *Seg2Dd; seg2: *Seg2Dd; col: *Col2Dd): char
-    proc col2d_circle_pointf(cir: *Cir2Df; pnt: *V2Df; col: *Col2Df): char
-    proc col2d_circle_pointd(cir: *Cir2Dd; pnt: *V2Dd; col: *Col2Dd): char
-    proc col2d_circle_segmentf(cir: *Cir2Df; seg: *Seg2Df; col: *Col2Df): char
-    proc col2d_circle_segmentd(cir: *Cir2Dd; seg: *Seg2Dd; col: *Col2Dd): char
-    proc col2d_circle_circlef(cir1: *Cir2Df; cir2: *Cir2Df; col: *Col2Df): char
-    proc col2d_circle_circled(cir1: *Cir2Dd; cir2: *Cir2Dd; col: *Col2Dd): char
-    proc col2d_box_pointf(box: *Box2Df; pnt: *V2Df; col: *Col2Df): char
-    proc col2d_box_pointd(box: *Box2Dd; pnt: *V2Dd; col: *Col2Dd): char
-    proc col2d_box_segmentf(box: *Box2Df; seg: *Seg2Df; col: *Col2Df): char
-    proc col2d_box_segmentd(box: *Box2Dd; seg: *Seg2Dd; col: *Col2Df): char
-    proc col2d_box_circlef(box: *Box2Df; cir: *Cir2Df; col: *Col2Df): char
-    proc col2d_box_circled(box: *Box2Dd; cir: *Cir2Dd; col: *Col2Dd): char
-    proc col2d_box_boxf(box1: *Box2Df; box2: *Box2Df; col: *Col2Df): char
-    proc col2d_box_boxd(box1: *Box2Dd; box2: *Box2Dd; col: *Col2Dd): char
-    proc col2d_obb_pointf(obb: *OBB2Df; pnt: *V2Df; col: *Col2Df): char
-    proc col2d_obb_pointd(obb: *OBB2Dd; pnt: *V2Dd; col: *Col2Dd): char
-    proc col2d_obb_segmentf(obb: *OBB2Df; seg: *Seg2Df; col: *Col2Df): char
-    proc col2d_obb_segmentd(obb: *OBB2Dd; seg: *Seg2Dd; col: *Col2Dd): char
-    proc col2d_obb_circlef(obb: *OBB2Df; cir: *Cir2Df; col: *Col2Df): char
-    proc col2d_obb_circled(obb: *OBB2Dd; cir: *Cir2Dd; col: *Col2Dd): char
-    proc col2d_obb_boxf(obb: *OBB2Df; box: *Box2Df; col: *Col2Df): char
-    proc col2d_obb_boxd(obb: *OBB2Dd; box: *Box2Dd; col: *Col2Dd): char
-    proc col2d_obb_obbf(obb1: *OBB2Df; obb2: *OBB2Df; col: *Col2Df): char
-    proc col2d_obb_obbd(obb1: *OBB2Dd; obb2: *OBB2Dd; col: *Col2Dd): char
-    proc col2d_tri_pointf(tri: *Tri2Df; pnt: *V2Df; col: *Col2Df): char
-    proc col2d_tri_pointd(tri: *Tri2Dd; pnt: *V2Dd; col: *Col2Dd): char
-    proc col2d_tri_segmentf(tri: *Tri2Df; seg: *Seg2Df; col: *Col2Df): char
-    proc col2d_tri_segmentd(tri: *Tri2Dd; seg: *Seg2Dd; col: *Col2Dd): char
-    proc col2d_tri_circlef(tri: *Tri2Df; cir: *Cir2Df; col: *Col2Df): char
-    proc col2d_tri_circled(tri: *Tri2Dd; cir: *Cir2Df; col: *Col2Df): char
-    proc col2d_tri_boxf(tri: *Tri2Df; box: *Box2Df; col: *Col2Df): char
-    proc col2d_tri_boxd(tri: *Tri2Dd; box: *Box2Df; col: *Col2Df): char
-    proc col2d_tri_obbf(tri: *Tri2Df; obb: *OBB2Df; col: *Col2Df): char
-    proc col2d_tri_obbd(tri: *Tri2Dd; obb: *OBB2Dd; col: *Col2Dd): char
-    proc col2d_tri_trif(tri1: *Tri2Df; tri2: *Tri2Df; col: *Col2Df): char
-    proc col2d_tri_trid(tri1: *Tri2Dd; tri2: *Tri2Dd; col: *Col2Dd): char
-    proc col2d_poly_pointf(poly: *Pol2Df; pnt: *V2Df; col: *Col2Df): char
-    proc col2d_poly_pointd(poly: *Pol2Dd; pnt: *V2Dd; col: *Col2Dd): char
-    proc col2d_poly_segmentf(poly: *Pol2Df; seg: *Seg2Df; col: *Col2Df): char
-    proc col2d_poly_segmentd(poly: *Pol2Dd; seg: *Seg2Dd; col: *Col2Dd): char
-    proc col2d_poly_circlef(poly: *Pol2Df; cir: *Cir2Df; col: *Col2Df): char
-    proc col2d_poly_circled(poly: *Pol2Dd; cir: *Cir2Dd; col: *Col2Dd): char
-    proc col2d_poly_boxf(poly: *Pol2Df; box: *Box2Df; col: *Col2Df): char
-    proc col2d_poly_boxd(poly: *Pol2Dd; box: *Box2Dd; col: *Col2Dd): char
-    proc col2d_poly_obbf(poly: *Pol2Df; obb: *OBB2Df; col: *Col2Df): char
-    proc col2d_poly_obbd(poly: *Pol2Dd; obb: *OBB2Dd; col: *Col2Dd): char
-    proc col2d_poly_trif(poly: *Pol2Df; tri: *Tri2Df; col: *Col2Df): char
-    proc col2d_poly_trid(poly: *Pol2Dd; tri: *Tri2Dd; col: *Col2Dd): char
-    proc col2d_poly_polyf(poly1: *Pol2Df; poly2: *Pol2Df; col: *Col2Df): char
-    proc col2d_poly_polyd(poly1: *Pol2Dd; poly2: *Pol2Dd; col: *Col2Dd): char
+    proc col2d_point_pointf(pnt1: *V2Df; pnt2: *V2Df; tol: real; col: *Col2Df): boolean
+    proc col2d_point_pointd(pnt1: *V2Dd; pnt2: *V2Dd; tol: longreal; col: *Col2Dd): boolean
+    proc col2d_segment_pointf(seg: *Seg2Df; pnt: *V2Df; tol: real; col: *Col2Df): boolean
+    proc col2d_segment_pointd(seg: *Seg2Dd; pnt: *V2Dd; tol: longreal; col: *Col2Dd): boolean
+    proc col2d_segment_segmentf(seg1: *Seg2Df; seg2: *Seg2Df; col: *Col2Df): boolean
+    proc col2d_segment_segmentd(seg1: *Seg2Dd; seg2: *Seg2Dd; col: *Col2Dd): boolean
+    proc col2d_circle_pointf(cir: *Cir2Df; pnt: *V2Df; col: *Col2Df): boolean
+    proc col2d_circle_pointd(cir: *Cir2Dd; pnt: *V2Dd; col: *Col2Dd): boolean
+    proc col2d_circle_segmentf(cir: *Cir2Df; seg: *Seg2Df; col: *Col2Df): boolean
+    proc col2d_circle_segmentd(cir: *Cir2Dd; seg: *Seg2Dd; col: *Col2Dd): boolean
+    proc col2d_circle_circlef(cir1: *Cir2Df; cir2: *Cir2Df; col: *Col2Df): boolean
+    proc col2d_circle_circled(cir1: *Cir2Dd; cir2: *Cir2Dd; col: *Col2Dd): boolean
+    proc col2d_box_pointf(box: *Box2Df; pnt: *V2Df; col: *Col2Df): boolean
+    proc col2d_box_pointd(box: *Box2Dd; pnt: *V2Dd; col: *Col2Dd): boolean
+    proc col2d_box_segmentf(box: *Box2Df; seg: *Seg2Df; col: *Col2Df): boolean
+    proc col2d_box_segmentd(box: *Box2Dd; seg: *Seg2Dd; col: *Col2Df): boolean
+    proc col2d_box_circlef(box: *Box2Df; cir: *Cir2Df; col: *Col2Df): boolean
+    proc col2d_box_circled(box: *Box2Dd; cir: *Cir2Dd; col: *Col2Dd): boolean
+    proc col2d_box_boxf(box1: *Box2Df; box2: *Box2Df; col: *Col2Df): boolean
+    proc col2d_box_boxd(box1: *Box2Dd; box2: *Box2Dd; col: *Col2Dd): boolean
+    proc col2d_obb_pointf(obb: *OBB2Df; pnt: *V2Df; col: *Col2Df): boolean
+    proc col2d_obb_pointd(obb: *OBB2Dd; pnt: *V2Dd; col: *Col2Dd): boolean
+    proc col2d_obb_segmentf(obb: *OBB2Df; seg: *Seg2Df; col: *Col2Df): boolean
+    proc col2d_obb_segmentd(obb: *OBB2Dd; seg: *Seg2Dd; col: *Col2Dd): boolean
+    proc col2d_obb_circlef(obb: *OBB2Df; cir: *Cir2Df; col: *Col2Df): boolean
+    proc col2d_obb_circled(obb: *OBB2Dd; cir: *Cir2Dd; col: *Col2Dd): boolean
+    proc col2d_obb_boxf(obb: *OBB2Df; box: *Box2Df; col: *Col2Df): boolean
+    proc col2d_obb_boxd(obb: *OBB2Dd; box: *Box2Dd; col: *Col2Dd): boolean
+    proc col2d_obb_obbf(obb1: *OBB2Df; obb2: *OBB2Df; col: *Col2Df): boolean
+    proc col2d_obb_obbd(obb1: *OBB2Dd; obb2: *OBB2Dd; col: *Col2Dd): boolean
+    proc col2d_tri_pointf(tri: *Tri2Df; pnt: *V2Df; col: *Col2Df): boolean
+    proc col2d_tri_pointd(tri: *Tri2Dd; pnt: *V2Dd; col: *Col2Dd): boolean
+    proc col2d_tri_segmentf(tri: *Tri2Df; seg: *Seg2Df; col: *Col2Df): boolean
+    proc col2d_tri_segmentd(tri: *Tri2Dd; seg: *Seg2Dd; col: *Col2Dd): boolean
+    proc col2d_tri_circlef(tri: *Tri2Df; cir: *Cir2Df; col: *Col2Df): boolean
+    proc col2d_tri_circled(tri: *Tri2Dd; cir: *Cir2Df; col: *Col2Df): boolean
+    proc col2d_tri_boxf(tri: *Tri2Df; box: *Box2Df; col: *Col2Df): boolean
+    proc col2d_tri_boxd(tri: *Tri2Dd; box: *Box2Df; col: *Col2Df): boolean
+    proc col2d_tri_obbf(tri: *Tri2Df; obb: *OBB2Df; col: *Col2Df): boolean
+    proc col2d_tri_obbd(tri: *Tri2Dd; obb: *OBB2Dd; col: *Col2Dd): boolean
+    proc col2d_tri_trif(tri1: *Tri2Df; tri2: *Tri2Df; col: *Col2Df): boolean
+    proc col2d_tri_trid(tri1: *Tri2Dd; tri2: *Tri2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_pointf(poly: *Pol2Df; pnt: *V2Df; col: *Col2Df): boolean
+    proc col2d_poly_pointd(poly: *Pol2Dd; pnt: *V2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_segmentf(poly: *Pol2Df; seg: *Seg2Df; col: *Col2Df): boolean
+    proc col2d_poly_segmentd(poly: *Pol2Dd; seg: *Seg2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_circlef(poly: *Pol2Df; cir: *Cir2Df; col: *Col2Df): boolean
+    proc col2d_poly_circled(poly: *Pol2Dd; cir: *Cir2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_boxf(poly: *Pol2Df; box: *Box2Df; col: *Col2Df): boolean
+    proc col2d_poly_boxd(poly: *Pol2Dd; box: *Box2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_obbf(poly: *Pol2Df; obb: *OBB2Df; col: *Col2Df): boolean
+    proc col2d_poly_obbd(poly: *Pol2Dd; obb: *OBB2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_trif(poly: *Pol2Df; tri: *Tri2Df; col: *Col2Df): boolean
+    proc col2d_poly_trid(poly: *Pol2Dd; tri: *Tri2Dd; col: *Col2Dd): boolean
+    proc col2d_poly_polyf(poly1: *Pol2Df; poly2: *Pol2Df; col: *Col2Df): boolean
+    proc col2d_poly_polyd(poly1: *Pol2Dd; poly2: *Pol2Dd; col: *Col2Dd): boolean
     proc col2d_point_line_projf(lx0: real; ly0: real; lx1: real; ly1: real; x: real; y: real; px: *[]real; py: *[]real)
     proc col2d_point_line_projd(lx0: longreal; ly0: longreal; lx1: longreal; ly1: longreal; x: longreal; y: longreal; px: *[]longreal; py: *[]longreal)
-    proc col2d_line_linef(l0x0: real; l0y0: real; l0x1: real; l0y1: real; l1x0: real; l1y0: real; l1x1: real; l1y1: real; tol: real; cx: *[]real; cy: *[]real): char
-    proc col2d_line_lined(l0x0: longreal; l0y0: longreal; l0x1: longreal; l0y1: longreal; l1x0: longreal; l1y0: longreal; l1x1: longreal; l1y1: longreal; tol: longreal; cx: *[]longreal; cy: *[]longreal): char
+    proc col2d_line_linef(l0x0: real; l0y0: real; l0x1: real; l0y1: real; l1x0: real; l1y0: real; l1x1: real; l1y1: real; tol: real; cx: *[]real; cy: *[]real): boolean
+    proc col2d_line_lined(l0x0: longreal; l0y0: longreal; l0x1: longreal; l0y1: longreal; l1x0: longreal; l1y0: longreal; l1x1: longreal; l1y1: longreal; tol: longreal; cx: *[]longreal; cy: *[]longreal): boolean
     proc col2d_aabb_aabb_distf(minx0: real; miny0: real; maxx0: real; maxy0: real; minx1: real; miny1: real; maxx1: real; maxy1: real): real
     proc col2d_aabb_aabb_distd(minx0: longreal; miny0: longreal; maxx0: longreal; maxy0: longreal; minx1: longreal; miny1: longreal; maxx1: longreal; maxy1: longreal): longreal
     // TODO proc col2d_aabb_point_distf(minx: real; miny: real; maxx: real; maxy: real; x: real; y: real): real
@@ -463,10 +463,10 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc pol2d_aread(pol: *Pol2Dd): longreal
     proc pol2d_boxf(pol: *Pol2Df): Box2Df
     proc pol2d_boxd(pol: *Pol2Dd): Box2Dd
-    proc pol2d_ccwf(pol: *Pol2Df): char
-    proc pol2d_ccwd(pol: *Pol2Dd): char
-    proc pol2d_convexf(pol: *Pol2Df): char
-    proc pol2d_convexd(pol: *Pol2Dd): char
+    proc pol2d_ccwf(pol: *Pol2Df): boolean
+    proc pol2d_ccwd(pol: *Pol2Dd): boolean
+    proc pol2d_convexf(pol: *Pol2Df): boolean
+    proc pol2d_convexd(pol: *Pol2Dd): boolean
     proc pol2d_centroidf(pol: *Pol2Df): V2Df
     proc pol2d_centroidd(pol: *Pol2Dd): V2Dd
     proc pol2d_visual_centerf(pol: *Pol2Df; norm_tol: real): V2Df
@@ -489,12 +489,12 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc r2dd(x: longreal; y: longreal; width: longreal; height: longreal): R2Dd
     proc r2d_centerf(r2d: *R2Df): V2Df
     proc r2d_centerd(r2d: *R2Dd): V2Dd
-    proc r2d_collidef(r2d1: *R2Df; r2d2: *R2Df): char
-    proc r2d_collided(r2d1: *R2Dd; r2d2: *R2Dd): char
-    proc r2d_containsf(r2d: *R2Df; x: real; y: real): char
-    proc r2d_containsd(r2d: *R2Dd; x: longreal; y: longreal): char
-    proc r2d_clipf(viewport: *R2Df; r2d: *R2Df): char
-    proc r2d_clipd(viewport: *R2Dd; r2d: *R2Dd): char
+    proc r2d_collidef(r2d1: *R2Df; r2d2: *R2Df): boolean
+    proc r2d_collided(r2d1: *R2Dd; r2d2: *R2Dd): boolean
+    proc r2d_containsf(r2d: *R2Df; x: real; y: real): boolean
+    proc r2d_containsd(r2d: *R2Dd; x: longreal; y: longreal): boolean
+    proc r2d_clipf(viewport: *R2Df; r2d: *R2Df): boolean
+    proc r2d_clipd(viewport: *R2Dd; r2d: *R2Dd): boolean
     proc r2d_joinf(r2d: *R2Df; src: *R2Df)
     proc r2d_joind(r2d: *R2Dd; src: *R2Dd)
 
@@ -560,8 +560,8 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc tri2d_transformd(tri: *Tri2Dd; t2d: *T2Dd)
     proc tri2d_areaf(tri: *Tri2Df): real
     proc tri2d_aread(tri: *Tri2Dd): longreal
-    proc tri2d_ccwf(tri: *Tri2Df): char
-    proc tri2d_ccwd(tri: *Tri2Dd): char
+    proc tri2d_ccwf(tri: *Tri2Df): boolean
+    proc tri2d_ccwd(tri: *Tri2Dd): boolean
     proc tri2d_centroidf(tri: *Tri2Df): V2Df
     proc tri2d_centroidd(tri: *Tri2Dd): V2Dd
 
@@ -600,8 +600,8 @@ definition NAppDraw [extern 'C', dll 'NAppGUI']
     proc v2d_perp_negd(v: *V2Dd): V2Dd
     proc v2d_from_anglef(a: real): V2Df
     proc v2d_from_angled(a: longreal): V2Dd
-    proc v2d_normf(v: *V2Df): char
-    proc v2d_normd(v: *V2Dd): char
+    proc v2d_normf(v: *V2Df): boolean
+    proc v2d_normd(v: *V2Dd): boolean
     proc v2d_lengthf(v: *V2Df): real
     proc v2d_lengthd(v: *V2Dd): longreal
     proc v2d_sqlengthf(v: *V2Df): real

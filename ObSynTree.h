@@ -61,6 +61,7 @@ namespace Ob {
 			R_element,
 			R_expression,
 			R_factor,
+			R_hexstringdelim_,
 			R_identdef,
 			R_import,
 			R_label,

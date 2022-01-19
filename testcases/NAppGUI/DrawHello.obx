@@ -1,10 +1,10 @@
-// Original Hello C app by Francisco Garcia Collado, MIT Licence
+// Original DrawHello C app by Francisco Garcia Collado, MIT Licence
 // Translated to Oberon+ by Rochus Keller
 
 module DrawHello
-  import D := NAppDraw, C := NAppCore, G := NAppWidgets, U := Utf8
+  import D := NAppDraw, C := NAppCore, G := NAppWidgets, U := Utf8, I := Image
   var
-	  window: cpointer to G.Window
+    window: cpointer to G.Window
     view: cpointer to G.View
     label: cpointer to G.Label
     slider: cpointer to G.Cell
@@ -12,37 +12,37 @@ module DrawHello
     gradient: real
     kT2D_IDENTf: D.T2Df
     
-	proc i_draw_lines(ctx: cpointer to D.DCtx)
-	var
-		poly1, poly2, poly3: carray 6 of D.V2Df
-		pattern1: carray 4 of real
-		pattern2, pattern3, pattern4: carray 2 of real
-	begin
-		poly1[0].x := 10; poly1[0].y := 190
-		poly1[1].x := 90; poly1[1].y := 110
-		poly1[2].x := 110; poly1[2].y := 190
-		poly1[3].x := 190; poly1[3].y := 110
-		poly1[4].x := 210; poly1[4].y := 190
-		poly1[5].x := 290; poly1[5].y := 110
-		
-		poly2[0].x := 310; poly2[0].y := 190
-		poly2[1].x := 390; poly2[1].y := 110
-		poly2[2].x := 410; poly2[2].y := 190
-		poly2[3].x := 490; poly2[3].y := 110
-		poly2[4].x := 510; poly2[4].y := 190
-		poly2[5].x := 590; poly2[5].y := 110
+  proc i_draw_lines(ctx: cpointer to D.DCtx)
+  var
+    poly1, poly2, poly3: carray 6 of D.V2Df
+    pattern1: carray 4 of real
+    pattern2, pattern3, pattern4: carray 2 of real
+  begin
+    poly1[0].x := 10; poly1[0].y := 190
+    poly1[1].x := 90; poly1[1].y := 110
+    poly1[2].x := 110; poly1[2].y := 190
+    poly1[3].x := 190; poly1[3].y := 110
+    poly1[4].x := 210; poly1[4].y := 190
+    poly1[5].x := 290; poly1[5].y := 110
+    
+    poly2[0].x := 310; poly2[0].y := 190
+    poly2[1].x := 390; poly2[1].y := 110
+    poly2[2].x := 410; poly2[2].y := 190
+    poly2[3].x := 490; poly2[3].y := 110
+    poly2[4].x := 510; poly2[4].y := 190
+    poly2[5].x := 590; poly2[5].y := 110
 
-		poly3[0].x := 10; poly3[0].y := 290
-		poly3[1].x := 90; poly3[1].y := 210
-		poly3[2].x := 110; poly3[2].y := 290
-		poly3[3].x := 190; poly3[3].y := 210
-		poly3[4].x := 210; poly3[4].y := 290
-		poly3[5].x := 290; poly3[5].y := 210
+    poly3[0].x := 10; poly3[0].y := 290
+    poly3[1].x := 90; poly3[1].y := 210
+    poly3[2].x := 110; poly3[2].y := 290
+    poly3[3].x := 190; poly3[3].y := 210
+    poly3[4].x := 210; poly3[4].y := 290
+    poly3[5].x := 290; poly3[5].y := 210
 
-		pattern1[0] := 5; pattern1[1] := 5; pattern1[2] := 10; pattern1[3] := 5
-		pattern2[0] := 1; pattern2[1] := 1
-		pattern3[0] := 2; pattern3[1] := 1
-		pattern4[0] := 1; pattern4[2] := 1
+    pattern1[0] := 5; pattern1[1] := 5; pattern1[2] := 10; pattern1[3] := 5
+    pattern2[0] := 1; pattern2[1] := 1
+    pattern3[0] := 2; pattern3[1] := 1
+    pattern4[0] := 1; pattern4[2] := 1
 
     // Line widths 
     D.draw_line_color(ctx, D.kCOLOR_BLACK)
@@ -122,19 +122,19 @@ module DrawHello
     D.draw_polyline(ctx, false, poly1, 6)
     D.draw_polyline(ctx, false, poly2, 6)
     D.draw_polyline(ctx, false, poly3, 6)
-	end i_draw_lines
+  end i_draw_lines
 
-	proc i_draw_shapes_row(ctx: cpointer to D.DCtx; op:  D.drawop_t; origin: cpointer to D.T2Df)
-	var
-		poly: carray 5 of D.V2Df
-		matrix: D.T2Df
-	begin
-		poly[0].x := 40; poly[0].y := 0
-		poly[1].x := 12.36; poly[1].y := 38.04
-		poly[2].x := -32.36; poly[2].y := 23.52
-		poly[3].x := -32.36; poly[3].y := -23.52
-		poly[4].x := 12.36; poly[4].y := -38.04
-		
+  proc i_draw_shapes_row(ctx: cpointer to D.DCtx; op:  D.drawop_t; origin: cpointer to D.T2Df)
+  var
+    poly: carray 5 of D.V2Df
+    matrix: D.T2Df
+  begin
+    poly[0].x := 40; poly[0].y := 0
+    poly[1].x := 12.36; poly[1].y := 38.04
+    poly[2].x := -32.36; poly[2].y := 23.52
+    poly[3].x := -32.36; poly[3].y := -23.52
+    poly[4].x := 12.36; poly[4].y := -38.04
+    
     D.draw_rect(ctx, op, 10, 10, 110, 75)
     D.draw_rndrect(ctx, op, 140, 10, 110, 75, 20)
     D.draw_circle(ctx, op, 312, 50, 40)
@@ -146,47 +146,48 @@ module DrawHello
   end i_draw_shapes_row
   
   proc i_draw_shapes(ctx: cpointer to D.DCtx; grad: boolean)
-	var
-		origin: D.T2Df
-	begin
-		origin := kT2D_IDENTf
+  var
+    origin: D.T2Df
+  begin
+    origin := kT2D_IDENTf
 
     D.draw_line_color(ctx, D.kCOLOR_BLACK)
     D.draw_line_width(ctx, 10)
     D.draw_matrixf(ctx, origin)
     if grad then
-	    i_draw_shapes_row(ctx, D.ekSKFILL, origin)
-	  else
-	    i_draw_shapes_row(ctx, D.ekSTROKE, origin)
+      i_draw_shapes_row(ctx, D.ekSKFILL, origin)
+    else
+      i_draw_shapes_row(ctx, D.ekSTROKE, origin)
     end
     D.t2d_movef(origin, origin, 0, 100)
     D.draw_matrixf(ctx, origin)
     if grad then
-	    i_draw_shapes_row(ctx, D.ekSKFILL, origin)
-	  else
-	    i_draw_shapes_row(ctx, D.ekFILL, origin)
-	  end
+      i_draw_shapes_row(ctx, D.ekSKFILL, origin)
+    else
+      i_draw_shapes_row(ctx, D.ekFILL, origin)
+    end
     D.t2d_movef(origin, origin, 0, 100)
     D.draw_matrixf(ctx, origin)
     if grad then
-	    i_draw_shapes_row(ctx, D.ekSKFILL, origin)
-	  else
-	    i_draw_shapes_row(ctx, D.ekSKFILL, origin)
-	  end
+      i_draw_shapes_row(ctx, D.ekSKFILL, origin)
+    else
+      i_draw_shapes_row(ctx, D.ekSKFILL, origin)
+    end
     D.t2d_movef(origin, origin, 0, 100)
     D.draw_matrixf(ctx, origin)
     if grad then
-	    i_draw_shapes_row(ctx, D.ekSKFILL, origin)
-	  else
-	    i_draw_shapes_row(ctx, D.ekFILLSK, origin)
-	  end
-	end i_draw_shapes
+      i_draw_shapes_row(ctx, D.ekSKFILL, origin)
+    else
+      i_draw_shapes_row(ctx, D.ekFILLSK, origin)
+    end
+  end i_draw_shapes
 
-	proc i_draw_gradient(ctx: cpointer to D.DCtx; gradient: real; back, shapes: boolean )
-	var c : carray 2 of D.color_t
-		gpos, gx, gy: real
-		stop: carray 2 of real
-	begin
+  proc i_draw_gradient(ctx: cpointer to D.DCtx; gradient: real; back, shapes: boolean )
+  var 
+	  c : carray 2 of D.color_t
+    gpos, gx, gy: real
+    stop: carray 2 of real
+  begin
     stop[0] := 0
     stop[1] := 1
     c[0] := D.kCOLOR_RED
@@ -205,12 +206,12 @@ module DrawHello
     D.draw_fill_linear(ctx, c, stop, 2, 0, 0, gx, gy)
     
     if back then
-	    D.draw_rect(ctx, D.ekFILL, 0, 0, 600, 400)
+      D.draw_rect(ctx, D.ekFILL, 0, 0, 600, 400)
     end
 
     if shapes then
-	    i_draw_shapes(ctx, true)
-	  end
+      i_draw_shapes(ctx, true)
+    end
 
     D.draw_matrixf(ctx, kT2D_IDENTf)
     D.draw_line_width(ctx, 3)
@@ -218,19 +219,19 @@ module DrawHello
     D.draw_line(ctx, 3, 3, gx + 3, gy + 3)
   end i_draw_gradient
 
-	proc i_draw_lines_gradient(ctx: cpointer to D.DCtx; gradient: real)
-	var
-		c : carray 2 of D.color_t
-		gpos, gx, gy: real
-		stop: carray 2 of real
-		pattern1: carray 4 of real
-		pattern2, pattern3, pattern4: carray 2 of real
-	begin
-		stop[0] := 0; stop[1] := 1
-		pattern1[0] := 5; pattern1[1] := 5; pattern1[2] := 10; pattern1[3] := 5
-		pattern2[0] := 1; pattern2[1] := 1
-		pattern3[0] := 2; pattern3[1] := 1
-		pattern4[0] := 1; pattern4[2] := 2
+  proc i_draw_lines_gradient(ctx: cpointer to D.DCtx; gradient: real)
+  var
+    c : carray 2 of D.color_t
+    gpos, gx, gy: real
+    stop: carray 2 of real
+    pattern1: carray 4 of real
+    pattern2, pattern3, pattern4: carray 2 of real
+  begin
+    stop[0] := 0; stop[1] := 1
+    pattern1[0] := 5; pattern1[1] := 5; pattern1[2] := 10; pattern1[3] := 5
+    pattern2[0] := 1; pattern2[1] := 1
+    pattern3[0] := 2; pattern3[1] := 1
+    pattern4[0] := 1; pattern4[2] := 2
 
     c[0] := D.kCOLOR_RED
     c[1] := D.kCOLOR_BLUE
@@ -286,15 +287,15 @@ module DrawHello
     D.draw_line_width(ctx, 1);
     D.draw_line_color(ctx, D.color_rgb(50, 50, 50));
     D.draw_line(ctx, 3, 3, gx + 3, gy + 3);
-	end i_draw_lines_gradient
-	
-	proc i_draw_local_gradient(ctx: cpointer to D.DCtx; gradient: real)
-	var
-		c : carray 2 of D.color_t
-		gpos, gx, gy: real
-		stop: carray 2 of real
-		matrix: D.T2Df
-	begin
+  end i_draw_lines_gradient
+  
+  proc i_draw_local_gradient(ctx: cpointer to D.DCtx; gradient: real)
+  var
+    c : carray 2 of D.color_t
+    gpos, gx, gy: real
+    stop: carray 2 of real
+    matrix: D.T2Df
+  begin
     stop[0] := 0; stop[1] := 1
 
     c[0] := D.kCOLOR_RED
@@ -346,13 +347,13 @@ module DrawHello
     D.draw_line_width(ctx, 3)
     D.draw_line_color(ctx, D.color_rgb(200, 200, 200))
     D.draw_line(ctx, 0, 0, gx, gy)
-	end i_draw_local_gradient
-	
-	proc i_draw_wrap_gradient(ctx: cpointer to D.DCtx)
-	var
-		c : carray 2 of D.color_t
-		stop: carray 2 of real
-	begin
+  end i_draw_local_gradient
+  
+  proc i_draw_wrap_gradient(ctx: cpointer to D.DCtx)
+  var
+    c : carray 2 of D.color_t
+    stop: carray 2 of real
+  begin
     stop[0] := 0; stop[1] := 1
     c[0] := D.kCOLOR_RED
     c[1] := D.kCOLOR_BLUE
@@ -364,17 +365,17 @@ module DrawHello
     D.draw_rect(ctx, D.ekFILLSK, 50, 150, 500, 100)
     D.draw_fill_wrap(ctx, D.ekFFLIP)
     D.draw_rect(ctx, D.ekFILLSK, 50, 275, 500, 100)
-	end i_draw_wrap_gradient
-	
-	proc i_text_single(ctx: cpointer to D.DCtx)
-	var
-		font: cpointer to D.Font
-		text: pointer to array of char
-		width, height: real
-		matrix: D.T2Df
-		tmp1, tmp2: carray 1 of real
-		tmp3: carray 1 of cpointer to D.Font
-	begin
+  end i_draw_wrap_gradient
+  
+  proc i_text_single(ctx: cpointer to D.DCtx)
+  var
+    font: cpointer to D.Font
+    text: pointer to array of char
+    width, height: real
+    matrix: D.T2Df
+    tmp1, tmp2: carray 1 of real
+    tmp3: carray 1 of cpointer to D.Font
+  begin
     font := D.font_system(20, 0)
     text := U.createW("Text 文本 Κείμενο")
 
@@ -465,18 +466,18 @@ module DrawHello
     D.draw_text_align(ctx, D.ekRIGHT, D.ekTOP)
     D.draw_text(ctx, text^, 0, 0)
 
-		tmp3[0] := font
+    tmp3[0] := font
     D.font_destroy(tmp3)
-	end i_text_single
-	
-	proc i_text_newline(ctx: cpointer to D.DCtx)
-	var
-		font: cpointer to D.Font
-		text: pointer to array of char
-		width, height: real
-		tmp1,tmp2: carray 1 of real
-		tmp3: carray 1 of cpointer to D.Font
-	begin
+  end i_text_single
+  
+  proc i_text_newline(ctx: cpointer to D.DCtx)
+  var
+    font: cpointer to D.Font
+    text: pointer to array of char
+    width, height: real
+    tmp1,tmp2: carray 1 of real
+    tmp3: carray 1 of cpointer to D.Font
+  begin
     font := D.font_system(20, 0)
     text := U.createW("Text new line" + 0ax + "文字换行" + 0ax + "Γραμμή κειμένου" )
     D.draw_font(ctx, font)
@@ -535,18 +536,18 @@ module DrawHello
     D.draw_rect(ctx, D.ekSTROKE, 575 - width, 325 - height, width, height)
     tmp3[0] := font
     D.font_destroy(tmp3)
-	end i_text_newline
-	
-	proc i_text_block(ctx: cpointer to D.DCtx)
-	const
-		text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do "
-	     + "eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim "
-	     + "veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo "
-	     + "consequat."
-	var
-		width1, height1, width2, height2, width3, height3, width4, height4: real
-		tmp1,tmp2: carray 1 of real
-	begin
+  end i_text_newline
+  
+  proc i_text_block(ctx: cpointer to D.DCtx)
+  const
+    text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do "
+       + "eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim "
+       + "veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo "
+       + "consequat."
+  var
+    width1, height1, width2, height2, width3, height3, width4, height4: real
+    tmp1,tmp2: carray 1 of real
+  begin
     D.draw_text_color(ctx, D.kCOLOR_BLUE)
     D.draw_text_align(ctx, D.ekLEFT, D.ekTOP)
     D.draw_text_halign(ctx, D.ekLEFT)
@@ -581,17 +582,17 @@ module DrawHello
     D.draw_rect(ctx, D.ekSTROKE, 25, 200, 400, height3)
     D.draw_rect(ctx, D.ekSTROKE, 25, 315, width4, height4)
     D.draw_rect(ctx, D.ekSTROKE, 25, 315, 500, height4)
-	end i_text_block
-	
-	proc i_text_art(ctx: cpointer to D.DCtx)
-	var
-		font: cpointer to D.Font
-		c: carray 2 of D.color_t
-		stop, dash: carray 2 of real
-		width, height: real
-		tmp1,tmp2: carray 1 of real
-		tmp3: carray 1 of cpointer to D.Font
-	begin
+  end i_text_block
+  
+  proc i_text_art(ctx: cpointer to D.DCtx)
+  var
+    font: cpointer to D.Font
+    c: carray 2 of D.color_t
+    stop, dash: carray 2 of real
+    width, height: real
+    tmp1,tmp2: carray 1 of real
+    tmp3: carray 1 of cpointer to D.Font
+  begin
     font := D.font_system(50, 0)
     stop[0] := 0; stop[1] := 1
     dash[0] := 1; dash[1] := 1
@@ -621,19 +622,20 @@ module DrawHello
     D.draw_text_path(ctx, D.ekSTROKE, "Thin stroke text", 25, 325)
     tmp3[0] := font
     D.font_destroy(tmp3)
-	end i_text_art
-	
-	proc i_image(ctx: cpointer to D.DCtx)
-	var
-		image: cpointer to D.Image
-		matrix: D.T2Df
-		error: carray 1 of C.ferror_t
-		tmp: carray 1 of cpointer to D.Image
-	begin
-    image := D.image_from_file("image.jpg", error)
+  end i_text_art
+  
+  proc i_image(ctx: cpointer to D.DCtx)
+  var
+    image: cpointer to D.Image
+    matrix: D.T2Df
+    error: carray 1 of C.ferror_t
+    tmp: carray 1 of cpointer to D.Image
+  begin
+    //image := D.image_from_file("image.jpg", error)
+    image := D.image_from_data(I.data, len(I.data))
     if image = nil then
-	    C.log_printf("cannot load image.jpg")
-	    return
+      C.log_printf("cannot load image.jpg")
+      return
     end
     D.draw_image_align(ctx, D.ekLEFT, D.ekTOP)
     D.draw_image(ctx, image, 25, 25)
@@ -658,14 +660,14 @@ module DrawHello
     D.draw_circle(ctx, D.ekFILL, 575, 375, 3)
     tmp[0] := image
     D.image_destroy(tmp)
-	end i_image
-	
-	proc i_OnDraw(data: *void; e: cpointer to C.Event)
-	type
-		EvDrawPtr = cpointer to G.EvDraw
-	var
-		p: EvDrawPtr
-	begin
+  end i_image
+  
+  proc i_OnDraw(data: *void; e: cpointer to C.Event)
+  type
+    EvDrawPtr = cpointer to G.EvDraw
+  var
+    p: EvDrawPtr
+  begin
     p := cast(EvDrawPtr,C.event_params_imp(e, "EvDraw"))
     D.draw_clear(p.ctx, D.color_rgb(200, 200, 200))
     case option of
@@ -723,39 +725,39 @@ module DrawHello
         G.label_text(label, "Drawing images with alignment")
         i_image(p.ctx)
     end
-	end i_OnDraw
-	
-	proc i_OnSelect(data: *void; e: cpointer to C.Event)
-	type
-		EvButtonPtr = cpointer to G.EvButton
-	var
-		p: EvButtonPtr
-	begin
+  end i_OnDraw
+  
+  proc i_OnSelect(data: *void; e: cpointer to C.Event)
+  type
+    EvButtonPtr = cpointer to G.EvButton
+  var
+    p: EvButtonPtr
+  begin
     p := cast(EvButtonPtr,C.event_params_imp(e, "EvButton"))
     option := p.index
     G.view_update(view)
-	end i_OnSelect
-	
-	proc i_OnSlider(data: *void; e: cpointer to C.Event)
-	type
-		EvSliderPtr = cpointer to G.EvSlider
-	var
-		p: EvSliderPtr
-	begin
+  end i_OnSelect
+  
+  proc i_OnSlider(data: *void; e: cpointer to C.Event)
+  type
+    EvSliderPtr = cpointer to G.EvSlider
+  var
+    p: EvSliderPtr
+  begin
     p := cast(EvSliderPtr,C.event_params_imp(e, "EvSlider"))
     gradient := p.pos
     G.view_update(view)
-	end i_OnSlider
-	
-	proc i_panel(): cpointer to G.Panel
-	var
-		panel: cpointer to G.Panel
-		layout1, layout2: cpointer to G.Layout
-		label1, label2, label3: cpointer to G.Label
-		popup: cpointer to G.PopUp
-		slider1: cpointer to G.Slider
-		view1: cpointer to G.View
-	begin
+  end i_OnSlider
+  
+  proc i_panel(): cpointer to G.Panel
+  var
+    panel: cpointer to G.Panel
+    layout1, layout2: cpointer to G.Layout
+    label1, label2, label3: cpointer to G.Label
+    popup: cpointer to G.PopUp
+    slider1: cpointer to G.Slider
+    view1: cpointer to G.View
+  begin
     panel := G.panel_create()
     layout1 := G.layout_create(1, 3)
     layout2 := G.layout_create(4, 1)
@@ -805,18 +807,18 @@ module DrawHello
     view := view1
     label := label3
     return panel
-	end i_panel
+  end i_panel
 
-	proc i_OnClose(data: *void; e: cpointer to C.Event)
-	begin
+  proc i_OnClose(data: *void; e: cpointer to C.Event)
+  begin
     G.osapp_finish()
     // unref(e);
-	end i_OnClose
-	
-	proc i_create()
-	var 
-		panel: cpointer to G.Panel
-	begin
+  end i_OnClose
+  
+  proc i_create()
+  var 
+    panel: cpointer to G.Panel
+  begin
     panel := i_panel()
     window := G.window_create(G.ekWNSTD)
     gradient := 0
@@ -826,9 +828,9 @@ module DrawHello
     G.window_origin(window, D.v2df(500, 200))
     G.window_OnClose(window, C.listener_imp(nil, i_OnClose))
     G.window_show(window)
-	end i_create
+  end i_create
 
-	proc i_destroy(item: *[]*void)
+  proc i_destroy(item: *[]*void)
     var w: carray 1 of *G.Window
   begin
     w[0] := window
@@ -837,8 +839,8 @@ module DrawHello
   end i_destroy
   
 begin
-	kT2D_IDENTf.i.x := 1; kT2D_IDENTf.i.y := 0
-	kT2D_IDENTf.j.x := 0; kT2D_IDENTf.j.y := 1
-	kT2D_IDENTf.p.x := 0; kT2D_IDENTf.p.y := 0
+  kT2D_IDENTf.i.x := 1; kT2D_IDENTf.i.y := 0
+  kT2D_IDENTf.j.x := 0; kT2D_IDENTf.j.y := 1
+  kT2D_IDENTf.p.x := 0; kT2D_IDENTf.p.y := 0
   G.osmain_imp(0, nil, nil, 0.0, i_create, nil, i_destroy, nil)
 end DrawHello

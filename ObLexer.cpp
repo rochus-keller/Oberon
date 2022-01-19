@@ -337,9 +337,9 @@ static inline bool checkHexNumber( QByteArray str )
         return true;
 }
 
-static inline bool checkDecNumber( QByteArray str )
+static inline bool checkDecNumber( QByteArray str, bool oneOff = false )
 {
-    for( int i = 0; i < str.size(); i++ )
+    for( int i = 0; i < (str.size() - (oneOff ? 1 : 0)); i++ )
     {
         if( !::isdigit(str[i]) )
             return false;
@@ -494,7 +494,7 @@ Token Lexer::number()
             return token( Tok_Invalid, off, "literal too large for LONGREAL" );
 #endif
         return tok;
-    }else if( !isHex && !checkDecNumber(str) )
+    }else if( !isHex && !checkDecNumber(str, is32bit || is64bit) )
         return token( Tok_Invalid, off, "invalid decimal integer" );
     else
         // NOTE: we dont have to deal with is32bit and is64bit here because the string includes the suffices
@@ -627,6 +627,31 @@ Token Lexer::string()
     return token( Tok_string, off, str );
 }
 
+enum { HEX_PENDING, HEX_END, HEX_INVALID };
+static int readHex( QByteArray& to, const QByteArray& from, int& pos )
+{
+    int res = HEX_PENDING;
+    for( ; pos < from.size(); pos++ )
+    {
+        const char ch = from[pos];
+        if( ch == '$' )
+        {
+            res = HEX_END;
+            pos++;
+            break;
+        }else if( ::isspace(ch) )
+            ; // ignore space
+        else if( isHexDigit(ch) )
+            to.append(ch);
+        else
+        {
+            res = HEX_INVALID;
+            break;
+        }
+    }
+    return res;
+}
+
 Token Lexer::hexstring()
 {
     countLine();
@@ -637,46 +662,52 @@ Token Lexer::hexstring()
     const int startLine = d_lineNr;
     const int startCol = d_colNr;
 
-    int pos = d_line.indexOf( "$", d_colNr + 1 );
     QByteArray str;
-    while( pos == -1 && !d_in->atEnd() )
+    int pos = d_colNr + 1;
+    int res = readHex(str, d_line, pos);
+
+    while( res == HEX_PENDING && !d_in->atEnd() )
     {
-        if( !str.isEmpty() )
-            str += '\n';
-        str += d_line.mid( d_colNr );
         nextLine();
         countLine();
-        pos = d_line.indexOf( "$" );
+        pos = d_colNr;
+        res = readHex(str, d_line, pos);
     }
-    if( pos == -1 )
+    if( d_packComments && res != HEX_END )
     {
-        d_colNr = d_line.size();
+        d_colNr = pos;
         Token t( Tok_Invalid, startLine, startCol + 1, str.size(), tr("non-terminated hexadecimal string").toLatin1() );
+        t.d_sourcePath = d_sourcePath;
+        if( d_err )
+            d_err->error(Errors::Syntax, t.d_sourcePath, t.d_lineNr, t.d_colNr, t.d_val );
         return t;
     }
     // else
-    pos++; // konsumiere $
-    if( !str.isEmpty() )
-        str += '\n';
-    str += d_line.mid( d_colNr, pos - d_colNr );
 
-    bool ok = true;
-    for( int i = 1; i < str.size() - 2; i++ )
+    if( d_packComments || ( res == HEX_END && startLine == d_lineNr ) )
     {
-        if( !isHexDigit( str[i] ) && !::isspace(str[i]) )
-            ok = false;
-    }
-    Token t( Tok_hexstring, startLine, startCol, str.size(), str );
-    if( !ok )
+        Token t( Tok_hexstring, startLine, startCol + 1,
+                 startLine == d_lineNr ? pos - startCol : str.size(), str );
+        t.d_sourcePath = d_sourcePath;
+        d_lastToken = t;
+        d_colNr = pos;
+        return t;
+    }else
     {
-        t.d_type = Tok_Invalid;
-        t.d_val = "invalid hexadecimal string";
+        Token t1( Tok_Dlr, startLine, startCol + 1,
+                 startLine == d_lineNr ? pos - startCol : str.size(), str );
+        t1.d_sourcePath = d_sourcePath;
+        d_lastToken = t1;
+        d_colNr = pos;
+        if( res == HEX_END )
+        {
+            Token t2(Tok_Dlr,d_lineNr, pos - 1, 2 );
+            t2.d_sourcePath = d_sourcePath;
+            d_lastToken = t2;
+            d_buffer.append( t2 );
+        }
+        return t1;
     }
-    t.d_sourcePath = d_sourcePath;
-    d_lastToken = t;
-    t.d_len += 1;
-    d_colNr = pos;
-    return t;
 }
 
 bool Lexer::isHexstring(int off) const

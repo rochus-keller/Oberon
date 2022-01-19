@@ -63,7 +63,9 @@ number ::= integer | real
 
 string ::= // '"' {character} '"' | digit {hexDigit} 'X', also multiline hex strings $ ... $ seen in PO source
 hexchar ::=
-hexstring ::=
+hexstring ::= 
+
+hexstringdelim- ::= '$'
 
 comment- ::= '(*' '*)' '//'
 // line comments like in BCPL and Delphi/Free Pascal

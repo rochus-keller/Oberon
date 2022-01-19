@@ -21,7 +21,9 @@ size=0
 4\RelPath=NAppWidgets.obx
 5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/Utf8.obx
 5\RelPath=Utf8.obx
-size=5
+6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/Resources/Image.obx
+6\RelPath=Resources/Image.obx
+size=6
 
 [Packages]
 1\Name=@ByteArray()

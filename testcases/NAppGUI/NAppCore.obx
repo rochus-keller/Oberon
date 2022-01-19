@@ -67,7 +67,7 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     // from clock.h
     proc clock_create(interval: longreal): *Clock
     proc clock_destroy(clk: *[]*Clock)
-    proc clock_frame(clk: *Clock; prev_frame: *[]longreal; curr_frame: *[]longreal): char
+    proc clock_frame(clk: *Clock; prev_frame: *[]longreal; curr_frame: *[]longreal): boolean
     proc clock_reset(clk: *Clock)
     proc clock_elapsed(clk: *Clock): longreal
 
@@ -166,8 +166,8 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc date_add_days(date: *Date; days: integer): Date
     proc date_year(): shortint
     proc date_cmp(date1: *Date; date2: *Date): integer
-    proc date_between(date: *Date; from: *Date; to_: *Date): char
-    proc date_is_null(date: *Date): char
+    proc date_between(date: *Date; from: *Date; to_: *Date): boolean
+    proc date_is_null(date: *Date): boolean
     proc date_DD_MM_YYYY_HH_MM_SS(date: *Date): *String
     proc date_YYYY_MM_DD_HH_MM_SS(date: *Date): *String
     proc date_month_en(month: month_t): *[]char
@@ -209,34 +209,34 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     // from heap.h
     proc heap_start_mt
     proc heap_end_mt
-    proc heap_malloc_imp(size: integer; name: *[]char; equal_sized: char): *[]byte
-    proc heap_calloc_imp(size: integer; name: *[]char; equal_sized: char): *[]byte
+    proc heap_malloc_imp(size: integer; name: *[]char; equal_sized: boolean): *[]byte
+    proc heap_calloc_imp(size: integer; name: *[]char; equal_sized: boolean): *[]byte
     proc heap_realloc(mem: *[]byte; size: integer; new_size: integer; name: *[]char): *[]byte
-    proc heap_aligned_malloc_imp(size: integer; align: integer; name: *[]char; equal_sized: char): *[]byte
-    proc heap_aligned_calloc_imp(size: integer; align: integer; name: *[]char; equal_sized: char): *[]byte
+    proc heap_aligned_malloc_imp(size: integer; align: integer; name: *[]char; equal_sized: boolean): *[]byte
+    proc heap_aligned_calloc_imp(size: integer; align: integer; name: *[]char; equal_sized: boolean): *[]byte
     proc heap_aligned_realloc(mem: *[]byte; size: integer; new_size: integer; align: integer; name: *[]char): *[]byte
     proc heap_free(mem: *[]*[]byte; size: integer; name: *[]char)
     proc heap_auditor_add(name: *[]char)
     proc heap_auditor_delete(name: *[]char)
-    proc heap_stats(stats: char)
+    proc heap_stats(stats: boolean)
 
     // from hfile.h
-    proc hfile_dir(pathname: *[]char): char
-    proc hfile_dir_create(pathname: *[]char; error: *[1]ferror_t): char
-    proc hfile_dir_destroy(pathname: *[]char; error: *[1]ferror_t): char
-    proc hfile_dir_list(pathname: *[]char; subdirs: char; error: *[1]ferror_t): *[]DirEntry
+    proc hfile_dir(pathname: *[]char): boolean
+    proc hfile_dir_create(pathname: *[]char; error: *[1]ferror_t): boolean
+    proc hfile_dir_destroy(pathname: *[]char; error: *[1]ferror_t): boolean
+    proc hfile_dir_list(pathname: *[]char; subdirs: boolean; error: *[1]ferror_t): *[]DirEntry
     proc hfile_dir_entry_remove(entry: *DirEntry)
-    proc hfile_date(pathname: *[]char; recursive: char): Date
-    proc hfile_dir_sync(src: *[]char; dest: *[]char; recursive: char; remove_in_dest: char; except: *[]*[]char; except_size: integer; error: *[1]ferror_t): char
-    proc hfile_exists(pathname: *[]char; file_type: *[1]file_type_t): char
-    proc hfile_is_uptodate(src: *[]char; dest: *[]char): char
-    proc hfile_copy(from: *[]char; to_: *[]char; error: *[1]ferror_t): char
+    proc hfile_date(pathname: *[]char; recursive: boolean): Date
+    proc hfile_dir_sync(src: *[]char; dest: *[]char; recursive: boolean; remove_in_dest: boolean; except: *[]*[]char; except_size: integer; error: *[1]ferror_t): boolean
+    proc hfile_exists(pathname: *[]char; file_type: *[1]file_type_t): boolean
+    proc hfile_is_uptodate(src: *[]char; dest: *[]char): boolean
+    proc hfile_copy(from: *[]char; to_: *[]char; error: *[1]ferror_t): boolean
     proc hfile_buffer(pathname: *[]char; error: *[1]ferror_t): *Buffer
     proc hfile_string(pathname: *[]char; error: *[1]ferror_t): *String
     proc hfile_stream(pathname: *[]char; error: *[1]ferror_t): *Stream
-    proc hfile_from_string(pathname: *[]char; str: *String; error: *[1]ferror_t): char
-    proc hfile_from_data(pathname: *[]char; data: *[]byte; size: integer; error: *[1]ferror_t): char
-    proc hfile_dir_loop(pathname: *[]char; listener: *Listener; subdirs: char; hiddens: char; error: *[1]ferror_t): char
+    proc hfile_from_string(pathname: *[]char; str: *String; error: *[1]ferror_t): boolean
+    proc hfile_from_data(pathname: *[]char; data: *[]byte; size: integer; error: *[1]ferror_t): boolean
+    proc hfile_dir_loop(pathname: *[]char; listener: *Listener; subdirs: boolean; hiddens: boolean; error: *[1]ferror_t): boolean
     proc hfile_appdata(filename: *[]char): *String
     proc hfile_home_dir(path: *[]char): *String
 
@@ -249,7 +249,7 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc keybuf_OnUp(buffer: *KeyBuf; key: vkey_t)
     proc keybuf_OnDown(buffer: *KeyBuf; key: vkey_t)
     proc keybuf_clear(buffer: *KeyBuf)
-    proc keybuf_pressed(buffer: *KeyBuf; key: vkey_t): char
+    proc keybuf_pressed(buffer: *KeyBuf; key: vkey_t): boolean
     proc keybuf_str(key: vkey_t): *[]char
     proc keybuf_dump(buffer: *KeyBuf)
 
@@ -263,11 +263,11 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc rbtree_destroy(tree: *[]*RBTree; func_remove: FPtr_remove; func_destroy_key: FPtr_destroy; type_: *[]char)
     proc rbtree_destroy_ptr(tree: *[]*RBTree; func_destroy: FPtr_destroy; func_destroy_key: FPtr_destroy; type_: *[]char)
     proc rbtree_size(tree: *RBTree): integer
-    proc rbtree_get(tree: *RBTree; key: *void; isptr: char): *[]byte
+    proc rbtree_get(tree: *RBTree; key: *void; isptr: boolean): *[]byte
     proc rbtree_insert(tree: *RBTree; key: *void; func_key_copy: FPtr_copy): *[]byte
-    proc rbtree_insert_ptr(tree: *RBTree; ptr: *void): char
-    proc rbtree_delete(tree: *RBTree; key: *void; func_remove: FPtr_remove; func_destroy_key: FPtr_destroy): char
-    proc rbtree_delete_ptr(tree: *RBTree; key: *void; func_destroy: FPtr_destroy; func_destroy_key: FPtr_destroy): char
+    proc rbtree_insert_ptr(tree: *RBTree; ptr: *void): boolean
+    proc rbtree_delete(tree: *RBTree; key: *void; func_remove: FPtr_remove; func_destroy_key: FPtr_destroy): boolean
+    proc rbtree_delete_ptr(tree: *RBTree; key: *void; func_destroy: FPtr_destroy; func_destroy_key: FPtr_destroy): boolean
     proc rbtree_first(tree: *RBTree): *[]byte
     proc rbtree_last(tree: *RBTree): *[]byte
     proc rbtree_next(tree: *RBTree): *[]byte
@@ -277,12 +277,12 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc rbtree_next_ptr(tree: *RBTree): *[]byte
     proc rbtree_prev_ptr(tree: *RBTree): *[]byte
     proc rbtree_get_key(tree: *RBTree): *[]char
-    proc rbtree_check(tree: *RBTree): char
+    proc rbtree_check(tree: *RBTree): boolean
 
     // from regex.h
     proc regex_create(pattern: *[]char): *RegEx
     proc regex_destroy(regex: *[]*RegEx)
-    proc regex_match(regex: *RegEx; str: *[]char): char
+    proc regex_match(regex: *RegEx; str: *[]char): boolean
 
     // from respack.h
     type
@@ -382,9 +382,9 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc stm_token_col(stm: *Stream): integer
     proc stm_token_row(stm: *Stream): integer
     proc stm_token_lexeme(stm: *Stream; size: *[]integer): *[]char
-    proc stm_token_escapes(stm: *Stream; active_escapes: char)
-    proc stm_token_spaces(stm: *Stream; active_spaces: char)
-    proc stm_token_comments(stm: *Stream; active_comments: char)
+    proc stm_token_escapes(stm: *Stream; active_escapes: boolean)
+    proc stm_token_spaces(stm: *Stream; active_spaces: boolean)
+    proc stm_token_comments(stm: *Stream; active_comments: boolean)
     proc stm_state(stm: *Stream): sstate_t
     proc stm_file_err(stm: *Stream): ferror_t
     proc stm_sock_err(stm: *Stream): serror_t
@@ -396,8 +396,8 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc stm_write_char(stm: *Stream; codepoint: integer)
     proc stm_printf(stm: *Stream; format: *[]char): integer [varargs]
     proc stm_writef(stm: *Stream; str: *[]char): integer
-    proc stm_write_bool(stm: *Stream; value: char)
-    proc stm_write_i8(stm: *Stream; value: char)
+    proc stm_write_bool(stm: *Stream; value: boolean)
+    proc stm_write_i8(stm: *Stream; value: boolean)
     proc stm_write_i16(stm: *Stream; value: shortint)
     proc stm_write_i32(stm: *Stream; value: integer)
     proc stm_write_i64(stm: *Stream; value: integer)
@@ -413,7 +413,7 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc stm_read_line(stm: *Stream): *[]char
     proc stm_read_trim(stm: *Stream): *[]char
     proc stm_read_token(stm: *Stream): ltoken_t
-    proc stm_read_i8_tok(stm: *Stream): char
+    proc stm_read_i8_tok(stm: *Stream): boolean
     proc stm_read_i16_tok(stm: *Stream): shortint
     proc stm_read_i32_tok(stm: *Stream): integer
     proc stm_read_i64_tok(stm: *Stream): integer
@@ -423,8 +423,8 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc stm_read_u64_tok(stm: *Stream): integer
     proc stm_read_r32_tok(stm: *Stream): real
     proc stm_read_r64_tok(stm: *Stream): longreal
-    proc stm_read_bool(stm: *Stream): char
-    proc stm_read_i8(stm: *Stream): char
+    proc stm_read_bool(stm: *Stream): boolean
+    proc stm_read_i8(stm: *Stream): boolean
     proc stm_read_i16(stm: *Stream): shortint
     proc stm_read_i32(stm: *Stream): integer
     proc stm_read_i64(stm: *Stream): integer
@@ -457,7 +457,7 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc str_relpath(path1: *[]char; path2: *[]char): *String
     proc str_repl(str: *[]char): *String [varargs]
     proc str_reserve(n: integer): *String
-    proc str_fill(n: integer; c: char): *String
+    proc str_fill(n: integer; c: boolean): *String
     proc str_read(stream: *Stream): *String
     proc str_write(stream: *Stream; str: *String)
     proc str_writef(stream: *Stream; str: *String)
@@ -472,34 +472,34 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc str_len_c(str: *[]char): integer
     proc str_nchars(str: *String): integer
     proc str_prefix(str1: *[]char; str2: *[]char): integer
-    proc str_is_prefix(str: *[]char; prefix: *[]char): char
-    proc str_is_sufix(str: *[]char; sufix: *[]char): char
+    proc str_is_prefix(str: *[]char; prefix: *[]char): boolean
+    proc str_is_sufix(str: *[]char; sufix: *[]char): boolean
     proc str_scmp(str1: *String; str2: *String): integer
     proc str_cmp(str1: *String; str2: *[]char): integer
     proc str_cmp_c(str1: *[]char; str2: *[]char): integer
     proc str_cmp_cn(str1: *[]char; str2: *[]char; n: integer): integer
-    proc str_empty(str: *String): char
-    proc str_empty_c(str: *[]char): char
-    proc str_equ(str1: *String; str2: *[]char): char
-    proc str_equ_c(str1: *[]char; str2: *[]char): char
-    proc str_equ_cn(str1: *[]char; str2: *[]char; n: integer): char
-    proc str_equ_nocase(str1: *[]char; str2: *[]char): char
-    proc str_equ_end(str: *[]char; end_: *[]char): char
+    proc str_empty(str: *String): boolean
+    proc str_empty_c(str: *[]char): boolean
+    proc str_equ(str1: *String; str2: *[]char): boolean
+    proc str_equ_c(str1: *[]char; str2: *[]char): boolean
+    proc str_equ_cn(str1: *[]char; str2: *[]char; n: integer): boolean
+    proc str_equ_nocase(str1: *[]char; str2: *[]char): boolean
+    proc str_equ_end(str: *[]char; end_: *[]char): boolean
     proc str_upper(str: *String)
     proc str_lower(str: *String)
     proc str_upper_c(dest: *[]char; size: integer; str: *[]char)
     proc str_lower_c(dest: *[]char; size: integer; str: *[]char)
-    proc str_subs(str: *String; replace: char; with_: char)
+    proc str_subs(str: *String; replace: boolean; with_: boolean)
     proc str_repl_c(str: *[]char; replace: *[]char; with_: *[]char)
     proc str_str(str: *[]char; substr: *[]char): *[]char
-    proc str_split(str: *[]char; substr: *[]char; left: *[]*String; right: *[]*String): char
-    proc str_split_trim(str: *[]char; substr: *[]char; left: *[]*String; right: *[]*String): char
+    proc str_split(str: *[]char; substr: *[]char; left: *[]*String; right: *[]*String): boolean
+    proc str_split_trim(str: *[]char; substr: *[]char; left: *[]*String; right: *[]*String): boolean
     proc str_split_pathname(pathname: *[]char; path: *[]*String; file: *[]*String)
     proc str_split_pathext(pathname: *[]char; path: *[]*String; file: *[]*String; ext: *[]*String)
     proc str_filename(pathname: *[]char): *[]char
     proc str_filext(pathname: *[]char): *[]char
     proc str_find(array_: *[]String; str: *[]char): integer
-    proc str_to_i8(str: *[]char; base: integer; error: *[]char): char
+    proc str_to_i8(str: *[]char; base: integer; error: *[]char): boolean
     proc str_to_i16(str: *[]char; base: integer; error: *[]char): shortint
     proc str_to_i32(str: *[]char; base: integer; error: *[]char): integer
     proc str_to_i64(str: *[]char; base: integer; error: *[]char): integer
@@ -515,23 +515,23 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
         file_mode_t = ( file_mode_t_invalid, ekREAD, ekWRITE, ekAPPEND )
 
     // TODO proc bfile_dir_work(pathname: *[]char; size: integer): integer
-    // TODO proc bfile_dir_set_work(pathname: *[]char; error: *[1]ferror_t): char
+    // TODO proc bfile_dir_set_work(pathname: *[]char; error: *[1]ferror_t): boolean
     proc bfile_dir_home(pathname: *[]char; size: integer): integer
     proc bfile_dir_data(pathname: *[]char; size: integer): integer
     proc bfile_dir_exec(pathname: *[]char; size: integer): integer
-    proc bfile_dir_create(pathname: *[]char; error: *[1]ferror_t): char
+    proc bfile_dir_create(pathname: *[]char; error: *[1]ferror_t): boolean
     proc bfile_dir_open(pathname: *[]char; error: *[1]ferror_t): *Dir
     proc bfile_dir_close(dir: *[]*Dir)
-    proc bfile_dir_get(dir: *Dir; name: *[]char; size: integer; type_: *[1]file_type_t; fsize: *[]integer; updated: *Date; error: *[1]ferror_t): char
-    proc bfile_dir_delete(pathname: *[]char; error: *[1]ferror_t): char
+    proc bfile_dir_get(dir: *Dir; name: *[]char; size: integer; type_: *[1]file_type_t; fsize: *[]integer; updated: *Date; error: *[1]ferror_t): boolean
+    proc bfile_dir_delete(pathname: *[]char; error: *[1]ferror_t): boolean
     proc bfile_create(pathname: *[]char; error: *[1]ferror_t): *File
     proc bfile_open(pathname: *[]char; mode: file_mode_t; error: *[1]ferror_t): *File
     proc bfile_close(file: *[]*File)
-    proc bfile_lstat(pathname: *[]char; type_: *[1]file_type_t; size: *[]integer; updated: *Date; error: *[1]ferror_t): char
-    proc bfile_fstat(file: *File; type_: *[1]file_type_t; size: *[]integer; updated: *Date; error: *[1]ferror_t): char
-    proc bfile_read(file: *File; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): char
-    proc bfile_write(file: *File; data: *[]byte; size: integer; wsize: *[]integer; error: *[1]ferror_t): char
-    proc bfile_delete(pathname: *[]char; error: *[1]ferror_t): char
+    proc bfile_lstat(pathname: *[]char; type_: *[1]file_type_t; size: *[]integer; updated: *Date; error: *[1]ferror_t): boolean
+    proc bfile_fstat(file: *File; type_: *[1]file_type_t; size: *[]integer; updated: *Date; error: *[1]ferror_t): boolean
+    proc bfile_read(file: *File; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): boolean
+    proc bfile_write(file: *File; data: *[]byte; size: integer; wsize: *[]integer; error: *[1]ferror_t): boolean
+    proc bfile_delete(pathname: *[]char; error: *[1]ferror_t): boolean
 
     // from bmutex.h
     proc bmutex_create(): *Mutex
@@ -542,15 +542,15 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     // from bproc.h
     proc bproc_exec(command: *[]char; error: *[1]ferror_t): *Proc
     proc bproc_close(proc_: *[]*Proc)
-    proc bproc_cancel(proc_: *Proc): char
+    proc bproc_cancel(proc_: *Proc): boolean
     proc bproc_wait(proc_: *Proc): integer
-    proc bproc_finish(proc_: *Proc; code: *[]integer): char
-    proc bproc_read(proc_: *Proc; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): char
-    proc bproc_eread(proc_: *Proc; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): char
-    proc bproc_write(proc_: *Proc; data: *[]byte; size: integer; wsize: *[]integer; error: *[1]ferror_t): char
-    proc bproc_read_close(proc_: *Proc): char
-    proc bproc_eread_close(proc_: *Proc): char
-    proc bproc_write_close(proc_: *Proc): char
+    proc bproc_finish(proc_: *Proc; code: *[]integer): boolean
+    proc bproc_read(proc_: *Proc; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): boolean
+    proc bproc_eread(proc_: *Proc; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): boolean
+    proc bproc_write(proc_: *Proc; data: *[]byte; size: integer; wsize: *[]integer; error: *[1]ferror_t): boolean
+    proc bproc_read_close(proc_: *Proc): boolean
+    proc bproc_eread_close(proc_: *Proc): boolean
+    proc bproc_write_close(proc_: *Proc): boolean
     proc bproc_exit(code: integer)
 
     // from bsocket.h
@@ -562,8 +562,8 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc bsocket_remote_ip(socket: *Socket; ip: *[]integer; port: *[]shortint)
     proc bsocket_read_timeout(socket: *Socket; timeout_ms: integer)
     proc bsocket_write_timeout(socket: *Socket; timeout_ms: integer)
-    proc bsocket_read(socket: *Socket; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): char
-    proc bsocket_write(socket: *Socket; data: *[]byte; size: integer; wsize: *[]integer; error: *[1]ferror_t): char
+    proc bsocket_read(socket: *Socket; data: *[]byte; size: integer; rsize: *[]integer; error: *[1]ferror_t): boolean
+    proc bsocket_write(socket: *Socket; data: *[]byte; size: integer; wsize: *[]integer; error: *[1]ferror_t): boolean
     proc bsocket_url_ip(url: *[]char; error: *[1]ferror_t): integer
     proc bsocket_str_ip(ip: *[]char): integer
     proc bsocket_ip_str(ip: integer): *[]char
@@ -581,9 +581,9 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc bthread_create_imp(thmain: FPtr_thread_main; data: *void): *Thread
     proc bthread_current_id(): integer
     proc bthread_close(thread: *[]*Thread)
-    proc bthread_cancel(thread: *Thread): char
+    proc bthread_cancel(thread: *Thread): boolean
     proc bthread_wait(thread: *Thread): integer
-    proc bthread_finish(thread: *Thread; code: *[]integer): char
+    proc bthread_finish(thread: *Thread; code: *[]integer): boolean
     proc bthread_sleep(milliseconds: integer)
 
     // from btime.h
@@ -594,7 +594,7 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
 
     // from log.h
     proc log_printf(format: *[]char): integer [varargs]
-    proc log_output(std: char; err: char)
+    proc log_output(std: boolean; err: boolean)
     proc log_file(pathname: *[]char)
     proc log_get_file(): *[]char
 
@@ -758,11 +758,11 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc bmem_set8(dest: *[]byte; size: integer; mask: *[]byte)
     proc bmem_set16(dest: *[]byte; size: integer; mask: *[]byte)
     proc bmem_cmp(mem1: *[]byte; mem2: *[]byte; size: integer): integer
-    proc bmem_is_zero(mem: *[]byte; size: integer): char
+    proc bmem_is_zero(mem: *[]byte; size: integer): boolean
     proc bmem_set_zero(dest: *[]byte; size: integer)
     proc bmem_copy(dest: *[]byte; src: *[]byte; size: integer)
     proc bmem_move(dest: *[]byte; src: *[]byte; size: integer)
-    proc bmem_overlaps(mem1: *[]byte; mem2: *[]byte; size1: integer; size2: integer): char
+    proc bmem_overlaps(mem1: *[]byte; mem2: *[]byte; size1: integer; size2: integer): boolean
     proc bmem_rev(mem: *[]byte; size: integer)
     proc bmem_rev2(mem: *[]byte)
     proc bmem_rev4(mem: *[]byte)
@@ -778,9 +778,9 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
     proc bstd_eprintf(format: *[]char): integer [varargs]
     proc bstd_writef(str: *[]char): integer
     proc bstd_ewritef(str: *[]char): integer
-    proc bstd_read(data: *[]byte; size: integer; rsize: *[]integer): char
-    proc bstd_write(data: *[]byte; size: integer; wsize: *[]integer): char
-    proc bstd_ewrite(data: *[]byte; size: integer; wsize: *[]integer): char
+    proc bstd_read(data: *[]byte; size: integer; rsize: *[]integer): boolean
+    proc bstd_write(data: *[]byte; size: integer; wsize: *[]integer): boolean
+    proc bstd_ewrite(data: *[]byte; size: integer; wsize: *[]integer): boolean
     proc bstd_abort
     proc bstd_debug_break
 
@@ -789,8 +789,8 @@ definition NAppCore [extern 'C', dll 'NAppGUI']
         FPtr_assert = proc(item: *void; group: integer; caption: *[]char; detail: *[]char; file: *[]char; line: integer)
 
     proc cassert_set_func(data: *void; func_assert: FPtr_assert)
-    proc cassert_imp(cond: char; detail: *[]char; file: *[]char; line: integer)
-    proc cassert_fatal_imp(cond: char; detail: *[]char; file: *[]char; line: integer)
+    proc cassert_imp(cond: boolean; detail: *[]char; file: *[]char; line: integer)
+    proc cassert_fatal_imp(cond: boolean; detail: *[]char; file: *[]char; line: integer)
     proc cassert_no_null_imp(ptr: *void; detail: *[]char; file: *[]char; line: integer)
     proc cassert_no_nullf_imp(ptr: proc; detail: *[]char; file: *[]char; line: integer)
     proc cassert_default_imp(file: *[]char; line: integer)
