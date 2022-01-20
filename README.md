@@ -27,6 +27,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - [x] Use a minimal Mono runtime as an alternative to the LuaJIT VM
 - [x] Foreign Function Interface (FFI, see [here](https://github.com/rochus-keller/OberonSystem/blob/FFI/ObSdl.obx) for an example, and [here](https://github.com/rochus-keller/c2obx/) for a tool to convert C headers to Oberon+ definition modules))
 - [x] Implement a C transpiler backend (instead the originally planned LLVM backend)
+- [x] Cross-platform OS abstraction/GUI library (using NAppGUI, see [here](https://github.com/rochus-keller/Oberon/tree/master/testcases/NAppGUI))
 - [ ] Write documentation and focus articles (WIP)
 
 ### The Oberon+ IDE

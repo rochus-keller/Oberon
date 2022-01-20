@@ -4,7 +4,7 @@
 module GuiHello
 
 	import D := NAppDraw, C := NAppCore, G := NAppWidgets
-					L := Labels, B := Buttons
+					L := Labels, B := Buttons, P := Popups
 	
 	var
 		window: *G.Window
@@ -24,9 +24,9 @@ module GuiHello
         panel := L.labels_mouse_over()
     | 3:
         panel := B.buttons_basics()
-	(*
     | 4:
-        panel = popup_combo()
+        panel := P.popup_combo()
+	(*
     | 5:
         panel = listboxes()
     | 6:

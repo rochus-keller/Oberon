@@ -66,5 +66,23 @@ module Utf8
 		end
 		return res
 	end createW
+	
+	proc create*(in str: array of char): Utf8Str
+	var res: Utf8Str
+		l, i, j, count: integer
+	begin
+		l := strlen(str)
+		count := 0
+		for i := 0 to l-1 do
+			if ord(str[i]) > 80h then inc(count,2) else inc(count) end
+		end
+		new(res, count+1)
+		j := 0
+		for i := 0 to l-1 do
+			encode(wchr(ord(str[i])),res^,j)
+		end
+		return res
+	end create
+
 
 end Utf8

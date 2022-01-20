@@ -1,0 +1,84 @@
+// Original GuiHello C app by Francisco Garcia Collado, MIT Licence
+// Translated to Oberon+ by Rochus Keller
+
+module Popups
+
+	import D := NAppDraw, C := NAppCore, G := NAppWidgets, I := Icons, U := Utf8
+
+	proc i_popups(layout: *G.Layout)
+	var
+		label1, label2: *G.Label
+		popup1, popup2: *G.PopUp
+	begin
+    label1 := G.label_create()
+    label2 := G.label_create()
+    popup1 := G.popup_create()
+    popup2 := G.popup_create()
+    G.label_text(label1, "Language:")
+    G.label_text(label2, "Color:")
+    G.popup_add_elem(popup1, "English", D.image_from_data(I.UKING_PNG,len(I.UKING_PNG)))
+    G.popup_add_elem(popup1, U.create("Español")^, D.image_from_data(I.SPAIN_PNG,len(I.SPAIN_PNG)))
+    G.popup_add_elem(popup1, "Portugues", D.image_from_data(I.PORTUGAL_PNG,len(I.PORTUGAL_PNG)))
+    G.popup_add_elem(popup1, "Italiana", D.image_from_data(I.ITALY_PNG,len(I.ITALY_PNG)))
+    G.popup_add_elem(popup1, U.createW("Tiếng Việt")^, D.image_from_data(I.VIETNAM_PNG,len(I.VIETNAM_PNG)))
+    G.popup_add_elem(popup1, U.createW("России")^, D.image_from_data(I.RUSSIA_PNG,len(I.RUSSIA_PNG)))
+    G.popup_add_elem(popup1, U.createW("日本語")^, D.image_from_data(I.JAPAN_PNG,len(I.JAPAN_PNG)))
+    G.popup_add_elem(popup2, "Red", D.image_from_data(I.RED_PNG,len(I.RED_PNG)))
+    G.popup_add_elem(popup2, "Blue", D.image_from_data(I.BLUE_PNG,len(I.BLUE_PNG)))
+    G.popup_add_elem(popup2, "Green", D.image_from_data(I.GREEN_PNG,len(I.GREEN_PNG)))
+    G.popup_add_elem(popup2, "Yellow", D.image_from_data(I.YELLOW_PNG,len(I.YELLOW_PNG)))
+    G.popup_add_elem(popup2, "Black", D.image_from_data(I.BLACK_PNG,len(I.BLACK_PNG)))
+    G.popup_add_elem(popup2, "White", D.image_from_data(I.WHITE_PNG,len(I.WHITE_PNG)))
+    G.popup_list_height(popup1, 10)
+    G.popup_list_height(popup2, 10)
+    G.layout_label(layout, label1, 0, 0)
+    G.layout_label(layout, label2, 0, 1)
+    G.layout_popup(layout, popup1, 1, 0)
+    G.layout_popup(layout, popup2, 1, 1)
+	end i_popups
+	
+	proc i_combos(layout: *G.Layout)
+	var
+		label1, label2: *G.Label
+		combo1, combo2: *G.Combo
+	begin
+    label1 := G.label_create()
+    label2 := G.label_create()
+    combo1 := G.combo_create()
+    combo2 := G.combo_create()
+    G.label_text(label1, "Search:")
+    G.label_text(label2, "Folder:")
+    G.combo_add_elem(combo1, "Search", nil)
+    G.combo_add_elem(combo1, "Disk", nil)
+    G.combo_add_elem(combo1, "Edit", nil)
+    G.combo_add_elem(combo2, "/home/fran/Desktop", nil)
+    G.combo_add_elem(combo2, "/usr/include", nil)
+    G.combo_add_elem(combo2, "/mnt/volume1", nil)
+    G.combo_add_elem(combo2, "/etc/html/log.txt", nil)
+    G.layout_label(layout, label1, 2, 0)
+    G.layout_label(layout, label2, 2, 1)
+    G.layout_combo(layout, combo1, 3, 0)
+    G.layout_combo(layout, combo2, 3, 1)
+	end i_combos
+	
+	proc popup_combo*(): *G.Panel
+	var
+		panel: *G.Panel
+		layout: *G.Layout
+	begin
+    panel := G.panel_create()
+    layout := G.layout_create(4, 2)
+    i_popups(layout)
+    i_combos(layout)
+    G.layout_margin(layout, 10.);
+    G.layout_vmargin(layout, 0, 10.)
+    G.layout_hmargin(layout, 0, 5.)
+    G.layout_hmargin(layout, 1, 10.)
+    G.layout_hmargin(layout, 2, 5.)
+    G.layout_hsize(layout, 1, 150.)
+    G.layout_hsize(layout, 3, 150.)
+    G.panel_layout(panel, layout)
+    return panel
+	end popup_combo
+
+end Popups

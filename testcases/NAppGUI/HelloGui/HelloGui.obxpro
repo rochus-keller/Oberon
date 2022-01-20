@@ -25,7 +25,11 @@ size=0
 6\RelPath=Buttons.obx
 7\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/HelloGui/Icons.obx
 7\RelPath=Icons.obx
-size=7
+8\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/HelloGui/Popups.obx
+8\RelPath=Popups.obx
+9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/NAppGUI/Utf8.obx
+9\RelPath=../Utf8.obx
+size=9
 
 [Packages]
 1\Name=@ByteArray()
