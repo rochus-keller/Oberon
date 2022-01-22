@@ -719,6 +719,7 @@ void Ide::createMenu()
     pop->addSeparator();
     pop->addCommand( "Add Import Path...", this, SLOT(onAddDir()) );
     pop->addCommand( "Remove Import Path...", this, SLOT(onRemoveDir()) );
+    pop->addCommand( "Export Dependency Graph...", this, SLOT(onExpDepTree()) );
     pop->addSeparator();
     pop->addCommand( "Set Build Directory...", this, SLOT( onBuildDir() ) );
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
@@ -3094,6 +3095,26 @@ void Ide::onExpMod()
     d_pro->printTreeShaken( m->d_file, path );
 }
 
+void Ide::onExpDepTree()
+{
+    ENABLED_IF( true );
+
+    QString path = d_pro->getProjectPath();
+    if( path.endsWith(".obxpro") )
+        path.chop(7);
+    if( path.isEmpty() )
+        path = "Dependencies";
+
+    path = QFileDialog::getSaveFileName( this, tr("Export Dependency Tree"), path + ".dot" );
+
+    if( path.isEmpty() )
+        return;
+
+    const bool consolidate =  QInputDialog::getItem(this, tr("Export Dependency Tree"), tr("Select Tree Version"),
+                              QStringList() << tr("Full") << tr("Consolidated"), 0, false ) == tr("Consolidated");
+    d_pro->printImportDependencies( path, consolidate );
+}
+
 void Ide::onByteMode()
 {
     CHECKED_IF( true, d_mode == BytecodeMode );
@@ -3310,7 +3331,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.51");
+    a.setApplicationVersion("0.9.52");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

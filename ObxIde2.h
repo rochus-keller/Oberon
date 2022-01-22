@@ -161,6 +161,7 @@ namespace Obx
         void onAbout();
         void onQt();
         void onExpMod();
+        void onExpDepTree();
         void onByteMode();
         void onSetRunCommand();
         void onConsole( const QString& msg, bool err );

@@ -346,8 +346,9 @@ struct ObxModuleDump : public AstVisitor
     {
         last = me->d_loc;
         if( me->d_unsafe )
-            out << "unsafe ";
-        out << "pointer to ";
+            out << "cpointer to ";
+        else
+            out << "pointer to ";
         if( me->d_to )
             me->d_to->accept(this);
         else
@@ -375,8 +376,12 @@ struct ObxModuleDump : public AstVisitor
     {
         last = me->d_loc;
         if( me->d_unsafe )
-            out << "cstruct ";
-        else
+        {
+            if( me->d_union )
+                out << "cunion ";
+            else
+                out << "cstruct ";
+        }else
             out << "record ";
         if( me->d_base )
         {
@@ -1105,6 +1110,84 @@ bool Project::printTreeShaken(const QString& module, const QString& fileName)
     ObxModuleDump dump;
     dump.out.setDevice( &out );
     m->accept(&dump);
+    return true;
+}
+
+static inline QByteArray escapeDot(QByteArray name)
+{
+    return "\"" + name + "\"";
+}
+
+static void removeRedundantImports(Module* cur, QSet<Module*>& imports )
+{
+    foreach( Import* i, cur->d_imports )
+    {
+        imports.remove( i->d_mod.data() );
+        removeRedundantImports( i->d_mod.data(), imports );
+    }
+}
+
+static QList<Module*> removeRedundantImports(Module* m)
+{
+    QSet<Module*> imports;
+    foreach( Import* i, m->d_imports )
+    {
+        if( !i->d_mod->isFullyInstantiated() || i->d_mod->d_synthetic )
+            continue;
+        imports << i->d_mod.data();
+    }
+    foreach( Import* i, m->d_imports )
+        removeRedundantImports(i->d_mod.data(), imports);
+    return imports.toList();
+}
+
+bool Project::printImportDependencies(const QString& fileName, bool pruned)
+{
+    QFile f(fileName);
+    if( !f.open(QIODevice::WriteOnly) )
+        return false;
+    QTextStream s(&f);
+
+    s << "digraph \"Import Dependency Tree\" {" << endl;
+    if( !pruned )
+        s << "    graph [splines=ortho]" << endl;
+    s << "    node [shape=box]" << endl;
+
+    QList<Module*> mods = getModulesToGenerate(true);
+    foreach( Module* m, mods )
+    {
+        if( !m->isFullyInstantiated() || m->d_synthetic )
+            continue;
+        QSet<QByteArray> names;
+        if( pruned )
+        {
+            QList<Module*> imports = removeRedundantImports(m);
+            foreach( Module* i, imports )
+                names << escapeDot(i->getFullName());
+        }else
+        {
+            foreach( Import* i, m->d_imports )
+            {
+                if( i->d_mod.isNull() || i->d_mod->d_synthetic )
+                    continue;
+                names << escapeDot(i->d_mod->getFullName());
+            }
+        }
+        const QByteArray name = escapeDot(m->getFullName());
+        // s << "    " << name << " [shape=box];" << endl;
+        s << "    " << name << " -> {";
+        bool first = true;
+        foreach( const QByteArray& to, names )
+        {
+            if( !first )
+                s << ", ";
+            first = false;
+            s << to;
+        }
+        s << "};" << endl;
+    }
+
+    s << "}";
     return true;
 }
 

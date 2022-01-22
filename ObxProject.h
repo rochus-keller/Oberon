@@ -111,6 +111,7 @@ namespace Obx
         Expression* findSymbolBySourcePos(Module*, quint32 line, quint16 col, Scope** scopePtr) const;
         ExpList getUsage( Named* ) const;
         bool printTreeShaken( const QString& module, const QString& fileName );
+        bool printImportDependencies(const QString& fileName , bool pruned);
 
         Ob::Errors* getErrs() const;
         Ob::FileCache* getFc() const;
