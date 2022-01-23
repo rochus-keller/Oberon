@@ -112,6 +112,7 @@ void Highlighter::highlightBlock(const QString& text)
         if( lexerState > 0 )
         {
             // the whole block ist part of the comment
+            lexerState = 1; // lexerState can have higher value if nested
             setFormat( start, text.size(), f );
             setCurrentBlockState( (braceDepth << 8) | lexerState);
             return;

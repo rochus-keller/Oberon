@@ -2481,6 +2481,11 @@ struct ValidatorImp : public AstVisitor
                     return;
                 }
                 ProcType* pt = cast<ProcType*>(t);
+                if( !pt->d_formals.isEmpty() )
+                {
+                    error( me->d_loc, Validator::tr("this procedure requires actual arguments") );
+                    return;
+                }
                 Ref<ArgExpr> ae = new ArgExpr();
                 ae->d_op = UnExpr::CALL;
                 ae->d_loc = me->d_what->d_loc;

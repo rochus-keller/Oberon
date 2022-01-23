@@ -367,9 +367,9 @@ namespace Obx
         virtual QByteArray getName() const { return d_name; }
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
-        Module* getModule();
+        Module* getModule() const;
         QByteArrayList getQualifiedName() const;
-        bool isPublic() const { return d_visibility == ReadWrite || d_visibility == ReadOnly; }
+        bool isPublic() const;
         const char* visibilitySymbol() const;
     };
 

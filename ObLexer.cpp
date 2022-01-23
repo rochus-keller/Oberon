@@ -610,6 +610,23 @@ Token Lexer::comment()
     return t;
 }
 
+static bool isPotentialIdent( const QByteArray& str )
+{
+    bool firstAlphaFound = false;
+    for( int i = 0; i < str.size(); i++ )
+    {
+        const char ch = str[i];
+        if( firstAlphaFound )
+        {
+
+        }else if( ::isdigit(ch) )
+            return false;
+        else if( ::isalpha(ch) )
+            firstAlphaFound = true;
+    }
+    return firstAlphaFound;
+}
+
 Token Lexer::string()
 {
     const char quote = lookAhead(0);
@@ -624,6 +641,15 @@ Token Lexer::string()
             return token( Tok_Invalid, off, "non-terminated string" );
     }
     const QByteArray str = d_line.mid(d_colNr, off );
+#if 0
+    const QByteArray cropped = str.mid(1,str.size()-2);
+    const QByteArray trimmed = str.trimmed();
+    const QByteArrayList quali = cropped.split('.');
+    if( quali.size() == 2 && isValidIdent(quali.first()) && isValidIdent(quali.last()))
+        qDebug() << "QUALIDENT:\t" << cropped << "\t" << d_sourcePath << d_lineNr;
+    else if( !trimmed.isEmpty() && isPotentialIdent(trimmed) )
+        qDebug() << "STRING:\t" << cropped << "\t" << d_sourcePath << d_lineNr;
+#endif
     return token( Tok_string, off, str );
 }
 

@@ -35,8 +35,8 @@ const char* Thing::s_tagName[] =
 
 const char* BaseType::s_typeName[] =
 {
-    "NONE", "ANY", "VOID", "NIL", "BYTEARRAY", "STRING", "WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
-    "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET", "ENUMINT"
+    "NONE", "ANY", "VOID", "NIL", "#BYTEARRAY", "#STRING", "#WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
+    "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET", "#ENUMINT"
 };
 
 const char* BuiltIn::s_typeName[] =
@@ -635,10 +635,10 @@ ArgExpr*Call::getCallExpr() const
     return cast<ArgExpr*>( d_what.data() );
 }
 
-Module* Named::getModule()
+Module* Named::getModule() const
 {
     if( getTag() == Thing::T_Module )
-        return cast<Module*>(this);
+        return cast<Module*>(const_cast<Named*>(this));
     else if( d_scope )
         return d_scope->getModule();
     else
@@ -656,6 +656,14 @@ QByteArrayList Named::getQualifiedName() const
         scope = scope->d_scope;
     }
     return res;
+}
+
+bool Named::isPublic() const
+{
+    if( d_visibility == ReadWrite || d_visibility == ReadOnly )
+        return true;
+    Module* m = getModule();
+    return m && m->d_isDef;
 }
 
 const char*Named::visibilitySymbol() const
