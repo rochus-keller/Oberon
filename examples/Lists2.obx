@@ -1,3 +1,4 @@
+// TODO: this is an example adopted from Wikipedia, but List.Add makes no sense; fix it
 module Lists2
 	import Out
     type
@@ -21,4 +22,5 @@ module Lists2
     	Out.Int(t.value,8); Out.Ln
     	if t.next # nil then t.next.Write end
     end Write
+    
 end Lists2

@@ -11,10 +11,10 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Minimal.obx
-1\RelPath=Minimal.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Imported1b.obx
-2\RelPath=Imported1b.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs5.obx
+1\RelPath=Procs5.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs5b.obx
+2\RelPath=Procs5b.obx
 size=2
 
 [Packages]

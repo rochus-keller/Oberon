@@ -1,5 +1,5 @@
 MODULE Drawing;
-  IMPORT F := Fibonacci;
+  IMPORT F := Fibonacci,
          C := Collections(Figure);
          
   TYPE Figure* = POINTER TO RECORD

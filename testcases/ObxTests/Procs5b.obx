@@ -1,0 +1,37 @@
+module Procs5b
+	type 
+		Superclass = pointer to record end
+		Class = pointer to record (Superclass) end
+	
+	var inst : Class
+	
+	proc ( this : Superclass ) Hello()
+	begin
+		println("Hello Superclass!")
+	end Hello
+	
+	proc ( this : Superclass ) Hello2(in str: array of char)
+	begin
+		println("Hello2 Superclass!")
+		println(str)
+	end Hello2
+
+	proc ( this : Class ) Hello()
+	begin
+		this.Hello^
+		println("Hello Class!")
+	end Hello
+	
+	proc ( this : Class ) Hello2(in str: array of char)
+	begin
+		this.Hello2^(str)
+		println("Hello2 Class!")
+	end Hello2
+
+begin
+	println("Procs5b start")
+	new(inst)
+	inst.Hello
+	inst.Hello2("this is a string")
+	println("Procs5b done")
+end Procs5b

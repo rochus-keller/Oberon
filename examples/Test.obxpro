@@ -1,0 +1,17 @@
+[General]
+BuildDir=
+BuiltInOakwood=true
+BuiltInObSysInner=false
+MainModule=@ByteArray()
+MainProc=@ByteArray()
+Suffixes=@Invalid()
+WorkingDir=
+
+[Modules]
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/examples/Lists2.obx
+1\RelPath=Lists2.obx
+size=1
+
+[Packages]
+1\Name=@ByteArray()
+size=1

@@ -1374,7 +1374,13 @@ struct ObxCilGenImp : public AstVisitor
             emitter->setReturnType(formatType(pt->d_return.data(),pt->d_unsafe));
 
         // allocate params and local
-        int off = me->d_receiver.isNull() ? 0 : 1;
+        int off = 0;
+        if( !me->d_receiver.isNull() )
+        {
+            off = 1;
+            me->d_receiver->d_slot = 0;
+            me->d_receiver->d_slotValid = true;
+        }
         for( int i = 0; i < pt->d_formals.size(); i++ )
         {
             pt->d_formals[i]->d_slot = i+off; // for type-bounds arg0 is self
