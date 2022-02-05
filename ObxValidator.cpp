@@ -39,6 +39,7 @@ struct ValidatorImp : public AstVisitor
     QList<Level> levels;
     Type* curTypeDecl;
     Statement* prevStat;
+    QSet<Const*> constTrace;
     bool returnValueFound;
 
     ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0),returnValueFound(false) {}
@@ -309,11 +310,21 @@ struct ValidatorImp : public AstVisitor
             error( me->d_loc, Validator::tr("cannot resolve identifier '%1'").arg(me->d_name.constData()) );
         }else
         {
-            if( me->d_ident->getTag() == Thing::T_Import )
+            switch( me->d_ident->getTag() )
             {
-                Import* imp = cast<Import*>(me->d_ident.data());
-                if( !imp->d_metaActuals.isEmpty() && !imp->d_visited )
-                    imp->accept(this);
+            case Thing::T_Import:
+                {
+                    Import* imp = cast<Import*>(me->d_ident.data());
+                    if( !imp->d_metaActuals.isEmpty() && !imp->d_visited )
+                        imp->accept(this);
+                }
+                break;
+            case Thing::T_Const:
+                {
+                    Const* c = cast<Const*>(me->d_ident.data());
+                    if( !c->d_visited )
+                        c->accept(this);
+                }
             }
             checkNonLocalAccess(me->d_ident.data(),me);
             //if( me->d_ident->getTag() == Thing::T_Import )
@@ -2135,8 +2146,14 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Const* me )
     {
-        if( me->d_constExpr.isNull() )
+        if( me->d_constExpr.isNull() || me->d_visited )
             return;
+        if( constTrace.contains(me) )
+        {
+            error(me->d_loc, Validator::tr("const depends on itself"));
+            return;
+        }
+        constTrace.insert(me);
         me->d_constExpr->accept(this);
         me->d_type = me->d_constExpr->d_type.data();
         Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, false, err);
@@ -2144,6 +2161,8 @@ struct ValidatorImp : public AstVisitor
         me->d_vtype = res.d_vtype;
         me->d_wide = res.d_wide;
         me->d_strLen = res.d_strLen;
+        me->d_visited = true;
+        constTrace.remove(me);
     }
 
     void visit( Field* me )

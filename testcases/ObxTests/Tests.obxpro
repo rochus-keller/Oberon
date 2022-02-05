@@ -11,11 +11,9 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs5.obx
-1\RelPath=Procs5.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs5b.obx
-2\RelPath=Procs5b.obx
-size=2
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/LogOps3.obx
+1\RelPath=LogOps3.obx
+size=1
 
 [Packages]
 1\Name=@ByteArray()

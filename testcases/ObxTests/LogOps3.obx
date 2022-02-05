@@ -1,0 +1,11 @@
+module LogOps3
+
+
+    const
+        KMOD_CTRL = bitor(KMOD_LCTRL, KMOD_RCTRL)
+
+    const
+        KMOD_LCTRL = 64
+        KMOD_RCTRL = 128
+
+end LogOps3

@@ -1458,8 +1458,10 @@ Record*Type::toRecord(bool* isPtr) const
 Module*Type::declaredIn()
 {
     Named* n = findDecl(true);
-    Q_ASSERT(n);
-    return n->getModule();
+    if(n)
+        return n->getModule();
+    else
+        return 0; // should not happen
 }
 
 bool Literal::isWide(const QString& str)
