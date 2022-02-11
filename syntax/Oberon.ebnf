@@ -35,9 +35,9 @@
 // - UNSAFE POINTER TO deprecated by CPOINTER TO and '*'; VOID is a predeclared identifier which can be used as *VOID
 // - SystemAttrs
 
-//#define OBN2
+#define OBN2
 // combine OBN2 with either OBNX or BBOX
-//#define OBNX
+#define OBNX
 //#define BBOX
 
 /// Top
@@ -130,9 +130,14 @@ ArrayType ::= ( ARRAY
 	 | '[' [ LengthList ] ']' type
 #endif
 
-LengthList ::= length {',' length}
+LengthList ::= length {',' length} 
+#ifdef OBNX
+	| VAR vlength { ',' vlength }
 
-length* ::= ConstExpression // TODO: allow VLA for local vars where length is dependent on param or module variable
+vlength* ::= expression // allow VLA for local vars where length is dependent on runtime provided value
+#endif
+
+length* ::= ConstExpression 
 
 #ifdef BBOX
 SysFlag ::=  '[' ConstExpression ']' 

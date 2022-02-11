@@ -1,0 +1,19 @@
+module Vla2
+
+proc Test(n, m: integer)
+	var i,j: integer
+		a: array var n, m of integer
+begin
+	for i := 0 to n -1 do
+		for j := 0 to m-1 do
+			a[i,j] := i*j*2
+		end
+	end
+	println(a[2,3])
+end Test
+
+begin
+	println("Vla2 start")
+	Test(4,5)
+	println("Vla2 done")
+end Vla2

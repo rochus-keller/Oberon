@@ -2149,7 +2149,6 @@ struct ObxCilGenImp : public AstVisitor
                 if( t && t->getTag() == Thing::T_Pointer )
                     t = derefed( cast<Pointer*>(t)->d_to.data() );
 
-#if 1
                 if( t->isString() || t->getBaseType() == Type::BYTEARRAY )
                 {
                     int len = 0;
@@ -2167,25 +2166,13 @@ struct ObxCilGenImp : public AstVisitor
                     if( t->isString() )
                         len++;
                     line(ae->d_loc).ldc_i4(len);
-                }
-#else
-                if( t->isString() )
-                {
-                    ae->d_args.first()->accept(this);
-                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true); // TODO: likely wrong!
-                }else if( t->getBaseType() == Type::BYTEARRAY )
-                {
-                    ae->d_args.first()->accept(this);
-                    line(ae->d_loc).ldlen_();
-                }
-#endif
-                else
+                }else
                 {
                     Q_ASSERT( t->getTag() == Thing::T_Array );
                     Array* a = cast<Array*>(t);
                     Type* at = derefed( a->d_type.data() );
                     Q_ASSERT( at );
-                    if( a->d_len > 0 )
+                    if( !a->d_lenExpr.isNull() && !a->d_vla )
                     {
                         line(ae->d_loc).ldc_i4(a->d_len);
                     }else
@@ -3515,8 +3502,8 @@ struct ObxCilGenImp : public AstVisitor
             Q_ASSERT( tl->getTag() == Thing::T_Array && tr->getTag() == Thing::T_Array );
             Array* la = cast<Array*>(tl);
             Array* ra = cast<Array*>(tr);
-            if( la->d_lenExpr.isNull() || ra->d_lenExpr.isNull() )
-                err->error(Errors::Generator, Loc(loc,thisMod->d_file),"copying of unsafe open arrays not supported");
+            if( la->d_lenExpr.isNull() || ra->d_lenExpr.isNull() || la->d_vla || ra->d_vla )
+                err->error(Errors::Generator, Loc(loc,thisMod->d_file),"copying of unsafe open or variable length arrays not supported");
             else
             {
                 const quint32 len = qMin(la->d_len,ra->d_len) * la->d_type->getByteSize();
@@ -3976,8 +3963,19 @@ struct ObxCilGenImp : public AstVisitor
                 Type* td = derefed(a->d_type.data());
 
                 Q_ASSERT( !a->d_lenExpr.isNull() );
-                const quint32 len = a->d_len * td->getByteSize();
-                line(loc).ldc_i4( len );
+                Q_ASSERT( lengths.isEmpty() );
+                quint32 len = 0;
+                if( a->d_vla )
+                {
+                    len = temps.buy("int32");
+                    a->d_lenExpr->accept(this);
+                    line(loc).dup_();
+                    line(loc).stloc_(len);
+                }else
+                {
+                    len = a->d_len * td->getByteSize();
+                    line(loc).ldc_i4( len );
+                }
                 if( scope )
                     line(loc).localloc_(); // we're in a procedure
                 else
@@ -3985,7 +3983,12 @@ struct ObxCilGenImp : public AstVisitor
                     line(loc).call_("native int [mscorlib]System.Runtime.InteropServices.Marshal::AllocHGlobal(int32)",1,true);
                 line(loc).dup_();
                 line(loc).ldc_i4(0);
-                line(loc).ldc_i4(len);
+                if( a->d_vla )
+                {
+                    line(loc).ldloc_(len);
+                    temps.sell(len);
+                }else
+                    line(loc).ldc_i4(len);
                 line(loc).initblk_();
             }else
             {
@@ -4001,7 +4004,10 @@ struct ObxCilGenImp : public AstVisitor
                 }else
                 {
                     Q_ASSERT( !a->d_lenExpr.isNull() );
-                    line(loc).ldc_i4(a->d_len);
+                    if( a->d_vla )
+                        a->d_lenExpr->accept(this);
+                    else
+                        line(loc).ldc_i4(a->d_len);
                     if( td->isStructured() )
                     {
                         len = temps.buy("int32");

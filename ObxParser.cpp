@@ -587,6 +587,11 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
         next();
         arr->d_loc = d_cur.toRowCol();
         /*arr->d_flag =*/ systemFlag(); // backward compatiblity
+        if( d_la == Tok_VAR )
+        {
+            next();
+            arr->d_vla = true;
+        }
         if( d_la != Tok_OF )
         {
             dims = lengthList();
@@ -596,6 +601,11 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
     {
         MATCH( Tok_Lbrack, tr("expecting '['") );
         arr->d_loc = d_cur.toRowCol();
+        if( d_la == Tok_VAR )
+        {
+            next();
+            arr->d_vla = true;
+        }
         if( d_la != Tok_Rbrack )
         {
             dims = lengthList();
@@ -615,6 +625,7 @@ Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
             Ref<Array> cur = new Array();
             cur->d_type = t;
             cur->d_lenExpr = dims[i];
+            cur->d_vla = last->d_vla;
             last->d_type = cur.data();
             last = cur;
         }

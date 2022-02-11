@@ -132,8 +132,7 @@ struct ObxCGenImp : public AstVisitor
     QByteArray modName;
     int level;
     QTextStream h,b;
-    QIODevice* park;
-    QString body;
+    QList<QPair<QString,QIODevice*> > overlay;
     bool ownsErr;
     bool debug; // generate line pragmas
     quint32 anonymousDeclNr; // starts with one, zero is an invalid slot
@@ -156,7 +155,7 @@ struct ObxCGenImp : public AstVisitor
     QList<int> sellLater;
 
     ObxCGenImp():err(0),thisMod(0),ownsErr(false),level(0),debug(false),anonymousDeclNr(1),
-        curProc(0),curVarDecl(0),park(0){}
+        curProc(0),curVarDecl(0){}
 
     inline QByteArray ws() { return QByteArray(level*4,' '); }
 
@@ -208,20 +207,34 @@ struct ObxCGenImp : public AstVisitor
     }
 #endif
 
-    void beginBody()
+    void pushStream()
     {
         Q_ASSERT( b.device() );
-        park = b.device();
+        overlay.push_back(qMakePair(QString(),b.device()));
         b.setDevice(0);
-        body.clear();
-        b.setString(&body);
+        b.setString(&overlay.back().first);
+    }
+
+    void popStream(bool write = false)
+    {
+        Q_ASSERT( !overlay.isEmpty() );
+        b.flush();
+        overlay.back().second->write(overlay.back().first.toUtf8());
+        b.setDevice(overlay.back().second);
+        overlay.pop_back();
+    }
+
+    void beginBody()
+    {
+        pushStream();
         temps.clear();
     }
 
     void endBody()
     {
-        Q_ASSERT( park );
+        Q_ASSERT( !overlay.isEmpty() );
         b.flush();
+        QIODevice* park = overlay.back().second;
         for(int i = 0; i < temps.size(); i++ )
         {
 #ifdef _OBX_FUNC_SEQ_POINT_
@@ -233,8 +246,7 @@ struct ObxCGenImp : public AstVisitor
             park->write(ws() + temps[i].first + " $t" + QByteArray::number(i) + ";\n" );
 #endif
         }
-        park->write(body.toUtf8());
-        b.setDevice(park);
+        popStream(true);
     }
 
     static QByteArray escape(const QByteArray& str)
@@ -511,7 +523,27 @@ struct ObxCGenImp : public AstVisitor
                 {
                     res = name;
                     res += "[";
-                    res += QByteArray::number(a->d_len);
+                    if( a->d_vla )
+                    {
+#if 0
+                        pushStream();
+                        a->d_lenExpr->accept(this);
+                        const QByteArray tmp = overlay.back().first.toUtf8();
+                        popStream();
+                        res += tmp;
+#else
+                        QList<Array*> dims = a->getDims();
+                        for( int i = 0; i < dims.size(); i++ )
+                        {
+                            if( i != 0 )
+                                res += "][";
+                            res += name + "$len[" + QByteArray::number(i) + "]";
+                        }
+                        res += "]";
+                        return formatType( dims.last()->d_type.data(), res );
+#endif
+                    }else
+                        res += QByteArray::number(a->d_len);
                     res += "]";
                 }
                 return formatType( a->d_type.data(), res );
@@ -627,7 +659,10 @@ struct ObxCGenImp : public AstVisitor
                 if( i != 0 )
                     b << "*";
                 Q_ASSERT(!dims[i]->d_lenExpr.isNull() );
-                b << dims[i]->d_len;
+                if( a->d_vla )
+                    b << variable << "$len[" << i << "]";
+                else
+                    b << dims[i]->d_len;
             }
             b << "); $i++) ";
             b << classRef(td) << "$init$(&((" << formatType(td,"*") << ")"
@@ -1035,9 +1070,21 @@ struct ObxCGenImp : public AstVisitor
             {
             case Thing::T_LocalVar:
                 {
-                    //TODO curVarDecl = n.data();
+                    Type* td = derefed(n->d_type.data());
+                    if( td && td->getTag() == Thing::T_Array && td->d_vla )
+                    {
+                        b << ws() << "const uint32_t " << escape(n->d_name) << "$len[] = {";
+                        QList<Array*> dims = cast<Array*>(td)->getDims();
+                        for( int i = 0; i < dims.size(); i++ )
+                        {
+                            if( i != 0 )
+                                b << ", ";
+                            Q_ASSERT( !dims[i]->d_lenExpr.isNull() );
+                            dims[i]->d_lenExpr->accept(this);
+                        }
+                        b << "};" << endl;
+                    }
                     b << ws() << formatType( n->d_type.data(), escape(n->d_name) ) << ";" << endl;
-                    //curVarDecl = 0;
                 }
                 break;
             case Thing::T_Parameter:
@@ -1494,7 +1541,7 @@ struct ObxCGenImp : public AstVisitor
                     b << "(" << arrayType(dims.size(), loc) << "){";
                     for( int i = 0; i < dims.size(); i++ )
                     {
-                        Q_ASSERT(!dims[i]->d_lenExpr.isNull());
+                        Q_ASSERT(!dims[i]->d_lenExpr.isNull() && !dims[i]->d_vla );
                         b << dims[i]->d_len;
                         b << ",";
                     }
@@ -1937,6 +1984,7 @@ struct ObxCGenImp : public AstVisitor
             {
                 // TODO: len with two args
                 Q_ASSERT( !ae->d_args.isEmpty() );
+                Named* id = ae->d_args.first()->getIdent();
                 Type* t = derefed(ae->d_args.first()->d_type.data() );
                 if( t && t->getTag() == Thing::T_Pointer )
                     t = derefed( cast<Pointer*>(t)->d_to.data() );
@@ -1947,10 +1995,9 @@ struct ObxCGenImp : public AstVisitor
                     {
                         Literal* l = cast<Literal*>(ae->d_args.first().data());
                         b << l->d_strLen;
-                    }else if( ae->d_args.first()->getIdent() &&
-                              ae->d_args.first()->getIdent()->getTag() == Thing::T_Const )
+                    }else if( id && id->getTag() == Thing::T_Const )
                     {
-                        Const* c = cast<Const*>(ae->d_args.first()->getIdent());
+                        Const* c = cast<Const*>(id);
                         b << c->d_strLen;
                     }else
                         Q_ASSERT(false);
@@ -1962,8 +2009,14 @@ struct ObxCGenImp : public AstVisitor
                     Q_ASSERT( t->getTag() == Thing::T_Array );
                     Array* a = cast<Array*>(t);
                     if( !a->d_lenExpr.isNull() )
-                        b << a->d_len;
-                    else
+                    {
+                        if( a->d_vla && id )
+                        {
+                            Q_ASSERT( id->getTag() == Thing::T_LocalVar );
+                            b << escape(id->d_name) << "$len[0]";
+                        }else
+                            b << a->d_len;
+                    }else
                     {
                         b << "(";
                         renderArg(0, ae->d_args.first().data(),false);
@@ -2283,11 +2336,18 @@ struct ObxCGenImp : public AstVisitor
         if( addrOf )
             b << "&";
         b << "(" << arrayType(allDims.size()-idxDims.size(), arrDesig->d_loc) << "){";
+        Named* id = arrDesig->getIdent();
         for(int i = 0; i < (allDims.size()-idxDims.size()); i++ )
         {
             if( allDims[i+idxDims.size()]->d_lenExpr )
-                b << allDims[i+idxDims.size()]->d_len << ",";
-            else
+            {
+                if( allDims[i+idxDims.size()]->d_vla && id )
+                {
+                    Q_ASSERT( id->getTag() == Thing::T_LocalVar );
+                    b << escape(id->d_name) << "$len[" << (i+idxDims.size()) << "]";
+                }else
+                    b << allDims[i+idxDims.size()]->d_len << ",";
+            }else
             {
                 Q_ASSERT(dynLen);
                 b << "$t" << temp << "->$" << i+idxDims.size()+1 << ",";
@@ -2321,8 +2381,14 @@ struct ObxCGenImp : public AstVisitor
                 }else
                 {
                     if( allDims[i]->d_lenExpr )
-                        b << allDims[i]->d_len;
-                    else
+                    {
+                        if( allDims[i]->d_vla && id )
+                        {
+                            Q_ASSERT( id->getTag() == Thing::T_LocalVar );
+                            b << escape(id->d_name) << "$len[" << i << "]";
+                        }else
+                            b << allDims[i]->d_len;
+                    }else
                     {
                         Q_ASSERT(dynLen);
                         b << "$t" << temp << "->$" << i+1;
@@ -2343,6 +2409,7 @@ struct ObxCGenImp : public AstVisitor
         Type* ta = derefed(rhs->d_type.data());
         Q_ASSERT(ta);
         const int atag = ta->getTag();
+        Named* id = rhs->getIdent();
         bool lwide, rwide;
         if( ta->isString() || ta->getBaseType() == Type::BYTEARRAY )
         {
@@ -2390,7 +2457,7 @@ struct ObxCGenImp : public AstVisitor
                 e->accept(this); // the thing before DEREF is a pointer
             }else if( tag == Thing::T_BinExpr // happens if strings are added
                       || tag == Thing::T_Literal // a string or bytearray literal is always OBX$Array
-                      || ( rhs->getIdent() && rhs->getIdent()->getTag() == Thing::T_Parameter ) // a param is always OBX$Array
+                      || ( id && id->getTag() == Thing::T_Parameter ) // a param is always OBX$Array
                       )
             {
                 if( addrOf )
@@ -2425,7 +2492,13 @@ struct ObxCGenImp : public AstVisitor
                 for(int i = 0; i < dims.size(); i++ )
                 {
                     Q_ASSERT( dims[i]->d_lenExpr ); // array values always have static lens
-                    b << dims[i]->d_len << ",";
+                    if( dims[i]->d_vla && id )
+                    {
+                        Q_ASSERT( id->getTag() == Thing::T_LocalVar );
+                        b << escape(id->d_name) << "$len[" << i << "]";
+                    }else
+                        b << dims[i]->d_len;
+                    b << ",";
                 }
                 b << "1,";
                 rhs->accept(this);
@@ -2804,6 +2877,7 @@ struct ObxCGenImp : public AstVisitor
                         renderArg(0,e->d_sub.data(),false);
                         b << ").$a)[";
                     }
+                    Named* id = e->d_sub->getIdent();
                     // C uses row-col order, i.e. A[row][col]
                     for(int dim = 0; dim < idx.size(); dim++ )
                     {
@@ -2823,8 +2897,14 @@ struct ObxCGenImp : public AstVisitor
                             }else
                             {
                                 if( dims[i]->d_lenExpr )
-                                    b << dims[i]->d_len;
-                                else
+                                {
+                                    if( dims[i]->d_vla && id )
+                                    {
+                                        Q_ASSERT(id->getTag() == Thing::T_LocalVar);
+                                        b << escape(id->d_name) << "$len[" << i << "]";
+                                    }else
+                                        b << dims[i]->d_len;
+                                }else
                                 {
                                     Q_ASSERT(dynLen);
                                     b << "$t" << temp << "->$" << i+1;

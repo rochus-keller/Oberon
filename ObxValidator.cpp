@@ -588,7 +588,7 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 1 )
             {
                 Type* td = derefed(args->d_args.first()->d_type.data());
-                if( !td->isInteger() )
+                if( td == 0 || !td->isInteger() )
                     error( args->d_args[0]->d_loc, Validator::tr("expecting integer argument"));
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
@@ -775,8 +775,9 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::DEFAULT:
             if( args->d_args.size() == 1 )
             {
-                Type* lhs = derefed(args->d_args.first()->d_type.data());
-                // TODO: check for quali to type
+                Named* n = args->d_args.first()->getIdent();
+                if( n == 0 || ( n->getTag() != Thing::T_NamedType && n->getTag() != Thing::T_GenericName ) )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting a type name") );
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
@@ -865,7 +866,7 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 2 )
             {
                 Named* n = args->d_args.first()->getIdent();
-                if( n == 0 || n->getTag() != Thing::T_NamedType )
+                if( n == 0 || ( n->getTag() != Thing::T_NamedType && n->getTag() != Thing::T_GenericName ) )
                 {
                     error( args->d_args.first()->d_loc, Validator::tr("expecting a type name") );
                     break;
@@ -1844,6 +1845,7 @@ struct ValidatorImp : public AstVisitor
         {
             me->d_to->accept(this);
             Type* t = derefed(me->d_to.data());
+            checkNoVla(t, me->d_loc);
             if( me->d_unsafe )
             {
                 if( t && !( ( t->isStructured() && t->d_unsafe ) || t->getBaseType() == Type::CVOID ) )
@@ -1862,28 +1864,23 @@ struct ValidatorImp : public AstVisitor
             return;
         me->d_visited = true;
 
-#if 0
-        if( !me->d_flag.isNull() )
-            me->d_flag->accept(this);
-#endif
-
         if( !me->d_lenExpr.isNull() )
         {
             me->d_lenExpr->accept(this);
-            if( !isInteger(me->d_lenExpr->d_type.data() ) )
+            if( !isInteger(derefed(me->d_lenExpr->d_type.data()) ) )
+            {
                 error( me->d_lenExpr->d_loc, Validator::tr("expression doesn't evaluate to an integer") );
-            else
+            }else if( me->d_vla )
+            {
+                // TODO: error if me->d_lenExpr references a local var in this scope because it is unset at this time
+                me->d_len = 0;
+            }else
             {
                 Scope* scope = levels.back().scope;
-#if 0 // VLA support not ready yet
-                Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), scope, scope != mod,err);
-#else
                 Evaluator::Result res = Evaluator::eval(me->d_lenExpr.data(), scope, false,err);
-#endif
                 if( res.d_dyn )
                 {
                     me->d_len = 0;
-
                 }else
                 {
                     bool ok;
@@ -1899,6 +1896,8 @@ struct ValidatorImp : public AstVisitor
         }
         if( me->d_type )
             me->d_type->accept(this);
+        if( !me->d_vla )
+            checkNoVla(me->d_type.data(), me->d_type->d_loc);
         checkNoAnyRecType(me->d_type.data());
         checkNoBooleanTypeInUnsafe(me->d_type.data(),me->d_unsafe, me->d_loc);
         checkSelfRef(me);
@@ -2049,6 +2048,7 @@ struct ValidatorImp : public AstVisitor
             f->accept(this);
 
             checkSelfRef(f->d_type.data());
+            checkNoVla(f->d_type.data(),f->d_loc);
 #ifdef OBX_BBOX
             if( me->d_unsafe )
             {
@@ -2109,6 +2109,7 @@ struct ValidatorImp : public AstVisitor
             me->d_return->accept(this);
             if( !me->d_return->hasByteSize() )
                 error(me->d_return->d_loc, Validator::tr("this type cannot be used here") );
+            checkNoVla(me->d_return.data(),me->d_return->d_loc);
             checkNoBooleanTypeInUnsafe(me->d_return.data(), me->d_unsafe, me->d_loc);
 
             if( me->d_unsafe )
@@ -2129,6 +2130,7 @@ struct ValidatorImp : public AstVisitor
         {
             p->accept(this);
             checkRecordUse(p->d_type.data(), p->d_var);
+            checkNoVla(p->d_type.data(),p->d_loc);
         }
     }
 
@@ -2139,6 +2141,7 @@ struct ValidatorImp : public AstVisitor
         curTypeDecl = me->d_type.data();
         if( me->d_type )
             me->d_type->accept(this);
+        checkNoVla(me->d_type.data(), me->d_loc);
         checkNoAnyRecType(me->d_type.data());
         checkNoBooleanTypeInUnsafe(me->d_type.data(), me->d_unsafe, me->d_loc);
         curTypeDecl = 0;
@@ -2168,6 +2171,7 @@ struct ValidatorImp : public AstVisitor
     void visit( Field* me )
     {
         checkVarType(me);
+        checkNoVla(me->d_type.data(),me->d_loc);
     }
 
     void visit( Variable* me )
@@ -2175,11 +2179,14 @@ struct ValidatorImp : public AstVisitor
         checkVarType(me);
         if( mod->d_externC )
             error(me->d_loc, Validator::tr("variables not supported in external library modules") );
+        else
+            checkNoVla(me->d_type.data(),me->d_loc);
     }
 
     void visit( LocalVar* me )
     {
         checkVarType(me);
+        // allow VLA
     }
 
     void visit( Parameter* me )
@@ -2197,7 +2204,7 @@ struct ValidatorImp : public AstVisitor
             error(me->d_loc, Validator::tr("VAR not supported with unsafe structured types") );
         if( me->d_unsafe )
             checkNoArrayByVal(me->d_type.data(),me->d_loc);
-
+        checkNoVla(me->d_type.data(),me->d_loc);
 #if 0 // TEST
         checkUnsafePointer(me->d_type.data(),false,me->d_loc);
 #endif
@@ -2417,17 +2424,15 @@ struct ValidatorImp : public AstVisitor
             {
                 // Both Oberon-2 and 07 support this
                 // TODO: check wchar vs char compat
-                if( a->d_len && lit->d_vtype == Literal::String && lit->d_strLen > a->d_len )
+                if( !a->d_lenExpr.isNull() && !a->d_vla && lit->d_vtype == Literal::String && lit->d_strLen > a->d_len )
                     error( me->d_rhs->d_loc, Validator::tr("string is too long to assign to given character array"));
-                if( a->d_len && lit->d_vtype == Literal::Char && 1 > a->d_len )
+                if( !a->d_lenExpr.isNull() && !a->d_vla && lit->d_vtype == Literal::Char && 1 > a->d_len )
                     error( me->d_rhs->d_loc, Validator::tr("the character array is too small for the character"));
             }else if( at && at == bt.d_byteType )
             {
-                if( a->d_len && lit->d_vtype == Literal::Bytes && lit->d_strLen > a->d_len )
+                if( !a->d_lenExpr.isNull() && !a->d_vla && lit->d_vtype == Literal::Bytes && lit->d_strLen > a->d_len )
                     error( me->d_rhs->d_loc, Validator::tr("literal is too long to assign to given array"));
             }
-            // TODO: runtime checks for var length arrays
-
         }
 
         checkValidRhs(me->d_rhs.data());
@@ -2805,6 +2810,7 @@ struct ValidatorImp : public AstVisitor
         if( me->d_type )
         {
             me->d_type->accept(this);
+            me->d_visited = true;
             if( !me->d_type->hasByteSize() )
                 error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
             checkNoAnyRecType(me->d_type.data());
@@ -2837,6 +2843,13 @@ struct ValidatorImp : public AstVisitor
         }
 #endif
 #endif
+    }
+
+    inline void checkNoVla(Type* t, const RowCol& loc )
+    {
+        Type* td = derefed(t);
+        if( td && td->d_vla )
+            error(loc, Validator::tr("cannot use variable length arrays here") );
     }
 
     void visitStats( const StatSeq& ss )
@@ -3046,6 +3059,8 @@ struct ValidatorImp : public AstVisitor
         rhs = derefed(rhs);
         if( lhs == 0 || rhs == 0 )
             return false;
+        if( lhs->d_vla || rhs->d_vla )
+            return false;
         if( lhs == rhs && !isOpenArray(lhs) )
             return true;
         return false;
@@ -3064,7 +3079,6 @@ struct ValidatorImp : public AstVisitor
         if( lhs->d_unsafe != rhs->d_unsafe )
             return false;
 #endif
-
         const int lhstag = lhs->getTag();
         const int rhstag = rhs->getTag();
         if( lhstag == Thing::T_Array )
@@ -3105,8 +3119,8 @@ struct ValidatorImp : public AstVisitor
     {
         if( super == 0 || sub == 0 )
             return false;
-        if( super == sub )
-            return true; // same type
+        if( sameType(super,sub))
+            return true;
         bool superIsPointer = false;
         if( super->getTag() == Thing::T_Pointer )
         {
@@ -3121,8 +3135,8 @@ struct ValidatorImp : public AstVisitor
         }
         if( checkKind && subIsPointer != superIsPointer )
             return false;
-        if( super == sub )
-            return true; // same type
+        if( sameType(super,sub))
+            return true;
         if( super->getTag() == Thing::T_Record && sub->getTag() == Thing::T_Record )
         {
 #ifdef OBX_BBOX

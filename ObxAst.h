@@ -201,12 +201,11 @@ namespace Obx
         uint d_metaActual : 1;  // true if this is an actual type replacing ANY in instantiation
         uint d_usedByVal : 1; // true if record is used by value as a formal parameter, return, field or variable
         uint d_usedByRef : 1; // true if record is used as pointer base type in a formal param, return, field or variable or VAR param
-
-        // Ref<Expression> d_flag; // optional system flag, no longer used, see Scope::d_sysAttrs
+        uint d_vla : 1;       // true if array is variable length
 
         Type():d_decl(0),d_binding(0),d_baseType(0),d_union(false),
             d_typeBound(false),d_varargs(false),d_byValue(false),d_selfRef(false),d_metaActual(false),
-            d_usedByVal(false), d_usedByRef(false) {}
+            d_usedByVal(false), d_usedByRef(false), d_vla(false) {}
         typedef QList< Ref<Type> > List;
         virtual bool isStructured(bool withPtrAndProcType = false) const { return false; }
         virtual bool isPointer() const { return false; }

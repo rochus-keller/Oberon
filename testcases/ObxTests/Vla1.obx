@@ -1,0 +1,40 @@
+module Vla1
+
+	var s: integer
+	// compiler error:
+	// type A = array var s of integer
+
+proc Test(n: integer)
+	var i: integer
+		a: array var n of integer
+begin
+	for i := 0 to n -1 do
+		a[i] := i*2
+	end
+	println(a[2])
+	Test2(a)
+end Test
+
+proc Test2(in a: array of integer)
+begin
+	println(a[2])
+end Test2
+
+proc Test3(n: integer)
+	// compiler error:
+	// type A = array var n of integer
+	var a, b: array var n of integer
+		// compiler error:
+		// c: array 1 of array var n of integer
+		d: array var 1 of array var n of integer // ok
+		e: array var 1,n of integer // ok
+begin
+	// compiler error:
+	// a := b
+end Test3
+
+begin
+	println("Vla1 start")
+	Test(12)
+	println("Vla1 done")
+end Vla1

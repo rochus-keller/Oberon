@@ -1,0 +1,301 @@
+// Original Fractals C app by Francisco Garcia Collado, MIT Licence
+// Translated to Oberon+ by Rochus Keller
+
+module Fractals
+  import G := NAppGUI
+  
+const
+  i_FCT = 2.85
+  i_ITERATIONS = 512
+  i_WIDTH = 601
+  i_HEIGHT = 601
+
+var
+  window: *G.Window
+  view: *G.ImageView
+  time_label: *G.Label
+  clock: *G.Clock
+  threads:  integer
+  vertical:  boolean
+  fct: longreal
+
+type
+  ThData = cstruct 
+          fct: longreal
+          kreal: longreal
+          kimag: longreal
+          pixbuf: *G.Pixbuf
+          i, j, width, height: integer
+        end
+
+  proc i_inset(zreal, zimag, creal, cimag: longreal): integer
+    var i: integer
+      ztmp, zdist: longreal
+  begin
+      for i := 0 to i_ITERATIONS-1 do 
+          ztmp := zreal * zreal - zimag * zimag
+          zimag := zreal * zimag + zreal * zimag
+          zreal := ztmp
+          zreal := zreal + creal
+          zimag := zimag + cimag
+          zdist := zimag * zimag  + zreal * zreal
+          if zdist > 3 then return i end
+      end
+      return 0
+  end i_inset
+  
+  proc i_julia_thread(data: *ThData): integer
+    var fct, freal, fimag, kreal, kimag, creal, cimag: longreal
+      imgwidth, val, stj, edj, sti, edi, i, j: integer
+      n_val: byte
+  begin
+    fct := data.fct
+    imgwidth := G.pixbuf_width(data.pixbuf)
+    freal := fct / flt(imgwidth)
+    fimag := fct / flt(G.pixbuf_height(data.pixbuf))
+    kreal := data.kreal
+    kimag := data.kimag;
+    stj := data.j
+    edj := data.j + data.height
+    sti := data.i
+    edi := data.i + data.width
+
+    for j := stj to edj - 1 do
+        cimag := fimag * flt(j) - (fct / 2.0)
+
+        for i := sti to edi - 1 do
+            creal := freal * flt(i) - (fct / 2.0)
+            val := i_inset(creal, cimag, kreal, kimag)
+            if val > 0 then
+                n_val := val mod 255
+                if val < bitshr(i_ITERATIONS,1 ) then
+                    val := G.color_rgb(bitshl(n_val,2), bitshl(n_val,3), bitshl(n_val, 4))
+                else
+                    val := G.color_rgb(bitshl(n_val,4), bitshl(n_val, 2), bitshl(n_val, 5))
+                end
+            else
+                val := G.kCOLOR_BLACK
+            end
+            G.pixbuf_set(data.pixbuf, i, j, val)
+        end
+    end
+    return 5;
+  end i_julia_thread
+  
+  proc i_julia_thread_main(data: *void): integer
+    type Ptr = *ThData
+  begin
+    return i_julia_thread(cast(Ptr, data))
+  end i_julia_thread_main
+
+  proc i_julia(nthreads: integer; vertical: boolean; fct,kreal,kimag: longreal; pixbuf: *G.Pixbuf)
+    var data: carray 8 of ThData
+      width, height, twidth, theight: integer
+      thread: carray 8 of *G.Thread
+      tmp: carray 1 of *G.Thread
+      i, thid: integer
+  begin
+    width := G.pixbuf_width(pixbuf)
+    height := G.pixbuf_height(pixbuf)
+    data[0].fct := fct
+    data[0].kreal := kreal
+    data[0].kimag := kimag
+    data[0].pixbuf := pixbuf
+
+    if nthreads = 1 then
+        data[0].i := 0
+        data[0].j := 0
+        data[0].width := width
+        data[0].height := height
+        i_julia_thread(data[0])
+    else
+        if vertical then
+            twidth := width div nthreads
+            for i := 0 to nthreads - 1 do
+                data[i] := data[0]
+                data[i].i := i * twidth
+                data[i].j := 0
+                data[i].width := twidth
+                data[i].height := height
+            end
+            data[nthreads-1].width := data[nthreads-1].width + (width - (twidth * nthreads))
+        else
+            theight := height div nthreads
+            for i := 0 to nthreads - 1 do
+                data[i] := data[0]
+                data[i].i := 0
+                data[i].j := i * theight
+                data[i].width := width
+                data[i].height := theight
+            end
+            data[nthreads-1].height := data[nthreads-1].height + (height - (theight * nthreads));
+        end
+
+        for i := 0 to nthreads - 1 do
+            thread[i] := G.bthread_create_imp(i_julia_thread_main, data[i])
+        end
+
+        for i := 0 to nthreads - 1 do
+            thid := G.bthread_wait(thread[i])
+            //C.cassert_unref(thid = 5, thid)
+            tmp[0] := thread[i]
+            G.bthread_close(tmp)
+            thread[i] := nil
+        end
+    end
+  end i_julia
+
+  proc i_image()
+    var pixbuf: carray 1 of *G.Pixbuf
+      image: carray 1 of *G.Image
+      str: carray 1 of *G.String
+      rfactor, ifactor, kreal, kimag, timems: longreal
+  begin
+    pixbuf[0] := G.pixbuf_create(i_WIDTH, i_HEIGHT, G.ekRGBA32)
+    rfactor := fct / i_WIDTH
+    ifactor := fct / i_HEIGHT
+    kreal := rfactor * 307 - 2
+    kimag := ifactor * 184 - 1.4
+    G.clock_reset(clock);
+    i_julia(threads, vertical, fct, kreal, kimag, pixbuf[0])
+    timems := 1000 * G.clock_elapsed(clock)
+    str[0] := G.str_printf("%.3f milliseconds", timems)
+    G.label_text(time_label, G.tc(str[0]))
+    G.str_destroy(str)
+    image[0] := G.image_from_pixbuf(pixbuf[0], nil)
+    G.imageview_image(view, image[0])
+    G.image_destroy(image);
+    G.pixbuf_destroy(pixbuf);
+  end i_image
+
+  proc i_OnSlider(data: *void; e: *G.Event)
+    type EvSliderPtr = *G.EvSlider
+    var p: *G.EvSlider
+      st, ed: longreal
+  begin
+    p := cast(EvSliderPtr, G.event_params_imp(e, "EvSlider"))
+    st := i_FCT - 1
+    ed := i_FCT + 1
+    fct := ((ed - st) * p.pos) + st
+    i_image()
+  end i_OnSlider
+
+  proc i_OnThreads(data: *void; e: *G.Event)
+    type EvButtonPtr = *G.EvButton
+    var p: *G.EvButton
+  begin
+    p := cast(EvButtonPtr, G.event_params_imp(e, "EvButton"))
+    case p.index of
+      | 0: threads := 1
+      | 1: threads := 2
+      | 2: threads := 3
+      | 3: threads := 4
+      | 4: threads := 8
+    end
+    i_image()
+  end i_OnThreads
+
+  proc i_OnVertical(data: *void; e: *G.Event)
+    type EvButtonPtr = *G.EvButton
+    var p: *G.EvButton
+  begin
+    p := cast(EvButtonPtr, G.event_params_imp(e, "EvButton"))
+    if p.index = 0 then vertical := true else vertical := false end
+    i_image()
+  end i_OnVertical
+  
+  proc i_panel(): *G.Panel
+    var panel : *G.Panel
+      layout1, layout2: *G.Layout
+      label1, label2: *G.Label
+      popup: *G.PopUp
+      slider: *G.Slider
+      button1, button2: *G.Button
+      vw: *G.ImageView
+  begin
+    panel := G.panel_create()
+    layout1 := G.layout_create(1, 3)
+    layout2 := G.layout_create(5, 1)
+    label1 := G.label_create()
+    label2 := G.label_create()
+    popup := G.popup_create()
+    slider := G.slider_create()
+    button1 := G.button_radio()
+    button2 := G.button_radio()
+    vw := G.imageview_create()
+    G.label_text(label1, "Threads:")
+    G.popup_add_elem(popup, "1", nil)
+    G.popup_add_elem(popup, "2", nil)
+    G.popup_add_elem(popup, "3", nil)
+    G.popup_add_elem(popup, "4", nil)
+    G.popup_add_elem(popup, "8", nil)
+    G.popup_selected(popup, 0)
+    G.popup_OnSelect(popup, G.listener_imp(nil, i_OnThreads))
+    G.slider_value(slider, 0.5)
+    G.slider_OnMoved(slider, G.listener_imp(nil, i_OnSlider))
+    G.button_text(button1, "Vert")
+    G.button_text(button2, "Hotz")
+    G.button_state(button1, G.ekON)
+    G.button_OnClick(button1, G.listener_imp(nil, i_OnVertical))
+    G.imageview_size(vw, G.s2di(i_WIDTH, i_HEIGHT))
+    G.layout_slider(layout1, slider, 0, 0)
+    G.layout_label(layout2, label1, 0, 0)
+    G.layout_popup(layout2, popup, 1, 0)
+    G.layout_button(layout2, button1, 2, 0)
+    G.layout_button(layout2, button2, 3, 0)
+    G.layout_label(layout2, label2, 4, 0)
+    G.layout_halign(layout2, 4, 0, G.ekJUSTIFY)
+    G.layout_hexpand(layout2, 4)
+    G.layout_layout(layout1, layout2, 0, 1)
+    G.layout_imageview(layout1, vw, 0, 2)
+    G.layout_vmargin(layout1, 1, 5)
+    G.layout_margin2(layout2, 0, 5)
+    G.layout_hmargin(layout2, 0, 5)
+    G.layout_hmargin(layout2, 1, 10)
+    G.layout_hmargin(layout2, 2, 5)
+    G.layout_hmargin(layout2, 3, 15)
+    G.panel_layout(panel, layout1)
+    fct := i_FCT
+    threads := 1
+    vertical := true
+    view := vw
+    time_label := label2
+    return panel
+  end i_panel
+
+  proc i_OnClose(data: *void; e: *G.Event)
+  begin
+    G.osapp_finish()
+    // unref(app);
+    // unref(e);
+  end i_OnClose
+  
+  proc i_create()
+    var panel: *G.Panel
+  begin
+    panel := i_panel()
+    window := G.window_create(G.ekWNSTD)
+    clock := G.clock_create(0)
+    i_image()
+    G.window_panel(window, panel)
+    G.window_title(window, "Fractals")
+    G.window_origin(window, G.v2df(500, 200))
+    G.window_OnClose(window, G.listener_imp(nil, i_OnClose))
+    G.window_show(window)
+  end i_create
+
+  proc i_destroy(item: *[]*void)
+    var w: carray 1 of *G.Window
+      c: carray 1 of *G.Clock 
+  begin
+    w[0] := window
+    G.window_destroy(w)
+    window := nil
+    c[0] := clock
+    G.clock_destroy(c)
+    clock := nil
+  end i_destroy
+ 
+begin 
+  G.osmain_imp(0, nil, nil, 0.0, i_create, nil, i_destroy, nil)
+end Fractals

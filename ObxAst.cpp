@@ -117,7 +117,11 @@ struct ObxAstPrinter : public AstVisitor
     {
         if( namedType(t) )
             return;
-        out << "ARRAY " << t->d_len << " ";
+        out << "ARRAY ";
+        if( t->d_vla )
+            out << "var ";
+        else
+            out << t->d_len << " ";
         if( t->d_type.isNull() )
             out << "? ";
         else
