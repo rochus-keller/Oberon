@@ -2346,7 +2346,8 @@ struct ObxCGenImp : public AstVisitor
                     Q_ASSERT( id->getTag() == Thing::T_LocalVar );
                     b << escape(id->d_name) << "$len[" << (i+idxDims.size()) << "]";
                 }else
-                    b << allDims[i+idxDims.size()]->d_len << ",";
+                    b << allDims[i+idxDims.size()]->d_len;
+                b  << ",";
             }else
             {
                 Q_ASSERT(dynLen);

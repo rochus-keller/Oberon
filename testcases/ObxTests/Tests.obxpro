@@ -15,7 +15,9 @@ size=0
 1\RelPath=Vla1.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Vla2.obx
 2\RelPath=Vla2.obx
-size=2
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Vla3.obx
+3\RelPath=Vla3.obx
+size=3
 
 [Packages]
 1\Name=@ByteArray()

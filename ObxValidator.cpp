@@ -25,6 +25,44 @@ using namespace Ob;
 
 struct ValidatorImp : public AstVisitor
 {
+    struct VlaChecker : public AstVisitor
+    {
+        Scope* scope;
+        Errors* err;
+        VlaChecker(Scope* s, Errors* e):scope(s),err(e) {}
+        void visit( SetExpr* me)
+        {
+            foreach( const Ref<Expression>& e, me->d_parts )
+                e->accept(this);
+        }
+        void visit( IdentLeaf* me)
+        {
+            Named* id = me->getIdent();
+            if( id && id->d_scope == scope && id->getTag() == Thing::T_LocalVar )
+                err->error(Errors::Semantics,Loc(me->d_loc,scope->getModule()->d_file),
+                           Validator::tr("variable array length cannot depend on local variable"));
+        }
+        void visit( UnExpr* me)
+        {
+            me->d_sub->accept(this);
+        }
+        void visit( IdentSel* me)
+        {
+            me->d_sub->accept(this);
+        }
+        void visit( ArgExpr* me)
+        {
+            me->d_sub->accept(this);
+            foreach( const Ref<Expression>& e, me->d_args )
+                e->accept(this);
+        }
+        void visit( BinExpr* me)
+        {
+            me->d_lhs->accept(this);
+            me->d_rhs->accept(this);
+        }
+    };
+
     Errors* err;
     Module* mod;
     Instantiator* insts;
@@ -1141,7 +1179,7 @@ struct ValidatorImp : public AstVisitor
 
         checkValidRhs(actual.data());
 
-        if( af && af->d_lenExpr.isNull() )
+        if( af && ( af->d_lenExpr.isNull() || af->d_vla || ta->d_vla ) )
         {
             // If Tf is an open array, then a must be array compatible with f
             if( !arrayCompatible( af, actual->d_type.data(), actual->d_loc ) )
@@ -1872,7 +1910,13 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_lenExpr->d_loc, Validator::tr("expression doesn't evaluate to an integer") );
             }else if( me->d_vla )
             {
-                // TODO: error if me->d_lenExpr references a local var in this scope because it is unset at this time
+                // if me->d_lenExpr references a local var in this scope because it is unset at this time
+                if( !levels.isEmpty() )
+                {
+                    VlaChecker checker(levels.back().scope,err);
+                    me->d_lenExpr->accept(&checker);
+                }else
+                    error(me->d_lenExpr->d_loc,Validator::tr("variable length array types can only be declared on procedure level") );
                 me->d_len = 0;
             }else
             {
@@ -2186,7 +2230,6 @@ struct ValidatorImp : public AstVisitor
     void visit( LocalVar* me )
     {
         checkVarType(me);
-        // allow VLA
     }
 
     void visit( Parameter* me )
@@ -3266,8 +3309,13 @@ struct ValidatorImp : public AstVisitor
                 // Array := Array
                 Array* r = cast<Array*>(rhsT);
                 Type* rt = derefed(r->d_type.data());
-                if( r->d_lenExpr.isNull() && equalType( lt, rt ) && !l->d_unsafe && !r->d_unsafe )
-                    return true; // T~e~ is an open array and T~v~ is an array of _equal_ base type
+                if( equalType( lt, rt ) && !l->d_unsafe && !r->d_unsafe )
+                {
+                    if( r->d_lenExpr.isNull() )
+                        return true; // T~e~ is an open array and T~v~ is an array of _equal_ base type
+                    if( r->d_vla || l->d_vla )
+                        return true;
+                }
                 if( lt == bt.d_charType && rt == bt.d_charType )
                     return true;
                 if( lt == bt.d_wcharType && rt->isChar() )
@@ -3282,7 +3330,7 @@ struct ValidatorImp : public AstVisitor
                     return true;
 #endif
 
-                // TODO: open carrays cannot be rhs because len is unknown at runtime
+                // NOTE: open carrays cannot be rhs because len is unknown at runtime
             }else if( lt == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
                 // Array := string
                 return true;
@@ -3421,7 +3469,7 @@ struct ValidatorImp : public AstVisitor
         const int rtag = rhsT->getTag();
         Array* ra = rtag == Thing::T_Array ? cast<Array*>(rhsT) : 0 ;
 
-        if( la == 0 || !la->d_lenExpr.isNull() )
+        if( la == 0 || ( !la->d_lenExpr.isNull() && !la->d_vla) )
             return false; // Tf is not an open array
 
         // T~f~ is an open array, T~a~ is any array, and their element types are array compatible

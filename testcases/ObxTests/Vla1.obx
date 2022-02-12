@@ -13,6 +13,7 @@ begin
 	end
 	println(a[2])
 	Test2(a)
+	Test3(a)
 end Test
 
 proc Test2(in a: array of integer)
@@ -20,17 +21,23 @@ begin
 	println(a[2])
 end Test2
 
-proc Test3(n: integer)
+proc Test3(var p: array of integer)
 	// compiler error:
 	// type A = array var n of integer
-	var a, b: array var n of integer
+	var a, b: array var len(p) of integer
 		// compiler error:
 		// c: array 1 of array var n of integer
-		d: array var 1 of array var n of integer // ok
-		e: array var 1,n of integer // ok
+		d: array var 1 of array var len(p) of integer // ok
+		e: array var 1,len(p) of integer // ok
+		f: array 10 of integer
 begin
-	// compiler error:
-	// a := b
+	a := b // works like open arrays
+	f := a
+	a := f
+	d[0] := p
+	a := p
+	p := a
+	println(p[3])
 end Test3
 
 begin

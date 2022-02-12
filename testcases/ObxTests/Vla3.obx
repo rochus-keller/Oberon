@@ -1,0 +1,23 @@
+module Vla3
+
+proc Test(n: integer)
+	var i: integer
+		a: carray var n of integer
+begin
+	for i := 0 to n -1 do
+		a[i] := i*2
+	end
+	println(a[2])
+	Test2(a)
+end Test
+
+proc Test2(a: *[]integer)
+begin
+	println(a[2])
+end Test2
+
+begin
+	println("Vla3 start")
+	Test(12)
+	println("Vla3 done")
+end Vla3
