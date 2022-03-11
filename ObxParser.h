@@ -2,7 +2,7 @@
 #define OBXPARSER_H
 
 /*
-* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the OBX parser/code model library.
 *
@@ -27,8 +27,8 @@
 
 namespace Obx
 {
-    // This is the "Oberon-07 with extensions" (OBX, spoken as "obex") parser.
-    // Called it "Oberon+" before, still a decent name, but not a good ident in C++.
+    // This is the "Oberon with extensions" parser.
+    // Official name is "Oberon+", abbreviation is OBX
 
     class Parser : public QObject
     {

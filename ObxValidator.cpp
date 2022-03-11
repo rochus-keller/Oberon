@@ -1431,6 +1431,8 @@ struct ValidatorImp : public AstVisitor
                         me->d_type = calcBuiltInReturnType( cast<BuiltIn*>(p->d_decl), me->d_args );
                 }else
                 {
+                    if( p->d_decl && p->d_decl->getTag() == Thing::T_Procedure )
+                        p->d_decl->d_used = true;
                     me->d_type = p->d_return.data();
                     if( me->d_type.isNull() )
                         me->d_type = bt.d_noType;
@@ -2521,7 +2523,9 @@ struct ValidatorImp : public AstVisitor
                         if( sel->d_sub->getUnOp() != UnExpr::DEREF )
                             error( rhs->d_loc, Validator::tr("only a type-bound procedure designated by a pointer can be assigned"));
                     }
-                }
+                }else
+                    p->d_used = true;
+
             }else if( tag == Thing::T_BuiltIn )
                 error( rhs->d_loc, Validator::tr("a predeclared procedure cannot be assigned"));
         }

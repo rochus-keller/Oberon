@@ -948,11 +948,17 @@ struct ObxCGenImp : public AstVisitor
                 QList<QPair<Procedure*,QByteArray> >::const_iterator j;
                 for( j = i.value().begin(); j != i.value().end(); ++j )
                 {
-                    b << ws() << dottedName((*j).first) << " = ("
+                    Procedure* p = (*j).first;
+                    const QByteArray name = dottedName(p);
+                    b << ws() << name << " = ("
                       << formatType((*j).first->d_type.data()) << ")OBX$LoadProc($l,\"" << (*j).second << "\");" << endl;
-                    b << ws() << "if(" << dottedName((*j).first) << " == 0){ fprintf(stderr,"
-                         "\"cannot load procedure %s from module %s, terminating\\n\",\""
-                      << (*j).second << "\",\"" << i.key() << "\"); exit(-1); }" << endl;
+                    b << ws() << "if(" << name << " == 0){ fprintf(stderr,";
+                    if( p->d_used )
+                        b << "\"error: cannot load required procedure %s from module %s, terminating\\n\",\""
+                          << (*j).second << "\",\"" << i.key() << "\"); exit(-1); }" << endl;
+                    else
+                        b << "\"warning: cannot load procedure %s from module %s\\n\",\""
+                          << (*j).second << "\",\"" << i.key() << "\"); }" << endl;
                 }
             }
         }
@@ -3774,6 +3780,8 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     bout << "or on Windows with MSVC:" << endl;
     bout << "cl /O2 /MD /Fe:OBX.Main.exe /DOBX_USE_BOEHM_GC /Iinclude *.c gcmt-dll.lib" << endl;
     bout << "if on Unix/Linux/macOS dynamic libraries should be loaded add -DOBX_USE_DYN_LOAD -ldl" << endl;
+    bout << "full build command for GCC/MinGW or CLANG:" << endl;
+    bout << "cc -O2 --std=c99 *.c -lm -DOBX_USE_BOEHM_GC -lgc -DOBX_USE_DYN_LOAD -ldl" << endl;
     bout.flush();
     fout.flush();
 

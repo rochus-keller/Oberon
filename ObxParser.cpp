@@ -1,5 +1,5 @@
 /*
-* Copyright 2020 Rochus Keller <mailto:me@rochus-keller.ch>
+* Copyright 2021 Rochus Keller <mailto:me@rochus-keller.ch>
 *
 * This file is part of the OBX parser/code model library.
 *

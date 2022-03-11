@@ -864,6 +864,7 @@ quint8 IdentLeaf::visibilityFor(Module*) const
     default:
         Q_ASSERT(false);
     }
+    return Named::NotApplicable;
 }
 
 #ifdef _DEBUG
