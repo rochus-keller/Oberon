@@ -97,8 +97,14 @@ size=0
 47\RelPath=LogOps1.obx
 48\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/LogOps2.obx
 48\RelPath=LogOps2.obx
+49\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Vla1.obx
+49\RelPath=Vla1.obx
 5\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Enum1.obx
 5\RelPath=Enum1.obx
+50\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Vla2.obx
+50\RelPath=Vla2.obx
+51\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Vla3.obx
+51\RelPath=Vla3.obx
 6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Flow.obx
 6\RelPath=Flow.obx
 7\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic1.obx
@@ -107,7 +113,7 @@ size=0
 8\RelPath=Generic2.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic4.obx
 9\RelPath=Generic4.obx
-size=48
+size=51
 
 [Packages]
 1\Name=@ByteArray()

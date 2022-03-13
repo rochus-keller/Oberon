@@ -1,0 +1,8 @@
+module Proc11
+
+PROCEDURE Asdf (OUT, s:SET);
+        BEGIN
+        END Asdf;
+        
+        
+end Proc11

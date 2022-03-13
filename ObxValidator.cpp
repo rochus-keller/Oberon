@@ -1192,7 +1192,7 @@ struct ValidatorImp : public AstVisitor
             // Otherwise Ta must be parameter compatible to f
             if( !paramCompatible( formal, actual.data() ) )
             {
-                // paramCompatible( formal, actual.data() ); // TEST
+                //paramCompatible( formal, actual.data() ); // TEST
                 error( actual->d_loc,
                    Validator::tr("actual parameter type %1 not compatible with formal type %2%3")
                    .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
@@ -3215,6 +3215,9 @@ struct ValidatorImp : public AstVisitor
             return true;
         lhsT = derefed(lhsT);
         rhsT = derefed(rhsT);
+        if( rhsT == 0 )
+            return false;
+        const int rtag = rhsT->getTag();
 
         // T~v~ is a BYTE type and T~e~ is a Latin-1 character type
         // Oberon 90: The type BYTE is compatible with CHAR (shortint is 16 bit here)
@@ -3228,8 +3231,19 @@ struct ValidatorImp : public AstVisitor
 #endif
 
         // T~e~ and T~v~ are numeric or character types and T~v~ _includes_ T~e~
-        if( isNumeric(lhsT) && isNumeric(rhsT) )
+        if( isNumeric(lhsT) && ( isNumeric(rhsT) || rtag == Thing::T_Enumeration ) )
         {
+            if( isInteger(lhsT) && rtag == Thing::T_Enumeration )
+            {
+                // automatically convert enumeration to number TODO: should we really do this?
+                Enumeration* en = cast<Enumeration*>(rhsT);
+                if( en->d_items.size() < 256 )
+                    rhsT = bt.d_byteType;
+                else if( en->d_items.size() < ( 0xffff >> 1 ) )
+                    rhsT = bt.d_shortType;
+                else
+                    rhsT = bt.d_intType;
+            }
             if( includes(lhsT,rhsT) )
                 return true;
             else
@@ -3251,7 +3265,6 @@ struct ValidatorImp : public AstVisitor
             return true;
 
         const int ltag = lhsT->getTag();
-        const int rtag = rhsT->getTag();
 
         // T~e~ and T~v~ are pointer types and T~e~ is a _type extension_ of T~v~
         // or the pointers have _equal_ base types
