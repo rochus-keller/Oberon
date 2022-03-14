@@ -1277,6 +1277,12 @@ struct ObxCGenImp : public AstVisitor
         emitConst( td->getBaseType(), me->d_val, me->d_loc );
     }
 
+    void checkNonLocalAccess( Named* id, const RowCol& loc )
+    {
+        if( id->d_scope != curProc )
+            err->error(Errors::Generator, Loc(loc,thisMod->d_file), "non-local access not yet supported by the C generator" );
+    }
+
     void visit( IdentLeaf* me)
     {
         Named* id = me->getIdent();
@@ -1317,11 +1323,13 @@ struct ObxCGenImp : public AstVisitor
             b << dottedName(id);
             break;
         case Thing::T_LocalVar:
+            checkNonLocalAccess(id, me->d_loc);
             b << escape(id->d_name);
             break;
         case Thing::T_Parameter:
             {
                 Q_ASSERT(td);
+                checkNonLocalAccess(id, me->d_loc);
                 // a VAR/IN parameter is implemented as a pointer.
                 // an array passed by value is also represented by a pointer
                 // record pointers are plain C pointers

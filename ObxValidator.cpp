@@ -78,6 +78,7 @@ struct ValidatorImp : public AstVisitor
     Type* curTypeDecl;
     Statement* prevStat;
     QSet<Const*> constTrace;
+    QList<Expression*> deferProcCheck;
     bool returnValueFound;
 
     ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0),returnValueFound(false) {}
@@ -144,6 +145,38 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
+    void collectNonLocals( Procedure* caller, QSet<Procedure*>& visited, int level = 0 )
+    {
+        //qDebug() << QByteArray(level*4,' ').constData() << caller->d_name << visited.contains(caller);
+        if( visited.contains(caller) )
+            return;
+        visited.insert(caller);
+        ProcType* callerPt = caller->getProcType();
+        foreach( Procedure* called, caller->d_calling )
+        {
+            if( !called->d_upvalIntermediate && !called->d_upvalSink )
+                continue;
+            collectNonLocals(called,visited, level+1);
+            ProcType* calledPt = called->getProcType();
+            foreach( Named* nl, calledPt->d_nonLocals )
+            {
+                if( nl->d_scope != caller )
+                {
+                    caller->d_upvalIntermediate = true;
+                    callerPt->addNonLocal(nl);
+                }
+            }
+        }
+        if( callerPt->d_typeBound && caller->d_upvalIntermediate )
+            error( callerPt->d_loc, Validator::tr("type-bound procedures cannot be non-local access intermediates") );
+#if 0
+        qDebug() << "****" << caller->d_name << caller->getProcType()->d_nonLocals.size() <<
+                    caller->d_upvalSource << caller->d_upvalIntermediate << caller->d_upvalSink;
+        foreach(Named* nl, caller->getProcType()->d_nonLocals )
+            qDebug() << "    " << nl->d_name;
+#endif
+    }
+
     void visit( Module* me)
     {
         if( me->d_visited )
@@ -180,7 +213,25 @@ struct ValidatorImp : public AstVisitor
         levels.push_back(me);
         // imports are supposed to be already resolved at this place
         visitScope(me);
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Procedure && n->d_upvalSource )
+            {
+                QSet<Procedure*> visited;
+                collectNonLocals( cast<Procedure*>(n.data()), visited );
+            }
+        }
         visitStats( me->d_body );
+
+        foreach( Expression* e, deferProcCheck )
+        {
+            Named* p = e->getIdent();
+            Q_ASSERT( p && p->getTag() == Thing::T_Procedure );
+            if( p->d_upvalIntermediate || p->d_upvalSink )
+                error( e->d_loc, Validator::tr("this procedure depends on the environment and cannot be assigned"));
+        }
+        deferProcCheck.clear();
+
         levels.pop_back();
     }
 
@@ -327,13 +378,30 @@ struct ValidatorImp : public AstVisitor
         {
             if( n->d_scope != levels.back().scope )
             {
+                Type* td = derefed(n->d_type.data());
+                if( td->d_unsafe )
+                    error( e->d_loc, Validator::tr("non-local access to unsafe types not supported") );
+                ProcType* pt;
                 n->d_scope->d_upvalSource = true;
                 int i = levels.size() - 2;
                 while( i > 0 && levels[i].scope != n->d_scope )
-                    levels[i--].scope->d_upvalIntermediate = true;
+                {
+                    levels[i].scope->d_upvalIntermediate = true;
+                    pt = cast<ProcType*>(levels[i].scope->d_type.data());
+                    pt->addNonLocal(n);
+                    if( pt->d_typeBound )
+                        error( e->d_loc, Validator::tr("type-bound procedures cannot be non-local access intermediates") );
+                    i--;
+                }
                 levels.back().scope->d_upvalSink = true;
+                pt = cast<ProcType*>(levels.back().scope->d_type.data());
+                pt->addNonLocal(n);
+                if( pt->d_typeBound )
+                    error( e->d_loc, Validator::tr("type-bound procedures cannot access non-local variables and parameters") );
                 n->d_upvalSource = true;
-                error( e->d_loc, Validator::tr("cannot access local variables and parameters of outer procedures") );
+                // no longer true:
+                //error( e->d_loc, Validator::tr("cannot access local variables and parameters of outer procedures") );
+                //warning( e->d_loc, Validator::tr("non-local access") );
             }
         }
     }
@@ -1228,6 +1296,29 @@ struct ValidatorImp : public AstVisitor
                 addAddrOf(me->d_args[i]);
             }else if( !( t->d_unsafe || !t->isStructured(true) ) )
                 error( a->d_loc, Validator::tr("actual parameter type not supported in variadic procedure call"));
+        }
+        Named* n = me->d_sub->getIdent();
+        if( n && n->getTag() == Thing::T_Procedure && levels.back().scope->getTag() == Thing::T_Procedure )
+        {
+#if 0
+            // we cannot do it here because not all procedures have been visited yet
+            ProcType* curProc = cast<ProcType*>(levels.back().scope->d_type.data());
+            foreach( Named* nl, p->d_nonLocals )
+            {
+                if( false ) // TODO nl->d_scope != levels.back().scope )
+                {
+                    levels.back().scope->d_upvalIntermediate = true;
+                    curProc->addNonLocal(nl);
+                }
+            }
+#else
+            Procedure* curProc = cast<Procedure*>(levels.back().scope);
+            Procedure* calledProc = cast<Procedure*>(n);
+            curProc->d_calling.insert(calledProc);
+#endif
+        }else
+        {
+            Q_ASSERT(p->d_nonLocals.isEmpty());
         }
     }
 
@@ -2505,10 +2596,7 @@ struct ValidatorImp : public AstVisitor
             const int tag = n ? n->getTag() : 0;
             if( tag == Thing::T_Procedure )
             {
-                Procedure* p = cast<Procedure*>(n);
-                if( p->d_upvalIntermediate || p->d_upvalSink ) // only relevant if non-local access enabled
-                    error( rhs->d_loc, Validator::tr("this procedure depends on the environment and cannot be assigned"));
-                else if( rhs->d_type->d_typeBound )
+                if( rhs->d_type->d_typeBound )
                 {
                     // rhs is a type bound procedure
                     const int etag = rhs->getTag();
@@ -2524,7 +2612,10 @@ struct ValidatorImp : public AstVisitor
                             error( rhs->d_loc, Validator::tr("only a type-bound procedure designated by a pointer can be assigned"));
                     }
                 }else
-                    p->d_used = true;
+                {
+                    deferProcCheck.append(rhs);
+                    n->d_used = true;
+                }
 
             }else if( tag == Thing::T_BuiltIn )
                 error( rhs->d_loc, Validator::tr("a predeclared procedure cannot be assigned"));

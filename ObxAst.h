@@ -310,6 +310,8 @@ namespace Obx
         Ref<Type> d_return;
         Formals d_formals;
 
+        QList<Named*> d_nonLocals; // if this is a nested procedure these are the required locals/params of the outer procs
+
         ProcType(const Type::List& f, Type* r = 0);
         ProcType(const Type::List& f, const Vars& var, Type* r = 0);
         ProcType(){}
@@ -321,6 +323,7 @@ namespace Obx
         bool isBuiltIn() const;
         QString pretty() const { return d_typeBound ? "PROC(^)" : "PROC"; }
         quint32 getByteSize() const { return Pointer::s_pointerByteSize; }
+        void addNonLocal(Named*);
     };
 
     struct QualiType : public Type
@@ -505,6 +508,7 @@ namespace Obx
         Procedure* d_super; // the procedure of the super class this procedure overrides, or zero
         QList<Procedure*> d_subs; // the procedures of the subclasses which override this procedure
         // Ref<Expression> d_imp; // the number or string after PROC+, no longer supported, see d_sysAttrs
+        QSet<Procedure*> d_calling; // the non-builtin procedures directly called in the body
         Procedure():d_receiverRec(0),d_super(0) {}
         void accept(AstVisitor* v) { v->visit(this); }
         int getTag() const { return T_Procedure; }

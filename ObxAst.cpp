@@ -627,6 +627,12 @@ bool ProcType::isBuiltIn() const
     return d_decl && d_decl->getTag() == Thing::T_BuiltIn;
 }
 
+void ProcType::addNonLocal(Named* n)
+{
+    if( !d_nonLocals.contains(n) )
+        d_nonLocals.append(n);
+}
+
 ProcType*ArgExpr::getProcType() const
 {
     Q_ASSERT( !d_sub.isNull() && !d_sub->d_type.isNull() && d_sub->d_type->derefed()->getTag() == Thing::T_ProcType );

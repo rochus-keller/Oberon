@@ -1300,6 +1300,20 @@ struct ObxCilGenImp : public AstVisitor
                 res += formatType( varargs[i], pt->d_unsafe );
             }
         }
+        if( !pt->d_nonLocals.isEmpty() )
+        {
+            if( !pt->d_formals.isEmpty() )
+                res += ", ";
+            for( int i = 0; i < pt->d_nonLocals.size(); i++ )
+            {
+                if( i != 0 )
+                    res += ", ";
+                res += formatType( pt->d_nonLocals[i]->d_type.data() );
+                res += "&";
+                if( withName )
+                    res += " " + escape(pt->d_nonLocals[i]->d_name);
+            }
+        }
         res += ")";
         return res;
     }
@@ -1397,6 +1411,15 @@ struct ObxCilGenImp : public AstVisitor
             {
                 QByteArray type = formatType(extraArgs[i], pt->d_unsafe);
                 emitter->addArgument(type,QString("'extra%1'").arg(i).toUtf8());
+            }
+        }
+        if( !pt->d_nonLocals.isEmpty() )
+        {
+            for( int i = 0; i < pt->d_nonLocals.size(); i++ )
+            {
+                QByteArray type = formatType(pt->d_nonLocals[i]->d_type.data());
+                type += "&";
+                emitter->addArgument(type,escape(pt->d_nonLocals[i]->d_name));
             }
         }
         off = 0;
@@ -1682,15 +1705,36 @@ struct ObxCilGenImp : public AstVisitor
             // NOP
             return;
         case Thing::T_Variable:
-        case Thing::T_LocalVar:
             emitVarToStack(id,me->d_loc);
             return;
+        case Thing::T_LocalVar:
+            if( id->d_scope == scope )
+                emitVarToStack(id,me->d_loc);
+            else
+            {
+                // non-local access via extra arg
+                ProcType* pt = scope->getProcType();
+                const int pos = pt->d_nonLocals.indexOf(id);
+                Q_ASSERT(pos >= 0);
+                line(me->d_loc).ldarg_(pt->d_formals.size()+pos);
+                emitValueFromAdrToStack(id->d_type.data(),false,me->d_loc);
+            }
+            return;
         case Thing::T_Parameter:
+            if( id->d_scope == scope )
             {
                 Parameter* p = cast<Parameter*>(id);
                 emitVarToStack(id,me->d_loc);
                 if( passByRef(p) ) // the value on the stack is a &, so we need to fetch the value first
                     emitValueFromAdrToStack(p->d_type.data(),false,me->d_loc);
+            }else
+            {
+                // non-local access via extra arg
+                ProcType* pt = scope->getProcType();
+                const int pos = pt->d_nonLocals.indexOf(id);
+                Q_ASSERT(pos >= 0);
+                line(me->d_loc).ldarg_(pt->d_formals.size()+pos);
+                emitValueFromAdrToStack(id->d_type.data(),false,me->d_loc);
             }
             return;
         case Thing::T_NamedType:
@@ -1878,16 +1922,36 @@ struct ObxCilGenImp : public AstVisitor
                 line(desig->d_loc).ldsflda_(memberRef(n));
                 break;
             case Thing::T_Parameter:
-                Q_ASSERT( n->d_slotValid );
-                if( omitParams && passByRef(cast<Parameter*>(n)) )
-                    line(desig->d_loc).ldarg_(n->d_slot); // we already have the address of the value
-                else
-                    line(desig->d_loc).ldarga_(n->d_slot);
+                if( n->d_scope == scope )
+                {
+                    Q_ASSERT( n->d_slotValid );
+                    if( omitParams && passByRef(cast<Parameter*>(n)) )
+                        line(desig->d_loc).ldarg_(n->d_slot); // we already have the address of the value
+                    else
+                        line(desig->d_loc).ldarga_(n->d_slot);
+                }else
+                {
+                    // non-local access via extra arg
+                    ProcType* pt = scope->getProcType();
+                    const int pos = pt->d_nonLocals.indexOf(n);
+                    Q_ASSERT(pos >= 0);
+                    line(desig->d_loc).ldarg_(pt->d_formals.size()+pos); // it's already the address
+                }
                 break;
             case Thing::T_LocalVar:
-                Q_ASSERT( n->d_slotValid );
-                line(desig->d_loc).ldloca_(n->d_slot);
-                // NOTE: works only for local access
+                if( n->d_scope == scope )
+                {
+                    Q_ASSERT( n->d_slotValid );
+                    line(desig->d_loc).ldloca_(n->d_slot);
+                }else
+                {
+                    // non-local access via extra arg
+                    ProcType* pt = scope->getProcType();
+                    const int pos = pt->d_nonLocals.indexOf(n);
+                    Q_ASSERT(pos >= 0);
+                    line(desig->d_loc).ldarg_(pt->d_formals.size()+pos);
+                    // arg is the address of the original local
+                }
                 break;
             }
         }else if( tag == Thing::T_Literal )
@@ -2786,6 +2850,44 @@ struct ObxCilGenImp : public AstVisitor
 
         if( !varargs.isEmpty() && ( func == 0 || pt->d_typeBound ) )
             err->warning(Errors::Generator, Loc(me->d_loc,thisMod->d_file), "varargs not supported here" );
+
+        if( !pt->d_nonLocals.isEmpty() )
+        {
+            Q_ASSERT(func && !pt->d_typeBound && scope && varargs.isEmpty());
+            foreach( Named* nl, pt->d_nonLocals )
+            {
+                // non-local locals/params are passed by var param
+                if( nl->d_scope == scope )
+                {
+                    // here we are at the source of the local/param
+                    switch(nl->getTag())
+                    {
+                    case Thing::T_Parameter:
+                        {
+                            Parameter* p = cast<Parameter*>(nl);
+                            Q_ASSERT( nl->d_slotValid );
+                            if( passByRef(p) ) // the value on the stack is already a &, so we just use it
+                                line(me->d_loc).ldarg_(nl->d_slot);
+                            else
+                                line(me->d_loc).ldarga_(nl->d_slot);
+                        }
+                        break;
+                    case Thing::T_LocalVar:
+                        line(me->d_loc).ldloca_(nl->d_slot);
+                        break;
+                    default:
+                        Q_ASSERT(false);
+                    }
+                }else
+                {
+                    // here we just pass on the non-local access
+                    ProcType* ptt = scope->getProcType();
+                    const int pos = ptt->d_nonLocals.indexOf(nl);
+                    Q_ASSERT( pos >= 0 );
+                    line(me->d_loc).ldarg_(ptt->d_formals.size() + pos);
+                }
+            }
+        }
 
         if( func )
         {
