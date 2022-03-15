@@ -1,0 +1,49 @@
+module Procs7e
+  type R = record i: integer end
+  var a,b: R
+      c,d: pointer to R
+
+	proc Outer(aa: R; var bb: R; in aaa: R)
+			proc Inner( i: integer )
+			begin
+				aa.i := aa.i + 2*i
+				bb.i := bb.i + 3*i
+				//aaa.i := 44 // compiler error
+				println(aaa.i*2) // 22
+			end Inner
+	begin
+  	Inner(33)
+    println(aa.i) // 77
+	end Outer
+		
+	proc Outer2(cc: pointer to R; var dd: pointer to R; in ccc: pointer to R)
+			proc Inner2( i: integer )
+			begin
+				cc.i := cc.i + 2*i
+				new(dd)
+				dd.i := dd.i + 3*i
+				//ccc.i := 44 // compiler error
+				println(ccc.i*2) // 22
+			end Inner2
+	begin
+  	Inner2(33)
+	end Outer2
+			
+begin
+  println("begin Procs7e")
+
+  a.i := 11
+  Outer(a,b,a)
+  println(a.i) // 11
+  println(b.i) // 99
+
+  println("****")
+
+  new(c)
+  c.i := 11
+  Outer2(c,d,c)
+  println(c.i) // 66
+  println(d.i) // 99
+
+  println("end Procs7e")
+end Procs7e

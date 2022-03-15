@@ -1,0 +1,43 @@
+module Procs7c
+
+  // check non-local access
+  	
+	proc Outer()
+  	type R = record i: integer end
+		var a,b: R
+    		c: pointer to R
+		
+		proc Mid1( i: integer )
+			var d: R
+
+			proc Inner( i: integer )
+			begin
+				a.i := a.i + i
+				d.i := i
+    		new(c)
+				Mid2(11)
+			end Inner
+			
+		begin
+			b.i := b.i + i
+			Inner(12)
+		end Mid1
+		
+		proc Mid2( i: integer )
+		begin
+			c.i := c.i + i
+		end Mid2
+		
+	begin
+  	println("begin Procs7c")
+		Mid1( 13 ) // Mid1 -> Inner -> Mid2
+		Mid2( 14 )
+		println(a.i) // 12
+		println(b.i) // 13
+		println(c.i) // 11 + 14 = 25
+		println("end Procs7c")
+	end Outer
+	
+begin
+	Outer
+end Procs7c

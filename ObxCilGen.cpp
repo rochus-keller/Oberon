@@ -809,7 +809,7 @@ struct ObxCilGenImp : public AstVisitor
         for( int i = 0; i < sig->d_formals.size(); i++ )
         {
             QByteArray type = formatType(sig->d_formals[i]->d_type.data(),sig->d_unsafe);
-            if( passByRef(sig->d_formals[i].data()) )
+            if( requiresRefOp(sig->d_formals[i].data()) )
                 type += "&";
 
             emitter->addArgument(type,escape(sig->d_formals[i]->d_name));
@@ -1282,7 +1282,7 @@ struct ObxCilGenImp : public AstVisitor
             if( i != 0 )
                 res += ", ";
             res += formatType( pt->d_formals[i]->d_type.data(), pt->d_unsafe );
-            if( passByRef(pt->d_formals[i].data()) )
+            if( requiresRefOp(pt->d_formals[i].data()) )
                 res += "&";
             if( withName )
                 res += " " + escape(pt->d_formals[i]->d_name);
@@ -1309,7 +1309,8 @@ struct ObxCilGenImp : public AstVisitor
                 if( i != 0 )
                     res += ", ";
                 res += formatType( pt->d_nonLocals[i]->d_type.data() );
-                res += "&";
+                if( !isReferenceType(pt->d_nonLocals[i]->d_type.data()) )
+                    res += "&";
                 if( withName )
                     res += " " + escape(pt->d_nonLocals[i]->d_name);
             }
@@ -1401,7 +1402,7 @@ struct ObxCilGenImp : public AstVisitor
             pt->d_formals[i]->d_slotValid = true;
 
             QByteArray type = formatType(pt->d_formals[i]->d_type.data(), pt->d_unsafe);
-            if( passByRef(pt->d_formals[i].data()) )
+            if( requiresRefOp(pt->d_formals[i].data()) )
                 type += "&";
             emitter->addArgument(type,escape(pt->d_formals[i]->d_name));
         }
@@ -1418,7 +1419,8 @@ struct ObxCilGenImp : public AstVisitor
             for( int i = 0; i < pt->d_nonLocals.size(); i++ )
             {
                 QByteArray type = formatType(pt->d_nonLocals[i]->d_type.data());
-                type += "&";
+                if( !isReferenceType(pt->d_nonLocals[i]->d_type.data()) )
+                    type += "&";
                 emitter->addArgument(type,escape(pt->d_nonLocals[i]->d_name));
             }
         }
@@ -1625,9 +1627,12 @@ struct ObxCilGenImp : public AstVisitor
         Type* td = derefed(t);
         switch( td->getTag() )
         {
-        case Thing::T_Array:
         default:
             Q_ASSERT(false);
+            break;
+        case Thing::T_Array:
+            // happens if an array reference is on the stack, e.g. when accessing non-local value arrays
+            // passed by extra arg
             break;
         case Thing::T_Record:
             // No, dont do that: line(loc).ldobj_(formatType(t));
@@ -1725,7 +1730,7 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Parameter* p = cast<Parameter*>(id);
                 emitVarToStack(id,me->d_loc);
-                if( passByRef(p) ) // the value on the stack is a &, so we need to fetch the value first
+                if( requiresRefOp(p) ) // the value on the stack is a &, so we need to fetch the value first
                     emitValueFromAdrToStack(p->d_type.data(),false,me->d_loc);
             }else
             {
@@ -1826,7 +1831,7 @@ struct ObxCilGenImp : public AstVisitor
             line(me->d_loc).ldelem_(formatType(et));
     }
 
-    bool emitFetchDesigAddr(Expression* desig, bool omitParams = true )
+    bool emitFetchDesigAddr(Expression* desig )
     {
         const int unop = desig->getUnOp();
         const int tag = desig->getTag();
@@ -1897,12 +1902,12 @@ struct ObxCilGenImp : public AstVisitor
         {
             Q_ASSERT( desig->getTag() == Thing::T_ArgExpr );
             ArgExpr* args = cast<ArgExpr*>( desig );
-            emitFetchDesigAddr( args->d_sub.data(), omitParams );
+            emitFetchDesigAddr( args->d_sub.data() );
         }else if( unop == UnExpr::DEREF )
         {
             Q_ASSERT( desig->getTag() == Thing::T_UnExpr );
             UnExpr* ue = cast<UnExpr*>( desig );
-            emitFetchDesigAddr( ue->d_sub.data(), omitParams );
+            emitFetchDesigAddr( ue->d_sub.data() );
         }else if( tag == Thing::T_IdentLeaf )
         {
             Named* n = desig->getIdent();
@@ -1925,7 +1930,7 @@ struct ObxCilGenImp : public AstVisitor
                 if( n->d_scope == scope )
                 {
                     Q_ASSERT( n->d_slotValid );
-                    if( omitParams && passByRef(cast<Parameter*>(n)) )
+                    if( requiresRefOp(cast<Parameter*>(n)) || isReferenceType(n->d_type.data()) )
                         line(desig->d_loc).ldarg_(n->d_slot); // we already have the address of the value
                     else
                         line(desig->d_loc).ldarga_(n->d_slot);
@@ -1942,7 +1947,10 @@ struct ObxCilGenImp : public AstVisitor
                 if( n->d_scope == scope )
                 {
                     Q_ASSERT( n->d_slotValid );
-                    line(desig->d_loc).ldloca_(n->d_slot);
+                    if( !isReferenceType(n->d_type.data()) )
+                        line(desig->d_loc).ldloca_(n->d_slot);
+                    else
+                        line(desig->d_loc).ldloc_(n->d_slot);
                 }else
                 {
                     // non-local access via extra arg
@@ -1966,7 +1974,7 @@ struct ObxCilGenImp : public AstVisitor
                      ( cast<BuiltIn*>(ae->d_sub->getIdent())->d_func == BuiltIn::SYS_VAL ||
                        cast<BuiltIn*>(ae->d_sub->getIdent())->d_func == BuiltIn::CAST ) );
             Q_ASSERT( ae->d_args.size() == 2 );
-            emitFetchDesigAddr(ae->d_args.last().data(), omitParams);
+            emitFetchDesigAddr(ae->d_args.last().data());
         }else
         {
             qDebug() << "ERR" << desig->getUnOp() << desig->getTag() << thisMod->getName() << desig->d_loc.d_row << desig->d_loc.d_col;
@@ -2276,14 +2284,8 @@ struct ObxCilGenImp : public AstVisitor
                     lengths.append(len);
                     line(ae->d_loc).stloc_(len);
                 }
-                // TODO: Pelib issue when 2d array local variable; apparently
-                // newarr class 'T3VariableDeclarations'/'Vector'[] is written
-                // as newarr class 'T3VariableDeclarations'/'Vector' by Pelib!
-                // see T3VariableDeclarations. Same if module variable instead of local,
-                // same if RectangleDesc instead of Vector; but it works if CHAR or INTEGER,
-                // or if compiled with ILASM instead of Pelib.
 
-                emitFetchDesigAddr(ae->d_args.first().data(),true); // not false, because also here a var param has the address already
+                emitFetchDesigAddr(ae->d_args.first().data());
                 // stack: address to store to
 
                 // we must pass t here (not ptr->d_to) because the pointer could be a named type defined in another module;
@@ -2299,7 +2301,7 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
 
-                emitFetchDesigAddr(ae->d_args.first().data(),true);
+                emitFetchDesigAddr(ae->d_args.first().data());
                 // stack: addr of store
                 line(ae->d_loc).dup_();
                 line(ae->d_loc).ldind_(IlEmitter::U4);
@@ -2312,7 +2314,7 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
 
-                emitFetchDesigAddr(ae->d_args.first().data(),true);
+                emitFetchDesigAddr(ae->d_args.first().data());
                 // stack: addr of store
                 line(ae->d_loc).dup_();
                 line(ae->d_loc).ldind_(IlEmitter::U4);
@@ -2325,7 +2327,7 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
 
-                emitFetchDesigAddr(ae->d_args.first().data(),true);
+                emitFetchDesigAddr(ae->d_args.first().data());
                 ae->d_args.last()->accept(this);
                 line(ae->d_loc).call_("void [OBX.Runtime]OBX.Runtime::PACK(float32&, int32)", 2 );
            }
@@ -2334,8 +2336,8 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
 
-                emitFetchDesigAddr(ae->d_args.first().data(),true);
-                emitFetchDesigAddr(ae->d_args.last().data(),true);
+                emitFetchDesigAddr(ae->d_args.first().data());
+                emitFetchDesigAddr(ae->d_args.last().data());
                 // stack: addr, addr
                 line(ae->d_loc).call_("void [OBX.Runtime]OBX.Runtime::UNPACK(float32&, int32&)", 2 );
              }
@@ -2668,16 +2670,24 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
-    static inline bool passByRef( Parameter* p )
+    static inline bool requiresRefOp( Parameter* p )
     {
         if( !p->d_var || p->d_const )
             return false;
-        Type* td = derefed(p->d_type.data());
-        if( td && !td->isStructured() )
-            return true; // we only need to pass simple types including pointers and proc refs by &
-        else
-            return false; // all our structured values are already on the heap, the value is actually a object reference
+        // we only need to pass simple types including pointers and proc refs by '&'
+        // all our structured values are already on the heap, the value is actually an object reference
+        return !isReferenceType(p->d_type.data());
     }
+
+    static inline bool isReferenceType( Type* t )
+    {
+        Type* td = derefed(t);
+        if( td && td->isStructured() )
+            return true;
+        else
+            return false;
+    }
+
 
     void preparePinnedArray( Type* t, const RowCol& loc )
     {
@@ -2804,7 +2814,7 @@ struct ObxCilGenImp : public AstVisitor
             Q_ASSERT( tf != 0 );
 
             const int tag = tf->getTag();
-            if( passByRef(p) )
+            if( requiresRefOp(p) )
             {
                 if( tag == Thing::T_Array )
                 {
@@ -2824,7 +2834,7 @@ struct ObxCilGenImp : public AstVisitor
                     emitFetchDesigAddr(me->d_args[i].data());
             }else
             {
-                // 1) a structured arg (record, array) passed by val
+                // 1) a structured arg (record, array) passed by val (i.e. a reference)
                 // 2) or a structured arg passed to IN, i.e. just pass the reference
                 // 3) or a non-structured arg passed by IN or by val, just pass the value in both cases
                 // NOTE that in case of 1) the copy is done in the body of the called procedure
@@ -2860,24 +2870,14 @@ struct ObxCilGenImp : public AstVisitor
                 if( nl->d_scope == scope )
                 {
                     // here we are at the source of the local/param
-                    switch(nl->getTag())
-                    {
-                    case Thing::T_Parameter:
-                        {
-                            Parameter* p = cast<Parameter*>(nl);
-                            Q_ASSERT( nl->d_slotValid );
-                            if( passByRef(p) ) // the value on the stack is already a &, so we just use it
-                                line(me->d_loc).ldarg_(nl->d_slot);
-                            else
-                                line(me->d_loc).ldarga_(nl->d_slot);
-                        }
-                        break;
-                    case Thing::T_LocalVar:
-                        line(me->d_loc).ldloca_(nl->d_slot);
-                        break;
-                    default:
-                        Q_ASSERT(false);
-                    }
+
+                    IdentLeaf id;
+                    id.d_ident = nl;
+                    id.d_name = nl->d_name;
+                    id.d_type = nl->d_type.data();
+                    id.d_loc = me->d_loc;
+
+                    emitFetchDesigAddr(&id);
                 }else
                 {
                     // here we just pass on the non-local access

@@ -105,6 +105,18 @@ size=0
 50\RelPath=Vla2.obx
 51\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Vla3.obx
 51\RelPath=Vla3.obx
+52\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs7.obx
+52\RelPath=Procs7.obx
+53\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs7b.obx
+53\RelPath=Procs7b.obx
+54\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs7c.obx
+54\RelPath=Procs7c.obx
+55\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs7d.obx
+55\RelPath=Procs7d.obx
+56\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs7e.obx
+56\RelPath=Procs7e.obx
+57\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Procs7f.obx
+57\RelPath=Procs7f.obx
 6\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Flow.obx
 6\RelPath=Flow.obx
 7\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic1.obx
@@ -113,7 +125,7 @@ size=0
 8\RelPath=Generic2.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic4.obx
 9\RelPath=Generic4.obx
-size=51
+size=57
 
 [Packages]
 1\Name=@ByteArray()

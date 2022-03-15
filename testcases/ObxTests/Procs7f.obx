@@ -1,0 +1,27 @@
+module Procs7f
+
+  var a,b: integer
+
+	proc Outer(aa: integer; var bb: integer; in aaa: integer)
+			proc Inner( i: integer )
+			begin
+				aa := aa + 2*i
+				bb := bb + 3*i
+				// aaa := 44 // compiler error
+				println(aaa*2) // 22
+			end Inner
+	begin
+  	Inner(33)
+    println(aa) // 77
+	end Outer
+			
+begin
+  println("begin Procs7f")
+
+  a := 11
+  Outer(a,b,a)
+  println(a) // 11
+  println(b) // 99
+
+  println("end Procs7f")
+end Procs7f

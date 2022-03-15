@@ -1,0 +1,42 @@
+module Procs7b
+
+  // check non-local access
+  	
+	proc Outer()
+		var a,b: array 3 of integer
+    		c: pointer to array 3 of integer
+		
+		proc Mid1( i: integer )
+			var d: array 2 of integer
+
+			proc Inner( i: integer )
+			begin
+				a[1] := a[1] + i
+				d[0] := i
+    		new(c)
+				Mid2(11)
+			end Inner
+			
+		begin
+			b[2] := b[2] + i
+			Inner(12)
+		end Mid1
+		
+		proc Mid2( i: integer )
+		begin
+			c[0] := c[0] + i
+		end Mid2
+		
+	begin
+  	println("begin Procs7b")
+		Mid1( 13 ) // Mid1 -> Inner -> Mid2
+		Mid2( 14 )
+		println(a[1]) // 12
+		println(b[2]) // 13
+		println(c[0]) // 11 + 14 = 25
+		println("end Procs7b")
+	end Outer
+	
+begin
+	Outer
+end Procs7b

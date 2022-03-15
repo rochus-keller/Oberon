@@ -398,6 +398,33 @@ struct ObxCGenImp : public AstVisitor
                 res += ", ";
             res += "...";
         }
+        if( !pt->d_nonLocals.isEmpty() )
+        {
+            if( !pt->d_formals.isEmpty() )
+                res += ", ";
+            for( int i = 0; i < pt->d_nonLocals.size(); i++ )
+            {
+                if( i != 0 )
+                    res += ", ";
+                Named* n = pt->d_nonLocals[i];
+                Type* t = n->d_type.data();
+                Type* td = derefed(t);
+                const int tag = td->getTag();
+                Pointer p;
+                if( tag == Thing::T_Array )
+                {
+                    t = &p;
+                    p.d_to = n->d_type.data();
+                    p.d_decl = n;
+                    p.d_loc = n->d_loc;
+                }
+                res += formatType( t );
+                if( tag != Thing::T_Array )
+                    res += "*";
+                if( withName )
+                    res += " " + escape(n->d_name);
+            }
+        }
         res += ")";
         return res;
     }
@@ -1277,12 +1304,6 @@ struct ObxCGenImp : public AstVisitor
         emitConst( td->getBaseType(), me->d_val, me->d_loc );
     }
 
-    void checkNonLocalAccess( Named* id, const RowCol& loc )
-    {
-        if( id->d_scope != curProc )
-            err->error(Errors::Generator, Loc(loc,thisMod->d_file), "non-local access not yet supported by the C generator" );
-    }
-
     void visit( IdentLeaf* me)
     {
         Named* id = me->getIdent();
@@ -1323,13 +1344,21 @@ struct ObxCGenImp : public AstVisitor
             b << dottedName(id);
             break;
         case Thing::T_LocalVar:
-            checkNonLocalAccess(id, me->d_loc);
-            b << escape(id->d_name);
+            if( id->d_scope == curProc )
+                b << escape(id->d_name);
+            else
+            {
+                // non-local access via extra arg
+                if( td->getTag() != Thing::T_Array )
+                    b << "(*" << escape(id->d_name) << ")";
+                else
+                    b << escape(id->d_name);
+            }
             break;
         case Thing::T_Parameter:
+            if( id->d_scope == curProc )
             {
                 Q_ASSERT(td);
-                checkNonLocalAccess(id, me->d_loc);
                 // a VAR/IN parameter is implemented as a pointer.
                 // an array passed by value is also represented by a pointer
                 // record pointers are plain C pointers
@@ -1345,8 +1374,7 @@ struct ObxCGenImp : public AstVisitor
 
                 // we dereference here in case of VAR/IN so the succeeding desigs can assume a value based on d_type
                 // without checking the prefix desig. But we don't do it for array values.
-                const bool doDeref = p->d_var
-                        && td->getTag() != Thing::T_Array;
+                const bool doDeref = p->d_var && td->getTag() != Thing::T_Array;
                 if( doDeref )
                     b << "(*";
                 if( p->d_receiver )
@@ -1355,6 +1383,13 @@ struct ObxCGenImp : public AstVisitor
                     b << escape(id->d_name);
                 if( doDeref )
                     b << ")";
+            }else
+            {
+                // non-local access via extra arg
+                if( td->getTag() != Thing::T_Array )
+                    b << "(*" << escape(id->d_name) << ")";
+                else
+                    b << escape(id->d_name);
             }
             break;
         case Thing::T_NamedType:
@@ -2503,21 +2538,31 @@ struct ObxCGenImp : public AstVisitor
                 QList<Array*> dims = a->getDims();
                 if( addrOf )
                     b << "&";
-                b << "(" << arrayType(dims.size(), rhs->d_loc) << "){";
-                for(int i = 0; i < dims.size(); i++ )
+                const bool nonlocal = tag == Thing::T_IdentLeaf && id &&
+                        ( id->getTag() == Thing::T_LocalVar || id->getTag() == Thing::T_Parameter ) &&
+                        id->d_scope != curProc;
+                if( nonlocal )
                 {
-                    Q_ASSERT( dims[i]->d_lenExpr ); // array values always have static lens
-                    if( dims[i]->d_vla && id )
+                    // we already have an array pointer struct
+                    b << escape(id->d_name);
+                }else
+                {
+                    b << "(" << arrayType(dims.size(), rhs->d_loc) << "){";
+                    for(int i = 0; i < dims.size(); i++ )
                     {
-                        Q_ASSERT( id->getTag() == Thing::T_LocalVar );
-                        b << escape(id->d_name) << "$len[" << i << "]";
-                    }else
-                        b << dims[i]->d_len;
-                    b << ",";
+                        Q_ASSERT( dims[i]->d_lenExpr ); // array values always have static lens
+                        if( dims[i]->d_vla && id )
+                        {
+                            Q_ASSERT( id->getTag() == Thing::T_LocalVar );
+                            b << escape(id->d_name) << "$len[" << i << "]";
+                        }else
+                            b << dims[i]->d_len;
+                        b << ",";
+                    }
+                    b << "1,";
+                    rhs->accept(this);
+                    b << "}";
                 }
-                b << "1,";
-                rhs->accept(this);
-                b << "}";
             }
         }else if( atag == Thing::T_ProcType && ta->d_typeBound &&
                   rhs->getIdent() && rhs->getIdent()->getTag() == Thing::T_Procedure )
@@ -2662,6 +2707,46 @@ struct ObxCGenImp : public AstVisitor
             if( !pt->d_formals.isEmpty() )
                 b << ", ";
             renderArg2(me->d_args[i]->d_type.data(), me->d_args[i].data(), false );
+        }
+        if( !pt->d_nonLocals.isEmpty() )
+        {
+            if( !pt->d_formals.isEmpty() )
+                b << ", ";
+            for( int i = 0; i < pt->d_nonLocals.size(); i++ )
+            {
+                if( i != 0 )
+                    b << ", ";
+                Named* nl = pt->d_nonLocals[i];
+                // non-local locals/params are passed by var param
+                if( nl->d_scope == curProc )
+                {
+                    // here we are at the source of the local/param
+                    Type* td = derefed(nl->d_type.data());
+                    IdentLeaf id;
+                    id.d_ident = nl;
+                    id.d_name = nl->d_name;
+                    id.d_type = nl->d_type.data();
+                    id.d_loc = me->d_loc;
+
+                    switch(nl->getTag())
+                    {
+                    case Thing::T_Parameter:
+                        // renderArg returns derefed var param unless array;
+                        // so it is safe to take the address here unless it is a value array
+                        renderArg(nl->d_type.data(), &id, td->getTag() != Thing::T_Array );
+                        break;
+                    case Thing::T_LocalVar:
+                        renderArg(nl->d_type.data(), &id, td->getTag() != Thing::T_Array );
+                        break;
+                    default:
+                        Q_ASSERT(false);
+                    }
+                }else
+                {
+                    // here we just pass on the non-local access
+                    b << escape(nl->d_name);
+                }
+            }
         }
     }
 

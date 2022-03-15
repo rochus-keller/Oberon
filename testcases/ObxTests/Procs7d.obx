@@ -1,0 +1,49 @@
+module Procs7d
+
+  var a,b: array 3 of integer
+      c,d: pointer to array of integer
+
+	proc Outer(aa: array of integer; var bb: array of integer; in aaa: array of integer)
+			proc Inner( i: integer )
+			begin
+				aa[1] := aa[1] + 2*i
+				bb[0] := bb[0] + 3*i
+				// aaa[2] := 44 // compiler error
+				println(aaa[2]*2) // 22
+			end Inner
+	begin
+  	Inner(33)
+    println(aa[1]) // 66
+	end Outer
+		
+	proc Outer2(cc: pointer to array of integer; var dd: pointer to array of integer; 
+              	in ccc: pointer to array of integer)
+			proc Inner2( i: integer )
+			begin
+				cc[1] := cc[1] + 2*i
+				new(dd,3)
+				dd[0] := dd[0] + 3*i
+				//ccc[2] := 44 // compiler error
+				println(ccc[2]*2) // 22
+			end Inner2
+	begin
+  	Inner2(33)
+	end Outer2
+			
+begin
+  println("begin Procs7d")
+
+  a[2] := 11
+  Outer(a,b,a)
+  println(a[1]) // 0
+  println(b[0]) // 99
+
+  println("****")
+
+  new(c,3)
+  c[2] := 11
+  Outer2(c,d,c)
+  println(c[1]) // 66
+  println(d[0]) // 99
+  println("end Procs7d")
+end Procs7d
