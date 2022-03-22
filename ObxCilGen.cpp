@@ -354,11 +354,9 @@ struct ObxCilGenImp : public AstVisitor
     {
         Q_ASSERT( className && className->getTag() == Thing::T_NamedType );
         Module* m = className->getModule();
-#if 0
-        if( m == 0 && className->d_type && className->d_type->derefed()->d_anyRec )
-            return "object";
+        if( m == 0 && className->d_type && className->d_type->derefed()->getBaseType() == Type::ANYREC )
+            return "[mscorlib]System.Object"; // "object" not suitable because "class" is prefixed and
         else
-#endif
             return moduleRef(m) + "/" + nestedPath(className); // dotted because also records nested in procs are lifted to module level
     }
 

@@ -441,6 +441,7 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_anyType = new BaseType(BaseType::ANY);
     d_voidType = new BaseType(BaseType::CVOID);
     d_anyRec = new Record();
+    d_anyRec->d_baseType = Type::ANYREC;
     d_cmdType = new ProcType();
 
     fillGlobals();
@@ -1035,7 +1036,7 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::BITSHR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITASR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::ADR, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
-    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol("ANYREC"),d_anyRec.data() );
+    Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_anyRec->d_baseType]),d_anyRec.data() );
     d_globals->add( anyrec.data() );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_voidType->d_baseType]),d_voidType.data() ) );
     d_globals->add( new BuiltIn(BuiltIn::BITS, new ProcType( Type::List() << d_intType.data(), d_setType.data() ) ) );

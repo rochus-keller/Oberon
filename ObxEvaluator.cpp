@@ -438,38 +438,56 @@ struct EvalVisitor : public AstVisitor
             me->d_args.first()->accept(this);
             if( val.d_vtype == Literal::Integer )
             {
-                bool lwide = val.d_wide;
+                const bool lwide = val.d_wide;
                 const qint64 lhs = val.d_value.toLongLong();
                 me->d_args.last()->accept(this);
                 if( val.d_vtype == Literal::Integer )
                 {
-                    bool rwide = val.d_wide;
+                    const bool rwide = val.d_wide;
+                    val.d_wide = lwide || rwide;
+                    val.d_minInt = !val.d_wide;
                     const qint64 rhs = val.d_value.toLongLong();
                     switch( func )
                     {
                     case BuiltIn::BITAND:
-                        val.d_value = lhs & rhs;
+                        if( val.d_wide )
+                            val.d_value = qint64(lhs & rhs);
+                        else
+                            val.d_value = qint32(lhs & rhs);
                         break;
                     case BuiltIn::BITOR:
-                        val.d_value = lhs | rhs;
+                        if( val.d_wide )
+                            val.d_value = qint64(lhs | rhs);
+                        else
+                            val.d_value = qint32(lhs | rhs);
                         break;
                     case BuiltIn::BITXOR:
-                        val.d_value = lhs ^ rhs;
+                        if( val.d_wide )
+                            val.d_value = qint64(lhs ^ rhs);
+                        else
+                            val.d_value = qint32(lhs ^ rhs);
                         break;
                     case BuiltIn::BITSHL:
-                        val.d_value = lhs << rhs;
+                        if( val.d_wide )
+                            val.d_value = qint64(lhs << rhs);
+                        else
+                            val.d_value = qint32(lhs << rhs);
                         break;
                     case BuiltIn::BITSHR:
-                        val.d_value = lhs >> rhs;
+                        if( val.d_wide )
+                            val.d_value = qint64(lhs >> rhs);
+                        else
+                            val.d_value = qint32(lhs >> rhs);
                         break;
                     case BuiltIn::BITASR:
-                        val.d_value = lhs >> rhs | ~(~((quint64)0) >> rhs);
+                        if( val.d_wide )
+                            val.d_value = qint64(lhs >> rhs | ~(~((quint64)0) >> rhs));
+                        else
+                            val.d_value = qint64(lhs >> rhs | ~(~((quint32)0) >> rhs));
                         break;
                     default:
                         Q_ASSERT(false);
                     }
-                    val.d_wide = lwide || rwide;
-                    val.d_minInt = !val.d_wide;
                 }else
                     return error( me->d_args.last().data(), Evaluator::tr("invalid argument type") );
             }else
@@ -485,6 +503,10 @@ struct EvalVisitor : public AstVisitor
 
         switch( f->d_func )
         {
+        case BuiltIn::LONG:
+        case BuiltIn::SHORT:
+            me->d_args.first()->accept(this);
+            return;
         case BuiltIn::MAX:
         case BuiltIn::MIN:
             if( me->d_args.size() == 1 )
@@ -582,7 +604,10 @@ struct EvalVisitor : public AstVisitor
                 n = val;
                 if( x.d_vtype == Literal::Integer && n.d_vtype == Literal::Integer )
                 {
-                    val.d_value = x.d_value.toInt() * ::pow(2,n.d_value.toInt());
+                    if( x.d_wide )
+                        val.d_value = x.d_value.toLongLong() * ::pow(2,n.d_value.toInt());
+                    else
+                        val.d_value = x.d_value.toInt() * ::pow(2,n.d_value.toInt());
                     return;
                 }else
                     error( me, Evaluator::tr("invalid argument types") );
@@ -762,8 +787,12 @@ struct EvalVisitor : public AstVisitor
             {
                 me->d_args.first()->accept(this);
                 if( val.d_vtype == Literal::Integer )
-                    val.d_value = ~val.d_value.toUInt();
-                else
+                {
+                    if( val.d_wide )
+                        val.d_value = qint64(~val.d_value.toULongLong());
+                    else
+                        val.d_value = qint32(~val.d_value.toUInt());
+                }else
                     error( me, Evaluator::tr("invalid argument type") );
                 return;
             }else
@@ -799,8 +828,6 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::SYS_VAL:
         case BuiltIn::SYS_COPY:
         case BuiltIn::CAP:
-        case BuiltIn::LONG:
-        case BuiltIn::SHORT:
         case BuiltIn::HALT:
         case BuiltIn::COPY:
         case BuiltIn::BYTESIZE:

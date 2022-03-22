@@ -990,7 +990,10 @@ Ref<Expression> Parser::designator()
         Ref<UnExpr> u = selector();
         if( !u.isNull() )
         {
-            u->d_sub = e;
+            Ref<UnExpr> first = u;
+            while( !first->d_sub.isNull() )
+                first = cast<UnExpr*>(first->d_sub.data());
+            first->d_sub = e;
             e = u.data();
         }
     }
@@ -1015,12 +1018,19 @@ Ref<UnExpr> Parser::selector()
     case Tok_Lbrack:
         {
             next();
-            Ref<ArgExpr> a = new ArgExpr();
-            a->d_loc = d_cur.toRowCol();
-            a->d_args = expList();
-            a->d_op = UnExpr::IDX;
+            ExpList l = expList();
+            Ref<ArgExpr> a, prev;
+            foreach( const Ref<Expression>& e, l )
+            {
+                a = new ArgExpr();
+                a->d_loc = d_cur.toRowCol();
+                a->d_args.append(e);
+                a->d_op = UnExpr::IDX;
+                a->d_sub = prev.data();
+                prev = a;
+            }
             MATCH( Tok_Rbrack, tr("expecting ']' to terminate expression list in index") );
-            return a.data();
+            return a.data(); // a can be one or a chain of ArgExpr with one arg each with a being the last in the list
         }
         break;
     case Tok_Hat:

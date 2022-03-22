@@ -39,7 +39,8 @@ namespace Obx
         uint d_flags : 24;
         QByteArray d_arg;
         IlOperation(quint8 ilop = 0):d_ilop(ilop),d_flags(0){}
-        IlOperation(quint8 ilop, quint32 numArg):d_ilop(ilop),d_arg(QByteArray::number(numArg)){}
+        IlOperation(quint8 ilop, quint32 numArg):d_ilop(ilop),d_arg(QByteArray::number(numArg)),d_flags(0){}
+        IlOperation(quint8 ilop, qint32 numArg):d_ilop(ilop),d_arg(QByteArray::number(numArg)),d_flags(0){}
         IlOperation(quint8 ilop, const QByteArray& strArg, quint16 flags = 0 ):d_ilop(ilop),d_flags(flags),d_arg(strArg){}
     };
 

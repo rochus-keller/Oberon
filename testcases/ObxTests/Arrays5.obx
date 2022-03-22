@@ -1,0 +1,19 @@
+module Arrays5
+
+type A = array 10 of pointer to array of integer
+var a: A
+
+begin
+	println("Arrays5 start")
+  new(a[0],3)
+  new(a[1],4)
+  new(a[2],5)
+  
+  a[1][2] := 33
+  println(a[1,2])
+  
+  a[2,0] := 44
+  println(a[2][0])
+  
+	println("Arrays5 done")
+end Arrays5

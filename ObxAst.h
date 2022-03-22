@@ -186,7 +186,7 @@ namespace Obx
 
     struct Type : public Thing
     {
-        enum { NONE, ANY, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
+        enum { NONE, ANY, ANYREC, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
                INTEGER, LONGINT, REAL, LONGREAL, SET, ENUMINT }; // BaseType
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
@@ -237,6 +237,8 @@ namespace Obx
         BaseType(quint8 t = NIL ) { d_baseType = t; }
         QVariant maxVal() const;
         QVariant minVal() const;
+        static QVariant maxVal(quint8 baseType);
+        static QVariant minVal(quint8 baseType);
         quint32 getByteSize() const;
         int getTag() const { return T_BaseType; }
         void accept(AstVisitor* v) { v->visit(this); }

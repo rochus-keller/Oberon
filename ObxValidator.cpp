@@ -1572,7 +1572,7 @@ struct ValidatorImp : public AstVisitor
             }
             if( subType == 0 || subType->getTag() != Thing::T_Array )
             {
-                error( me->d_loc, Validator::tr("index selector only available for arrays") );
+                error( me->d_loc, Validator::tr("no array dimension corresponds to this index selector") );
                 return;
             }
 
@@ -1591,6 +1591,7 @@ struct ValidatorImp : public AstVisitor
 
             if( me->d_args.size() > 1 )
             {
+                Q_ASSERT(false); // no longer used since Parser::selector already makes a chain of ArgExpr
                 // Modify AST so that each IDX only has one dimension and me is the last element in the chain
                 Ref<ArgExpr> prev;
                 for( int i = 0; i < me->d_args.size() - 1; i++ )
@@ -1695,8 +1696,12 @@ struct ValidatorImp : public AstVisitor
             break;
         case UnExpr::NEG:
             if( isNumeric(prevT) || prevT == bt.d_setType )
-                me->d_type = prevT;
-            else
+            {
+                if( prevT->getBaseType() == Type::BYTE )
+                    me->d_type = bt.d_shortType;
+                else
+                    me->d_type = prevT;
+            }else
                 error( me->d_loc, Validator::tr("sign inversion only applicable to numeric or set types") );
             break;
         case UnExpr::NOT:
@@ -2303,6 +2308,53 @@ struct ValidatorImp : public AstVisitor
         me->d_strLen = res.d_strLen;
         me->d_visited = true;
         constTrace.remove(me);
+        Type* td = derefed(me->d_type.data());
+        if( td->isInteger() )
+        {
+#if 0
+            bool overflow = false;
+            qint64 v = me->d_val.toLongLong();
+            switch(td->getBaseType())
+            {
+            case Type::BYTE:
+                if( v > 255 || v < 0 )
+                    overflow = true;
+                break;
+            case Type::SHORTINT:
+                if( v > std::numeric_limits<qint16>::max() || v < std::numeric_limits<qint16>::min() )
+                    overflow = true;
+                break;
+            case Type::INTEGER:
+            case Type::SET:
+            case Type::ENUMINT:
+                if( v > std::numeric_limits<qint32>::max() || v < std::numeric_limits<qint32>::min() )
+                    overflow = true;
+                break;
+            }
+            if( overflow )
+                warning(me->d_constExpr->d_loc, Validator::tr("value is out of range") );
+#else
+            // if the type according to expression rules is not wide enough to accomodate the number, widen it
+            qint64 v = me->d_val.toLongLong();
+            Type* newType = td;
+            if( newType->getBaseType() == Type::BYTE &&
+                    ( v < 0 || v > bt.d_byteType->maxVal().toInt() ) )
+                newType = bt.d_shortType;
+            if( newType->getBaseType() == Type::SHORTINT &&
+                    ( v < bt.d_shortType->minVal().toInt() || v > bt.d_shortType->maxVal().toInt() ) )
+                newType = bt.d_intType;
+            if( newType->getBaseType() == Type::INTEGER &&
+                    ( v < bt.d_intType->minVal().toInt() || v > bt.d_intType->maxVal().toInt() ) )
+                newType = bt.d_longType;
+            if( newType != td )
+            {
+                warning(me->d_constExpr->d_loc, Validator::tr("widened type from %1 to %2")
+                        .arg(BaseType::s_typeName[td->getBaseType()])
+                        .arg(BaseType::s_typeName[newType->getBaseType()]));
+                me->d_type = newType;
+            }
+#endif
+        }
     }
 
     void visit( Field* me )

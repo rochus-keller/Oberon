@@ -35,7 +35,7 @@ const char* Thing::s_tagName[] =
 
 const char* BaseType::s_typeName[] =
 {
-    "NONE", "ANY", "VOID", "NIL", "#BYTEARRAY", "#STRING", "#WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
+    "NONE", "ANY", "ANYREC", "VOID", "NIL", "#BYTEARRAY", "#STRING", "#WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
     "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET", "#ENUMINT"
 };
 
@@ -1277,7 +1277,17 @@ QList<Expression*> Expression::getSubList() const
 
 QVariant BaseType::maxVal() const
 {
-    switch( d_baseType )
+    return maxVal(d_baseType);
+}
+
+QVariant BaseType::minVal() const
+{
+    return minVal(d_baseType);
+}
+
+QVariant BaseType::maxVal(quint8 baseType)
+{
+    switch( baseType )
     {
     case BOOLEAN:
         return true;
@@ -1303,9 +1313,9 @@ QVariant BaseType::maxVal() const
     return QVariant();
 }
 
-QVariant BaseType::minVal() const
+QVariant BaseType::minVal(quint8 baseType)
 {
-    switch( d_baseType )
+    switch( baseType )
     {
     case BOOLEAN:
         return false;

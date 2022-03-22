@@ -4,8 +4,17 @@ MODULE With;
       T1 = POINTER TO RECORD(T0) i: INTEGER END;
    VAR t : T1; v: T0;
 BEGIN
-   NEW(t);
-   v := t;
+  PRINTLN(v IS T1) // FALSE because v is NIL
+  WITH v: T1 DO PRINTLN("OK") ELSE PRINTLN("NOK") END // NOK becauase v is NIL
+  CASE v OF
+  | T0: PRINTLN("T0")
+  | T1: PRINTLN("T1")
+  ELSE
+    PRINTLN("NIL")
+  END
+  
+  NEW(t);
+  v := t;
 	WITH v: T1 DO v.i := 3 END;
 	PRINTLN(t.i); // prints 3
 	IF v IS T1 THEN v(T1).i := 4 END;

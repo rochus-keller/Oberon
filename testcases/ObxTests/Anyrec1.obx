@@ -1,0 +1,38 @@
+module Anyrec1
+
+  // var n: anyrec // compiler error
+  
+  // type R = record f: anyrec end compiler error
+  
+  // proc P(p: anyrec) var l: anyrec begin end P // compiler error
+  
+  proc Q(in p: anyrec)
+  begin
+    assert(p is TT)
+  end Q
+  
+  proc F(): pointer to anyrec
+    var t: pointer to T
+  begin
+    new(t)
+    return t
+  end F
+  
+  type T = record i: integer end
+    TT = pointer to T
+    T2 = record(anyrec) i: integer end // ok
+  
+  var p: pointer to anyrec
+    t: T
+  
+begin
+  println("begin Anyrec1")
+
+  p := F()
+  assert( p is TT )
+  
+  Q(p)
+  Q(t)
+
+  println("end Anyrec1")
+end Anyrec1

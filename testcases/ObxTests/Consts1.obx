@@ -8,9 +8,19 @@ const
 	e = 1234i
 	f = 4567l
 	g = 0ffhl
+	h = -20
+	i = max(integer)+1l
 begin
 	println(a)
 	println(b)
 	println(c)
 	println(d)
+	println(max(integer))
+	println(max(integer)+1)
+	println(long(max(integer))+1)
+	println(i)
+	println(max(longint))
+	println(h)
+	println(-20)
+	println(i)
 end Consts1

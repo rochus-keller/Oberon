@@ -466,7 +466,7 @@ module Havlak
         ID := som.IdentityDictionary<BasicBlock,integer>
     const 
         UNVISITED = max(integer)
-        MAXNONBACKPREDS = 32 * 1024
+        MAXNONBACKPREDS = 32 * 1024i
     type
         BasicBlockClass = (
                     BB_TOP,          // uninitialized

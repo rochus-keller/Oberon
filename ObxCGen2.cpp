@@ -346,6 +346,8 @@ struct ObxCGenImp : public AstVisitor
 
     QByteArray classRef( Record* r )
     {
+        if( r->getBaseType() == Type::ANYREC )
+            return "OBX$Class";
         Named* n = r->findDecl();
         if( n && n->getTag() == Thing::T_NamedType )
             return classRef(n);
@@ -598,7 +600,8 @@ struct ObxCGenImp : public AstVisitor
                     {
                         res = name; // pointer to array is equal to array in c
                     }
-                }
+                }else if( td && td->getBaseType() == Type::ANYREC )
+                    return "struct OBX$Class*" + ( !name.isEmpty() ? " " + name : "");
                 // else
                 return formatType( me->d_to.data(), res, true );
             }
@@ -763,9 +766,11 @@ struct ObxCGenImp : public AstVisitor
         level++;
 
         // we need a valid type in any case, thus use this type if no base rec
-        h << ws() << "struct " << classRef(r->d_baseRec ? r->d_baseRec : r ) << "$Class$* super$;" << endl;
+        h << ws() << "struct " << classRef(
+                 r->d_baseRec && r->d_baseRec->getBaseType() != Type::ANYREC ?
+                    r->d_baseRec : r ) << "$Class$* super$;" << endl;
 
-        if( r->d_baseRec )
+        if( r->d_baseRec && r->d_baseRec->getBaseType() != Type::ANYREC )
             b << ws() << "&" << classRef(r->d_baseRec) << "$class$," << endl;
         else
             b << ws() << "0," << endl;
@@ -3146,7 +3151,7 @@ struct ObxCGenImp : public AstVisitor
         case BinExpr::IS:
             b << "OBX$IsSubclass(";
             b << "&" << classRef(me->d_rhs->d_type.data()) << "$class$, OBX$ClassOf(";
-            if( rtag == Thing::T_Record )
+            if( ltag == Thing::T_Record )
                 b << "&";
             me->d_lhs->accept(this);
             b << "))";
