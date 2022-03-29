@@ -3378,7 +3378,7 @@ struct ValidatorImp : public AstVisitor
         {
             if( isInteger(lhsT) && rtag == Thing::T_Enumeration )
             {
-                // automatically convert enumeration to number TODO: should we really do this?
+                // automatically convert enumeration to number
                 Enumeration* en = cast<Enumeration*>(rhsT);
                 if( en->d_items.size() < 256 )
                     rhsT = bt.d_byteType;
@@ -3389,11 +3389,14 @@ struct ValidatorImp : public AstVisitor
             }
             if( includes(lhsT,rhsT) )
                 return true;
+#if OBX_BBOX
             else
             {
+                // This is an error in Oberon and Oberon-2
                 warning( rhs->d_loc, Validator::tr("possible loss of information") );
                 return true;
             }
+#endif
         }else if( lhsT == bt.d_wcharType && rhsT == bt.d_charType )
             return true;
 

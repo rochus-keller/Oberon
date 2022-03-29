@@ -3412,6 +3412,45 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
+    bool includes( Type* lhs, Type* rhs ) const
+    {
+        // expects derefed types
+        // adapted copy of Validator::includes
+        Q_ASSERT( lhs != 0 && rhs != 0 );
+        if( lhs == rhs )
+            return true;
+        const quint8 lt = lhs->getBaseType();
+        const quint8 rt = rhs->getBaseType();
+        if( lt == Type::LONGINT )
+            return rt == Type::BYTE || rt == Type::INTEGER || rt == Type::SHORTINT;
+        if( lt == Type::INTEGER )
+            return rt == Type::BYTE || rt == Type::SHORTINT;
+        if( lt == Type::SHORTINT )
+            return rt == Type::BYTE;
+        if( lt == Type::BYTE )
+            return false;
+        if( lt == Type::REAL )
+            return rt == Type::BYTE || rt == Type::SHORTINT ||
+                     rt == Type::INTEGER; // RISK: possible loss of precision
+        if( lt == Type::LONGREAL )
+            return rt == Type::BYTE || rt == Type::INTEGER || rt == Type::SHORTINT || rt == Type::LONGINT ||
+                    rt == Type::REAL;
+        if( lt == Type::WCHAR )
+            return rt == Type::CHAR;
+        return false;
+    }
+
+    quint8 inclusiveType1(Type* lhs, Type* rhs) const
+    {
+        if( lhs == 0 || rhs == 0 )
+            return 0;
+        if( includes( lhs, rhs ) )
+            return lhs->getBaseType();
+        else
+            return rhs->getBaseType();
+    }
+
+
     void visit( ForLoop* me)
     {
         //const int before = stackDepth;
@@ -3436,7 +3475,8 @@ struct ObxCilGenImp : public AstVisitor
             cond->d_op = BinExpr::GEQ;
         cond->d_lhs = me->d_id;
         cond->d_rhs = me->d_to;
-        cond->d_type = me->d_id->d_type.data();
+        cond->d_inclType = inclusiveType1(derefed(me->d_id->d_type.data()), derefed(me->d_to->d_type.data()) );
+        cond->d_type = new BaseType(Type::BOOLEAN); // me->d_id->d_type.data();
         loop->d_if.append( cond.data() );
 
         loop->d_then.append( me->d_do );
@@ -3810,6 +3850,7 @@ struct ObxCilGenImp : public AstVisitor
                             lhs->d_lhs = me->d_exp;
                             lhs->d_rhs = bi->d_lhs;
                             lhs->d_loc = l->d_loc;
+                            lhs->d_inclType = inclusiveType1(derefed(me->d_exp->d_type.data()), derefed(bi->d_lhs->d_type.data()) );
                             lhs->d_type = boolean.data();
 
                             Ref<BinExpr> rhs = new BinExpr();
@@ -3817,6 +3858,7 @@ struct ObxCilGenImp : public AstVisitor
                             rhs->d_lhs = me->d_exp;
                             rhs->d_rhs = bi->d_rhs;
                             rhs->d_loc = l->d_loc;
+                            rhs->d_inclType = inclusiveType1(derefed(me->d_exp->d_type.data()), derefed(bi->d_rhs->d_type.data()) );
                             rhs->d_type = boolean.data();
 
                             _and->d_lhs = lhs.data();
@@ -3832,6 +3874,7 @@ struct ObxCilGenImp : public AstVisitor
                         eq->d_op = BinExpr::EQ;
                         eq->d_lhs = me->d_exp;
                         eq->d_rhs = l;
+                        eq->d_inclType = inclusiveType1(derefed(me->d_exp->d_type.data()), derefed(l->d_type.data()) );
                         eq->d_loc = l->d_loc;
                         eq->d_type = boolean.data();
 
