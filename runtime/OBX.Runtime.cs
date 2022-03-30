@@ -243,6 +243,19 @@ namespace OBX
 		{
 			return !(n % 2 == 0);
 		}
+		public static bool ODD(long n)
+		{
+			return !(n % 2 == 0);
+		}
+		public static void CheckOvf(int i, int width)
+		{
+			if( width == 1 && i >= 0 && i <= 255 )
+				return;
+			else if( width == 2 && i >= -32768 && i <= 32767 )
+				return;
+			// else
+			throw new System.OverflowException();
+		}
 		public static void PACK(ref float x, int n)
 		{
 			x = x * (float)Math.Pow(2, n);

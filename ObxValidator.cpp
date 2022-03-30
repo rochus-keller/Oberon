@@ -634,7 +634,6 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::SYS_LDREG:
         case BuiltIn::SYS_REG:
         case BuiltIn::SYS_COPY:
-        case BuiltIn::ODD:
         case BuiltIn::CHR:
         case BuiltIn::INCL:
         case BuiltIn::EXCL:
@@ -647,7 +646,6 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::BITS:
         case BuiltIn::HALT:
         case BuiltIn::ROR:
-        case BuiltIn::ENTIER:
             return false; // these can be handled by ordinary arg checker
 
         case BuiltIn::BITNOT:
@@ -682,6 +680,7 @@ struct ValidatorImp : public AstVisitor
                 error( args->d_loc, Validator::tr("expecting two arguments"));
             break;
         case BuiltIn::FLOOR:
+        case BuiltIn::ENTIER:
             if( args->d_args.size() == 1 )
             {
                 Type* td = derefed(args->d_args.first()->d_type.data());
@@ -691,6 +690,7 @@ struct ValidatorImp : public AstVisitor
                 error( args->d_loc, Validator::tr("expecting one argument"));
            break;
         case BuiltIn::FLT:
+        case BuiltIn::ODD:
             if( args->d_args.size() == 1 )
             {
                 Type* td = derefed(args->d_args.first()->d_type.data());
@@ -1343,6 +1343,7 @@ struct ValidatorImp : public AstVisitor
             }
             break;
         case BuiltIn::FLOOR:
+        case BuiltIn::ENTIER:
             if( !args.isEmpty() )
             {
                 Type* td = derefed(args.first()->d_type.data());

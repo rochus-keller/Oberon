@@ -1,0 +1,17 @@
+module Overflow1
+
+var
+  i: integer
+  s: shortint
+  b: byte
+begin
+  s := max(shortint)
+  i := s+1 // throws overflow exception if debugging enabled
+  println(i)
+  i := 0ffffffffh
+  println(i)
+  b := -1
+  println(b)
+  s := 0ffffh
+  println(s)
+end Overflow1

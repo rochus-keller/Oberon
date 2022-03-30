@@ -11,8 +11,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Anyrec1.obx
-1\RelPath=Anyrec1.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Overflow1.obx
+1\RelPath=Overflow1.obx
 size=1
 
 [Packages]

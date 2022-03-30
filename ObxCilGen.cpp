@@ -2375,7 +2375,8 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
-                const int bt = ae->d_args.first()->d_type.isNull() ? 0 : ae->d_args.first()->d_type->getBaseType();
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                const int bt = td == 0 ? 0 : td->getBaseType();
                 if( bt != Type::REAL && bt != Type::LONGREAL )
                 {
                     // always double on stack; Mono 5 and 6 sometimes result in NaN if conv.r4
@@ -2387,9 +2388,15 @@ struct ObxCilGenImp : public AstVisitor
             }
             break;
         case BuiltIn::ODD:
-            Q_ASSERT( ae->d_args.size() == 1 );
-            ae->d_args.first()->accept(this);
-            line(ae->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::ODD(int32)", 1, true );
+            {
+                Q_ASSERT( ae->d_args.size() == 1 );
+                ae->d_args.first()->accept(this);
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                if( td && td->getBaseType() == Type::LONGINT )
+                    line(ae->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::ODD(int64)", 1, true );
+                else
+                    line(ae->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::ODD(int32)", 1, true );
+            }
             break;
         case BuiltIn::ABS:
             {
@@ -2421,6 +2428,7 @@ struct ObxCilGenImp : public AstVisitor
             }
             break;
         case BuiltIn::FLOOR:
+        case BuiltIn::ENTIER:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
             convertTo(Type::LONGREAL,ae->d_args.first()->d_type.data(), ae->d_args.first()->d_loc);
@@ -2429,12 +2437,6 @@ struct ObxCilGenImp : public AstVisitor
                 line(ae->d_loc).conv_(IlEmitter::ToI8);
             else
                 line(ae->d_loc).conv_(IlEmitter::ToI4);
-            break;
-        case BuiltIn::ENTIER: // obsolete
-            Q_ASSERT( ae->d_args.size() == 1 );
-            ae->d_args.first()->accept(this);
-            line(ae->d_loc).call_("float64 [mscorlib]System.Math::Floor(float64)", 1, true );
-            line(ae->d_loc).conv_(IlEmitter::ToI8);
             break;
 #if 0
         case BuiltIn::LSL:
@@ -2989,8 +2991,9 @@ struct ObxCilGenImp : public AstVisitor
         }else if( tfd->d_unsafe && tagf == Thing::T_Record )
             line(loc).ldobj_(formatType(tf)); // the formal requires a cstruct by value, so we fetch it
         else if( tagf == Thing::T_BaseType )
-            convertTo(tfd->getBaseType(), ta, ea->d_loc);
-        else if( tagf == Thing::T_Pointer && tfd->d_unsafe && ta->isInteger() )
+        {
+            convertTo(tfd->getBaseType(), ta, ea->d_loc, debug && tfd->isInteger() ); // with overflow check for ints when debugging
+        }else if( tagf == Thing::T_Pointer && tfd->d_unsafe && ta->isInteger() )
             line(ea->d_loc).conv_(IlEmitter::ToI);
     }
 
@@ -3048,7 +3051,7 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
-    void convertTo( quint8 toBaseType, Type* from, const RowCol& loc )
+    void convertTo( quint8 toBaseType, Type* from, const RowCol& loc, bool checkOvf = false )
     {
         from = derefed(from);
         if( from == 0 )
@@ -3069,16 +3072,16 @@ struct ObxCilGenImp : public AstVisitor
         case Type::INTEGER:
         case Type::SET:
         case Type::ENUMINT:
-            line(loc).conv_(IlEmitter::ToI4);
+            line(loc).conv_(IlEmitter::ToI4, checkOvf);
             break;
         case Type::SHORTINT:
         case Type::CHAR:
         case Type::WCHAR:
-            line(loc).conv_(IlEmitter::ToI2);
+            line(loc).conv_(IlEmitter::ToI2, checkOvf);
             break;
         case Type::BYTE:
         case Type::BOOLEAN:
-            line(loc).conv_(IlEmitter::ToU1);
+            line(loc).conv_(IlEmitter::ToU1, checkOvf, checkOvf);
             break;
         }
     }
@@ -3113,6 +3116,47 @@ struct ObxCilGenImp : public AstVisitor
             convertTo(Type::LONGREAL, cur, loc);
         else if( o == Type::REAL && c == Type::INTEGER )
             convertTo(Type::REAL, cur, loc);
+    }
+
+    void emitArithOvfOp( BinExpr* me )
+    {
+        Type* td = derefed(me->d_type.data());
+        bool ovfCheck = false;
+        switch( me->d_op )
+        {
+        case BinExpr::ADD:
+            if( td && debug && td->isInteger() )
+            {
+                line(me->d_loc).add_(true);
+                ovfCheck = td->getBaseType() < Type::INTEGER;
+            }else
+                line(me->d_loc).add_();
+            break;
+        case BinExpr::SUB:
+            if( td && debug && td->isInteger() )
+            {
+                line(me->d_loc).sub_(true);
+                ovfCheck = td->getBaseType() < Type::INTEGER;
+            }else
+                line(me->d_loc).sub_();
+            break;
+        case BinExpr::MUL:
+            if( td && debug && td->isInteger() )
+            {
+                line(me->d_loc).mul_(true);
+                ovfCheck = td->getBaseType() < Type::INTEGER;
+            }else
+                line(me->d_loc).mul_();
+            break;
+        default:
+            Q_ASSERT(false);
+        }
+        if( ovfCheck )
+        {
+            line(me->d_loc).dup_();
+            line(me->d_loc).ldc_i4( td->getByteSize() );
+            line(me->d_loc).call_("void [OBX.Runtime]OBX.Runtime::CheckOvf(int32,int32)", 2 );
+        }
     }
 
     void visit( BinExpr* me)
@@ -3163,7 +3207,7 @@ struct ObxCilGenImp : public AstVisitor
         case BinExpr::ADD:
             if( ( lhsT->isNumeric() && rhsT->isNumeric() ) ||
                     ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
-                line(me->d_loc).add_();
+                emitArithOvfOp(me);
             else if( lhsT->isSet() && rhsT->isSet() )
                 line(me->d_loc).or_();
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
@@ -3182,7 +3226,7 @@ struct ObxCilGenImp : public AstVisitor
         case BinExpr::SUB:
             if( (lhsT->isNumeric() && rhsT->isNumeric()) ||
                     ( ltag == Thing::T_Enumeration && rtag == Thing::T_Enumeration ) )
-                line(me->d_loc).sub_();
+                emitArithOvfOp(me);
             else if( lhsT->isSet() && rhsT->isSet() )
             {
                 line(me->d_loc).not_();
@@ -3213,7 +3257,7 @@ struct ObxCilGenImp : public AstVisitor
             break;
         case BinExpr::MUL:
             if( lhsT->isNumeric() && rhsT->isNumeric() )
-                line(me->d_loc).mul_();
+                emitArithOvfOp(me);
             else if( lhsT->isSet() && rhsT->isSet() )
                 line(me->d_loc).and_();
             else

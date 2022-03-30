@@ -1,12 +1,19 @@
 module Oakwood5
 
   import Math, MathL
-  
+
+var 
+  l: longint
 begin
 	println("begin Oakwood5")
 
   println( Math.power(3,2) )
   println( MathL.power(3,2) )
+  
+  println( odd(123) )
+  println( odd(123456l) )
+  l := 43
+  println( odd(l) )
 
 	println("end Oakwood5")
 end Oakwood5
