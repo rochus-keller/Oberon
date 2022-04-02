@@ -186,8 +186,8 @@ namespace Obx
 
     struct Type : public Thing
     {
-        enum { NONE, ANY, ANYREC, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
-               INTEGER, LONGINT, REAL, LONGREAL, SET, ENUMINT }; // BaseType
+        enum BT { NONE, ANY, ANYREC, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
+               INTEGER, LONGINT, REAL, LONGREAL, SET, ENUMINT };
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
         Type* d_binding; // points back to pointer or array type in case of anonymous type

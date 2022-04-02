@@ -23,6 +23,7 @@
 #include "ObxProject.h"
 #include "ObxIlEmitter.h"
 #include "ObxPelibGen.h"
+#include "ObxValidator.h"
 #include <MonoTools/MonoMdbGen.h>
 #include <QtDebug>
 #include <QFile>
@@ -2492,25 +2493,25 @@ struct ObxCilGenImp : public AstVisitor
         case BuiltIn::BITAND:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
-            adjustTypes(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
+            adjustInteger(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
             ae->d_args.last()->accept(this);
-            adjustTypes(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
+            adjustInteger(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
             line(ae->d_loc).and_();
             break;
         case BuiltIn::BITOR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
-            adjustTypes(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
+            adjustInteger(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
             ae->d_args.last()->accept(this);
-            adjustTypes(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
+            adjustInteger(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
             line(ae->d_loc).or_();
             break;
         case BuiltIn::BITXOR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
-            adjustTypes(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
+            adjustInteger(ae->d_args.first()->d_type.data(), ae->d_args.last()->d_type.data(), ae->d_args.first()->d_loc);
             ae->d_args.last()->accept(this);
-            adjustTypes(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
+            adjustInteger(ae->d_args.last()->d_type.data(), ae->d_args.first()->d_type.data(), ae->d_args.last()->d_loc);
             line(ae->d_loc).xor_();
             break;
         case BuiltIn::BITNOT:
@@ -2682,12 +2683,11 @@ struct ObxCilGenImp : public AstVisitor
     static inline bool isReferenceType( Type* t )
     {
         Type* td = derefed(t);
-        if( td && td->isStructured() )
+        if( td && td->isStructured() && !td->d_unsafe )
             return true;
         else
             return false;
     }
-
 
     void preparePinnedArray( Type* t, const RowCol& loc )
     {
@@ -3057,6 +3057,11 @@ struct ObxCilGenImp : public AstVisitor
         if( from == 0 )
             return;
         const int fromBaseType = from->getBaseType();
+        convertTo( toBaseType, fromBaseType, loc, checkOvf );
+    }
+
+    void convertTo( quint8 toBaseType, quint8 fromBaseType, const RowCol& loc, bool checkOvf = false )
+    {
         if( toBaseType == fromBaseType )
             return;
         switch( toBaseType )
@@ -3101,21 +3106,30 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
-    void adjustTypes( Type* cur, Type* other, const RowCol& loc )
+    void adjustType( quint8 result, quint8 operand, const RowCol& loc )
     {
+        // Expects derefed types
+        const int r = widenType(result);
+        const int o = widenType(operand);
+        if( r == o )
+            return;
+        convertTo( r, o, loc, debug );
+    }
+
+    void adjustInteger( Type* cur, Type* other, const RowCol& loc )
+    {
+        // only used for bitops to assure cur is either INTEGER or LONGINT!
         cur = derefed(cur);
         other = derefed(other);
         Q_ASSERT( cur && other );
         const int c = widenType(cur->getBaseType());
         const int o = widenType(other->getBaseType());
+        // c and o could be INTEGER, LONGINT, REAL and LONGREAL
         if( c == o )
             return;
         if( o == Type::LONGINT && c != Type::LONGINT )
             convertTo(Type::LONGINT, cur, loc);
-        else if( o == Type::LONGREAL && c != Type::LONGREAL )
-            convertTo(Type::LONGREAL, cur, loc);
-        else if( o == Type::REAL && c == Type::INTEGER )
-            convertTo(Type::REAL, cur, loc);
+        Q_ASSERT( o != Type::LONGREAL && o != Type::REAL );
     }
 
     void emitArithOvfOp( BinExpr* me )
@@ -3166,22 +3180,27 @@ struct ObxCilGenImp : public AstVisitor
 
         Type* lhsT = derefed(me->d_lhs->d_type.data());
         Type* rhsT = derefed(me->d_rhs->d_type.data());
-        Q_ASSERT( lhsT && rhsT );
+        Type* targetT = derefed(me->d_type.data());
+        Q_ASSERT( lhsT && rhsT && targetT);
 
         me->d_lhs->accept(this);
         if( me->isRelation() )
-            convertTo(me->d_inclType, me->d_lhs->d_type.data(), me->d_lhs->d_loc);
+            adjustType(me->d_inclType, lhsT->getBaseType(), me->d_lhs->d_loc );
+            //convertTo(me->d_inclType, me->d_lhs->d_type.data(), me->d_lhs->d_loc, debug );
         else if( me->isArithOp() )
-            adjustTypes( lhsT, rhsT, me->d_lhs->d_loc );
+            adjustType( targetT->getBaseType(), lhsT->getBaseType(), me->d_lhs->d_loc );
+            //convertTo(widenType(targetT->getBaseType()), me->d_lhs->d_type.data(), me->d_lhs->d_loc, debug );
 
         if( me->d_op != BinExpr::AND && me->d_op != BinExpr::OR )
         {
             // AND and OR are special in that rhs might not be executed
             me->d_rhs->accept(this);
             if( me->isRelation() )
-                convertTo(me->d_inclType, me->d_rhs->d_type.data(), me->d_rhs->d_loc );
+                adjustType(me->d_inclType, rhsT->getBaseType(), me->d_rhs->d_loc );
+                //convertTo(me->d_inclType, me->d_rhs->d_type.data(), me->d_rhs->d_loc, debug );
             else if( me->isArithOp() )
-                adjustTypes( rhsT, lhsT, me->d_rhs->d_loc );
+                adjustType( targetT->getBaseType(), rhsT->getBaseType(), me->d_rhs->d_loc );
+                //convertTo(widenType(targetT->getBaseType()), me->d_rhs->d_type.data(), me->d_rhs->d_loc, debug );
         }
 
         const int ltag = lhsT->getTag();
@@ -3456,42 +3475,17 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
-    bool includes( Type* lhs, Type* rhs ) const
-    {
-        // expects derefed types
-        // adapted copy of Validator::includes
-        Q_ASSERT( lhs != 0 && rhs != 0 );
-        if( lhs == rhs )
-            return true;
-        const quint8 lt = lhs->getBaseType();
-        const quint8 rt = rhs->getBaseType();
-        if( lt == Type::LONGINT )
-            return rt == Type::BYTE || rt == Type::INTEGER || rt == Type::SHORTINT;
-        if( lt == Type::INTEGER )
-            return rt == Type::BYTE || rt == Type::SHORTINT;
-        if( lt == Type::SHORTINT )
-            return rt == Type::BYTE;
-        if( lt == Type::BYTE )
-            return false;
-        if( lt == Type::REAL )
-            return rt == Type::BYTE || rt == Type::SHORTINT ||
-                     rt == Type::INTEGER; // RISK: possible loss of precision
-        if( lt == Type::LONGREAL )
-            return rt == Type::BYTE || rt == Type::INTEGER || rt == Type::SHORTINT || rt == Type::LONGINT ||
-                    rt == Type::REAL;
-        if( lt == Type::WCHAR )
-            return rt == Type::CHAR;
-        return false;
-    }
-
     quint8 inclusiveType1(Type* lhs, Type* rhs) const
     {
         if( lhs == 0 || rhs == 0 )
             return 0;
-        if( includes( lhs, rhs ) )
-            return lhs->getBaseType();
-        else
-            return rhs->getBaseType();
+        const quint8 l = lhs->getBaseType();
+        const quint8 r = rhs->getBaseType();
+        if( ( l == Type::CHAR && r == Type::STRING ) ||
+            ( l == Type::WCHAR && r == Type::WSTRING ) ||
+            ( l == Type::WCHAR && r == Type::STRING ) )
+            return r;
+        return Validator::inclusiveType( l, r ).first;
     }
 
 

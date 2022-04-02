@@ -54,6 +54,9 @@ namespace Obx
 
         // assumes imports are already resolved
         static bool check( Module*, const BaseTypes&, Ob::Errors*, Instantiator*);
+
+        static bool includesType( quint8 lhs, quint8 rhs ); // lhs, rhs: Type::BT
+        static QPair<quint8,bool> inclusiveType( quint8 lhs, quint8 rhs ); // lhs, rhs, return: Type::BT; bool: no information loss
     private:
         Validator();
     };

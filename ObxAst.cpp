@@ -1609,5 +1609,5 @@ bool BinExpr::isArithOp() const
 
 quint32 Enumeration::getByteSize() const
 {
-    return BaseType(BaseType::ENUMINT).getByteSize();
+    return BaseType(Type::ENUMINT).getByteSize();
 }
