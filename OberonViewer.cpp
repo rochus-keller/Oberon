@@ -105,7 +105,10 @@ public:
             return false;
 
         d_hl->setEnableExt(isExt);
-        if( Lexer::skipOberonHeader(&in) )
+        if( Lexer::isV4File(&in) )
+        {
+            setPlainText( Lexer::readV4Text(&in) );
+        }else if( Lexer::skipOberonHeader(&in) )
         {
             QBuffer buf;
             buf.buffer() = in.readAll();

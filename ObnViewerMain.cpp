@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("OberonViewer");
-    a.setApplicationVersion("0.8.6");
+    a.setApplicationVersion("0.8.7");
     a.setStyle("Fusion");
 
     QStringList dirOrFilePaths;

@@ -114,7 +114,7 @@ void Parser::Oberon() {
 			module();
 		} else if (la->kind == _T_DEFINITION) {
 			definition();
-		} else SynErr(86,__FUNCTION__);
+		} else SynErr(93,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -124,27 +124,52 @@ void Parser::module() {
 		addTerminal(); 
 		Expect(_T_ident,__FUNCTION__);
 		addTerminal(); 
-		if (la->kind == _T_Semi) {
+		if (la->kind == _T_Lbrack) {
 			Get();
 			addTerminal(); 
-		}
-		if (la->kind == _T_IMPORT) {
-			ImportList();
-		}
-		DeclarationSequence();
-		if (la->kind == _T_BEGIN) {
-			Get();
+			SysString();
+			Expect(_T_Rbrack,__FUNCTION__);
 			addTerminal(); 
-			StatementSequence();
-		}
-		Expect(_T_END,__FUNCTION__);
-		addTerminal(); 
-		Expect(_T_ident,__FUNCTION__);
-		addTerminal(); 
-		if (la->kind == _T_Dot) {
-			Get();
+			Expect(_T_Semi,__FUNCTION__);
 			addTerminal(); 
-		}
+			if (la->kind == _T_IMPORT) {
+				ImportList();
+			}
+			DeclarationSequence2();
+			Expect(_T_END,__FUNCTION__);
+			addTerminal(); 
+			Expect(_T_ident,__FUNCTION__);
+			addTerminal(); 
+			Expect(_T_Dot,__FUNCTION__);
+			addTerminal(); 
+		} else if (StartOf(1)) {
+			if (la->kind == _T_Semi) {
+				Get();
+				addTerminal(); 
+			}
+			if (la->kind == _T_IMPORT) {
+				ImportList();
+			}
+			DeclarationSequence();
+			if (la->kind == _T_BEGIN) {
+				Get();
+				addTerminal(); 
+				StatementSequence();
+			}
+			if (la->kind == _T_CLOSE) {
+				Get();
+				addTerminal(); 
+				StatementSequence();
+			}
+			Expect(_T_END,__FUNCTION__);
+			addTerminal(); 
+			Expect(_T_ident,__FUNCTION__);
+			addTerminal(); 
+			if (la->kind == _T_Dot) {
+				Get();
+				addTerminal(); 
+			}
+		} else SynErr(94,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -181,7 +206,7 @@ void Parser::number() {
 		} else if (la->kind == _T_real) {
 			Get();
 			addTerminal(); 
-		} else SynErr(87,__FUNCTION__);
+		} else SynErr(95,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -202,9 +227,14 @@ void Parser::identdef() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_identdef, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_ident,__FUNCTION__);
 		addTerminal(); 
-		if (la->kind == _T_Star) {
-			Get();
-			addTerminal(); 
+		if (la->kind == _T_Star || la->kind == _T_Minus) {
+			if (la->kind == _T_Star) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
 		}
 		d_stack.pop(); 
 }
@@ -225,7 +255,7 @@ void Parser::ConstExpression() {
 void Parser::expression() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_expression, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		SimpleExpression();
-		if (StartOf(1)) {
+		if (StartOf(2)) {
 			relation();
 			SimpleExpression();
 		}
@@ -247,13 +277,13 @@ void Parser::type() {
 			NamedType();
 		} else if (la->kind == _T_ARRAY) {
 			ArrayType();
-		} else if (la->kind == _T_RECORD) {
+		} else if (StartOf(3)) {
 			RecordType();
 		} else if (la->kind == _T_POINTER) {
 			PointerType();
 		} else if (la->kind == _T_PROCEDURE) {
 			ProcedureType();
-		} else SynErr(88,__FUNCTION__);
+		} else SynErr(96,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -267,7 +297,12 @@ void Parser::ArrayType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ArrayType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_ARRAY,__FUNCTION__);
 		addTerminal(); 
-		LengthList();
+		if (la->kind == _T_Lbrack) {
+			SysFlag();
+		}
+		if (StartOf(4)) {
+			LengthList();
+		}
 		Expect(_T_OF,__FUNCTION__);
 		addTerminal(); 
 		type();
@@ -276,8 +311,23 @@ void Parser::ArrayType() {
 
 void Parser::RecordType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_RecordType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		if (la->kind == _T_ABSTRACT || la->kind == _T_EXTENSIBLE || la->kind == _T_LIMITED) {
+			if (la->kind == _T_ABSTRACT) {
+				Get();
+				addTerminal(); 
+			} else if (la->kind == _T_EXTENSIBLE) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
+		}
 		Expect(_T_RECORD,__FUNCTION__);
 		addTerminal(); 
+		if (la->kind == _T_Lbrack) {
+			SysFlag();
+		}
 		if (la->kind == _T_Lpar) {
 			Get();
 			addTerminal(); 
@@ -297,6 +347,9 @@ void Parser::PointerType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_PointerType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_POINTER,__FUNCTION__);
 		addTerminal(); 
+		if (la->kind == _T_Lbrack) {
+			SysFlag();
+		}
 		Expect(_T_TO,__FUNCTION__);
 		addTerminal(); 
 		type();
@@ -307,9 +360,22 @@ void Parser::ProcedureType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ProcedureType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_PROCEDURE,__FUNCTION__);
 		addTerminal(); 
+		if (la->kind == _T_Lbrack) {
+			SysFlag();
+		}
 		if (la->kind == _T_Lpar) {
 			FormalParameters();
 		}
+		d_stack.pop(); 
+}
+
+void Parser::SysFlag() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_SysFlag, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_Lbrack,__FUNCTION__);
+		addTerminal(); 
+		ConstExpression();
+		Expect(_T_Rbrack,__FUNCTION__);
+		addTerminal(); 
 		d_stack.pop(); 
 }
 
@@ -326,6 +392,13 @@ void Parser::LengthList() {
 
 void Parser::length() {
 		ConstExpression();
+}
+
+void Parser::SysString() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_SysString, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_string,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
 }
 
 void Parser::BaseType() {
@@ -373,7 +446,7 @@ void Parser::FormalParameters() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_FormalParameters, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_Lpar,__FUNCTION__);
 		addTerminal(); 
-		if (la->kind == _T_VAR || la->kind == _T_ident) {
+		if (StartOf(5)) {
 			FPSection();
 			while (la->kind == _T_Semi) {
 				Get();
@@ -386,7 +459,7 @@ void Parser::FormalParameters() {
 		if (la->kind == _T_Colon) {
 			Get();
 			addTerminal(); 
-			NamedType();
+			type();
 		}
 		d_stack.pop(); 
 }
@@ -403,8 +476,12 @@ void Parser::VariableDeclaration() {
 void Parser::designator() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_designator, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		qualident();
-		while (StartOf(2)) {
+		while (StartOf(6)) {
 			selector();
+		}
+		if (la->kind == _T_Dlr) {
+			Get();
+			addTerminal(); 
 		}
 		d_stack.pop(); 
 }
@@ -428,12 +505,12 @@ void Parser::selector() {
 		} else if (la->kind == _T_Lpar) {
 			Get();
 			addTerminal(); 
-			if (StartOf(3)) {
+			if (StartOf(4)) {
 				ExpList();
 			}
 			Expect(_T_Rpar,__FUNCTION__);
 			addTerminal(); 
-		} else SynErr(89,__FUNCTION__);
+		} else SynErr(97,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -510,7 +587,7 @@ void Parser::relation() {
 			addTerminal(); 
 			break;
 		}
-		default: SynErr(90,__FUNCTION__); break;
+		default: SynErr(98,__FUNCTION__); break;
 		}
 		d_stack.pop(); 
 }
@@ -518,7 +595,7 @@ void Parser::relation() {
 void Parser::term() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_term, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		factor();
-		while (StartOf(4)) {
+		while (StartOf(7)) {
 			MulOperator();
 			factor();
 		}
@@ -536,13 +613,13 @@ void Parser::AddOperator() {
 		} else if (la->kind == _T_OR) {
 			Get();
 			addTerminal(); 
-		} else SynErr(91,__FUNCTION__);
+		} else SynErr(99,__FUNCTION__);
 		d_stack.pop(); 
 }
 
 void Parser::factor() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_factor, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(5)) {
+		if (StartOf(8)) {
 			literal();
 		} else if (la->kind == _T_ident) {
 			variableOrFunctionCall();
@@ -556,7 +633,7 @@ void Parser::factor() {
 			Get();
 			addTerminal(); 
 			factor();
-		} else SynErr(92,__FUNCTION__);
+		} else SynErr(100,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -577,7 +654,7 @@ void Parser::MulOperator() {
 		} else if (la->kind == _T_Amp) {
 			Get();
 			addTerminal(); 
-		} else SynErr(93,__FUNCTION__);
+		} else SynErr(101,__FUNCTION__);
 		d_stack.pop(); 
 }
 
@@ -612,17 +689,7 @@ void Parser::literal() {
 			set();
 			break;
 		}
-		case _T_TRUE: {
-			Get();
-			addTerminal(); 
-			break;
-		}
-		case _T_FALSE: {
-			Get();
-			addTerminal(); 
-			break;
-		}
-		default: SynErr(94,__FUNCTION__); break;
+		default: SynErr(102,__FUNCTION__); break;
 		}
 		d_stack.pop(); 
 }
@@ -631,7 +698,7 @@ void Parser::set() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_set, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		Expect(_T_Lbrace,__FUNCTION__);
 		addTerminal(); 
-		if (StartOf(3)) {
+		if (StartOf(4)) {
 			element();
 			while (la->kind == _T_Comma) {
 				Get();
@@ -676,6 +743,22 @@ void Parser::statement() {
 			CaseStatement();
 			break;
 		}
+		case _T_WITH: {
+			WithStatement();
+			break;
+		}
+		case _T_LOOP: {
+			LoopStatement();
+			break;
+		}
+		case _T_EXIT: {
+			ExitStatement();
+			break;
+		}
+		case _T_RETURN: {
+			ReturnStatement();
+			break;
+		}
 		case _T_WHILE: {
 			WhileStatement();
 			break;
@@ -688,7 +771,7 @@ void Parser::statement() {
 			ForStatement();
 			break;
 		}
-		default: SynErr(95,__FUNCTION__); break;
+		default: SynErr(103,__FUNCTION__); break;
 		}
 		d_stack.pop(); 
 }
@@ -736,8 +819,70 @@ void Parser::CaseStatement() {
 			addTerminal(); 
 			Case();
 		}
+		if (la->kind == _T_ELSE) {
+			Get();
+			addTerminal(); 
+			StatementSequence();
+		}
 		Expect(_T_END,__FUNCTION__);
 		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::WithStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_WithStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_WITH,__FUNCTION__);
+		addTerminal(); 
+		if (la->kind == _T_Bar) {
+			Get();
+			addTerminal(); 
+		}
+		Guard();
+		Expect(_T_DO,__FUNCTION__);
+		addTerminal(); 
+		StatementSequence();
+		while (la->kind == _T_Bar) {
+			Get();
+			addTerminal(); 
+			Guard();
+			Expect(_T_DO,__FUNCTION__);
+			addTerminal(); 
+			StatementSequence();
+		}
+		if (la->kind == _T_ELSE) {
+			Get();
+			addTerminal(); 
+			StatementSequence();
+		}
+		Expect(_T_END,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::LoopStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_LoopStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_LOOP,__FUNCTION__);
+		addTerminal(); 
+		StatementSequence();
+		Expect(_T_END,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::ExitStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ExitStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_EXIT,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::ReturnStatement() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ReturnStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_RETURN,__FUNCTION__);
+		addTerminal(); 
+		if (StartOf(4)) {
+			expression();
+		}
 		d_stack.pop(); 
 }
 
@@ -795,13 +940,13 @@ void Parser::ForStatement() {
 
 void Parser::StatementSequence() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_StatementSequence, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(6)) {
+		if (StartOf(9)) {
 			statement();
 		}
 		while (la->kind == _T_Semi) {
 			Get();
 			addTerminal(); 
-			if (StartOf(6)) {
+			if (StartOf(9)) {
 				statement();
 			}
 		}
@@ -829,7 +974,7 @@ void Parser::ElseStatement() {
 
 void Parser::Case() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Case, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (StartOf(7)) {
+		if (StartOf(4)) {
 			CaseLabelList();
 			Expect(_T_Colon,__FUNCTION__);
 			addTerminal(); 
@@ -862,21 +1007,7 @@ void Parser::LabelRange() {
 
 void Parser::label() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_label, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (la->kind == _T_integer) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_string) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_hexchar) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_hexstring) {
-			Get();
-			addTerminal(); 
-		} else if (la->kind == _T_ident) {
-			qualident();
-		} else SynErr(96,__FUNCTION__);
+		ConstExpression();
 		d_stack.pop(); 
 }
 
@@ -891,17 +1022,135 @@ void Parser::ElsifStatement2() {
 		d_stack.pop(); 
 }
 
+void Parser::Guard() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Guard, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		qualident();
+		Expect(_T_Colon,__FUNCTION__);
+		addTerminal(); 
+		qualident();
+		d_stack.pop(); 
+}
+
 void Parser::ProcedureDeclaration() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ProcedureDeclaration, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		ProcedureHeading();
-		if (la->kind == _T_Semi) {
-			Get();
+		if (peek(1) == _T_PROCEDURE && ( peek(2) == _T_Hat || peek(2) == _T_Minus ) ) {
+			Expect(_T_PROCEDURE,__FUNCTION__);
+			addTerminal(); 
+			if (la->kind == _T_Hat) {
+				Get();
+				addTerminal(); 
+			} else if (la->kind == _T_Minus) {
+				Get();
+				addTerminal(); 
+			} else SynErr(104,__FUNCTION__);
+			if (la->kind == _T_Lpar) {
+				Receiver();
+			}
+			identdef();
+			if (la->kind == _T_Lpar) {
+				FormalParameters();
+			}
+			if (StartOf(8)) {
+				literal();
+			}
+			MethAttributes();
+		} else if (la->kind == _T_PROC || la->kind == _T_PROCEDURE) {
+			ProcedureHeading();
+			if (peek(1) == _T_Comma && peek(2) == _T_ident ) {
+				Expect(_T_Comma,__FUNCTION__);
+				addTerminal(); 
+				Expect(_T_ident,__FUNCTION__);
+				addTerminal(); 
+			}
+			if (peek(1) == _T_Comma && ( peek(2) == _T_ABSTRACT || peek(2) == _T_EMPTY ) ) {
+				Expect(_T_Comma,__FUNCTION__);
+				addTerminal(); 
+				if (la->kind == _T_ABSTRACT) {
+					Get();
+					addTerminal(); 
+				} else if (la->kind == _T_EMPTY) {
+					Get();
+					addTerminal(); 
+				} else SynErr(105,__FUNCTION__);
+			} else if (la->kind == _T_Comma) {
+				Get();
+				addTerminal(); 
+				Expect(_T_EXTENSIBLE,__FUNCTION__);
+				addTerminal(); 
+				Expect(_T_Semi,__FUNCTION__);
+				addTerminal(); 
+				ProcedureBody();
+				if (la->kind == _T_ident) {
+					Get();
+					addTerminal(); 
+				}
+			} else if (la->kind == _T_integer) {
+				Get();
+				addTerminal(); 
+				while (la->kind == _T_Comma) {
+					Get();
+					addTerminal(); 
+					Expect(_T_integer,__FUNCTION__);
+					addTerminal(); 
+				}
+			} else if (la->kind == _T_Semi) {
+				Get();
+				addTerminal(); 
+				ProcedureBody();
+				if (la->kind == _T_ident) {
+					Get();
+					addTerminal(); 
+				}
+			} else SynErr(106,__FUNCTION__);
+		} else SynErr(107,__FUNCTION__);
+		d_stack.pop(); 
+}
+
+void Parser::Receiver() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_Receiver, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		Expect(_T_Lpar,__FUNCTION__);
+		addTerminal(); 
+		if (la->kind == _T_IN || la->kind == _T_VAR) {
+			if (la->kind == _T_VAR) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
+		}
+		Expect(_T_ident,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_Colon,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_ident,__FUNCTION__);
+		addTerminal(); 
+		Expect(_T_Rpar,__FUNCTION__);
+		addTerminal(); 
+		d_stack.pop(); 
+}
+
+void Parser::MethAttributes() {
+		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_MethAttributes, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
+		if (peek(1) == _T_Comma && peek(2) == _T_ident ) {
+			Expect(_T_Comma,__FUNCTION__);
+			addTerminal(); 
+			Expect(_T_ident,__FUNCTION__);
 			addTerminal(); 
 		}
-		ProcedureBody();
-		if (la->kind == _T_ident) {
+		if (la->kind == _T_Comma) {
 			Get();
 			addTerminal(); 
+			if (la->kind == _T_ABSTRACT) {
+				Get();
+				addTerminal(); 
+			} else if (la->kind == _T_EXTENSIBLE) {
+				Get();
+				addTerminal(); 
+			} else if (la->kind == _T_EMPTY) {
+				Get();
+				addTerminal(); 
+			} else SynErr(108,__FUNCTION__);
 		}
 		d_stack.pop(); 
 }
@@ -914,8 +1163,35 @@ void Parser::ProcedureHeading() {
 		} else if (la->kind == _T_PROC) {
 			Get();
 			addTerminal(); 
-		} else SynErr(97,__FUNCTION__);
+		} else SynErr(109,__FUNCTION__);
+		if (la->kind == _T_Star || la->kind == _T_Plus) {
+			if (la->kind == _T_Star) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
+		}
+		if (la->kind == _T_Lbrack) {
+			SysFlag();
+		}
+		if (la->kind == _T_Lpar) {
+			Receiver();
+		}
 		identdef();
+		if (la->kind == _T_Lbrack) {
+			Get();
+			addTerminal(); 
+			SysString();
+			while (la->kind == _T_Comma) {
+				Get();
+				addTerminal(); 
+				SysString();
+			}
+			Expect(_T_Rbrack,__FUNCTION__);
+			addTerminal(); 
+		}
 		if (la->kind == _T_Lpar) {
 			FormalParameters();
 		}
@@ -925,21 +1201,22 @@ void Parser::ProcedureHeading() {
 void Parser::ProcedureBody() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ProcedureBody, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
 		DeclarationSequence();
-		if (la->kind == _T_BEGIN || la->kind == _T_DO) {
-			if (la->kind == _T_BEGIN) {
-				Get();
-				addTerminal(); 
+		if (la->kind == _T_BEGIN || la->kind == _T_DO || la->kind == _T_RETURN) {
+			if (la->kind == _T_BEGIN || la->kind == _T_DO) {
+				if (la->kind == _T_BEGIN) {
+					Get();
+					addTerminal(); 
+				} else {
+					Get();
+					addTerminal(); 
+				}
+				StatementSequence();
 			} else {
-				Get();
-				addTerminal(); 
-			}
-			StatementSequence();
-		}
-		if (la->kind == _T_RETURN) {
-			ReturnStatement();
-			if (la->kind == _T_Semi) {
-				Get();
-				addTerminal(); 
+				ReturnStatement();
+				if (la->kind == _T_Semi) {
+					Get();
+					addTerminal(); 
+				}
 			}
 		}
 		Expect(_T_END,__FUNCTION__);
@@ -949,31 +1226,31 @@ void Parser::ProcedureBody() {
 
 void Parser::DeclarationSequence() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_DeclarationSequence, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (la->kind == _T_CONST) {
-			Get();
-			addTerminal(); 
-			while (la->kind == _T_ident) {
-				ConstDeclaration();
-				Expect(_T_Semi,__FUNCTION__);
+		while (la->kind == _T_CONST || la->kind == _T_TYPE || la->kind == _T_VAR) {
+			if (la->kind == _T_CONST) {
+				Get();
 				addTerminal(); 
-			}
-		}
-		if (la->kind == _T_TYPE) {
-			Get();
-			addTerminal(); 
-			while (la->kind == _T_ident) {
-				TypeDeclaration();
-				Expect(_T_Semi,__FUNCTION__);
+				while (la->kind == _T_ident) {
+					ConstDeclaration();
+					Expect(_T_Semi,__FUNCTION__);
+					addTerminal(); 
+				}
+			} else if (la->kind == _T_TYPE) {
+				Get();
 				addTerminal(); 
-			}
-		}
-		if (la->kind == _T_VAR) {
-			Get();
-			addTerminal(); 
-			while (la->kind == _T_ident) {
-				VariableDeclaration();
-				Expect(_T_Semi,__FUNCTION__);
+				while (la->kind == _T_ident) {
+					TypeDeclaration();
+					Expect(_T_Semi,__FUNCTION__);
+					addTerminal(); 
+				}
+			} else {
+				Get();
 				addTerminal(); 
+				while (la->kind == _T_ident) {
+					VariableDeclaration();
+					Expect(_T_Semi,__FUNCTION__);
+					addTerminal(); 
+				}
 			}
 		}
 		while (la->kind == _T_PROC || la->kind == _T_PROCEDURE) {
@@ -984,45 +1261,38 @@ void Parser::DeclarationSequence() {
 		d_stack.pop(); 
 }
 
-void Parser::ReturnStatement() {
-		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_ReturnStatement, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		Expect(_T_RETURN,__FUNCTION__);
-		addTerminal(); 
-		expression();
-		d_stack.pop(); 
-}
-
 void Parser::DeclarationSequence2() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_DeclarationSequence2, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (la->kind == _T_CONST) {
-			Get();
-			addTerminal(); 
-			while (la->kind == _T_ident) {
-				ConstDeclaration();
-				Expect(_T_Semi,__FUNCTION__);
+		while (la->kind == _T_CONST || la->kind == _T_TYPE || la->kind == _T_VAR) {
+			if (la->kind == _T_CONST) {
+				Get();
 				addTerminal(); 
-			}
-		}
-		if (la->kind == _T_TYPE) {
-			Get();
-			addTerminal(); 
-			while (la->kind == _T_ident) {
-				TypeDeclaration();
-				Expect(_T_Semi,__FUNCTION__);
+				while (la->kind == _T_ident) {
+					ConstDeclaration();
+					Expect(_T_Semi,__FUNCTION__);
+					addTerminal(); 
+				}
+			} else if (la->kind == _T_TYPE) {
+				Get();
 				addTerminal(); 
-			}
-		}
-		if (la->kind == _T_VAR) {
-			Get();
-			addTerminal(); 
-			while (la->kind == _T_ident) {
-				VariableDeclaration();
-				Expect(_T_Semi,__FUNCTION__);
+				while (la->kind == _T_ident) {
+					TypeDeclaration();
+					Expect(_T_Semi,__FUNCTION__);
+					addTerminal(); 
+				}
+			} else {
+				Get();
 				addTerminal(); 
+				while (la->kind == _T_ident) {
+					VariableDeclaration();
+					Expect(_T_Semi,__FUNCTION__);
+					addTerminal(); 
+				}
 			}
 		}
 		while (la->kind == _T_PROC || la->kind == _T_PROCEDURE) {
 			ProcedureHeading();
+			MethAttributes();
 			Expect(_T_Semi,__FUNCTION__);
 			addTerminal(); 
 		}
@@ -1031,9 +1301,20 @@ void Parser::DeclarationSequence2() {
 
 void Parser::FPSection() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_FPSection, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		if (la->kind == _T_VAR) {
-			Get();
-			addTerminal(); 
+		if (la->kind == _T_IN || la->kind == _T_OUT || la->kind == _T_VAR) {
+			if (la->kind == _T_VAR) {
+				Get();
+				addTerminal(); 
+			} else if (la->kind == _T_IN) {
+				Get();
+				addTerminal(); 
+			} else {
+				Get();
+				addTerminal(); 
+			}
+		}
+		if (la->kind == _T_Lbrack) {
+			SysFlag();
 		}
 		Expect(_T_ident,__FUNCTION__);
 		addTerminal(); 
@@ -1053,13 +1334,7 @@ void Parser::FPSection() {
 
 void Parser::FormalType() {
 		Ob::SynTree* n = new Ob::SynTree( Ob::SynTree::R_FormalType, d_next ); d_stack.top()->d_children.append(n); d_stack.push(n); 
-		while (la->kind == _T_ARRAY) {
-			Get();
-			addTerminal(); 
-			Expect(_T_OF,__FUNCTION__);
-			addTerminal(); 
-		}
-		NamedType();
+		type();
 		d_stack.pop(); 
 }
 
@@ -1198,7 +1473,7 @@ void Parser::Parse() {
 }
 
 Parser::Parser(Ob::Lexer *scanner, Ob::Errors* err) {
-	maxT = 85;
+	maxT = 92;
 
 	ParserInitCaller<Parser>::CallInit(this);
 	la = &d_dummy;
@@ -1212,15 +1487,17 @@ bool Parser::StartOf(int s) {
 	const bool T = true;
 	const bool x = false;
 
-	static bool set[8][87] = {
-		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
-		{x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
-		{x,x,x,x, T,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, T,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
-		{x,x,x,x, T,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, T,T,T,T, T,T,x,x, x,x,x},
-		{x,x,x,T, x,x,x,T, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,T,T, T,T,x,x, x,x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,T,T,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,T,x,x, T,x,x,x, x,x,x,x, x,x,x},
-		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,x,T, T,T,x,x, x,x,x}
+	static bool set[10][94] = {
+		{T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,T, T,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, T,T,x,x, x,x,x,x, T,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,T,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,T,x,x, x,x,T,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,T,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,T,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, T,x,x,x, T,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,T,T, T,x,x,x, x,x},
+		{x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,T,T, x,x,x,x, T,x,x,x, x,x,x,x, x,x,x,T, T,x,x,x, x,x,x,x, T,T,x,T, x,x,x,x, x,x,x,x, x,x}
 	};
 
 
@@ -1248,101 +1525,113 @@ void Parser::SynErr(const QString& sourcePath, int line, int col, int n, Ob::Err
 			case 0: s = coco_string_create(L"EOF expected"); break;
 			case 1: s = coco_string_create(L"T_Literals_ expected"); break;
 			case 2: s = coco_string_create(L"T_Hash expected"); break;
-			case 3: s = coco_string_create(L"T_Amp expected"); break;
-			case 4: s = coco_string_create(L"T_Lpar expected"); break;
-			case 5: s = coco_string_create(L"T_Latt expected"); break;
-			case 6: s = coco_string_create(L"T_Rpar expected"); break;
-			case 7: s = coco_string_create(L"T_Star expected"); break;
-			case 8: s = coco_string_create(L"T_Ratt expected"); break;
-			case 9: s = coco_string_create(L"T_Plus expected"); break;
-			case 10: s = coco_string_create(L"T_Comma expected"); break;
-			case 11: s = coco_string_create(L"T_Minus expected"); break;
-			case 12: s = coco_string_create(L"T_Dot expected"); break;
-			case 13: s = coco_string_create(L"T_2Dot expected"); break;
-			case 14: s = coco_string_create(L"T_Slash expected"); break;
-			case 15: s = coco_string_create(L"T_2Slash expected"); break;
-			case 16: s = coco_string_create(L"T_Colon expected"); break;
-			case 17: s = coco_string_create(L"T_ColonEq expected"); break;
-			case 18: s = coco_string_create(L"T_Semi expected"); break;
-			case 19: s = coco_string_create(L"T_Lt expected"); break;
-			case 20: s = coco_string_create(L"T_Leq expected"); break;
-			case 21: s = coco_string_create(L"T_Eq expected"); break;
-			case 22: s = coco_string_create(L"T_Gt expected"); break;
-			case 23: s = coco_string_create(L"T_Geq expected"); break;
-			case 24: s = coco_string_create(L"T_Lbrack expected"); break;
-			case 25: s = coco_string_create(L"T_Rbrack expected"); break;
-			case 26: s = coco_string_create(L"T_Hat expected"); break;
-			case 27: s = coco_string_create(L"T_Lbrace expected"); break;
-			case 28: s = coco_string_create(L"T_Bar expected"); break;
-			case 29: s = coco_string_create(L"T_Rbrace expected"); break;
-			case 30: s = coco_string_create(L"T_Tilde expected"); break;
-			case 31: s = coco_string_create(L"T_Keywords_ expected"); break;
-			case 32: s = coco_string_create(L"T_ARRAY expected"); break;
-			case 33: s = coco_string_create(L"T_BEGIN expected"); break;
-			case 34: s = coco_string_create(L"T_BY expected"); break;
-			case 35: s = coco_string_create(L"T_CARRAY expected"); break;
-			case 36: s = coco_string_create(L"T_CASE expected"); break;
-			case 37: s = coco_string_create(L"T_CONST expected"); break;
-			case 38: s = coco_string_create(L"T_CPOINTER expected"); break;
-			case 39: s = coco_string_create(L"T_CSTRUCT expected"); break;
-			case 40: s = coco_string_create(L"T_CUNION expected"); break;
-			case 41: s = coco_string_create(L"T_DEFINITION expected"); break;
-			case 42: s = coco_string_create(L"T_DIV expected"); break;
-			case 43: s = coco_string_create(L"T_DO expected"); break;
-			case 44: s = coco_string_create(L"T_ELSE expected"); break;
-			case 45: s = coco_string_create(L"T_ELSIF expected"); break;
-			case 46: s = coco_string_create(L"T_END expected"); break;
-			case 47: s = coco_string_create(L"T_EXIT expected"); break;
-			case 48: s = coco_string_create(L"T_FALSE expected"); break;
-			case 49: s = coco_string_create(L"T_FOR expected"); break;
-			case 50: s = coco_string_create(L"T_IF expected"); break;
-			case 51: s = coco_string_create(L"T_IMPORT expected"); break;
-			case 52: s = coco_string_create(L"T_IN expected"); break;
-			case 53: s = coco_string_create(L"T_IS expected"); break;
-			case 54: s = coco_string_create(L"T_LOOP expected"); break;
-			case 55: s = coco_string_create(L"T_MOD expected"); break;
-			case 56: s = coco_string_create(L"T_MODULE expected"); break;
-			case 57: s = coco_string_create(L"T_NIL expected"); break;
-			case 58: s = coco_string_create(L"T_OF expected"); break;
-			case 59: s = coco_string_create(L"T_OR expected"); break;
-			case 60: s = coco_string_create(L"T_POINTER expected"); break;
-			case 61: s = coco_string_create(L"T_PROC expected"); break;
-			case 62: s = coco_string_create(L"T_PROCEDURE expected"); break;
-			case 63: s = coco_string_create(L"T_RECORD expected"); break;
-			case 64: s = coco_string_create(L"T_REPEAT expected"); break;
-			case 65: s = coco_string_create(L"T_RETURN expected"); break;
-			case 66: s = coco_string_create(L"T_THEN expected"); break;
-			case 67: s = coco_string_create(L"T_TO expected"); break;
-			case 68: s = coco_string_create(L"T_TRUE expected"); break;
-			case 69: s = coco_string_create(L"T_TYPE expected"); break;
-			case 70: s = coco_string_create(L"T_UNSAFE expected"); break;
-			case 71: s = coco_string_create(L"T_UNTIL expected"); break;
-			case 72: s = coco_string_create(L"T_VAR expected"); break;
-			case 73: s = coco_string_create(L"T_WHILE expected"); break;
-			case 74: s = coco_string_create(L"T_WITH expected"); break;
-			case 75: s = coco_string_create(L"T_Specials_ expected"); break;
-			case 76: s = coco_string_create(L"T_ident expected"); break;
-			case 77: s = coco_string_create(L"T_integer expected"); break;
-			case 78: s = coco_string_create(L"T_real expected"); break;
-			case 79: s = coco_string_create(L"T_string expected"); break;
-			case 80: s = coco_string_create(L"T_hexchar expected"); break;
-			case 81: s = coco_string_create(L"T_hexstring expected"); break;
-			case 82: s = coco_string_create(L"T_Comment expected"); break;
-			case 83: s = coco_string_create(L"T_Eof expected"); break;
-			case 84: s = coco_string_create(L"T_MaxToken_ expected"); break;
-			case 85: s = coco_string_create(L"??? expected"); break;
-			case 86: s = coco_string_create(L"invalid Oberon"); break;
-			case 87: s = coco_string_create(L"invalid number"); break;
-			case 88: s = coco_string_create(L"invalid type"); break;
-			case 89: s = coco_string_create(L"invalid selector"); break;
-			case 90: s = coco_string_create(L"invalid relation"); break;
-			case 91: s = coco_string_create(L"invalid AddOperator"); break;
-			case 92: s = coco_string_create(L"invalid factor"); break;
-			case 93: s = coco_string_create(L"invalid MulOperator"); break;
-			case 94: s = coco_string_create(L"invalid literal"); break;
-			case 95: s = coco_string_create(L"invalid statement"); break;
-			case 96: s = coco_string_create(L"invalid label"); break;
-			case 97: s = coco_string_create(L"invalid ProcedureHeading"); break;
+			case 3: s = coco_string_create(L"T_Dlr expected"); break;
+			case 4: s = coco_string_create(L"T_Amp expected"); break;
+			case 5: s = coco_string_create(L"T_Lpar expected"); break;
+			case 6: s = coco_string_create(L"T_Latt expected"); break;
+			case 7: s = coco_string_create(L"T_Rpar expected"); break;
+			case 8: s = coco_string_create(L"T_Star expected"); break;
+			case 9: s = coco_string_create(L"T_Ratt expected"); break;
+			case 10: s = coco_string_create(L"T_Plus expected"); break;
+			case 11: s = coco_string_create(L"T_Comma expected"); break;
+			case 12: s = coco_string_create(L"T_Minus expected"); break;
+			case 13: s = coco_string_create(L"T_Dot expected"); break;
+			case 14: s = coco_string_create(L"T_2Dot expected"); break;
+			case 15: s = coco_string_create(L"T_Slash expected"); break;
+			case 16: s = coco_string_create(L"T_2Slash expected"); break;
+			case 17: s = coco_string_create(L"T_Colon expected"); break;
+			case 18: s = coco_string_create(L"T_ColonEq expected"); break;
+			case 19: s = coco_string_create(L"T_Semi expected"); break;
+			case 20: s = coco_string_create(L"T_Lt expected"); break;
+			case 21: s = coco_string_create(L"T_Leq expected"); break;
+			case 22: s = coco_string_create(L"T_Eq expected"); break;
+			case 23: s = coco_string_create(L"T_Gt expected"); break;
+			case 24: s = coco_string_create(L"T_Geq expected"); break;
+			case 25: s = coco_string_create(L"T_Lbrack expected"); break;
+			case 26: s = coco_string_create(L"T_Rbrack expected"); break;
+			case 27: s = coco_string_create(L"T_Hat expected"); break;
+			case 28: s = coco_string_create(L"T_Lbrace expected"); break;
+			case 29: s = coco_string_create(L"T_Bar expected"); break;
+			case 30: s = coco_string_create(L"T_Rbrace expected"); break;
+			case 31: s = coco_string_create(L"T_Tilde expected"); break;
+			case 32: s = coco_string_create(L"T_Keywords_ expected"); break;
+			case 33: s = coco_string_create(L"T_ABSTRACT expected"); break;
+			case 34: s = coco_string_create(L"T_ARRAY expected"); break;
+			case 35: s = coco_string_create(L"T_BEGIN expected"); break;
+			case 36: s = coco_string_create(L"T_BY expected"); break;
+			case 37: s = coco_string_create(L"T_CARRAY expected"); break;
+			case 38: s = coco_string_create(L"T_CASE expected"); break;
+			case 39: s = coco_string_create(L"T_CLOSE expected"); break;
+			case 40: s = coco_string_create(L"T_CONST expected"); break;
+			case 41: s = coco_string_create(L"T_CPOINTER expected"); break;
+			case 42: s = coco_string_create(L"T_CSTRUCT expected"); break;
+			case 43: s = coco_string_create(L"T_CUNION expected"); break;
+			case 44: s = coco_string_create(L"T_DEFINITION expected"); break;
+			case 45: s = coco_string_create(L"T_DIV expected"); break;
+			case 46: s = coco_string_create(L"T_DO expected"); break;
+			case 47: s = coco_string_create(L"T_ELSE expected"); break;
+			case 48: s = coco_string_create(L"T_ELSIF expected"); break;
+			case 49: s = coco_string_create(L"T_EMPTY expected"); break;
+			case 50: s = coco_string_create(L"T_END expected"); break;
+			case 51: s = coco_string_create(L"T_EXIT expected"); break;
+			case 52: s = coco_string_create(L"T_EXTENSIBLE expected"); break;
+			case 53: s = coco_string_create(L"T_FALSE expected"); break;
+			case 54: s = coco_string_create(L"T_FOR expected"); break;
+			case 55: s = coco_string_create(L"T_IF expected"); break;
+			case 56: s = coco_string_create(L"T_IMPORT expected"); break;
+			case 57: s = coco_string_create(L"T_IN expected"); break;
+			case 58: s = coco_string_create(L"T_IS expected"); break;
+			case 59: s = coco_string_create(L"T_LIMITED expected"); break;
+			case 60: s = coco_string_create(L"T_LOOP expected"); break;
+			case 61: s = coco_string_create(L"T_MOD expected"); break;
+			case 62: s = coco_string_create(L"T_MODULE expected"); break;
+			case 63: s = coco_string_create(L"T_NIL expected"); break;
+			case 64: s = coco_string_create(L"T_OF expected"); break;
+			case 65: s = coco_string_create(L"T_OR expected"); break;
+			case 66: s = coco_string_create(L"T_OUT expected"); break;
+			case 67: s = coco_string_create(L"T_POINTER expected"); break;
+			case 68: s = coco_string_create(L"T_PROC expected"); break;
+			case 69: s = coco_string_create(L"T_PROCEDURE expected"); break;
+			case 70: s = coco_string_create(L"T_RECORD expected"); break;
+			case 71: s = coco_string_create(L"T_REPEAT expected"); break;
+			case 72: s = coco_string_create(L"T_RETURN expected"); break;
+			case 73: s = coco_string_create(L"T_THEN expected"); break;
+			case 74: s = coco_string_create(L"T_TO expected"); break;
+			case 75: s = coco_string_create(L"T_TRUE expected"); break;
+			case 76: s = coco_string_create(L"T_TYPE expected"); break;
+			case 77: s = coco_string_create(L"T_UNSAFE expected"); break;
+			case 78: s = coco_string_create(L"T_UNTIL expected"); break;
+			case 79: s = coco_string_create(L"T_VAR expected"); break;
+			case 80: s = coco_string_create(L"T_WHILE expected"); break;
+			case 81: s = coco_string_create(L"T_WITH expected"); break;
+			case 82: s = coco_string_create(L"T_Specials_ expected"); break;
+			case 83: s = coco_string_create(L"T_ident expected"); break;
+			case 84: s = coco_string_create(L"T_integer expected"); break;
+			case 85: s = coco_string_create(L"T_real expected"); break;
+			case 86: s = coco_string_create(L"T_string expected"); break;
+			case 87: s = coco_string_create(L"T_hexchar expected"); break;
+			case 88: s = coco_string_create(L"T_hexstring expected"); break;
+			case 89: s = coco_string_create(L"T_Comment expected"); break;
+			case 90: s = coco_string_create(L"T_Eof expected"); break;
+			case 91: s = coco_string_create(L"T_MaxToken_ expected"); break;
+			case 92: s = coco_string_create(L"??? expected"); break;
+			case 93: s = coco_string_create(L"invalid Oberon"); break;
+			case 94: s = coco_string_create(L"invalid module"); break;
+			case 95: s = coco_string_create(L"invalid number"); break;
+			case 96: s = coco_string_create(L"invalid type"); break;
+			case 97: s = coco_string_create(L"invalid selector"); break;
+			case 98: s = coco_string_create(L"invalid relation"); break;
+			case 99: s = coco_string_create(L"invalid AddOperator"); break;
+			case 100: s = coco_string_create(L"invalid factor"); break;
+			case 101: s = coco_string_create(L"invalid MulOperator"); break;
+			case 102: s = coco_string_create(L"invalid literal"); break;
+			case 103: s = coco_string_create(L"invalid statement"); break;
+			case 104: s = coco_string_create(L"invalid ProcedureDeclaration"); break;
+			case 105: s = coco_string_create(L"invalid ProcedureDeclaration"); break;
+			case 106: s = coco_string_create(L"invalid ProcedureDeclaration"); break;
+			case 107: s = coco_string_create(L"invalid ProcedureDeclaration"); break;
+			case 108: s = coco_string_create(L"invalid MethAttributes"); break;
+			case 109: s = coco_string_create(L"invalid ProcedureHeading"); break;
 
 		default:
 		{

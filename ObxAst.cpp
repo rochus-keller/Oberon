@@ -908,10 +908,22 @@ QList<Field*> Record::getOrderedFields() const
     {
         if( d_fields[i]->d_super )
         {
-#ifdef _DEBUG
-            Q_ASSERT( d_fields[i]->d_super->d_slotValid && d_fields[i]->d_super->d_slot < d_fields.size() );
-#endif
-            res[ d_fields[i]->d_super->d_slot ] = d_fields[i].data();
+            if( d_fields[i]->d_super->d_slotValid && d_fields[i]->d_super->d_slot < d_fields.size() )
+                res[ d_fields[i]->d_super->d_slot ] = d_fields[i].data();
+            else
+            {
+                QByteArray name;
+                Named* id = findDecl(true);
+                if( id )
+                {
+                    name = id->d_name;
+                    Module* m = id->getModule();
+                    if( m )
+                        name += m->getName() + "." + id->d_name + " " + QByteArray::number(id->d_loc.d_row);
+                }
+                qWarning() << "Record::getOrderedFields: invalid super field slot:" << d_fields[i]->d_name
+                           << name.constData();
+            }
         }else
             res.append( d_fields[i].data() );
     }

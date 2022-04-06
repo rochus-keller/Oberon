@@ -54,7 +54,16 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         d_sloc = 0;
         d_lineCounted = false;
 
-        if( skipOberonHeader( d_in ) )
+        if( isV4File(d_in) )
+        {
+            QObject* parent = d_in;
+            if( d_in->parent() == this )
+                parent = this;
+            QBuffer* b = new QBuffer( parent );
+            b->buffer() = readV4Text(d_in);
+            b->open(QIODevice::ReadOnly);
+            d_in = b;
+        }else if( skipOberonHeader( d_in ) )
         {
             QObject* parent = d_in;
             if( d_in->parent() == this )
@@ -554,6 +563,155 @@ bool Lexer::skipOberonHeader(QIODevice* in)
         return true;
     }else
         return false;
+}
+
+static quint32 readUInt32(QIODevice* in)
+{
+    const QByteArray buf = in->read(4);
+    if( buf.size() != 4 )
+    {
+        qWarning() << "cannot read 4 bytes from stream";
+        return 0;
+    }
+    const quint8* raw = (const quint8*)buf.constData();
+    const quint32 len = raw[0] + ( raw[1] << 8 ) + ( raw[2] << 16 ) + ( raw[3] << 24 );
+    return len;
+}
+
+static quint8 readUInt8(QIODevice* in)
+{
+    char ch;
+    in->getChar(&ch);
+    return ch;
+}
+
+static QByteArray readString(QIODevice* in)
+{
+    QByteArray res;
+    while( !in->atEnd() )
+    {
+        char ch;
+        in->getChar(&ch);
+        if( ch == 0 )
+            break;
+        res += ch;
+    }
+    return res;
+}
+
+struct V4TextRun
+{
+    quint32 col;
+    qint32 font;
+    quint32 voff;
+    quint32 pos;
+    qint32 len;
+    qint32 element;
+    quint32 width;
+    quint32 height;
+    QByteArray data;
+    bool operator<( const V4TextRun& rhs) const { return pos < rhs.pos; }
+    V4TextRun():font(-1),len(1),element(-1),width(0),height(0){}
+};
+
+static QByteArray extractV4Text(QIODevice* in, bool forElement = false )
+{
+    const quint32 headerLen = readUInt32(in); // includes tag and version
+    QMap<qint32,QByteArray> eltypes, fonts;
+    QList<V4TextRun> runs;
+
+    int fontCount = 0;
+    int elementCount = 0;
+    int fontNumber = readUInt8(in);
+    int pos = headerLen;
+    if( forElement )
+        pos--; // expects tag and version, but only a tag is present
+    while( !in->atEnd() && fontNumber != 0 )
+    {
+        V4TextRun piece;
+        piece.font = fontNumber;
+        piece.pos = pos;
+        if( fontNumber > fontCount )
+        {
+            fontCount = fontNumber;
+            const QByteArray fontName = readString( in );
+            fonts.insert(fontNumber, fontName);
+        }
+        piece.col = readUInt8(in);
+        piece.voff = readUInt8(in);
+        piece.len = readUInt32(in);
+
+        if( piece.len <= 0 )
+        {
+            // this is an element
+            const int elementDataLength = -piece.len;
+            piece.len = 1;
+            piece.width = readUInt32(in);
+            piece.height = readUInt32(in);
+            piece.element = readUInt8(in);
+            if( piece.element > elementCount )
+            {
+                elementCount = piece.element;
+                const QByteArray module = readString( in );
+                const QByteArray procedure = readString( in );
+                eltypes.insert(piece.element, module + "." + procedure);
+            }
+            piece.data = in->read(elementDataLength);
+        }
+
+        pos += piece.len;
+        runs.append(piece);
+        fontNumber = readUInt8(in);
+    }
+
+    qSort(runs);
+    QByteArray res;
+    bool blockText = false;
+    foreach( const V4TextRun& piece, runs )
+    {
+        in->seek(piece.pos);
+        if( !piece.data.isEmpty() )
+        {
+            if( eltypes[piece.element] == "FoldElems.New" )
+            {
+                if( piece.data[0] == 0 )
+                {
+                    QBuffer buf;
+                    buf.setData(piece.data);
+                    buf.open(QIODevice::ReadOnly);
+                    buf.read(1);
+                    QByteArray text = extractV4Text(&buf,true);
+                    text.replace('\r', '\n');
+                    res += text;
+                    blockText = true;
+                }else if( piece.data[0] == 1 )
+                    blockText = false;
+            }
+        }else if( !blockText )
+        {
+            QByteArray text = in->read(piece.len);
+            text.replace('\r', '\n');
+            res += text;
+        }
+    }
+
+    return res;
+}
+
+bool Lexer::isV4File(QIODevice* in)
+{
+    const QByteArray buf = in->peek(2);
+    const quint8* raw = (const quint8*)buf.constData();
+    return buf.size() == 2 && raw[0] == 0xf0 && raw[1] == 0x01;
+}
+
+QByteArray Lexer::readV4Text(QIODevice* in)
+{
+    quint8 tag = readUInt8(in);
+    quint8 ver = readUInt8(in);
+    if( tag == 0xf0 && ver == 0x01 )
+        return extractV4Text(in);
+    return QByteArray();
 }
 
 bool Lexer::skipBom(QIODevice* in)

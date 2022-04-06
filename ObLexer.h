@@ -55,6 +55,8 @@ namespace Ob
         static QByteArray getSymbol( const QByteArray& );
         static void parseComment( const QByteArray& str, int& pos, int& level );
         static bool skipOberonHeader( QIODevice* );
+        static bool isV4File( QIODevice* );
+        static QByteArray readV4Text(QIODevice*);
         static bool skipBom( QIODevice* );
         static bool isUtf8(const QByteArray& str);
         static bool isAscii( const QByteArray& str );

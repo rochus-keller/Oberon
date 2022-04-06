@@ -24,6 +24,10 @@
 using namespace Obx;
 using namespace Ob;
 
+#if !defined(OB_OBNX) || !defined(OB_OBN2)
+#error "OB_OBNX or OB_OBN2 must be defined for ObxParser"
+#endif
+
 #define MATCH( tok, msg ) \
     if( d_la == tok ){ \
         next(); \
