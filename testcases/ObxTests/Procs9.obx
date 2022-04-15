@@ -2,7 +2,7 @@ module Procs9
 
 	type
 	    CallSign = record value: integer end
-		Aircraft = record callsign: CallSign; position: Vector3D end
+		Aircraft = record callsign: CallSign; position: Vector3D; i : integer end
 		Vector3D = record x,y,z: longreal end
 		
 	proc test(): Aircraft
@@ -24,7 +24,8 @@ module Procs9
 	proc test3(in a: Aircraft)
 	begin
 		assert( a.position.z = 4.0 )
-		//a.position.z := 5	 // is an error
+		// a.i := 3 // cannot modify read-only desig
+		// a.position.z := 5	 // is an error
 	end test3
 
 	proc test4(var a: Aircraft)

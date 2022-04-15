@@ -349,7 +349,7 @@ namespace Obx
 
     struct Named : public Thing
     {
-        enum Visibility { NotApplicable, Private, ReadWrite, ReadOnly, LocalAccess };
+        enum Visibility { Invalid, Private, LocalAccess, ReadWrite, ReadOnly };
         QByteArray d_name;
         Ref<Type> d_type;
         Scope* d_scope; // owning scope up to module (whose scope is nil)
@@ -366,7 +366,7 @@ namespace Obx
         uint d_used : 1; // Procedure: called or assigned
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
-            d_visibility(NotApplicable),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
+            d_visibility(Invalid),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
             d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
             d_hasErrors(0),d_noBody(0),d_used(0) {}
         virtual QByteArray getName() const { return d_name; }
@@ -631,7 +631,7 @@ namespace Obx
         NoRef<Type> d_type; // this must be NoRef, otherwise there are refcount cycles!
         virtual Named* getIdent(bool first=false) const { return 0; }
         virtual Module* getModule() const { return 0; }
-        virtual quint8 visibilityFor(Module*) const { return Named::NotApplicable; }
+        virtual quint8 visibilityFor(Module*) const { return Named::Invalid; }
         virtual Expression* getSub() const { return 0; }
         QList<Expression*> getSubList() const;
         virtual quint8 getUnOp() const { return 0; }

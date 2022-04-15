@@ -680,8 +680,6 @@ const char*Named::visibilitySymbol() const
 {
     switch( d_visibility)
     {
-    case NotApplicable:
-    case Private:
     default:
         return "";
     case ReadWrite:
@@ -845,7 +843,7 @@ IdentLeaf::IdentLeaf(Named* id, const Ob::RowCol& loc, Module* mod, Type* t, Ide
 quint8 IdentLeaf::visibilityFor(Module*) const
 {
     if( d_ident.isNull() )
-        return Named::NotApplicable;
+        return Named::Invalid;
     switch( d_ident->getTag() )
     {
     case Thing::T_Import:
@@ -868,9 +866,10 @@ quint8 IdentLeaf::visibilityFor(Module*) const
         }
         break;
     default:
-        Q_ASSERT(false);
+        break;
     }
-    return Named::NotApplicable;
+    Q_ASSERT(false);
+    return Named::Invalid;
 }
 
 #ifdef _DEBUG
@@ -1209,7 +1208,7 @@ ProcType*Procedure::getProcType() const
 quint8 IdentSel::visibilityFor(Module* m) const
 {
     if( d_sub.isNull() || d_ident.isNull() )
-        return Named::NotApplicable;
+        return Named::Invalid;
     if( d_sub->getTag() == Thing::T_IdentLeaf )
     {
         IdentLeaf* leaf = cast<IdentLeaf*>(d_sub.data());
@@ -1217,21 +1216,23 @@ quint8 IdentSel::visibilityFor(Module* m) const
             return d_ident->d_visibility;
     }
     quint8 v = d_sub->visibilityFor(m);
+    Module* mm = !d_ident.isNull() ? d_ident->getModule() : 0;
     switch( v )
     {
     case Named::LocalAccess:
-    case Named::NotApplicable:
+    case Named::Invalid:
     case Named::Private:
         break; // sub is stronger than this
     case Named::ReadOnly:
         switch( d_ident->d_visibility )
         {
         case Named::ReadOnly:
-        case Named::NotApplicable:
+        case Named::Invalid:
         case Named::ReadWrite:
             break; // sub is stronger than this
         case Named::Private:
-            v = d_ident->d_visibility; // this is stronger than sub
+            if( m != mm )
+                v = d_ident->d_visibility; // this is stronger than sub
             break;
         default:
             Q_ASSERT( false );
@@ -1599,12 +1600,26 @@ void Module::findAllInstances(QList<Module*>& result) const
     }
 }
 
+static bool isInParam( Expression* e )
+{
+    Named* n = e->getIdent();
+    if( n != 0 && n->getTag() == Thing::T_Parameter )
+        return cast<Parameter*>(n)->d_const;
+    else
+        return false;
+}
+
 quint8 UnExpr::visibilityFor(Module* m) const
 {
     if( !d_sub.isNull() )
+    {
+        Type* td = d_sub->d_type.isNull() ? 0 : d_sub->d_type->derefed();
+        if( td && d_op == UnExpr::DEREF && isInParam( d_sub.data() ) && td->getTag() == Thing::T_Pointer )
+            return Named::LocalAccess;
         return d_sub->visibilityFor(m);
-    else
-        return Named::NotApplicable;
+    }
+    // else
+    return Named::Invalid;
 }
 
 

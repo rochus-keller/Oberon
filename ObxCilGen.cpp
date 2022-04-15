@@ -2281,6 +2281,7 @@ struct ObxCilGenImp : public AstVisitor
                     ae->d_args[i]->accept(this);
                     const int len = temps.buy("int32");
                     lengths.append(len);
+                    convertTo(Type::INTEGER,ae->d_args[i]->d_type.data(),ae->d_args[i]->d_loc,debug);
                     line(ae->d_loc).stloc_(len);
                 }
 
@@ -2883,8 +2884,19 @@ struct ObxCilGenImp : public AstVisitor
                     // here we just pass on the non-local access
                     ProcType* ptt = scope->getProcType();
                     const int pos = ptt->d_nonLocals.indexOf(nl);
+#if 0
+                    // TEST CODE
+                    if( pos < 0 )
+                    {
+                        qDebug() << "***non-local issue" << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col
+                                 << nl->d_name << "scope" << scope->d_name;
+                        line(me->d_loc).ldnull_();
+                    }else
+                        line(me->d_loc).ldarg_(ptt->d_formals.size() + pos);
+#else
                     Q_ASSERT( pos >= 0 );
                     line(me->d_loc).ldarg_(ptt->d_formals.size() + pos);
+#endif
                 }
             }
         }
@@ -3258,7 +3270,7 @@ struct ObxCilGenImp : public AstVisitor
                 line(me->d_loc).div_();
             else if( lhsT->isSet() && rhsT->isSet() )
             {
-                const int rhs = temps.buy("int32");
+                const int rhs = temps.buy("int32"); // set is integer by definition
                 line(me->d_loc).stloc_(rhs);
                 const int lhs = temps.buy("int32");
                 line(me->d_loc).stloc_(lhs);
@@ -3684,7 +3696,9 @@ struct ObxCilGenImp : public AstVisitor
                 err->error(Errors::Generator, Loc(loc,thisMod->d_file),"copying of unsafe open or variable length arrays not supported");
             else
             {
-                const quint32 len = qMin(la->d_len,ra->d_len) * la->d_type->getByteSize();
+                const quint64 len = qMin(la->d_len,ra->d_len) * la->d_type->getByteSize();
+                if( len > std::numeric_limits<qint32>::max() )
+                    err->error(Errors::Generator, Loc(loc,thisMod->d_file),"array copy only supported up to MAX(INTEGER) bytes");
                 line(loc).ldc_i4(len);
                 line(loc).cpblk_();
             }
@@ -4150,11 +4164,15 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     len = temps.buy("int32");
                     a->d_lenExpr->accept(this);
+                    convertTo(Type::INTEGER,a->d_lenExpr->d_type.data(),loc,debug);
                     line(loc).dup_();
                     line(loc).stloc_(len);
                 }else
                 {
-                    len = a->d_len * td->getByteSize();
+                    const quint64 tmp = a->d_len * td->getByteSize();
+                    if( tmp > std::numeric_limits<qint32>::max() )
+                        err->error(Errors::Generator, Loc(loc,thisMod->d_file),"array initialization only supported up to MAX(INTEGER) bytes");
+                    len = tmp;
                     line(loc).ldc_i4( len );
                 }
                 if( scope )
@@ -4192,6 +4210,7 @@ struct ObxCilGenImp : public AstVisitor
                     if( td->isStructured() )
                     {
                         len = temps.buy("int32");
+                        convertTo(Type::INTEGER,a->d_lenExpr->d_type.data(),loc,debug);
                         line(loc).dup_();
                         line(loc).stloc_(len);
                     }

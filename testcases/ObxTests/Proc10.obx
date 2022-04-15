@@ -1,4 +1,4 @@
-module Proc10
+module Procs10
 
 	type
 		A = pointer to record a: integer end
@@ -39,4 +39,4 @@ begin
 	assert( b.b = 66 )
 	
 	println("Procs10 done")
-end Proc10
+end Procs10
