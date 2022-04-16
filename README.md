@@ -2,7 +2,7 @@
 
 This project started out as an [Oberon-07](http://www.projectoberon.net/wirth/Oberon/Oberon07.Report.pdf) parser, code model and transpiler written in C++ and Qt, with the goal to build tools to better understand the [Lola-2](https://www.inf.ethz.ch/personal/wirth/Lola/Lola2.pdf) compiler and to automatically translate it to maintainable C++ with minimal dependencies to other C++ libraries, and with no dependencies to the Oberon System (see the [Lola](https://github.com/rochus-keller/lola) and [LolaCreator](https://github.com/rochus-keller/lolacreator) repositories).
 
-Oberon turned out to be a language very well suited for compiler front and backend experiments because it is decently simple but still powerful enough to build real-world software, as it supports pointers, static and stack based data structures and call by reference, which are not usually available with scripting languages. In consequence, an other goal of this project is to study the feasibility of reusing [LuaJIT](http://luajit.org/) as a backend for statically typed programming languages like Oberon (see [this article](https://medium.com/@rochus.keller/implementing-call-by-reference-and-call-by-name-in-lua-47b9d1003cc2)). The current implementation of the compiler is able to map full Oberon+ to LuaJIT, CIL/ECMA-335 bytecode and C99 source code, and run with decent performance (see [Linux report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_linux.pdf) and [Windows report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_windows.pdf)). There is also a [compatible version of the Oberon System](https://github.com/rochus-keller/OberonSystem), as well as a powerful IDE with semantic navigation and source-level debugging (see below).
+Oberon turned out to be a language very well suited for compiler front and backend experiments because it is decently simple but still powerful enough to build real-world software, as it supports pointers, static and stack based data structures and call by reference, which are not usually available with scripting languages. In consequence, another goal of this project was to study the feasibility of reusing first [LuaJIT](http://luajit.org/) and then [Mono](https://www.mono-project.com/) as a backend for statically typed programming languages like Oberon (see [this article](https://medium.com/@rochus.keller/implementing-call-by-reference-and-call-by-name-in-lua-47b9d1003cc2) and [this article](https://www.quora.com/Is-the-Mono-CLR-really-slower-than-CoreCLR/answer/Rochus-Keller)). The current implementation of the compiler is able to map full Oberon+ to CIL/ECMA-335 bytecode and C99 source code, and run with good performance (see [Linux report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_linux.pdf) and [Windows report](https://github.com/rochus-keller/Oberon/blob/master/testcases/Are-we-fast-yet/Are-we-fast-yet_results_windows.pdf)). There is also a [compatible version of the Oberon System](https://github.com/rochus-keller/OberonSystem), as well as a powerful IDE with semantic navigation and source-level debugging (see below).
 
 During my work with Oberon and systems implemented in Oberon, I kept asking myself what properties the language would need to have so that I could use it for my own systems too, without giving up the goal of making it as simple as possible. From these considerations a new language emerged, which I call **Oberon+** (i.e. "Oberon with extensions", abbreviated OBX); it is a general-purpose, procedural and object-oriented programming language in the tradition of and based on Oberon-07, Oberon-2 and Oberon 90, with all the elements of these languages, plus generic modules, enumerations, and many additional simplifications such as support for lower case keywords, optional semicolons, and flexible declaration sequences. See [the language report](https://github.com/oberon-lang/specification/blob/master/The_Programming_Language_Oberon%2B.adoc) and the [dedicated language site](http://oberon-lang.ch) for more information. The compiler supports both, Oberon+ as well as most of the syntax and semantics of the previous Oberon versions.
 
@@ -16,6 +16,7 @@ For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite 
 - The new Oberon+ validating parser, code model, and LuaJIT, CIL/ECMA-335 bytecode and C99 compiler (file prefix Obx)
 - The new Oberon+ IDE (a separate one for LuaJIT and Mono), OBXLJ (LuaJIT) and OBXMC (Mono) command line version of the compiler
 - The Oberon+ version of the "Are we fast yet" and "Hennessy" benchmark suites
+- SDL2 and NAppGUI external library modules and examples
 
 ### Planned or work-in-progress features
 
@@ -80,13 +81,14 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 
 ### Binary versions
 
-Here is a binary version of the Oberon+ IDE for Windows: http://software.rochus-keller.ch/OberonIDE_win32.zip.
+Here is a binary version of the Oberon+ IDE for **Windows (Win32)**: http://software.rochus-keller.ch/OberonIDE_win32.zip.
 Just unpack the ZIP somewhere on your drive and double-click either ObxIDE.exe; Qt libraries are included, as well as the OBXMC command line tool, the demo Oberon System and some other example projects (open the project using CTRL+O and then run it using CTRL+R, or right-click to open context menus and select the commands from there).
 
-Here is a version of the Oberon+ IDE (Mono) for Linux x86: http://software.rochus-keller.ch/OberonIDE_linux_i386.tar.gz.
+Here is a version of the Oberon+ IDE (Mono) for **Linux x86**: http://software.rochus-keller.ch/OberonIDE_linux_i386.tar.gz.
 Qt 5.4.2 is statically linked with the executables. OBXMC, Mono3 and examples are included as well.
+And here is a version for Linux **x86_64**: http://software.rochus-keller.ch/OberonIDE_linux_x86_64.tar.gz.
 
-Here is a version of the Oberon IDE (Mono) for macOS x86_64 (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg.
+Here is a version of the Oberon IDE (Mono) for **macOS x86_64** (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg.
 The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
 
 Here is the old version of the Oberon+ IDE (LuaJIT) for Windows: http://software.rochus-keller.ch/OberonIDE_LuaJIT_win32.zip.
@@ -120,7 +122,7 @@ Follow these steps if you want to build e.g. the Oberon+ IDE yourself:
 
 Alternatively you can open ObxIde2.pro or any other included .pro file using QtCreator and build it there.
 
-Note that the Mono version of the Oberon+ IDE expects a subdirectory relative to the IDE executable called "mono"; this subdirectory shall contain copies of or links to the mono executable and the mscorlib.dll. Precompiled versions of these files are included in the binary versions referenced above, or downloadable from [here](http://software.rochus-keller.ch/mono_5.20.1.34_linux_x86_64.tar.gz) in case of x86_64.
+Note that the Mono version of the Oberon+ IDE expects a subdirectory relative to the IDE executable called "mono"; this subdirectory shall contain copies of or links to the mono executable and the mscorlib.dll. Precompiled versions of these files are included in the binary versions referenced above.
 
 ## Collaboration
 
