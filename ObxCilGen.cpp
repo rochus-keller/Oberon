@@ -2592,10 +2592,6 @@ struct ObxCilGenImp : public AstVisitor
                 Q_ASSERT(false);
             }
             break;
-        case BuiltIn::ADR: // TODO obsolete
-            Q_ASSERT( ae->d_args.size() == 1 );
-            ae->d_args.first()->accept(this);
-            break;
         case BuiltIn::BITS:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);

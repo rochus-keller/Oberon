@@ -351,6 +351,14 @@ struct ValidatorImp : public AstVisitor
     {
         levels.push_back(me);
         visitScope(me); // also handles formal parameters
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Procedure && n->d_upvalSource )
+            {
+                QSet<Procedure*> visited;
+                collectNonLocals( cast<Procedure*>(n.data()), visited );
+            }
+        }
         returnValueFound = false;
         visitStats( me->d_body );
         if( !mod->d_isDef &&
@@ -642,11 +650,6 @@ struct ValidatorImp : public AstVisitor
 
         switch( bi->d_func )
         {
-        case BuiltIn::SYS_BIT:
-        case BuiltIn::SYS_H:
-        case BuiltIn::SYS_LDREG:
-        case BuiltIn::SYS_REG:
-        case BuiltIn::SYS_COPY:
         case BuiltIn::CHR:
         case BuiltIn::INCL:
         case BuiltIn::EXCL:
@@ -1073,6 +1076,11 @@ struct ValidatorImp : public AstVisitor
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
         case BuiltIn::SYS_ADR:
+        case BuiltIn::SYS_BIT:
+        case BuiltIn::SYS_H:
+        case BuiltIn::SYS_LDREG:
+        case BuiltIn::SYS_REG:
+        case BuiltIn::SYS_COPY:
         case BuiltIn::SYS_GET:
         case BuiltIn::SYS_PUT:
         case BuiltIn::SYS_VAL:
@@ -1083,6 +1091,7 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::SYS_GETREG:
         case BuiltIn::SYS_PUTREG:
         case BuiltIn::SYS_TYP:
+            warning( args->d_loc, Validator::tr("Oberon+ doesn't have a built-in SYSTEM module") );
             break; // TODO ignored for now
         }
         return true;

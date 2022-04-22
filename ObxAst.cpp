@@ -581,7 +581,7 @@ QByteArrayList BuiltIn::getValidNames()
     for( int i = 0; i < MAXBUILTIN; i++ )
     {
         if( (i >= SYS_ADR && i <= SYS_COPY) ||
-                (i >= SYS_MOVE && i <= SYS_TYP) )
+                (i >= SYS_MOVE && i <= SYS_TYP) || i == ADR )
             continue;
         res.append(s_typeName[i]);
     }

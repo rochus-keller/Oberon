@@ -81,15 +81,14 @@ This is a lean IDE (separate for LuaJIT and Mono) with the following features:
 
 ### Binary versions
 
-Here is a binary version of the Oberon+ IDE for **Windows (Win32)**: http://software.rochus-keller.ch/OberonIDE_win32.zip.
+Here is a binary version of the Oberon+ IDE for **Windows (x86)**: http://software.rochus-keller.ch/OberonIDE_win32.zip, and here for **Windows (AMD64)**: http://software.rochus-keller.ch/OberonIDE_win64.zip.
 Just unpack the ZIP somewhere on your drive and double-click either ObxIDE.exe; Qt libraries are included, as well as the OBXMC command line tool, the demo Oberon System and some other example projects (open the project using CTRL+O and then run it using CTRL+R, or right-click to open context menus and select the commands from there).
 
 Here is a version of the Oberon+ IDE (Mono) for **Linux x86**: http://software.rochus-keller.ch/OberonIDE_linux_i386.tar.gz.
 Qt 5.4.2 is statically linked with the executables. OBXMC, Mono3 and examples are included as well.
 And here is a version for Linux **x86_64**: http://software.rochus-keller.ch/OberonIDE_linux_x86_64.tar.gz.
 
-Here is a version of the Oberon IDE (Mono) for **macOS x86_64** (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg.
-The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
+Here is a version of the Oberon IDE (Mono) for **macOS x86_64** (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg (it also runs on M1 under Monterey with some limitations [^1]). The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
 
 Here is the old version of the Oberon+ IDE (LuaJIT) for Windows: http://software.rochus-keller.ch/OberonIDE_LuaJIT_win32.zip.
 
@@ -104,6 +103,7 @@ Just download, unpack and run it; no installer is needed. The ZIP includes the n
 Here is a binary version of the old OberonViewer for Linux x86: http://software.rochus-keller.ch/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
+[^1]: the Rosetta emulator seems to not start the app from the original directory, so the file open dialog first points to an unknown place; also the %APPDIR% build path variable doesn't work because the emulated app runs in a write-protected place; use %PRODIR% or absolute paths instead; finally if you try to run an Oberon+ app accessing a dylib by FFI the system blocks this access; this can be circumvented by selecting the dylib (e.g. libSDL2.dylib) in the Finder and execute "Open with + Terminal" from the context menu; the OS then asks for permission to do so and if you accept it can later also be accessed from your Oberon+ app.
 
 ### Build Steps
 

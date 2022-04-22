@@ -2464,6 +2464,7 @@ struct ObxCGenImp : public AstVisitor
         Type* ta = derefed(rhs->d_type.data());
         Q_ASSERT(ta);
         const int atag = ta->getTag();
+        const int ftag = tf ? tf->getTag() : 0;
         Named* id = rhs->getIdent();
         bool lwide, rwide;
         if( ta->isString() || ta->getBaseType() == Type::BYTEARRAY )
@@ -2627,7 +2628,7 @@ struct ObxCGenImp : public AstVisitor
             if( tf && ta != tf ) // tf may be 0 here
             {
                 // we need a cast
-                Q_ASSERT( tf->getTag() == Thing::T_Pointer );
+                Q_ASSERT( ftag == Thing::T_Pointer );
                 // ta is pointer to record
                 if( addrOf )
                     b << "((" << formatType(tf,"*") << ")&"; // (T**)&ptr
@@ -2641,7 +2642,7 @@ struct ObxCGenImp : public AstVisitor
                     b << "&";
                 rhs->accept(this);
             }
-        }else if( tf && tf->getTag() == Thing::T_Pointer && ta->getBaseType() == Type::NIL )
+        }else if( ftag == Thing::T_Pointer && ta->getBaseType() == Type::NIL )
         {
             emitDefault(tf,rhs->d_loc);
         }else
@@ -2759,26 +2760,32 @@ struct ObxCGenImp : public AstVisitor
     {
         Q_ASSERT( lhs );
 
-        Type* tr = derefed(rhs->d_type.data());
+        Type* ta = derefed(rhs->d_type.data());
+        Type* tf = derefed(lhs);
+        if( tf == 0 || ta == 0 )
+            return;  // already reported
+
+        const int atag = ta->getTag();
+        const int ftag = tf->getTag();
 
         // if rhs is a call, we need a compound literal for addrOf, otherwise the
         // C compiler complains that it is not an lvalue
         const bool tempStore = addrOf &&
                 ( rhs->getUnOp() == UnExpr::CALL ||
                                            ( rhs->getUnOp() == UnExpr::DEREF
-                                             && tr && tr->getTag() == Thing::T_Array && !tr->d_unsafe
+                                             && atag == Thing::T_Array && !ta->d_unsafe
                                              && cast<UnExpr*>(rhs)->d_sub->getUnOp() == UnExpr::CALL ) );
         if( tempStore )
         {
             b << "&(";
-            Type* tf = derefed(lhs);
-            if( tf->getTag() == Thing::T_Pointer )
-                tf = derefed(cast<Pointer*>(tf)->d_to.data());
-            Q_ASSERT(tf);
-            if( tf->getTag() == Thing::T_Array )
+            Type* td = tf;
+            if( ftag == Thing::T_Pointer )
+                td = derefed(cast<Pointer*>(td)->d_to.data());
+            Q_ASSERT(td);
+            if( td->getTag() == Thing::T_Array )
             {
                 int dims;
-                cast<Array*>(tf)->getTypeDim(dims);
+                cast<Array*>(td)->getTypeDim(dims);
                 b << arrayType(dims,rhs->d_loc);
             }else
                 b << formatType(lhs);
@@ -2787,6 +2794,33 @@ struct ObxCGenImp : public AstVisitor
         renderArg( lhs, rhs, addrOf && !tempStore );
         if( tempStore )
             b << "}[0]";
+
+        if( !addrOf && tf && tf->d_unsafe && ftag == Thing::T_Pointer &&
+            ta->d_unsafe && atag == Thing::T_Pointer )
+        {
+            // required for all arrays passed to formal unsafe pointer to array or void; the validator already added
+            // an automatic ADDROF to the array, so we see an unsafe pointer to array actual here
+            Type* apt = derefed(cast<Pointer*>(ta)->d_to.data());
+            if( apt && apt->getTag() == Thing::T_Array )
+            {
+                // if pointer to array and either pointer is local or param, or the value is param
+                bool suffix = false;
+                Named* id = rhs->getIdent();
+#if 0
+                if( id ) // TODO: this cannot be non-zero because of ta->d_unsafe is true???
+                    suffix = true; // (unsafe) pointer to array, stored in anything named
+#endif
+                if( !suffix && rhs->getUnOp() == UnExpr::ADDROF )
+                {
+                    rhs = cast<UnExpr*>(rhs)->d_sub.data();
+                    id = rhs->getIdent();
+                    suffix = id && id->getTag() == Thing::T_Parameter; // param is the only non-pointer object typed OBX$Array$
+                }
+                if( suffix )
+                    b << ".$a";
+            }
+        }
+
     }
 
     void emitCall( ArgExpr* me )
