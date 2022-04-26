@@ -1,0 +1,27 @@
+module CompCon2
+
+begin
+  println("start CompCon2")
+  //<* B+ *>
+  //<* B2+ *>
+ 
+  <* if A then *>
+    println("A")
+  <* elsif B then *>  
+    <* if B1 then *>
+      println("B1")
+    <* elsif B2 then *>
+      println("B2")
+    <* elsif B3 then *>
+      println("B3")
+    <* else *>
+      println("B")
+    <* end *>
+  <* elsif C then *>  
+    println("C")
+  <* else *>  
+    println("D")
+  <* end *>  
+  
+  println("end CompCon2")
+end CompCon2

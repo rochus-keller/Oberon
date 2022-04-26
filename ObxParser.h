@@ -35,7 +35,7 @@ namespace Obx
     public:
         explicit Parser(Ob::Lexer*, Ob::Errors*, QObject *parent = 0);
 
-        Ref<Module> parse();
+        Ref<Module> parse(const QByteArrayList& options = QByteArrayList());
     protected:
         bool module(bool definition);
         Ref<Literal> number();
@@ -104,8 +104,48 @@ namespace Obx
         void import();
         Ref<Expression> systemFlag();
         SysAttrs systemAttrs();
+        void ppcmd();
+        bool ppexpr();
+        bool ppterm();
+        bool ppfactor();
+
+        struct ppstatus
+        {
+            bool open; // this is the open condition which renders tokens
+            bool openSeen; // at least one true condition seen
+            bool elseSeen; // there was already an else part
+            ppstatus(bool o = true):open(o),openSeen(false),elseSeen(false){}
+        };
+
+        ppstatus ppouter()
+        {
+            ppstatus res;
+            if( d_conditionStack.size() >= 2 )
+                res = d_conditionStack[d_conditionStack.size()-2];
+            return res;
+        }
+        ppstatus ppthis()
+        {
+            ppstatus res;
+            if( !d_conditionStack.isEmpty() )
+                res = d_conditionStack.back();
+            return res;
+        }
+        void ppsetthis(bool open, bool thisIsElse = false)
+        {
+            if( !d_conditionStack.isEmpty() )
+            {
+                ppstatus& stat = d_conditionStack.back();
+                stat.open = open;
+                if( thisIsElse )
+                    stat.elseSeen = true;
+                if( open )
+                    stat.openSeen = true;
+            }
+        }
 
         void next();
+        Ob::Token nextImp();
 
         struct TokSet : public std::bitset<Ob::TT_MaxToken>
         {
@@ -134,6 +174,9 @@ namespace Obx
         Ob::Token d_cur;
         Ob::Token d_next;
         Ref<Module> d_mod;
+        QHash<const char*,bool> d_options;
+        enum { PP_NONE, PP_IF, PP_ELSIF, PP_ELSE };
+        QList<ppstatus> d_conditionStack;
 #ifdef _DEBUG
         Ob::TokenType d_la;
 #else

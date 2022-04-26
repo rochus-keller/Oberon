@@ -91,6 +91,8 @@ namespace Obx
         void setWorkingDir( const QString& );
         QString getBuildDir(bool resolved = false) const;
         void setBuildDir( const QString& );
+        QByteArrayList getOptions() const { return d_options; }
+        void setOptions( const QByteArrayList& );
 
         bool addFile(const QString& filePath, const VirtualPath& package = QByteArrayList() );
         bool removeFile( const QString& filePath );
@@ -132,6 +134,7 @@ namespace Obx
         FileGroups d_groups;
         QString d_filePath; // path where the project file was loaded from or saved to
         QStringList d_suffixes;
+        QByteArrayList d_options;
         QString d_workingDir, d_buildDir;
         ModProc d_main;
         bool d_dirty;

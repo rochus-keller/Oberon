@@ -41,11 +41,10 @@ Highlighter::Highlighter(QTextDocument* parent) :
     d_format[C_Op].setFontWeight(QFont::Bold);
     d_format[C_Type].setForeground(QColor(153, 0, 115));
     d_format[C_Type].setFontWeight(QFont::Bold);
-    d_format[C_Pp].setForeground(QColor(0, 134, 179));
+    //d_format[C_Pp].setForeground(QColor(0, 134, 179));
     d_format[C_Pp].setFontWeight(QFont::Bold);
-
-    d_format[C_Section].setForeground(QColor(0, 128, 0));
-    d_format[C_Section].setBackground(QColor(230, 255, 230));
+    d_format[C_Pp].setForeground(QColor(0, 128, 0));
+    d_format[C_Pp].setBackground(QColor(230, 255, 230));
 
     //d_builtins = createBuiltins();
 }
@@ -106,7 +105,7 @@ void Highlighter::highlightBlock(const QString& text)
         // wir sind in einem Multi Line Comment
         // suche das Ende
         QTextCharFormat f = formatForCategory(C_Cmt);
-        f.setProperty( TokenProp, int(Tok_Comment) );
+        // f.setProperty( TokenProp, int(Tok_Comment) );
         int pos = 0;
         Lexer::parseComment( text.toLatin1(), pos, lexerState );
         if( lexerState > 0 )
@@ -128,7 +127,7 @@ void Highlighter::highlightBlock(const QString& text)
     {
         // wir sind in einem multi line hex string
         QTextCharFormat f = formatForCategory(C_Str);
-        f.setProperty( TokenProp, int(Tok_hexstring) );
+        // f.setProperty( TokenProp, int(Tok_hexstring) );
         const int pos = text.indexOf('$');
         if( pos == -1 )
         {
@@ -144,6 +143,26 @@ void Highlighter::highlightBlock(const QString& text)
             braceDepth--;
             start = pos;
         }
+    }else if( lexerState == 3 )
+    {
+        // wir sind in einem multi preprocessor command
+        QTextCharFormat f = formatForCategory(C_Pp);
+        int pos = text.indexOf("*>");
+        if( pos == -1 )
+        {
+            // the whole block ist part of the hex string
+            setFormat( start, text.size(), f );
+            setCurrentBlockState( (braceDepth << 8) | lexerState);
+            return;
+        }else
+        {
+            // End of preprocessor command found
+            pos += 2;
+            setFormat( start, pos , f );
+            lexerState = 0;
+            braceDepth--;
+            start = pos;
+        }
     }
 
 
@@ -152,6 +171,7 @@ void Highlighter::highlightBlock(const QString& text)
     lex.setPackComments(false);
     lex.setEnableExt(d_enableExt);
 
+    int startPp;
     QList<Token> tokens = lex.tokens(text.mid(start));
     for( int i = 0; i < tokens.size(); ++i )
     {
@@ -166,6 +186,17 @@ void Highlighter::highlightBlock(const QString& text)
             braceDepth++;
             f = formatForCategory(C_Cmt);
             lexerState = 1;
+        }else if( t.d_type == Tok_LtStar )
+        {
+            braceDepth++;
+            f = formatForCategory(C_Pp);
+            startPp = t.d_colNr-1;
+            lexerState = 3;
+        }else if( t.d_type == Tok_StarGt )
+        {
+            braceDepth--;
+            f = formatForCategory(C_Pp);
+            lexerState = 0;
         }else if(t.d_type == Tok_hexstring )
         {
             f = formatForCategory(C_Str);
@@ -205,10 +236,10 @@ void Highlighter::highlightBlock(const QString& text)
                 f = formatForCategory(C_Ident);
         }
 
-        if( f.isValid() )
-        {
+        if( lexerState == 3 )
+            setFormat( startPp, t.d_colNr - startPp + t.d_len, formatForCategory(C_Pp) );
+        else if( f.isValid() )
             setFormat( t.d_colNr-1, t.d_len, f );
-        }
     }
 
     setCurrentBlockState((braceDepth << 8) | lexerState );

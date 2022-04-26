@@ -40,6 +40,7 @@ namespace Obx
         Ref<Module> parseFile(QIODevice* , const QString& filePath);
         const QList<Module*>& getDepOrder() const { return d_depOrder; }
         quint32 getSloc() const { return d_sloc; }
+        void setOptions(const QByteArrayList& o) { d_options = o; }
 
         void setFillXref( bool b ) { d_fillXref = b; }
         typedef QHash<Named*,ExpList> XRef; // name used by ident expression
@@ -100,6 +101,7 @@ namespace Obx
         Packages d_packages;
         XRef d_xref;
         quint32 d_sloc;
+        QByteArrayList d_options;
 
         Ob::Errors* d_errs;
         Ob::FileCache* d_fc;

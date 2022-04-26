@@ -19,5 +19,23 @@
         <file>runtime/Dll/Strings.dll</file>
         <file>runtime/Dll/Files.dll</file>
         <file>runtime/Dll/XYplane.dll</file>
+        <file>runtime/Files.c</file>
+        <file>runtime/In.c</file>
+        <file>runtime/Input.c</file>
+        <file>runtime/Math.c</file>
+        <file>runtime/MathL.c</file>
+        <file>runtime/OBX.Runtime.c</file>
+        <file>runtime/Out.c</file>
+        <file>runtime/Strings.c</file>
+        <file>runtime/XYplane.c</file>
+        <file>runtime/Files.h</file>
+        <file>runtime/In.h</file>
+        <file>runtime/Input.h</file>
+        <file>runtime/Math.h</file>
+        <file>runtime/MathL.h</file>
+        <file>runtime/OBX.Runtime.h</file>
+        <file>runtime/Out.h</file>
+        <file>runtime/Strings.h</file>
+        <file>runtime/XYplane.h</file>
     </qresource>
 </RCC>

@@ -596,7 +596,7 @@ Ref<Module> Model::parseFile(QIODevice* in, const QString& filePath)
     lex.setSensExt(true);
     lex.setStream( in, filePath );
     Obx::Parser p(&lex,d_errs);
-    Ref<Module> res = p.parse();
+    Ref<Module> res = p.parse(d_options);
     d_sloc += lex.getSloc();
     // qDebug() << path << "with" << lex.getSloc() << "LOC";
     return res;

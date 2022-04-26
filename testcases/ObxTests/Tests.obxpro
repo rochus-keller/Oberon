@@ -4,6 +4,7 @@ BuiltInOakwood=true
 BuiltInObSysInner=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
+Options=@ByteArray(B B2)
 Suffixes=@Invalid()
 WorkingDir=
 
@@ -11,9 +12,11 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Overflow1.obx
-1\RelPath=Overflow1.obx
-size=1
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/CompCon1.obx
+1\RelPath=CompCon1.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/CompCon2.obx
+2\RelPath=CompCon2.obx
+size=2
 
 [Packages]
 1\Name=@ByteArray()

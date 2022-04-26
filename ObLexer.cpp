@@ -124,7 +124,7 @@ Token Lexer::nextToken()
         d_buffer.pop_front();
     }else
         t = nextTokenImp();
-    if( t.d_type == Tok_Comment && d_ignoreComments )
+    while( t.d_type == Tok_Comment && d_ignoreComments )
         t = nextToken();
     return t;
 }
@@ -133,7 +133,12 @@ Token Lexer::peekToken(quint8 lookAhead)
 {
     Q_ASSERT( lookAhead > 0 );
     while( d_buffer.size() < lookAhead )
-        d_buffer.push_back( nextTokenImp() );
+    {
+        Token t = nextTokenImp();
+        while( t.d_type == Tok_Comment && d_ignoreComments )
+            t = nextTokenImp();
+        d_buffer.push_back( t );
+    }
     return d_buffer[ lookAhead - 1 ];
 }
 

@@ -45,9 +45,12 @@ Parser::Parser(Ob::Lexer* l, Ob::Errors* e, QObject *parent) : QObject(parent),d
 
 }
 
-Ref<Module> Parser::parse()
+Ref<Module> Parser::parse(const QByteArrayList& options)
 {
     d_errCount = 0;
+    d_options.clear();
+    foreach( const QByteArray& o, options )
+        d_options[ Lexer::getSymbol(o).constData() ] = true;
     next();
     try
     {
@@ -2236,18 +2239,185 @@ SysAttrs Parser::systemAttrs()
     return res;
 }
 
+void Parser::ppcmd()
+{
+    Token t = d_lex->peekToken();
+    switch(t.d_type)
+    {
+    case Tok_ident:
+        {
+            Token name = d_lex->nextToken();
+            t = d_lex->nextToken();
+            switch( t.d_type )
+            {
+            case Tok_Plus:
+                d_options[name.d_val.constData()] = true;
+                t = d_lex->nextToken();
+                break;
+            case Tok_Minus:
+                d_options[name.d_val.constData()] = false;
+                t = d_lex->nextToken();
+                break;
+            default:
+                semanticError(name.toLoc(), tr("expecting '+' or '-' after identifier") );
+                while( t.d_type != Tok_StarGt && t.d_type != Tok_Eof )
+                    t = d_lex->nextToken();
+                break;
+            }
+        }
+        break;
+    case Tok_IF:
+        d_lex->nextToken();
+        {
+            const bool cond = ppexpr();
+            d_conditionStack.append( ppstatus(false) );
+            ppsetthis( ppouter().open && cond );
+            t = d_lex->nextToken();
+            if( t.d_type != Tok_THEN )
+                d_errs->error( Errors::Syntax, t.toLoc(), tr("expecting 'THEN'") );
+            else
+                t = d_lex->nextToken();
+        }
+        break;
+    case Tok_ELSIF:
+        d_lex->nextToken();
+        if( ppthis().elseSeen || d_conditionStack.isEmpty() )
+        {
+            semanticError(t.toLoc(), tr("ELSIF directive not expected here"));
+            while( t.d_type != Tok_StarGt && t.d_type != Tok_Eof )
+                t = d_lex->nextToken();
+        }else
+        {
+            const bool cond = ppexpr();
+            ppsetthis( ppouter().open && cond && !ppthis().openSeen );
+            t = d_lex->nextToken();
+            if( t.d_type != Tok_THEN )
+                d_errs->error( Errors::Syntax, t.toLoc(), tr("expecting 'THEN'") );
+            else
+                t = d_lex->nextToken();
+        }
+        break;
+    case Tok_ELSE:
+        d_lex->nextToken();
+        if( ppthis().elseSeen || d_conditionStack.isEmpty() )
+        {
+            semanticError(t.toLoc(), tr("ELSE directive not expected here"));
+            while( t.d_type != Tok_StarGt && t.d_type != Tok_Eof )
+                t = d_lex->nextToken();
+        }else
+        {
+            ppsetthis( ppouter().open && !ppthis().openSeen, true );
+            t = d_lex->nextToken();
+        }
+        break;
+    case Tok_END:
+        d_lex->nextToken();
+        if( d_conditionStack.isEmpty() )
+            semanticError(t.toLoc(), tr("spurious END directive"));
+        else
+            d_conditionStack.pop_back();
+        t = d_lex->nextToken();
+        break;
+    }
+    if( t.d_type != Tok_StarGt )
+    {
+        semanticError(t.toLoc(), tr("expecting '*>'") );
+        while( t.d_type != Tok_StarGt && t.d_type != Tok_Eof )
+            t = d_lex->nextToken();
+    }
+}
+
+bool Parser::ppexpr()
+{
+    bool res = ppterm();
+    Token t = d_lex->peekToken();
+    while( !res && t.d_type == Tok_OR )
+    {
+        d_lex->nextToken();
+        res = res || ppterm();
+    }
+    return res;
+}
+
+bool Parser::ppterm()
+{
+    bool res = ppfactor();
+    Token t = d_lex->peekToken();
+    while( res && t.d_type == Tok_Amp )
+    {
+        d_lex->nextToken();
+        res = res && ppfactor();
+    }
+    return res;
+}
+
+bool Parser::ppfactor()
+{
+    Token t = d_lex->nextToken();
+    switch( t.d_type )
+    {
+    case Tok_ident:
+        return d_options.value(t.d_val.constData());
+    case Tok_Lpar:
+        {
+            const bool res = ppexpr();
+            t = d_lex->nextToken();
+            if( t.d_type != Tok_Rpar )
+                d_errs->error( Errors::Syntax, t.toLoc(), tr("expecting ')'"));
+            return res;
+        }
+    case Tok_Tilde:
+        return !ppfactor();
+    }
+    return false;
+}
+
 void Parser::next()
 {
     if( d_errCount > 25 )
         throw MaximumErrorCountExceeded();
     d_cur = d_next;
-    d_next = d_lex->nextToken();
+    d_next = nextImp();
     while( d_next.d_type == Tok_Invalid )
     {
         d_sync = true;
-        d_next = d_lex->nextToken();
+        d_next = nextImp();
     }
     d_la = (Ob::TokenType)d_next.d_type;
+}
+
+Token Parser::nextImp()
+{
+    Ob::Token t = d_lex->peekToken();
+    while( t.d_type == Tok_LtStar )
+    {
+        while( t.d_type == Tok_LtStar )
+        {
+            const Ob::Token start = d_lex->nextToken();
+            t = d_lex->peekToken();
+            if( t.d_type != Tok_StarGt && t.d_type != Tok_Eof )
+                ppcmd();
+
+            if( t.d_type == Tok_Eof )
+                semanticError( start.toLoc(), tr("non-terminated source code directive") );
+            else
+                t = d_lex->peekToken();
+        }
+
+        if( !ppthis().open )
+        {
+            t = d_lex->peekToken();
+            while( t.d_type != Tok_LtStar && t.d_type != Tok_Eof )
+            {
+                t = d_lex->nextToken();
+                t = d_lex->peekToken();
+            }
+        }
+    }
+    t = d_lex->nextToken();
+    if( t.d_type == Tok_Eof && !d_conditionStack.isEmpty() )
+        semanticError( t.toLoc(), tr("expecting END directive") );
+    return t;
 }
 
 bool Parser::sync(const Parser::TokSet& ts)

@@ -1,0 +1,18 @@
+module CompCon1
+
+begin
+  println("start CompCon1")
+  <* B+ *>
+  
+  <* if A then *>
+  println("A")
+  <* elsif B then *>  
+  println("B")
+  <* elsif C then *>  
+  println("C")
+  <* else *>  
+  println("D")
+  <* end *>  
+  
+  println("end CompCon1")
+end CompCon1

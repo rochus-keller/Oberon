@@ -29,6 +29,7 @@
 #include "ObxProject.h"
 #include "ObxCilGen.h"
 #include "ObFileCache.h"
+#include "ObxCGen2.h"
 
 static QStringList collectFiles( const QDir& dir )
 {
@@ -71,7 +72,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2022-04-22");
+    a.setApplicationVersion("2022-04-26");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -82,12 +83,14 @@ int main(int argc, char *argv[])
     Obx::Project pro;
 
     QStringList dirOrFilePaths;
+    QByteArrayList options;
     QString outPath;
     QStringList args = QCoreApplication::arguments();
     bool genAsm = false;
     bool run = false;
     bool build = false;
     bool debug = false;
+    bool genC = false;
     if( args.size() <= 1 )
     {
         // if there are no args look in the application directory for a file called obxljconfig which includes
@@ -109,10 +112,12 @@ int main(int argc, char *argv[])
             out << "options:" << endl;
             out << "  -h            display this information" << endl;
             out << "  -out=path     path where to save generated files" << endl;
+            out << "  -set:ident    set the variable named by ident to TRUE" << endl;
             out << "  -asm          generate IL assembler (binary assemblies otherwise)" << endl;
             out << "  -debug        generate debug information" << endl;
             out << "  -build        run the generated build.sh script (Linux only)" << endl;
             out << "  -run          run the generated run.sh script (Linux only)" << endl;
+            out << "  -c            generate C code (CIL otherwise)" << endl;
             out << "  the following options are overridden if a project file is loaded" << endl;
             out << "  -main=A[.B]   run module A or procedure B in module A and quit" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
@@ -130,12 +135,17 @@ int main(int argc, char *argv[])
             debug = true;
         else if( args[i] == "-build" )
             build = true;
+        else if( args[i] == "-c" )
+            genC = true;
         else if( args[i].startsWith("-out=") )
         {
             outPath = args[i].mid(5);
             QFileInfo info(outPath);
             if( info.isRelative() )
                 outPath = QDir::current().absoluteFilePath(outPath);
+        }else if( args[i].startsWith("-set:") )
+        {
+            options << args[i].mid(5).toUtf8();
         }else if( args[i].startsWith("-run=") )
         {
             QStringList run = args[i].mid(5).split('.');
@@ -221,30 +231,37 @@ int main(int argc, char *argv[])
     }
 
     QTime start = QTime::currentTime();
+    pro.setOptions(options);
     if( !pro.reparse() )
         return -1;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     start = QTime::currentTime();
-    Obx::CilGen::How how;
-    if( genAsm )
-        how = Obx::CilGen::Ilasm;
-    else
-        how = Obx::CilGen::Pelib;
-    Obx::CilGen::translateAll(&pro, how, debug, outPath );
-    qDebug() << "translated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
-    QDir::setCurrent(outPath);
-    QDir dir(outPath);
-    if( build && genAsm )
+    if( genC )
     {
-        start = QTime::currentTime();
-        if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
-            return -1;
-        qDebug() << "built with ilasm in" << start.msecsTo(QTime::currentTime()) << "[ms]";
-    }
-    if( run )
+        Obx::CGen2::translateAll(&pro, debug, outPath);
+    }else
     {
-        if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
-            return -1;
+        Obx::CilGen::How how;
+        if( genAsm )
+            how = Obx::CilGen::Ilasm;
+        else
+            how = Obx::CilGen::Pelib;
+        Obx::CilGen::translateAll(&pro, how, debug, outPath );
+        qDebug() << "translated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
+        QDir::setCurrent(outPath);
+        QDir dir(outPath);
+        if( build && genAsm )
+        {
+            start = QTime::currentTime();
+            if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
+                return -1;
+            qDebug() << "built with ilasm in" << start.msecsTo(QTime::currentTime()) << "[ms]";
+        }
+        if( run )
+        {
+            if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
+                return -1;
+        }
     }
 
     return 0;

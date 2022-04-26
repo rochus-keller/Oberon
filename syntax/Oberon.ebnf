@@ -70,6 +70,20 @@ hexstringdelim- ::= '$'
 comment- ::= '(*' '*)' '//'
 // line comments like in BCPL and Delphi/Free Pascal
 
+directive- ::= '<*' '*>' // oadkwood source code directive
+#ifdef SCD_LANG
+directive	::= '<*' [ scdOpt | scdIf | scdElsif | scdElse | scdEnd ] '*>'
+scdOpt 	::= ident ( '+' | '-' )
+scdIf    	::= IF scdExpr THEN 
+scdElsif 	::= ELSIF scdExpr THEN 
+scdElse 	::= ELSE
+scdEnd 	::= END
+scdExpr 	::= scdTerm { OR scdTerm }
+scdTerm 	::= scdFactor {'&' scdFactor}
+scdFactor 	::= ident | '(' scdExpr ')' | '~' scdFactor
+#endif
+
+
 /// 4. Declarations and scope rules
 
 qualident ::= [ \LL:2\ ident '.' ] ident  // works even though EbnfStudio disagrees

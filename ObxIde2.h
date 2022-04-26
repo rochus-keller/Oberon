@@ -84,7 +84,7 @@ namespace Obx
         void createXref();
         void createStack();
         void createLocals();
-        void createMenu();
+        void createModsMenu();
         void createMenuBar();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
@@ -97,7 +97,7 @@ namespace Obx
         Editor* showEditor(const QString& path, int row = -1, int col = -1, bool setMarker = false , bool center = false);
         void showEditor(Named*, bool setMarker = false, bool center = false);
         void showEditor( const Location& );
-        void createMenu( Editor* );
+        void createModsMenu( Editor* );
         void addDebugMenu(Gui::AutoMenu * pop);
         void fillXref();
         void fillXref(Named*);
@@ -172,6 +172,7 @@ namespace Obx
         void onBreakOnExceptions();
         void onRowColMode();
         void onSetInputFile();
+        void onSetOptions();
     private:
         class DocTab;
         DocTab* d_tab;

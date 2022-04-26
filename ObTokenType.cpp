@@ -13,6 +13,7 @@ namespace Ob {
 			case Tok_Rpar: return ")";
 			case Tok_Star: return "*";
 			case Tok_Ratt: return "*)";
+			case Tok_StarGt: return "*>";
 			case Tok_Plus: return "+";
 			case Tok_Comma: return ",";
 			case Tok_Minus: return "-";
@@ -24,6 +25,7 @@ namespace Ob {
 			case Tok_ColonEq: return ":=";
 			case Tok_Semi: return ";";
 			case Tok_Lt: return "<";
+			case Tok_LtStar: return "<*";
 			case Tok_Leq: return "<=";
 			case Tok_Eq: return "=";
 			case Tok_Gt: return ">";
@@ -86,77 +88,6 @@ namespace Ob {
 			case Tok_hexstring: return "hexstring";
 			case Tok_Comment: return "Comment";
 			case Tok_Eof: return "<eof>";
-			case R_type: return "type";
-			case R_selector: return "selector";
-			case R_ProcedureHeading: return "ProcedureHeading";
-			case R_TypeActuals: return "TypeActuals";
-			case R_SimpleExpression: return "SimpleExpression";
-			case R_factor: return "factor";
-			case R_qualident: return "qualident";
-			case R_LoopStatement: return "LoopStatement";
-			case R_DeclarationSequence2: return "DeclarationSequence2";
-			case R_relation: return "relation";
-			case R_VariableDeclaration: return "VariableDeclaration";
-			case R_Case: return "Case";
-			case R_NamedType: return "NamedType";
-			case R_ReturnType: return "ReturnType";
-			case R_label: return "label";
-			case R_set: return "set";
-			case R_WhileStatement: return "WhileStatement";
-			case R_ProcedureDeclaration: return "ProcedureDeclaration";
-			case R_LabelRange: return "LabelRange";
-			case R_Guard: return "Guard";
-			case R_FormalParameters: return "FormalParameters";
-			case R_FieldListSequence: return "FieldListSequence";
-			case R_ElseStatement: return "ElseStatement";
-			case R_Receiver: return "Receiver";
-			case R_CaseStatement: return "CaseStatement";
-			case R_ConstDeclaration: return "ConstDeclaration";
-			case R_element: return "element";
-			case R_ElsifStatement: return "ElsifStatement";
-			case R_CaseLabelList: return "CaseLabelList";
-			case R_number: return "number";
-			case R_RepeatStatement: return "RepeatStatement";
-			case R_ElsifStatement2: return "ElsifStatement2";
-			case R_ExpList: return "ExpList";
-			case R_StatementSequence: return "StatementSequence";
-			case R_FormalType: return "FormalType";
-			case R_ArrayType: return "ArrayType";
-			case R_assignmentOrProcedureCall: return "assignmentOrProcedureCall";
-			case R_ReturnStatement: return "ReturnStatement";
-			case R_RecordType: return "RecordType";
-			case R_MulOperator: return "MulOperator";
-			case R_TypeDeclaration: return "TypeDeclaration";
-			case R_IfStatement: return "IfStatement";
-			case R_term: return "term";
-			case R_definition: return "definition";
-			case R_SysAttr: return "SysAttr";
-			case R_designator: return "designator";
-			case R_ProcedureType: return "ProcedureType";
-			case R_identdef: return "identdef";
-			case R_TypeParams: return "TypeParams";
-			case R_WithStatement: return "WithStatement";
-			case R_variableOrFunctionCall: return "variableOrFunctionCall";
-			case R_ProcedureBody: return "ProcedureBody";
-			case R_import: return "import";
-			case R_LengthList: return "LengthList";
-			case R_ExitStatement: return "ExitStatement";
-			case R_ImportList: return "ImportList";
-			case R_module: return "module";
-			case R_IdentList: return "IdentList";
-			case R_enumeration: return "enumeration";
-			case R_expression: return "expression";
-			case R_TypeActual: return "TypeActual";
-			case R_SystemAttrs: return "SystemAttrs";
-			case R_statement: return "statement";
-			case R_AddOperator: return "AddOperator";
-			case R_DeclarationSequence: return "DeclarationSequence";
-			case R_FieldList: return "FieldList";
-			case R_PointerType: return "PointerType";
-			case R_FPSection: return "FPSection";
-			case R_BaseType: return "BaseType";
-			case R_ForStatement: return "ForStatement";
-			case R_literal: return "literal";
 			default: return "";
 		}
 	}
@@ -171,6 +102,7 @@ namespace Ob {
 			case Tok_Rpar: return "Tok_Rpar";
 			case Tok_Star: return "Tok_Star";
 			case Tok_Ratt: return "Tok_Ratt";
+			case Tok_StarGt: return "Tok_StarGt";
 			case Tok_Plus: return "Tok_Plus";
 			case Tok_Comma: return "Tok_Comma";
 			case Tok_Minus: return "Tok_Minus";
@@ -182,6 +114,7 @@ namespace Ob {
 			case Tok_ColonEq: return "Tok_ColonEq";
 			case Tok_Semi: return "Tok_Semi";
 			case Tok_Lt: return "Tok_Lt";
+			case Tok_LtStar: return "Tok_LtStar";
 			case Tok_Leq: return "Tok_Leq";
 			case Tok_Eq: return "Tok_Eq";
 			case Tok_Gt: return "Tok_Gt";
@@ -244,77 +177,6 @@ namespace Ob {
 			case Tok_hexstring: return "Tok_hexstring";
 			case Tok_Comment: return "Tok_Comment";
 			case Tok_Eof: return "Tok_Eof";
-			case R_type: return "R_type";
-			case R_selector: return "R_selector";
-			case R_ProcedureHeading: return "R_ProcedureHeading";
-			case R_TypeActuals: return "R_TypeActuals";
-			case R_SimpleExpression: return "R_SimpleExpression";
-			case R_factor: return "R_factor";
-			case R_qualident: return "R_qualident";
-			case R_LoopStatement: return "R_LoopStatement";
-			case R_DeclarationSequence2: return "R_DeclarationSequence2";
-			case R_relation: return "R_relation";
-			case R_VariableDeclaration: return "R_VariableDeclaration";
-			case R_Case: return "R_Case";
-			case R_NamedType: return "R_NamedType";
-			case R_ReturnType: return "R_ReturnType";
-			case R_label: return "R_label";
-			case R_set: return "R_set";
-			case R_WhileStatement: return "R_WhileStatement";
-			case R_ProcedureDeclaration: return "R_ProcedureDeclaration";
-			case R_LabelRange: return "R_LabelRange";
-			case R_Guard: return "R_Guard";
-			case R_FormalParameters: return "R_FormalParameters";
-			case R_FieldListSequence: return "R_FieldListSequence";
-			case R_ElseStatement: return "R_ElseStatement";
-			case R_Receiver: return "R_Receiver";
-			case R_CaseStatement: return "R_CaseStatement";
-			case R_ConstDeclaration: return "R_ConstDeclaration";
-			case R_element: return "R_element";
-			case R_ElsifStatement: return "R_ElsifStatement";
-			case R_CaseLabelList: return "R_CaseLabelList";
-			case R_number: return "R_number";
-			case R_RepeatStatement: return "R_RepeatStatement";
-			case R_ElsifStatement2: return "R_ElsifStatement2";
-			case R_ExpList: return "R_ExpList";
-			case R_StatementSequence: return "R_StatementSequence";
-			case R_FormalType: return "R_FormalType";
-			case R_ArrayType: return "R_ArrayType";
-			case R_assignmentOrProcedureCall: return "R_assignmentOrProcedureCall";
-			case R_ReturnStatement: return "R_ReturnStatement";
-			case R_RecordType: return "R_RecordType";
-			case R_MulOperator: return "R_MulOperator";
-			case R_TypeDeclaration: return "R_TypeDeclaration";
-			case R_IfStatement: return "R_IfStatement";
-			case R_term: return "R_term";
-			case R_definition: return "R_definition";
-			case R_SysAttr: return "R_SysAttr";
-			case R_designator: return "R_designator";
-			case R_ProcedureType: return "R_ProcedureType";
-			case R_identdef: return "R_identdef";
-			case R_TypeParams: return "R_TypeParams";
-			case R_WithStatement: return "R_WithStatement";
-			case R_variableOrFunctionCall: return "R_variableOrFunctionCall";
-			case R_ProcedureBody: return "R_ProcedureBody";
-			case R_import: return "R_import";
-			case R_LengthList: return "R_LengthList";
-			case R_ExitStatement: return "R_ExitStatement";
-			case R_ImportList: return "R_ImportList";
-			case R_module: return "R_module";
-			case R_IdentList: return "R_IdentList";
-			case R_enumeration: return "R_enumeration";
-			case R_expression: return "R_expression";
-			case R_TypeActual: return "R_TypeActual";
-			case R_SystemAttrs: return "R_SystemAttrs";
-			case R_statement: return "R_statement";
-			case R_AddOperator: return "R_AddOperator";
-			case R_DeclarationSequence: return "R_DeclarationSequence";
-			case R_FieldList: return "R_FieldList";
-			case R_PointerType: return "R_PointerType";
-			case R_FPSection: return "R_FPSection";
-			case R_BaseType: return "R_BaseType";
-			case R_ForStatement: return "R_ForStatement";
-			case R_literal: return "R_literal";
 			default: return "";
 		}
 	}
@@ -325,10 +187,7 @@ namespace Ob {
 		return r > TT_Keywords && r < TT_Specials;
 	}
 	bool tokenTypeIsSpecial( int r ) {
-		return r > TT_Specials && r < TT_Nonterminals;
-	}
-	bool tokenTypeIsNonterminal( int r ) {
-		return r > TT_Nonterminals && r < TT_Max;
+		return r > TT_Specials && r < TT_Max;
 	}
 	static inline char at( const QByteArray& str, int i ){
 		return ( i >= 0 && i < str.size() ? str[i] : 0 );
@@ -357,10 +216,16 @@ namespace Ob {
 			res = Tok_Rpar; i += 1;
 			break;
 		case '*':
-			if( at(str,i+1) == ')' ){
+			switch( at(str,i+1) ){
+			case ')':
 				res = Tok_Ratt; i += 2;
-			} else {
+				break;
+			case '>':
+				res = Tok_StarGt; i += 2;
+				break;
+			default:
 				res = Tok_Star; i += 1;
+				break;
 			}
 			break;
 		case '+':
@@ -397,10 +262,16 @@ namespace Ob {
 			res = Tok_Semi; i += 1;
 			break;
 		case '<':
-			if( at(str,i+1) == '=' ){
+			switch( at(str,i+1) ){
+			case '*':
+				res = Tok_LtStar; i += 2;
+				break;
+			case '=':
 				res = Tok_Leq; i += 2;
-			} else {
+				break;
+			default:
 				res = Tok_Lt; i += 1;
+				break;
 			}
 			break;
 		case '=':

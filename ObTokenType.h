@@ -5,8 +5,8 @@
 
 #include <QByteArray>
 
-#define OB_OBN2
 #define OB_OBNX
+#define OB_OBN2
 
 namespace Ob {
 	enum TokenType {
@@ -21,6 +21,7 @@ namespace Ob {
 		Tok_Rpar,
 		Tok_Star,
 		Tok_Ratt,
+		Tok_StarGt,
 		Tok_Plus,
 		Tok_Comma,
 		Tok_Minus,
@@ -32,6 +33,7 @@ namespace Ob {
 		Tok_ColonEq,
 		Tok_Semi,
 		Tok_Lt,
+		Tok_LtStar,
 		Tok_Leq,
 		Tok_Eq,
 		Tok_Gt,
@@ -101,79 +103,6 @@ namespace Ob {
 
 		TT_MaxToken,
 
-		TT_Nonterminals,
-		R_type,
-		R_selector,
-		R_ProcedureHeading,
-		R_TypeActuals,
-		R_SimpleExpression,
-		R_factor,
-		R_qualident,
-		R_LoopStatement,
-		R_DeclarationSequence2,
-		R_relation,
-		R_VariableDeclaration,
-		R_Case,
-		R_NamedType,
-		R_ReturnType,
-		R_label,
-		R_set,
-		R_WhileStatement,
-		R_ProcedureDeclaration,
-		R_LabelRange,
-		R_Guard,
-		R_FormalParameters,
-		R_FieldListSequence,
-		R_ElseStatement,
-		R_Receiver,
-		R_CaseStatement,
-		R_ConstDeclaration,
-		R_element,
-		R_ElsifStatement,
-		R_CaseLabelList,
-		R_number,
-		R_RepeatStatement,
-		R_ElsifStatement2,
-		R_ExpList,
-		R_StatementSequence,
-		R_FormalType,
-		R_ArrayType,
-		R_assignmentOrProcedureCall,
-		R_ReturnStatement,
-		R_RecordType,
-		R_MulOperator,
-		R_TypeDeclaration,
-		R_IfStatement,
-		R_term,
-		R_definition,
-		R_SysAttr,
-		R_designator,
-		R_ProcedureType,
-		R_identdef,
-		R_TypeParams,
-		R_WithStatement,
-		R_variableOrFunctionCall,
-		R_ProcedureBody,
-		R_import,
-		R_LengthList,
-		R_ExitStatement,
-		R_ImportList,
-		R_module,
-		R_IdentList,
-		R_enumeration,
-		R_expression,
-		R_TypeActual,
-		R_SystemAttrs,
-		R_statement,
-		R_AddOperator,
-		R_DeclarationSequence,
-		R_FieldList,
-		R_PointerType,
-		R_FPSection,
-		R_BaseType,
-		R_ForStatement,
-		R_literal,
-
 		TT_Max
 	};
 
@@ -182,7 +111,6 @@ namespace Ob {
 	bool tokenTypeIsLiteral( int );
 	bool tokenTypeIsKeyword( int );
 	bool tokenTypeIsSpecial( int );
-	bool tokenTypeIsNonterminal( int );
 	TokenType tokenTypeFromString( const QByteArray& str, int* pos = 0 );
 }
 #endif // __OB_TOKENTYPE__

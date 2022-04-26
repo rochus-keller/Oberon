@@ -426,7 +426,7 @@ Ide::Ide(QWidget *parent)
     createLocals();
     createStack();
     createTerminal();
-    createMenu();
+    createModsMenu();
 
     setCentralWidget(d_tab);
 
@@ -700,7 +700,7 @@ void Ide::createLocals()
     connect( d_localsView, SIGNAL(itemExpanded(QTreeWidgetItem*)), this, SLOT(onLocalExpanded(QTreeWidgetItem*)));
 }
 
-void Ide::createMenu()
+void Ide::createModsMenu()
 {
     Gui::AutoMenu* pop = new Gui::AutoMenu( d_mods, true );
     pop->addCommand( "Show File", this, SLOT(onOpenFile()) );
@@ -798,6 +798,7 @@ void Ide::createMenuBar()
     pop->addSeparator();
     pop->addCommand( "Set Build Directory...", this, SLOT( onBuildDir() ) );
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
+    pop->addCommand( "Set Configuration Variables...", this, SLOT( onSetOptions()) );
     pop->addCommand( "Set Oberon File System Root...", this, SLOT( onWorkingDir() ) );
 
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
@@ -1938,7 +1939,7 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
     }else
     {
         edit = new Editor(this,d_pro);
-        createMenu(edit);
+        createModsMenu(edit);
 
         connect(edit, SIGNAL(modificationChanged(bool)), this, SLOT(onEditorChanged()) );
         connect(edit,SIGNAL(cursorPositionChanged()),this,SLOT(onCursor()));
@@ -2000,7 +2001,7 @@ void Ide::showEditor(const Ide::Location& loc)
         e->verticalScrollBar()->setValue(loc.d_yoff);
 }
 
-void Ide::createMenu(Ide::Editor* edit)
+void Ide::createModsMenu(Ide::Editor* edit)
 {
     Gui::AutoMenu* pop = new Gui::AutoMenu( edit, true );
     pop->addCommand( "Save", this, SLOT(onSaveFile()), tr("CTRL+S"), false );
@@ -3338,13 +3339,46 @@ void Ide::onSetInputFile()
     d_eng->setInputFile(path);
 }
 
+void Ide::onSetOptions()
+{
+    ENABLED_IF(true);
+
+    QByteArrayList l = d_pro->getOptions();
+    qSort(l);
+
+    bool ok;
+    const QString options = QInputDialog::getMultiLineText(this,tr("Set Configuration Variables"),
+                                                           tr("Please enter a unique identifier per variable:"),
+                                                           l.join('\n'), &ok );
+    if( !ok )
+        return;
+
+    Lexer lex;
+    QList<Token> toks = lex.tokens(options);
+    l.clear();
+    QStringList errs;
+    foreach( const Token& t, toks )
+    {
+        if( t.d_type == Tok_ident )
+            l << t.d_val;
+        else
+            errs << QString::fromUtf8(t.d_val);
+    }
+
+    if( !errs.isEmpty() )
+        QMessageBox::warning(this,tr("Set Configuration Variables"),
+                             tr("The following entries are illegal and ignored: \n%1").arg(errs.join('\n')));
+
+    d_pro->setOptions(l);
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.67");
+    a.setApplicationVersion("0.9.68");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
