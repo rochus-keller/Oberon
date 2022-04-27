@@ -1,0 +1,16 @@
+module CompCon3
+begin
+  println("start CompCon3")
+  <* C+ *>
+  //<* Z+ *>
+    
+  <* if A or B or Z then *>
+  println("hit1")
+  <* elsif C & ~Z then *>
+  println("hit2")
+  <* else *>  
+  println("not hit")
+  <* end *>  
+  
+  println("end CompCon3")
+end CompCon3

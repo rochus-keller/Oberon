@@ -2331,10 +2331,11 @@ bool Parser::ppexpr()
 {
     bool res = ppterm();
     Token t = d_lex->peekToken();
-    while( !res && t.d_type == Tok_OR )
+    while( t.d_type == Tok_OR ) // check all, otherwise not all tokens are eaten
     {
-        d_lex->nextToken();
-        res = res || ppterm();
+        t = d_lex->nextToken();
+        res = ppterm() || res; // order significant
+        t = d_lex->peekToken();
     }
     return res;
 }
@@ -2343,10 +2344,11 @@ bool Parser::ppterm()
 {
     bool res = ppfactor();
     Token t = d_lex->peekToken();
-    while( res && t.d_type == Tok_Amp )
+    while( t.d_type == Tok_Amp )
     {
-        d_lex->nextToken();
-        res = res && ppfactor();
+        t = d_lex->nextToken();
+        res = ppfactor() && res;
+        t = d_lex->peekToken();
     }
     return res;
 }

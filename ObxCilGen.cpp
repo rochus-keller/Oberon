@@ -2600,9 +2600,16 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
                 ae->d_args.last()->accept(this);
-                Type* td = derefed(ae->d_args.first()->d_type.data());
-                if( td && td->isInteger() )
-                    convertTo( td->getBaseType(), ae->d_args.last()->d_type.data(), ae->d_loc );
+                Type* to = derefed(ae->d_args.first()->d_type.data());
+                Type* from = derefed(ae->d_args.last()->d_type.data());
+                if( to && to->isInteger() )
+                    convertTo( to->getBaseType(), ae->d_args.last()->d_type.data(), ae->d_loc );
+                else if( from && from->isInteger() && to && to->getTag() == Thing::T_Pointer )
+                {
+                    Type* p = derefed(cast<Pointer*>(to)->d_to.data());
+                    if( p && p->getBaseType() == Type::CVOID )
+                        line(ae->d_loc).conv_(IlEmitter::ToI, false, false);
+                }
             }
             break;
         case BuiltIn::ASSERT:

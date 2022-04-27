@@ -2345,9 +2345,16 @@ struct ObxCGenImp : public AstVisitor
         case BuiltIn::CAST:
             {
                 Q_ASSERT( ae->d_args.size() == 2 );
-                Type* td = derefed(ae->d_args.first()->d_type.data());
-                if( td && td->isInteger() )
-                    b << "(" << formatBaseType(td->getBaseType()) << ")";
+                Type* to = derefed(ae->d_args.first()->d_type.data());
+                Type* from = derefed(ae->d_args.last()->d_type.data());
+                if( to && to->isInteger() )
+                    b << "(" << formatBaseType(to->getBaseType()) << ")";
+                else if( from && from->isInteger() && to && to->getTag() == Thing::T_Pointer )
+                {
+                    Type* p = derefed(cast<Pointer*>(to)->d_to.data());
+                    if( p && p->getBaseType() == Type::CVOID )
+                        b << "(void*)(ptrdiff_t)";
+                }
                 ae->d_args.last()->accept(this);
             }
             break;

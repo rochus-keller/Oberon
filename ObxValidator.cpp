@@ -1019,6 +1019,13 @@ struct ValidatorImp : public AstVisitor
                         return true; // we allow to cast void* to integer
                 }
 
+                if( rhs->isInteger() && ltag == Thing::T_Pointer && lhs->d_unsafe )
+                {
+                    Type* l = derefed(cast<Pointer*>(lhs)->d_to.data());
+                    if( l && l->getBaseType() == Type::CVOID )
+                        return true; // we allow to cast integer to void*
+                }
+
                 if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
                         ( lhs == bt.d_intType && rhs == bt.d_setType ) ||
                         ( lhs == bt.d_setType && isInteger(rhs) ) ||
@@ -1179,7 +1186,6 @@ struct ValidatorImp : public AstVisitor
             return;
         }
 
-
         const int tftag = tf->getTag();
         Array* af = tftag == Thing::T_Array ? cast<Array*>(tf) : 0;
         const int tatag = ta->getTag();
@@ -1250,8 +1256,12 @@ struct ValidatorImp : public AstVisitor
         {
             Type* fpt = derefed(cast<Pointer*>(tf)->d_to.data());
             if( fpt->getBaseType() == Type::CVOID )
+            {
+                warning(actual->d_loc,Validator::tr("passing %1 to *VOID").
+                        arg(BaseType::s_typeName[ta->getBaseType()]));
                 return; // allow passing up to 32 bit integers to *void params of unsafe procedures
                         // if we allow it for all procedures this could be misused for pointer arithmetic
+            }
         }
 #endif
 
