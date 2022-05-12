@@ -53,7 +53,7 @@ const char* BuiltIn::s_typeName[] =
     "TYP",
     // Oberon+
     "CAST", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR",
-    "BITSHL", "BITSHR", "BITASR", "ADR"
+    "BITSHL", "BITSHR", "BITASR", "ADR", "PCALL", "THROW"
 };
 
 const char* UnExpr::s_opName[] =

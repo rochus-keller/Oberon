@@ -962,6 +962,7 @@ struct PelibGen::Imp : public PELib
     QByteArray line; // row, col
     QList<SignatureParser::Node*> level;
     quint8 moduleKind;
+    quint8 lastIseh;
     bool hasError;
 
     SignatureParser::Node* find(SignatureParser::MemberHint hint, const QByteArray& ref )
@@ -976,7 +977,7 @@ struct PelibGen::Imp : public PELib
         return res;
     }
 
-    Imp( const QByteArray& moduleName):PELib( moduleName.constData(), PELib::ilonly ),moduleKind(0),hasError(false)
+    Imp( const QByteArray& moduleName):PELib( moduleName.constData(), PELib::ilonly ),moduleKind(0),hasError(false),lastIseh(0)
       // NOTE: if PELib::bits32 is set then it doesn't run with the x64 version of CoreCLR (but with the x86 version).
       // Mono ILASM doesn't set PELib::bits32, but COFF characteristics 0x0100 (IMAGE_FILE_32BIT_MACHINE),
       // which causes .NET to run a 32 bit process even on a 64 bit Windows; Pelib instead sets characteristics
@@ -1355,6 +1356,7 @@ void PelibGen::addMethod(const IlMethod& m)
         case IL_bge:
         case IL_bge_un:
         case IL_beq:
+        case IL_leave:
             d_imp->addLabelOp(mm,op.d_ilop,op.d_arg);
             break;
         case IL_call:
@@ -1449,6 +1451,23 @@ void PelibGen::addMethod(const IlMethod& m)
         case IL_ldarg:
         case IL_ldarg_s:
             d_imp->addArgOp(mm,op.d_ilop,op.d_arg);
+            break;
+        case IL_try:
+            mm->AddInstruction( new Instruction(Instruction::seh_try,true));
+            d_imp->lastIseh = Instruction::seh_try;
+            break;
+        case IL_catch:
+            {
+                SignatureParser::Node* type = d_imp->find(SignatureParser::TypeRef,op.d_arg);
+                Type* t = dynamic_cast<Type*>(type->thing);
+                Q_ASSERT( t );
+                mm->AddInstruction( new Instruction((Instruction::iseh)d_imp->lastIseh,false));
+                mm->AddInstruction( new Instruction(Instruction::seh_catch,true, t ));
+                d_imp->lastIseh = Instruction::seh_catch;
+            }
+            break;
+        case IL_endTryCatch:
+            mm->AddInstruction( new Instruction((Instruction::iseh)d_imp->lastIseh,false));
             break;
         default:
             // no argument ops

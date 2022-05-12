@@ -594,7 +594,7 @@ struct ValidatorImp : public AstVisitor
                     break;
                 case UnExpr::CALL:
                     if( derefed(e->d_type.data())->getTag() == Thing::T_Pointer )
-                        return true;
+                        return true; // only NAppGUI/HelloGui/Popups.obx so far requires true; see above for concept
                     else
                     {
                         ArgExpr* args = cast<ArgExpr*>(e);
@@ -663,6 +663,49 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::HALT:
         case BuiltIn::ROR:
             return false; // these can be handled by ordinary arg checker
+
+        case BuiltIn::PCALL:
+            if( args->d_args.size() >= 2 )
+            {
+                // NOTE: PCALL must be a procedure, not a function; if a function it could be called in any expression;
+                // instead a PCALL shall be a call statement, in correspondence with the rule that PCALL can only call
+                // true procedures, which also makes the implementation of the CIL backend easier
+                Type* t0 = derefed(args->d_args[0]->d_type.data() );
+                Type* t1 = derefed(args->d_args[1]->d_type.data() );
+                Named* n1 = args->d_args[1]->getIdent();
+                if( !checkValidLhs(args->d_args[0].data()) || t0 == 0 ||
+                        t0->getTag() != Thing::T_Pointer || derefed(cast<Pointer*>(t0)->d_to.data()) != bt.d_anyRec )
+                    error( args->d_args[0]->d_loc, Validator::tr("first argument must be pointer to anyrec"));
+                else if( n1 && n1->getTag() == Thing::T_BuiltIn )
+                    error( args->d_args[1]->d_loc, Validator::tr("predeclared procedures cannot be used with PCALL"));
+                else if( t1 && t1->getTag() == Thing::T_ProcType )
+                {
+                    ProcType* pt = cast<ProcType*>(t1);
+                    if( pt->d_return.isNull() )
+                    {
+                        ArgExpr tmp = *args;
+                        tmp.d_args.pop_front();
+                        tmp.d_args.pop_front();
+                        checkCallArgs(pt,&tmp);
+                    }else
+                        error( args->d_args[1]->d_loc, Validator::tr("function procedures are not supported by PCALL"));
+                }else // td can be null, e.g. when calling new(ptr) as second argument
+                    error( args->d_args[1]->d_loc, Validator::tr("expecting procedure as first argument"));
+            }else
+                error( args->d_loc, Validator::tr("expecting at least two arguments"));
+            break;
+        case BuiltIn::THROW:
+            if( args->d_args.size() == 0 )
+            {
+                // generates an instance of ANYREC
+            }else if( args->d_args.size() == 1 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data() );
+                if( td && ( !isPointerToRecord(td) || td->d_unsafe ) ) // CUNION or CSTRUCT not supported
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting a non-nil pointer to a record"));
+            }else
+                error( args->d_loc, Validator::tr("expecting zero or one arguments"));
+            break;
 
         case BuiltIn::BITNOT:
             if( args->d_args.size() == 1 )
@@ -1515,8 +1558,14 @@ struct ValidatorImp : public AstVisitor
             }
             break;
         default:
-            Q_ASSERT( bi->d_type && bi->d_type->getTag() == Thing::T_ProcType );
-            return cast<ProcType*>(bi->d_type.data())->d_return.data();
+            {
+                Q_ASSERT( bi->d_type && bi->d_type->getTag() == Thing::T_ProcType );
+                Type* t = cast<ProcType*>(bi->d_type.data())->d_return.data();
+                if( t == 0 )
+                    t = bt.d_noType;
+                return t;
+            }
+            break;
         }
         return 0;
     }
@@ -1574,6 +1623,7 @@ struct ValidatorImp : public AstVisitor
                     me->d_type = p->d_return.data();
                     if( me->d_type.isNull() )
                         me->d_type = bt.d_noType;
+                        // even procs return a type with BaseType::NONE so that the generator knows if to emit a pop
                 }
             }else if( decl && decl->getTag() == Thing::T_NamedType )
             {
@@ -2978,12 +3028,22 @@ struct ValidatorImp : public AstVisitor
 
             if( me->d_typeCase )
             {
-                if( c.d_labels.size() != 1 || c.d_labels.first()->getIdent() == 0 )
+                Type* to = derefed(orig.data());
+                if( c.d_labels.size() == 1 && derefed(c.d_labels.first()->d_type.data()) == bt.d_nilType )
+                {
+                    if( to && isPointerToRecord(to) )
+                        ; // no, just leafe it as is; caseId->d_type = bt.d_nilType;
+                    else
+                    {
+                        error( c.d_labels.first()->d_loc, Validator::tr("nil only acceptable if case variable is a pointer type"));
+                        continue;
+                    }
+                }else if( c.d_labels.size() != 1 || c.d_labels.first()->getIdent() == 0 )
                 {
                     Q_ASSERT(!c.d_labels.isEmpty());
                     error( c.d_labels.first()->d_loc, Validator::tr("expecting a qualident case label in a type case statement"));
                     continue;
-                }else if( !typeExtension( derefed(orig.data()), derefed(c.d_labels.first()->getIdent()->d_type.data()) ) )
+                }else if( !typeExtension( to, derefed(c.d_labels.first()->getIdent()->d_type.data()) ) )
                 {
                     Q_ASSERT(!c.d_labels.isEmpty());
                     error( c.d_labels.first()->d_loc, Validator::tr("case label must be a subtype of the case variable in a type case statement"));

@@ -472,6 +472,7 @@ namespace Obx
                CAST, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
                BITSHL, BITSHR, BITASR,
                ADR, // obsolete
+               PCALL, THROW,
                MAXBUILTIN
              };
         static const char* s_typeName[];

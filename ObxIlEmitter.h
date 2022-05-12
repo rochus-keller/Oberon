@@ -124,7 +124,12 @@ namespace Obx
 
         quint32 newLabel();
         void label_(quint32); // inserts artificial label command
+
         void line_(const Ob::RowCol&);
+
+        void try_();
+        void catch_(const QByteArray& typeRef);
+        void endTryCatch_();
 
         void add_( bool withOverflow = false, bool withUnsignedOverflow = false );
         void and_();
@@ -178,6 +183,7 @@ namespace Obx
         void ldsflda_(const QByteArray& fieldRef);
         void ldstr_(const QByteArray& utf8);
         void ldvirtftn_(const QByteArray& methodRef);
+        void leave_(quint32 label );
         void localloc_();
         void mul_(bool withOverflow = false, bool withUnsignedOverflow = false);
         void neg_();
@@ -209,6 +215,8 @@ namespace Obx
         bool d_isPublic;
         bool d_isRuntime;
         bool d_isVararg;
+        bool d_inTry;
+        bool d_inCatch;
         quint32 d_labelCount;
         quint16 d_stackDepth;
         quint16 d_maxStackDepth;
@@ -256,7 +264,9 @@ namespace Obx
         IL_stelem_ref, IL_stfld, IL_stind_i, IL_stind_i1, IL_stind_i2, IL_stind_i4, IL_stind_i8, IL_stind_r4,
         IL_stind_r8, IL_stind_ref, IL_stloc, IL_stloc_0, IL_stloc_1, IL_stloc_2, IL_stloc_3, IL_stloc_s,
         IL_stobj, IL_stsfld, IL_sub, IL_sub_ovf, IL_sub_ovf_un, IL_switch, IL_tail_, IL_throw,
-        IL_unaligned_, IL_unbox, IL_unbox_any, IL_volatile_, IL_xor
+        IL_unaligned_, IL_unbox, IL_unbox_any, IL_volatile_, IL_xor,
+
+        IL_try, IL_catch, IL_endTryCatch
     };
 
     class IlAsmRenderer : public IlRenderer

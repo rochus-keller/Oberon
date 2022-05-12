@@ -1,0 +1,54 @@
+module Pcall1
+
+  type Ex = record  end
+  
+  proc Hello()
+  var e:^Ex 
+  begin
+    println("Hello")
+    new(e)
+    throw(e)
+    println("this shall not be printed")
+  end Hello
+
+  proc Hello2(IN str: array of char)
+  begin
+    println(str)
+    throw()
+  end Hello2
+  
+  proc Test(): ^anyrec return nil
+  end
+
+var
+  test: integer
+  res: ^anyrec
+  test2: ^Ex
+  h: proc
+  h2: proc(IN str: array of char)
+begin
+  pcall(res,Hello)
+  with res: Ex do println("exception has occured")
+  else 
+    if res = nil then println("all good")
+    else println("unknown exception")
+    end
+  end
+
+  //new(test2)
+  //throw(test2)
+  //throw()
+  
+  pcall(res, Hello2, "gugus")
+  h := Hello
+  pcall(res,h)
+  h2 := Hello2
+  pcall(res, h2, "asdf")
+  case res of
+  | Ex: println("Ex exception")
+  | anyrec: println("anyrec exception")
+  | nil: println("no exception")
+  else
+    println("unknown exception")
+  end
+end Pcall1

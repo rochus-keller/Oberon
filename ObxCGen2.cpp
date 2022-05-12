@@ -347,7 +347,7 @@ struct ObxCGenImp : public AstVisitor
     QByteArray classRef( Record* r )
     {
         if( r->getBaseType() == Type::ANYREC )
-            return "OBX$Class";
+            return "OBX$Anyrec";
         Named* n = r->findDecl();
         if( n && n->getTag() == Thing::T_NamedType )
             return classRef(n);
@@ -601,7 +601,7 @@ struct ObxCGenImp : public AstVisitor
                         res = name; // pointer to array is equal to array in c
                     }
                 }else if( td && td->getBaseType() == Type::ANYREC )
-                    return "struct OBX$Class*" + ( !name.isEmpty() ? " " + name : "");
+                    return "struct OBX$Anyrec*" + ( !name.isEmpty() ? " " + name : "");
                 // else
                 return formatType( me->d_to.data(), res, true );
             }
@@ -1651,6 +1651,34 @@ struct ObxCGenImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::PCALL:
+            {
+                Q_ASSERT( ae->d_args.size() >= 2 );
+                ArgExpr tmp = *ae;
+                tmp.d_args.pop_front();
+                tmp.d_args.pop_front();
+                tmp.d_sub = ae->d_args[1].data();
+                b << "{ struct OBX$Jump* $j = OBX$PushJump(); ";
+                b << "if( setjmp($j->buf) ) { ";
+                renderArg(0, ae->d_args.first().data(), false);
+                b << " = $j->inst; } else { ";
+                emitCall(&tmp);
+                b << "; } OBX$PopJump(); }";
+            }
+            break;
+        case BuiltIn::THROW:
+            {
+                b << "{ struct OBX$Jump* $j = OBX$TopJump(); assert($j && \"unprotected THROW()\"); $j->inst = ";
+                if( ae->d_args.isEmpty() )
+                    b << "&OBX$defaultException; ";
+                else
+                {
+                    ae->d_args.first()->accept(this);
+                    b << "; ";
+                }
+                b << "longjmp($j->buf,1); }";
+            }
+            break;
         case BuiltIn::LDMOD:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
@@ -3490,9 +3518,13 @@ struct ObxCGenImp : public AstVisitor
                 const CaseStmt::Case& c = me->d_cases[i];
 
                 Q_ASSERT( c.d_labels.size() == 1 );
+                Type* td = derefed(c.d_labels.first()->d_type.data());
 
                 Ref<BinExpr> eq = new BinExpr();
-                eq->d_op = BinExpr::IS;
+                if( td && td->getBaseType() == Type::NIL )
+                    eq->d_op = BinExpr::EQ;
+                else
+                    eq->d_op = BinExpr::IS;
                 eq->d_lhs = me->d_exp;
                 eq->d_rhs = c.d_labels.first();
                 eq->d_loc = me->d_exp->d_loc;

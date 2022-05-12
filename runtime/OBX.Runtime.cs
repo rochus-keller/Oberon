@@ -26,8 +26,15 @@ namespace OBX
 	using System;
 	
 	public delegate void Command();
+	
+	public class Anyrec 
+	{
+	}
+	
 	public class Runtime
 	{
+		public static Anyrec defaultException = new Anyrec();
+
 		public static int DIV( int a, int b )
 		{
 			// source: http://lists.inf.ethz.ch/pipermail/oberon/2019/013353.html
@@ -396,12 +403,29 @@ namespace OBX
 			{
 				cmd.Invoke();
 				return true;
+			}catch( System.Runtime.CompilerServices.RuntimeWrappedException e ) // directly using Anyrec gives a C# compiler error
+			{
+				if( report )
+				{
+					TextWriter errorWriter = Console.Error;
+					errorWriter.WriteLine("THROW() with an object of type " + 
+						e.WrappedException.GetType().ToString() + " was called not protected by PCALL()");
+				}
+				return false;
 			}catch( Exception e )
 			{
 				if( report )
 				{
 					TextWriter errorWriter = Console.Error;
 					errorWriter.WriteLine(e.ToString());
+				}
+				return false;
+			}catch
+			{
+				if( report )
+				{
+					TextWriter errorWriter = Console.Error;
+					errorWriter.WriteLine("unknown exception");
 				}
 				return false;
 			}
@@ -476,7 +500,7 @@ namespace OBX
 				throw new Exception(string.Format("This assembly only works in a {0} bit process", s * 8));
 			}
 		}
-		
+				
 		private static Hashtable staticDelegs = new Hashtable();
 		// TODO public static Delegate
 		

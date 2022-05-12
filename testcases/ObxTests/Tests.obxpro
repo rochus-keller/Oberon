@@ -12,12 +12,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/CompCon3.obx
-1\RelPath=CompCon3.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/CompCon2.obx
-2\RelPath=CompCon2.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/CompCon3.obx
-3\RelPath=CompCon3.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Pcall1.obx
+1\RelPath=Pcall1.obx
 size=1
 
 [Packages]

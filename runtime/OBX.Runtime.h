@@ -29,6 +29,7 @@
 #include <math.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <setjmp.h>
 
 struct OBX$Array$1 { uint32_t $1: 31; uint32_t $s: 1; void* $a; }; // $s..static, 1 if literal or pointer to stack, 0 if allocated with OBX$Alloc
 struct OBX$Array$2 { uint32_t $1; uint32_t $2: 31; uint32_t $s: 1; void* $a; };
@@ -44,6 +45,15 @@ struct OBX$Inst {
 	void* class$;
 };
 
+struct OBX$Anyrec$Class$ {
+    struct OBX$Anyrec$Class$* super$;
+};
+struct OBX$Anyrec$Class$ OBX$Anyrec$class$;
+struct OBX$Anyrec {
+    struct OBX$Anyrec$Class$* class$;
+};
+struct OBX$Anyrec OBX$defaultException;
+
 typedef void (*OBX$NullMeth)(void*);
 
 struct OBX$Deleg {
@@ -53,6 +63,17 @@ struct OBX$Deleg {
 
 typedef void (*OBX$Cmd)(void);
 typedef OBX$Cmd (*OBX$Lookup)(const char* name );
+
+struct OBX$Jump
+{
+	void* inst;
+	jmp_buf buf;
+	struct OBX$Jump* prev;
+};
+
+extern struct OBX$Jump* OBX$PushJump();
+extern struct OBX$Jump* OBX$TopJump();
+extern void OBX$PopJump();
 
 extern void* OBX$ClassOf(void* inst);
 int OBX$IsSubclass( void* superClass, void* subClass );

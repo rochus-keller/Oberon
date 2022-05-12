@@ -23,7 +23,7 @@
 #include <QDateTime>
 using namespace Obx;
 
-IlEmitter::IlEmitter(IlRenderer* r):d_out(r)
+IlEmitter::IlEmitter(IlRenderer* r):d_out(r),d_inTry(false),d_inCatch(false)
 {
     Q_ASSERT( r );
 }
@@ -57,6 +57,8 @@ void IlEmitter::beginMethod(const QByteArray& methodName, bool isPublic, IlEmitt
     d_library.clear();
     d_origName.clear();
     d_isVararg = false;
+    d_inTry = false;
+    d_inCatch = false;
 }
 
 void IlEmitter::endMethod()
@@ -82,6 +84,7 @@ void IlEmitter::endMethod()
     d_locals.clear();
     d_library.clear();
     d_origName.clear();
+    Q_ASSERT( !d_inTry && !d_inCatch );
 }
 
 void IlEmitter::beginClass(const QByteArray& className, bool isPublic, quint8 classKind, const QByteArray& superClassRef, int byteSize)
@@ -152,6 +155,33 @@ void IlEmitter::label_(quint32 label)
 void IlEmitter::line_(const Ob::RowCol& loc)
 {
     d_body.append(IlOperation(IL_line,QByteArray::number(loc.d_row)+":"+QByteArray::number(loc.d_col)) );
+    delta(0);
+}
+
+void IlEmitter::try_()
+{
+    // we only support one level of try/catch here
+    Q_ASSERT( !d_inTry && !d_inCatch );
+    d_body.append(IlOperation(IL_try) );
+    d_inTry = true;
+    delta(0);
+}
+
+void IlEmitter::catch_(const QByteArray& typeRef)
+{
+    Q_ASSERT( d_inTry || d_inCatch );
+    d_body.append(IlOperation(IL_catch,typeRef) );
+    d_inTry = false;
+    d_inCatch = true;
+    delta(0);
+}
+
+void IlEmitter::endTryCatch_()
+{
+    Q_ASSERT( d_inTry || d_inCatch );
+    d_body.append(IlOperation(IL_endTryCatch) );
+    d_inTry = false;
+    d_inCatch = false;
     delta(0);
 }
 
@@ -760,6 +790,13 @@ void IlEmitter::ldvirtftn_(const QByteArray& methodRef)
     delta(-1+1);
 }
 
+void IlEmitter::leave_(quint32 label)
+{
+    Q_ASSERT( !d_method.isEmpty() );
+    d_body.append(IlOperation(IL_leave,label) );
+    delta(0);
+}
+
 void IlEmitter::localloc_()
 {
     Q_ASSERT( !d_method.isEmpty() );
@@ -1241,6 +1278,7 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
         case IL_bge:
         case IL_bge_un:
         case IL_beq:
+        case IL_leave:
             out << ws() << s_opName[op.d_ilop] << " '#" << op.d_arg << "'" << endl;
             break;
         case IL_call:
@@ -1252,6 +1290,19 @@ void IlAsmRenderer::addMethod(const IlMethod& m)
         case IL_callvirt:
         case IL_newobj:
             out << ws() << s_opName[op.d_ilop] << " instance " << op.d_arg << endl;
+            break;
+        case IL_try:
+            out << ws() << ".try {" << endl;
+            level++;
+            break;
+        case IL_catch:
+            level--;
+            out << ws() << "} catch " << op.d_arg << " {" << endl;
+            level++;
+            break;
+        case IL_endTryCatch:
+            level--;
+            out << ws() << "}" << endl;
             break;
         default:
             out << ws() << s_opName[op.d_ilop];

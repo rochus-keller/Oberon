@@ -356,7 +356,7 @@ struct ObxCilGenImp : public AstVisitor
         Q_ASSERT( className && className->getTag() == Thing::T_NamedType );
         Module* m = className->getModule();
         if( m == 0 && className->d_type && className->d_type->derefed()->getBaseType() == Type::ANYREC )
-            return "[mscorlib]System.Object"; // "object" not suitable because "class" is prefixed and
+            return "[OBX.Runtime]OBX.Anyrec";
         else
             return moduleRef(m) + "/" + nestedPath(className); // dotted because also records nested in procs are lifted to module level
     }
@@ -664,7 +664,9 @@ struct ObxCilGenImp : public AstVisitor
 #endif
             className = nestedPath(n); // because of records declared in procedures are lifted to module level
             if( !r->d_base.isNull() )
-                superClassName = formatType(r->d_base.data()); // unsafe rec has no basetype
+                superClassName = formatType(r->d_base.data());
+            else if(!r->d_unsafe) // unsafe rec has no basetype
+                superClassName = "[OBX.Runtime]OBX.Anyrec";
         }
         emitter->beginClass(className, isPublic, r->d_unsafe ? IlEmitter::Value : IlEmitter::Object,
                             superClassName, r->d_unsafe ? r->getByteSize() : -1 );
@@ -692,7 +694,7 @@ struct ObxCilGenImp : public AstVisitor
             }else if( r->d_byValue )
                 what = "void [mscorlib]System.ValueType::.ctor()";
             else
-                what = "void [mscorlib]System.Object::.ctor()";
+                what = "void [OBX.Runtime]OBX.Anyrec::.ctor()";
             line(r->d_loc).call_(what,1,false,true);
 
             // initialize fields of current record
@@ -1121,7 +1123,7 @@ struct ObxCilGenImp : public AstVisitor
                     if( Record* r = td->toRecord() )
                         return formatType(r, unsafe);
                     else
-                        return "[mscorlib]System.Object"; // avoid infinite loop
+                        return "[OBX.Runtime]OBX.Anyrec"; // avoid infinite loop
                 }
 #ifndef _MY_GENERICS_
                 else if( td->getBaseType() == Type::ANY )
@@ -2002,6 +2004,42 @@ struct ObxCilGenImp : public AstVisitor
     {
         switch( bi->d_func )
         {
+        case BuiltIn::PCALL:
+            {
+                Q_ASSERT( ae->d_args.size() >= 2 );
+                ArgExpr tmp = *ae;
+                tmp.d_args.pop_front();
+                tmp.d_args.pop_front();
+                tmp.d_sub = ae->d_args[1].data();
+                const int after = emitter->newLabel();
+                const int res = temps.buy("class [OBX.Runtime]OBX.Anyrec");
+                line(ae->d_loc).try_();
+                emitCall(&tmp);
+                line(ae->d_loc).ldnull_(); // return nil in success case
+                line(ae->d_loc).stloc_(res);
+                line(ae->d_loc).leave_(after);
+                line(ae->d_loc).catch_("class [OBX.Runtime]OBX.Anyrec");
+                line(ae->d_loc).stloc_(res);
+                line(ae->d_loc).leave_(after);
+                line(ae->d_loc).endTryCatch_();
+                line(ae->d_loc).label_(after);
+                emitFetchDesigAddr(ae->d_args[0].data());
+                line(ae->d_loc).ldloc_(res);
+                line(ae->d_loc).stind_(IlEmitter::Ref);
+                temps.sell(res);
+            }
+            break;
+        case BuiltIn::THROW:
+            if( ae->d_args.isEmpty() )
+            {
+                line(ae->d_loc).ldsfld_("class [OBX.Runtime]OBX.Anyrec [OBX.Runtime]OBX.Runtime::defaultException");
+                line(ae->d_loc).throw_();
+            }else
+            {
+                ae->d_args.first()->accept(this);
+                line(ae->d_loc).throw_();
+            }
+            break;
         case BuiltIn::LDMOD:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
@@ -3485,8 +3523,15 @@ struct ObxCilGenImp : public AstVisitor
         if( !me->d_what->d_type.isNull() )
         {
             Type* td = derefed(me->d_what->d_type.data());
-            if(td && td->getTag() == Thing::T_BaseType && td->getBaseType() != Type::NONE )
-                line(me->d_loc).pop_();
+            if(td)
+            {
+                const int tag = td->getTag();
+                // procs with no return still have td of BaseType NONE here
+                // every other type is a true return value
+                if( ( tag == Thing::T_BaseType && td->getBaseType() != Type::NONE ) ||
+                        tag != Thing::T_BaseType )
+                    line(me->d_loc).pop_();
+            }
         }
     }
 
@@ -3852,9 +3897,13 @@ struct ObxCilGenImp : public AstVisitor
                 const CaseStmt::Case& c = me->d_cases[i];
 
                 Q_ASSERT( c.d_labels.size() == 1 );
+                Type* td = derefed(c.d_labels.first()->d_type.data());
 
                 Ref<BinExpr> eq = new BinExpr();
-                eq->d_op = BinExpr::IS;
+                if( td && td->getBaseType() == Type::NIL )
+                    eq->d_op = BinExpr::EQ;
+                else
+                    eq->d_op = BinExpr::IS;
                 eq->d_lhs = me->d_exp;
                 eq->d_rhs = c.d_labels.first();
                 eq->d_loc = me->d_exp->d_loc;
