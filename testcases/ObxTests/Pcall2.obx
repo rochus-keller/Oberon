@@ -1,0 +1,23 @@
+module Pcall2
+  type Exception = record  end
+  proc Print(IN str: array of char)
+  var e: pointer to Exception 
+  begin
+    println(str)
+    new(e)
+    raise(e)
+    println("this is printed")
+  end Print
+var
+  res: pointer to anyrec
+begin
+  pcall(res, Print, "Hello World")
+  case res of
+  | Exception: println("got Exception")
+  | anyrec: println("got anyrec")
+  else
+    println("no or unknown exception")
+  end
+
+
+end Pcall2

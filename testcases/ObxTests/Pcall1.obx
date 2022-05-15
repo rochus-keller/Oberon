@@ -7,14 +7,14 @@ module Pcall1
   begin
     println("Hello")
     new(e)
-    throw(e)
+    raise(e)
     println("this shall not be printed")
   end Hello
 
   proc Hello2(IN str: array of char)
   begin
     println(str)
-    throw()
+    raise()
   end Hello2
   
   proc Test(): ^anyrec return nil
@@ -36,8 +36,8 @@ begin
   end
 
   //new(test2)
-  //throw(test2)
-  //throw()
+  //raise(test2)
+  //raise()
   
   pcall(res, Hello2, "gugus")
   h := Hello

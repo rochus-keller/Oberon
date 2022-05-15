@@ -694,7 +694,7 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting at least two arguments"));
             break;
-        case BuiltIn::THROW:
+        case BuiltIn::RAISE:
             if( args->d_args.size() == 0 )
             {
                 // generates an instance of ANYREC

@@ -1042,7 +1042,7 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::BITS, new ProcType( Type::List() << d_intType.data(), d_setType.data() ) ) );
     Ref<Pointer> anyptr = new Pointer();
     anyptr->d_to = anyrec->d_type.data();
-    d_globals->add( new BuiltIn(BuiltIn::THROW, new ProcType( Type::List() << anyptr.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::RAISE, new ProcType( Type::List() << anyptr.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::PCALL, new ProcType( Type::List() << anyptr.data() << d_anyType.data() ) ) );
 
     // Blackbox

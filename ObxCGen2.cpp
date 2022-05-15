@@ -1666,9 +1666,9 @@ struct ObxCGenImp : public AstVisitor
                 b << "; } OBX$PopJump(); }";
             }
             break;
-        case BuiltIn::THROW:
+        case BuiltIn::RAISE:
             {
-                b << "{ struct OBX$Jump* $j = OBX$TopJump(); assert($j && \"unprotected THROW()\"); $j->inst = ";
+                b << "{ struct OBX$Jump* $j = OBX$TopJump(); assert($j && \"unprotected RAISE()\"); $j->inst = ";
                 if( ae->d_args.isEmpty() )
                     b << "&OBX$defaultException; ";
                 else

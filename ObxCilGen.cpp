@@ -2029,7 +2029,7 @@ struct ObxCilGenImp : public AstVisitor
                 temps.sell(res);
             }
             break;
-        case BuiltIn::THROW:
+        case BuiltIn::RAISE:
             if( ae->d_args.isEmpty() )
             {
                 line(ae->d_loc).ldsfld_("class [OBX.Runtime]OBX.Anyrec [OBX.Runtime]OBX.Runtime::defaultException");
