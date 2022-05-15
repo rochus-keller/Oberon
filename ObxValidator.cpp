@@ -683,10 +683,12 @@ struct ValidatorImp : public AstVisitor
                     ProcType* pt = cast<ProcType*>(t1);
                     if( pt->d_return.isNull() )
                     {
+                        // checkValidRhs(args->d_args[1].data()); // forbids non-local access
                         ArgExpr tmp = *args;
+                        tmp.d_sub = args->d_args[1].data();
                         tmp.d_args.pop_front();
                         tmp.d_args.pop_front();
-                        checkCallArgs(pt,&tmp);
+                        checkCallArgs(pt,&tmp); // PCALL is transparent; this is the actual call
                     }else
                         error( args->d_args[1]->d_loc, Validator::tr("function procedures are not supported by PCALL"));
                 }else // td can be null, e.g. when calling new(ptr) as second argument

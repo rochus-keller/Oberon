@@ -1,23 +1,37 @@
 module Pcall2
-  type Exception = record  end
-  proc Print(IN str: array of char)
-  var e: pointer to Exception 
-  begin
-    println(str)
-    new(e)
-    raise(e)
-    println("this is printed")
-  end Print
-var
-  res: pointer to anyrec
-begin
-  pcall(res, Print, "Hello World")
-  case res of
-  | Exception: println("got Exception")
-  | anyrec: println("got anyrec")
-  else
-    println("no or unknown exception")
-  end
+  
+  proc Sub()
+    type Exception = record  end
+  
+    proc Print(IN str: array of char)
+    var e: pointer to Exception 
+    begin
+      i := 33
+      println(str)
+      new(e)
+      raise(e)
+      println("this should not be printed")
+    end Print
+    
+    var 
+      res: pointer to anyrec
+      i: integer
 
+  begin
+    i := 22
+    pcall(res, Print, "Hello World")
+    case res of
+    | Exception: println("got Exception")
+    | anyrec: println("got anyrec")
+    | nil: println("all ok")
+    else
+      println("unknown exception")
+    end 
+    println(i) // CLR prints 33, C prints 22
+  end Sub
+  
+begin
+
+  Sub();
 
 end Pcall2
