@@ -1241,6 +1241,7 @@ struct ValidatorImp : public AstVisitor
         if( ( tftag == Thing::T_Record || tftag == Thing::T_Array ) && tatag == Thing::T_Pointer )
         {
             // BBOX does implicit deref of actual pointer when passing to a formal record or array parameter
+            // applies also if ta or tf is unsafe
             Ref<UnExpr> arg = new UnExpr(UnExpr::DEREF, actual.data() );
             arg->d_loc = actual->d_loc;
             Pointer* p = cast<Pointer*>(ta);
@@ -1331,7 +1332,15 @@ struct ValidatorImp : public AstVisitor
             }else
                 checkValidLhs(actual.data());
         }
-
+        if( formal->d_var && !formal->d_unsafe && ta->d_unsafe && ta->isStructured() )
+        {
+            error( actual->d_loc, Validator::tr("cannot pass this expression to a VAR or IN parameter") );
+            return;
+        }else if( !formal->d_var && af && !formal->d_unsafe && ta->d_unsafe )
+        {
+            error( actual->d_loc, Validator::tr("cannot pass this expression to an ARRAY parameter") );
+            return;
+        }
         const QString var = formal->d_var ? formal->d_const ? "IN " : "VAR " : "";
 
         checkValidRhs(actual.data());

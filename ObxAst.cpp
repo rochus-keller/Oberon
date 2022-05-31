@@ -1489,6 +1489,25 @@ Record*Type::toRecord(bool* isPtr) const
         return 0;
 }
 
+Array*Type::toArray(bool* isPtr) const
+{
+    if( isPtr )
+        *isPtr = false;
+    Type* t = const_cast<Type*>(this)->derefed();
+    if( t && t->getTag() == Thing::T_Pointer )
+    {
+        if( isPtr )
+            *isPtr = true;
+        t = cast<Pointer*>(t)->d_to.data();
+    }
+    if( t )
+        t = t->derefed();
+    if( t && t->getTag() == Thing::T_Array )
+        return cast<Array*>(t);
+    else
+        return 0;
+}
+
 Module*Type::declaredIn()
 {
     Named* n = findDecl(true);

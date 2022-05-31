@@ -194,6 +194,22 @@ namespace OBX
 			// TEST System.Console.WriteLine("strlen no terminating zero");
 			return len;
 		}
+	    public static int strlen( IntPtr rhs, bool wide )
+		{
+			int i = 0; 
+			while( true )
+			{
+				uint ch;
+				if( wide )
+					ch = (ushort)Marshal.ReadInt16(rhs, i * 2);
+				else
+					ch = Marshal.ReadByte(rhs, i);
+				if( ch == 0 )
+					break;
+				i++;
+			}
+			return i;
+		}
 		public static char[] join( char[] lhs, char[] rhs )
 		{
 			int lhslen = strlen(lhs);

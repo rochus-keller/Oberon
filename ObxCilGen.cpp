@@ -2000,6 +2000,23 @@ struct ObxCilGenImp : public AstVisitor
         }
     }
 
+    void emitStrlen(Type* t, const RowCol& loc)
+    {
+        t = derefed(t);
+        Q_ASSERT(t);
+        bool wide;
+        if( t->isText(&wide,true) )
+        {
+            if( t->d_unsafe )
+            {
+                line(loc).ldc_i4(wide);
+                line(loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(native int,bool)",2,true);
+            }else
+                line(loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
+        }else
+            Q_ASSERT(false);
+    }
+
     void emitBuiltIn( BuiltIn* bi, ArgExpr* ae )
     {
         switch( bi->d_func )
@@ -2295,13 +2312,8 @@ struct ObxCilGenImp : public AstVisitor
         case BuiltIn::STRLEN:
             {
                 Q_ASSERT( !ae->d_args.isEmpty() );
-                Type* t = derefed(ae->d_args.first()->d_type.data() );
-                bool wide;
-                if( t->isText(&wide) )
-                {
-                    ae->d_args.first()->accept(this);
-                    line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::strlen(char[])",1,true);
-                }
+                ae->d_args.first()->accept(this);
+                emitStrlen(ae->d_args.first()->d_type.data(),ae->d_args.first()->d_loc);
             }
             break;
         case BuiltIn::NEW:
@@ -2854,15 +2866,15 @@ struct ObxCilGenImp : public AstVisitor
             Parameter* p = pt->d_formals[i].data();
             Type* tf = derefed(p->d_type.data());
             Q_ASSERT( tf != 0 );
+            Type* ta = derefed(me->d_args[i]->d_type.data());
+            Q_ASSERT( ta != 0 );
 
-            const int tag = tf->getTag();
+            const int ftag = tf->getTag();
             if( requiresRefOp(p) )
             {
-                if( tag == Thing::T_Array )
+                if( ftag == Thing::T_Array )
                 {
                     Array* la = cast<Array*>(tf);
-                    Type* ta = derefed(me->d_args[i]->d_type.data());
-                    Q_ASSERT( ta != 0 );
                     Type* rat = ta->getTag() == Thing::T_Array ? derefed(cast<Array*>(ta)->d_type.data()) : 0;
                     if( derefed(la->d_type.data())->getBaseType() == Type::BYTE &&
                             ( rat == 0 || rat->getBaseType() != Type::BYTE ) )
@@ -2872,7 +2884,7 @@ struct ObxCilGenImp : public AstVisitor
                         continue;
                     }
                 }
-                if( !( tag == Thing::T_Record && tf->d_unsafe ) ) // check if we already have an address
+                if( !( ftag == Thing::T_Record && tf->d_unsafe ) ) // check if we already have an address
                     emitFetchDesigAddr(me->d_args[i].data());
             }else
             {
@@ -2883,7 +2895,7 @@ struct ObxCilGenImp : public AstVisitor
                 me->d_args[i]->accept(this);
                 prepareRhs( tf, me->d_args[i].data(), me->d_args[i]->d_loc );
 
-                if( pt->d_unsafe && tag == Thing::T_Pointer && tf->d_unsafe )
+                if( pt->d_unsafe && ftag == Thing::T_Pointer && tf->d_unsafe )
                     preparePinnedArray(me->d_args[i]->d_type.data(),me->d_args[i]->d_loc);
             }
         }
