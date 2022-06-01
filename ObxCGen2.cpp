@@ -797,7 +797,7 @@ struct ObxCGenImp : public AstVisitor
         level--;
         b << "};" << endl << endl;
         h << "};" << endl;
-        h << "struct " << className << "$Class$ " << className << "$class$;" << endl << endl;
+        h << "extern struct " << className << "$Class$ " << className << "$class$;" << endl << endl;
     }
 
     void visit( Module* me)
@@ -901,7 +901,7 @@ struct ObxCGenImp : public AstVisitor
         foreach( Record* r, co.allRecords )
             emitClassDecl(r);
 
-        h << "void " << moduleName << "$init$(void);" << endl;
+        h << "extern void " << moduleName << "$init$(void);" << endl;
         b << "static int initDone$ = 0;" << endl;
         b << "void " << moduleName << "$init$(void) {" << endl;
 
@@ -1004,7 +1004,7 @@ struct ObxCGenImp : public AstVisitor
 
         b << "}" << endl;
 
-        h << "OBX$Cmd " << moduleName << "$cmd$(const char* name);" << endl;
+        h << "extern OBX$Cmd " << moduleName << "$cmd$(const char* name);" << endl;
         b << "OBX$Cmd " << moduleName << "$cmd$(const char* name) {" << endl;
         level++;
         b << ws() << "if( name == 0 ) return " << moduleName << "$init$;" << endl;

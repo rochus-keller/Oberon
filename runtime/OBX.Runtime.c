@@ -843,6 +843,7 @@ struct OBX$Jump* OBX$PushJump()
 	else
 		j->prev = 0;
 	jumpStack = j;
+	return j;
 }
 
 struct OBX$Jump* OBX$TopJump()

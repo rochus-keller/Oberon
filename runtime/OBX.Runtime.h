@@ -48,11 +48,11 @@ struct OBX$Inst {
 struct OBX$Anyrec$Class$ {
     struct OBX$Anyrec$Class$* super$;
 };
-struct OBX$Anyrec$Class$ OBX$Anyrec$class$;
+extern struct OBX$Anyrec$Class$ OBX$Anyrec$class$;
 struct OBX$Anyrec {
     struct OBX$Anyrec$Class$* class$;
 };
-struct OBX$Anyrec OBX$defaultException;
+extern struct OBX$Anyrec OBX$defaultException;
 
 typedef void (*OBX$NullMeth)(void*);
 
