@@ -4,6 +4,9 @@ type
 	A = record i,j: integer end
 	B = record (A) str: array 10 of char end
 	C = record (A) flag: boolean end
+	PA = pointer to A
+	PB = pointer to B
+	PC = pointer to C
 
 var
 	a: pointer to A
@@ -15,9 +18,9 @@ begin
 	new(b)
 	a := b
 
-	assert(a is A)
-	assert(a is B)
-	assert(~(a is C))
+	assert(a is PA)
+	assert(a is PB)
+	assert(~(a is PC))
 
 	println("end Record1")
 end Record1

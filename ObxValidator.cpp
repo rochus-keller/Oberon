@@ -305,6 +305,7 @@ struct ValidatorImp : public AstVisitor
             me->d_super->d_subs.append(me);
             if( !matchingFormalParamLists( me->d_super->getProcType(), me->getProcType()
                                #ifdef OBX_BBOX
+                                           // NOTE: this is no longer official Oberon+
                                            , true
                                #endif
                                            ) )
@@ -1821,6 +1822,21 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
+    bool samePointerness(Type* lhs, Type* rhs )
+    {
+        lhs = derefed(lhs);
+        rhs = derefed(rhs);
+        if( lhs == 0 || rhs == 0 )
+            return true;
+        const int ltag = lhs->getTag();
+        const int rtag = rhs->getTag();
+        if( ( ltag == Thing::T_Pointer && rtag == Thing::T_Pointer ) ||
+                ( ltag == Thing::T_Record && rtag == Thing::T_Record ) )
+            return true;
+        else
+            return false;
+    }
+
     void visit( BinExpr* me )
     {
         if( me->d_lhs.isNull() || me->d_rhs.isNull() )
@@ -1937,8 +1953,9 @@ struct ValidatorImp : public AstVisitor
                     error( me->d_lhs->d_loc, Validator::tr("left side is neither a VAR parameter nor a pointer to record") );
                 else if( !typeExtension( lhsT , rhsT ) )
                     error( me->d_loc, Validator::tr("the type on the right side is not an extension of the static type of the left side") );
-                else
-                    me->d_type = bt.d_boolType;
+                else if( !samePointerness(lhsT,rhsT) )
+                    error(me->d_loc, Validator::tr("left and right side must bei either of record or pointer to record type") );
+                me->d_type = bt.d_boolType;
             }
             break;
 
@@ -2343,6 +2360,7 @@ struct ValidatorImp : public AstVisitor
                     // BBOX supports covariance also for record fields; a field with a pointer type of a superclass can be
                     // redefined in a  subclass if the field type of the super class is an extension of the field type of
                     // the subclass; this is an undocumented BBOX feature.
+                    // NOTE: this is no longer official Oberon+
                     Field* ff = cast<Field*>(found);
                     Type* super = derefed(ff->d_type.data());
                     Type* sub = derefed(f->d_type.data());
@@ -2592,7 +2610,10 @@ struct ValidatorImp : public AstVisitor
                             !( tag == Thing::T_Variable || tag == Thing::T_LocalVar ||
                                tag == Thing::T_Parameter || tag == Thing::T_Field ) )
                         error( me->d_if.first()->d_loc,
-                               Validator::tr("guard must be a VAR parameter of record type or a pointer variable") );
+                          Validator::tr("guard must be a VAR parameter of record type or a pointer variable") );
+                    else if( !samePointerness(lhsT,rhsT) || rhsT->toRecord() == 0 )
+                        error( me->d_if.first()->d_loc,
+                          Validator::tr("the variable and the test type must bei either of record or pointer to record type") );
                 } // else error already reported
             }
 
@@ -3060,7 +3081,11 @@ struct ValidatorImp : public AstVisitor
                     error( c.d_labels.first()->d_loc, Validator::tr("case label must be a subtype of the case variable in a type case statement"));
                     continue;
                 }else
+                {
                     caseId->d_type = c.d_labels.first()->getIdent()->d_type;
+                    if( !samePointerness(me->d_exp->d_type.data(),c.d_labels.first()->d_type.data()) )
+                        error(c.d_labels.first()->d_loc, Validator::tr("both the case variable and the case label must bei either of record or pointer to record type") );
+                }
             }else
             {
                 qSort( ranges );

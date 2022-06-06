@@ -183,9 +183,9 @@ MODULE T5Statements;
 		ASSERT(y IS Rectangle);
 		NEW(r);
 		s := r;
-		ASSERT(s IS RectangleDesc);
+		ASSERT(s IS Rectangle);
 		r1 := r;
-		ASSERT(r1 IS RectangleDesc)
+		ASSERT(r1 IS Rectangle)
 	END TestPointerAssignments;
 
 
