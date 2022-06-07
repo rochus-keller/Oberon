@@ -146,6 +146,7 @@ namespace Obx
         void onRemoveFile();
         void onRemoveDir();
         void onEnableDebug();
+        void onOvflChecks();
         void onBreak();
         void handleGoBack();
         void handleGoForward();
@@ -202,6 +203,7 @@ namespace Obx
         bool d_filesDirty;
         bool d_pushBackLock;
         bool d_debugging;
+        bool d_ovflCheck;
         bool d_suspended; // we are in debugger but code is suspended
         bool d_breakOnExceptions;
         quint32 d_curThread;

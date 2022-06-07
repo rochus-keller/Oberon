@@ -378,7 +378,7 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
-      d_lock2(false),d_lock3(false),d_lock4(false),d_debugging(false),d_mode(LineMode),
+      d_lock2(false),d_lock3(false),d_lock4(false),d_debugging(false),d_ovflCheck(true),d_mode(LineMode),
       d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_status(Idle),d_breakOnExceptions(false)
 {
     s_this = this;
@@ -811,11 +811,12 @@ void Ide::createMenuBar()
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
-    pop->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
+    pop->addCommand( "Enable debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
+    pop->addCommand( "Generate overflow checks", this, SLOT(onOvflChecks()) );
     pop->addCommand( "Bytecode mode", this, SLOT(onByteMode()) );
-    pop->addCommand( "Row/Column mode", this, SLOT(onRowColMode()) );
+    pop->addCommand( "Row/column mode", this, SLOT(onRowColMode()) );
     pop->addSeparator();
-    pop->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
+    pop->addCommand( "Toggle breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     pop->addCommand( "Remove all breakpoints", this, SLOT(onRemoveAllBreakpoints()));
     pop->addCommand( "Break on (all) exceptions", this, SLOT(onBreakOnExceptions()));
     pop->addSeparator();
@@ -1020,7 +1021,7 @@ void Ide::onExportIl()
 
     if( !compile(false) ) // otherwise allocated flag is already set after one generator run
         return;
-    if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging, dirPath ) )
+    if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging && d_ovflCheck, dirPath ) )
         QMessageBox::critical(this,tr("Save IL"),tr("There was an error when generating IL; "
                                                     "see Output window for more information"));
 }
@@ -1641,6 +1642,13 @@ void Ide::onEnableDebug()
     d_debugging = !d_debugging;
 }
 
+void Ide::onOvflChecks()
+{
+    CHECKED_IF( d_status == Idle, d_ovflCheck );
+
+    d_ovflCheck = !d_ovflCheck;
+}
+
 void Ide::onBreak()
 {
     //ENABLED_IF(!d_suspended && d_mode == Running && d_debugging);
@@ -1781,7 +1789,7 @@ bool Ide::generate()
 
     const QTime start = QTime::currentTime();
     d_status = Generating;
-    const bool ok = CilGen::translateAll(d_pro, how, d_debugging, buildPath );
+    const bool ok = CilGen::translateAll(d_pro, how, d_debugging && d_ovflCheck, buildPath );
     qDebug() << "generated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 
     if( ok && how == CilGen::Fastasm )
@@ -2041,8 +2049,9 @@ void Ide::addDebugMenu(Gui::AutoMenu* pop)
 {
     Gui::AutoMenu* sub = new Gui::AutoMenu(tr("Debugger"), this, false );
     pop->addMenu(sub);
-    sub->addCommand( "Enable Debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
-    sub->addCommand( "Toggle Breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
+    sub->addCommand( "Enable debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
+    sub->addCommand( "Generate overflow checks", this, SLOT(onOvflChecks()) );
+    sub->addCommand( "Toggle breakpoint", this, SLOT(onToggleBreakPt()), tr(OBN_TOGBP_SC), false);
     sub->addCommand( "Remove all breakpoints", this, SLOT(onRemoveAllBreakpoints()));
     sub->addCommand( "Step in", this, SLOT(onStepIn()), tr(OBN_STEPIN_SC), false);
     sub->addCommand( "Step over", this, SLOT(onStepOver()), tr(OBN_STEPOVER_SC), false);
@@ -2395,7 +2404,7 @@ void Ide::fillLocals()
                     item->setText(0, tr("<param %1>").arg(i));
                 setValue(item, params[i], d_dbg);
             }
-        }else
+        }else if( !params.isEmpty() )
         {
             QTreeWidgetItem* item = new QTreeWidgetItem(d_localsView);
             item->setText(0, "<this>" );
@@ -3378,7 +3387,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.75");
+    a.setApplicationVersion("0.9.76");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

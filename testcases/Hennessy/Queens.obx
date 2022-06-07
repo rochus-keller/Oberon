@@ -39,7 +39,7 @@ module Queens
             c: array 15 of boolean
             x: array 9 of integer
     begin 
-        i := 0 - 7
+        i := -7
         while i <= 16 do 
             if (i >= 1) & (i <= 8) then
                 a[i] := true 

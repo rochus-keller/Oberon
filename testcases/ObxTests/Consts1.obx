@@ -16,7 +16,7 @@ begin
 	println(c)
 	println(d)
 	println(max(integer))
-	println(max(integer)+1)
+	println(max(integer)+1l)
 	println(long(max(integer))+1)
 	println(i)
 	println(max(longint))

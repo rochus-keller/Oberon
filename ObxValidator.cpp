@@ -2930,11 +2930,13 @@ struct ValidatorImp : public AstVisitor
         if( !me->d_from.isNull() )
         {
             me->d_from->accept(this);
-            Type* td = derefed(me->d_from->d_type.data());
-            if( td && td->getTag() == Thing::T_Enumeration )
-                enumType = td;
-            if( td == 0 || !( isInteger(td) || enumType ) )
+            Type* tr = derefed(me->d_from->d_type.data());
+            if( tr && tr->getTag() == Thing::T_Enumeration )
+                enumType = tr;
+            if( tr == 0 || !( isInteger(tr) || enumType ) )
                 error( me->d_from->d_loc, Validator::tr("expecting an integer or enumeration as start value of the for loop"));
+            else if( !assignmentCompatible(me->d_id->d_type.data(),me->d_from.data()) )
+                error( me->d_from->d_loc, Validator::tr("start value is not assignment compatible with index variable"));
         }
         if( !me->d_to.isNull() )
         {
@@ -2944,6 +2946,8 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_to->d_loc, Validator::tr("must be of the same enumeration type as the start value"));
             else if( td == 0 || !( isInteger(td) || enumType ) )
                 error( me->d_to->d_loc, Validator::tr("expecting an integer or enumeration as end value of the for loop"));
+            else if( !assignmentCompatible(me->d_id->d_type.data(),me->d_to.data()) )
+                error( me->d_from->d_loc, Validator::tr("end value is not compatible with index variable"));
         }
         if( !me->d_by.isNull() )
         {

@@ -69,9 +69,11 @@ type
             if val > 0 then
                 n_val := val mod 255
                 if val < bitshr(i_ITERATIONS,1 ) then
-                    val := G.color_rgb(bitshl(n_val,2), bitshl(n_val,3), bitshl(n_val, 4))
+                    val := G.color_rgb(bitand(bitshl(n_val,2),0ffh), 
+                      bitand(bitshl(n_val,3),0ffh), bitand(bitshl(n_val, 4),0ffh))
                 else
-                    val := G.color_rgb(bitshl(n_val,4), bitshl(n_val, 2), bitshl(n_val, 5))
+                    val := G.color_rgb(bitand(bitshl(n_val,4),0ffh), 
+                      bitand(bitshl(n_val, 2),0ffh), bitand(bitshl(n_val, 5),0ffh))
                 end
             else
                 val := G.kCOLOR_BLACK

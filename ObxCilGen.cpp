@@ -3568,6 +3568,8 @@ struct ObxCilGenImp : public AstVisitor
         // WHILE i <= to DO statements; i := i + by END
         // WHILE i >= to DO statements; i := i + by END
 
+        // TODO: caclulate TO only once!
+
         Ref<Assign> a = new Assign();
         a->d_loc = me->d_loc;
         a->d_lhs = me->d_id;
@@ -3596,7 +3598,7 @@ struct ObxCilGenImp : public AstVisitor
         add->d_op = BinExpr::ADD;
         add->d_lhs = me->d_id;
         add->d_rhs = me->d_by;
-        add->d_type = me->d_by->d_type;
+        add->d_type = me->d_id->d_type;
 
         Ref<Assign> a2 = new Assign();
         a2->d_loc = me->d_loc;

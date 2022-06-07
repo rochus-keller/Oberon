@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2022-06-06");
+    a.setApplicationVersion("2022-06-07");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
             out << "  -out=path     path where to save generated files" << endl;
             out << "  -set:ident    set the variable named by ident to TRUE" << endl;
             out << "  -asm          generate IL assembler (binary assemblies otherwise)" << endl;
-            out << "  -debug        generate debug information" << endl;
+            out << "  -debug        generate debug information and overflow checks (CIL only)" << endl;
             out << "  -build        run the generated build.sh script (Linux only)" << endl;
             out << "  -run          run the generated run.sh script (Linux only)" << endl;
             out << "  -c            generate C code (CIL otherwise)" << endl;
