@@ -738,6 +738,9 @@ OBX$Cmd OBX$LoadCmd(const char* module, const char* command)
 		return 0;
 }
 
+// https://stackoverflow.com/questions/383973/is-args0-guaranteed-to-be-the-path-of-execution
+// https://stackoverflow.com/questions/1023306/finding-current-executables-path-without-proc-self-exe
+// https://stackoverflow.com/questions/933850/how-do-i-find-the-location-of-the-executable-in-c
 #ifdef _WIN32
 #include <windows.h>
 void getCurPath(char *buf, size_t size)

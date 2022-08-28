@@ -1966,6 +1966,14 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
                 b.buffer() = Lexer::readV4Text(&in);
                 b.open(QIODevice::ReadOnly);
                 edit->loadFromFile(&b, filePath);
+            }else if( Lexer::skipOberonHeader( &in ) )
+            {
+                QBuffer b;
+                b.buffer() = in.readAll();
+                b.buffer().replace( '\r', '\n' );
+                b.buffer().replace( 0x00, 0x20 );
+                b.open(QIODevice::ReadOnly);
+                edit->loadFromFile(&b, filePath);
             }else
                 edit->loadFromFile(&in, filePath);
         }else
@@ -3387,7 +3395,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.76");
+    a.setApplicationVersion("0.9.77");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

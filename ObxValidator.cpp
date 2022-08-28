@@ -1025,9 +1025,13 @@ struct ValidatorImp : public AstVisitor
                 error( args->d_loc, Validator::tr("expecting two arguments"));
             else
             {
-                if( toCharArray( args->d_args.last()->d_type.data(), false ) == 0 ||
-                    !assignmentCompatible( args->d_args.last()->d_type.data(), args->d_args.first().data() ) )
+                if( toCharArray( derefed(args->d_args.last()->d_type.data()), false ) == 0 )
                     error( args->d_loc, Validator::tr("incompatible arguments"));
+                Assign assig;
+                assig.d_loc = args->d_loc;
+                assig.d_lhs = args->d_args.last();
+                assig.d_lhs = args->d_args.first();
+                visit(&assig);
             }
             break;
         case BuiltIn::CAST:

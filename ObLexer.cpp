@@ -71,6 +71,7 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
             QBuffer* b = new QBuffer( parent );
             b->buffer() = d_in->readAll();
             b->buffer().replace( '\r', '\n' );
+            b->buffer().replace( 0x00, 0x20 );
             b->open(QIODevice::ReadOnly);
             d_in = b;
         }else
@@ -546,30 +547,6 @@ void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
     }
 }
 
-static inline bool versionMatch( const quint8* raw )
-{
-    return ( raw[0] == 0xf0 && raw[1] == 0x01 ) ||
-            ( raw[0] == 0x01 && raw[1] == 0xf0 ) ||
-
-            ( raw[0] == 0xf0 && raw[1] == 0x00 ) ||
-            ( raw[0] == 0x00 && raw[1] == 0xf0 ) ;
-}
-
-bool Lexer::skipOberonHeader(QIODevice* in)
-{
-    Q_ASSERT( in != 0 );
-    const QByteArray buf = in->peek(6);
-    const quint8* raw = (const quint8*)buf.constData();
-    if( buf.size() >= 2 && versionMatch(raw) )
-    {
-        // get rid of Oberon file header
-        const quint32 len = raw[2] + ( raw[3] << 8 ) + ( raw[4] << 16 ) + ( raw[5] << 24 );
-        in->read(len);
-        return true;
-    }else
-        return false;
-}
-
 static quint32 readUInt32(QIODevice* in)
 {
     const QByteArray buf = in->read(4);
@@ -602,6 +579,62 @@ static QByteArray readString(QIODevice* in)
         res += ch;
     }
     return res;
+}
+
+// Note: -4095 in S4.Texts corresponds to 0xf0 0x01
+//          S3.Texts: OldTextBlockId = 1X; OldTextSpex = 0F0X;
+// Oberon System 3 uses 0xf7 0x07
+//          S3.Texts: TextBlockId := 0F0X, DocBlockId := 0F7X, TextSpex := 1X
+// Oberon System 2 uses 0x01 0xf0 (which is the inverse of the later System 4)
+static inline bool isV2File( const quint8* raw )
+{
+    return  ( raw[0] == 0xf0 && raw[1] == 0x00 ) ||
+            ( raw[0] == 0x00 && raw[1] == 0xf0 ) ||
+            ( raw[0] == 0x01 && raw[1] == 0xf0 ) ;
+}
+
+bool Lexer::skipOberonHeader(QIODevice* in)
+{
+    Q_ASSERT( in != 0 );
+    QByteArray buf = in->peek(2);
+    const quint8* raw = (const quint8*)buf.constData();
+    if( buf.size() == 2 && isV2File(raw) )
+    {
+        in->read(2);
+        // get rid of Oberon file header
+        const quint32 len = readUInt32(in);
+        in->read(len - 6);
+        return true;
+    }else if( buf.size() == 2 && quint8(buf[0]) == 0xf7 ) // V3File
+    {
+        // NOTE: this works quite good, but leaves some clutter in times
+        in->read(2); // second char not used
+        readString(in); // not used
+        in->read(4 * 2); // 16-bit ints x, y, w, h, not used
+
+        quint8 ch = readUInt8(in);
+        if( ch == 0xf7 ) // skip meta info
+        {
+            ch == readUInt8(in);
+            if( ch == 0x08 )
+            {
+                const quint32 len = readUInt32(in);
+                in->read(len);
+                ch == readUInt8(in);
+            }
+        }
+        if( ch == 0xf0 || ch == 0x01 )
+        {
+            const quint32 pos = in->pos();
+            const quint8 type = readUInt8(in);
+            const quint32 hlen = readUInt32(in);
+            in->read(hlen-5);
+            in->seek(pos-1+hlen-4);
+            const quint32 tlen = readUInt32(in);
+        }
+        return true;
+    }else
+        return false;
 }
 
 struct V4TextRun

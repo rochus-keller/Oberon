@@ -32,6 +32,10 @@ using namespace Ob;
 
 Q_DECLARE_METATYPE( Ob::CodeModel::Set )
 
+#if defined(OB_OBNX)
+#error "OB_OBNX is not supported yet"
+#endif
+
 static inline const CodeModel::Type* derefed( const CodeModel::Type* t )
 {
     return ( t != 0 ? t->deref() : 0 );

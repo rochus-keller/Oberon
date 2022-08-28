@@ -65,10 +65,10 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_WithStatement: return "WithStatement";
 		case R_assignment_: return "assignment";
 		case R_assignmentOrProcedureCall: return "assignmentOrProcedureCall";
-		case R_command_: return "command";
 		case R_comment_: return "comment";
 		case R_definition: return "definition";
 		case R_designator: return "designator";
+		case R_directive_: return "directive";
 		case R_element: return "element";
 		case R_enumeration: return "enumeration";
 		case R_expression: return "expression";
