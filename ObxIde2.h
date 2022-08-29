@@ -174,6 +174,7 @@ namespace Obx
         void onRowColMode();
         void onSetInputFile();
         void onSetOptions();
+        void onSetInt16();
     private:
         class DocTab;
         DocTab* d_tab;

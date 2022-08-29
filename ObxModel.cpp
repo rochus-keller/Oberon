@@ -416,7 +416,7 @@ struct Model::CrossReferencer : public AstVisitor
 
 };
 
-Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
+Model::Model(QObject *parent) : QObject(parent),d_fillXref(false),d_int16(false)
 {
     d_errs = new Errors(this);
     d_fc = new FileCache(this);
@@ -428,9 +428,10 @@ Model::Model(QObject *parent) : QObject(parent),d_fillXref(false)
     d_charType = new BaseType(BaseType::CHAR);
     d_wcharType = new BaseType(BaseType::WCHAR);
     d_byteType = new BaseType(BaseType::BYTE);
-    d_intType = new BaseType(BaseType::INTEGER);
-    d_shortType = new BaseType(BaseType::SHORTINT);
-    d_longType = new BaseType(BaseType::LONGINT);
+    d_intType = new BaseType(BaseType::INT32);
+    d_int8Type = new BaseType(BaseType::INT8);
+    d_shortType = new BaseType(BaseType::INT16);
+    d_longType = new BaseType(BaseType::INT64);
     d_realType = new BaseType(BaseType::REAL);
     d_longrealType = new BaseType(BaseType::LONGREAL);
     d_setType = new BaseType(BaseType::SET);
@@ -514,6 +515,7 @@ bool Model::parseFiles(const PackageList& files)
     bt.d_charType = d_charType.data();
     bt.d_byteType = d_byteType.data();
     bt.d_intType = d_intType.data();
+    bt.d_int8Type = d_int8Type.data();
     bt.d_shortType = d_shortType.data();
     bt.d_longType = d_longType.data();
     bt.d_realType = d_realType.data();
@@ -798,6 +800,22 @@ void Model::addPreload(const QByteArray& name, const QByteArray& source)
     d_fc->addFile( name, source, true );
 }
 
+void Model::setInt16(bool on)
+{
+    d_int16 = on;
+    if( on )
+    {
+        d_integer->d_type = d_shortType.data();
+        d_shortint->d_type = d_int8Type.data();
+        d_longint->d_type = d_intType.data();
+    }else
+    {
+        d_integer->d_type = d_intType.data();
+        d_shortint->d_type = d_shortType.data();
+        d_longint->d_type = d_longType.data();
+    }
+}
+
 static inline bool match( const MetaActuals& lhs, const MetaActuals& rhs )
 {
     if( lhs.size() != rhs.size() )
@@ -866,13 +884,31 @@ void Model::fillGlobals()
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_boolType->d_baseType]),d_boolType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_charType->d_baseType]),d_charType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_wcharType->d_baseType]),d_wcharType.data() ) );
-    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_baseType]),d_intType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_realType->d_baseType]),d_realType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_setType->d_baseType]),d_setType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_nilType->d_baseType]),d_nilType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longType->d_baseType]),d_longType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_shortType->d_baseType]),d_shortType.data() ) );
     d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longrealType->d_baseType]),d_longrealType.data() ) );
+
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_int8Type->d_baseType]),d_int8Type.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_intType->d_baseType]),d_intType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_shortType->d_baseType]),d_shortType.data() ) );
+    d_globals->add( new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_longType->d_baseType]),d_longType.data() ) );
+
+    d_shortint = new NamedType();
+    d_shortint->d_name = Lexer::getSymbol("SHORTINT");
+    d_shortint->d_type = d_shortType.data(); Q_ASSERT(d_shortType->d_decl);
+    d_longint = new NamedType();
+    d_longint->d_name = Lexer::getSymbol("LONGINT");
+    d_longint->d_type = d_longType.data();
+    d_integer = new NamedType();
+    d_integer->d_name = Lexer::getSymbol("INTEGER");
+    d_integer->d_type = d_intType.data();
+    d_globals->add( d_shortint.data() );
+    d_globals->add( d_integer.data() );
+    d_globals->add( d_longint.data() );
+
 
     Ref<NamedType> byteType = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_byteType->d_baseType]),d_byteType.data() );
     d_globals->add( byteType.data() );

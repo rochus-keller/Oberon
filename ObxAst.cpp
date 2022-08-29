@@ -36,7 +36,7 @@ const char* Thing::s_tagName[] =
 const char* BaseType::s_typeName[] =
 {
     "NONE", "ANY", "ANYREC", "VOID", "NIL", "#BYTEARRAY", "#STRING", "#WSTRING", "BOOLEAN", "CHAR", "WCHAR", "BYTE",
-    "SHORTINT", "INTEGER", "LONGINT", "REAL", "LONGREAL", "SET", "#ENUMINT"
+    "INT8", "INT16", "INT32", "INT64", "REAL", "LONGREAL", "SET", "#ENUMINT"
 };
 
 const char* BuiltIn::s_typeName[] =
@@ -585,6 +585,7 @@ QByteArrayList BuiltIn::getValidNames()
             continue;
         res.append(s_typeName[i]);
     }
+    res << "INTEGER" << "LONGINT" << "SHORTINT";
     return res;
 }
 
@@ -991,7 +992,7 @@ quint32 Record::getByteSize() const
             const int alig = t->getAlignment();
             if( alig > maxAlig )
                 maxAlig = alig;
-            if( i != 0 )
+            if( i != 0 && alig )
             {
                 // https://en.wikipedia.org/wiki/Data_structure_alignment#Computing_padding
                 const int padding = (alig - (off % alig)) % alig;
@@ -1312,11 +1313,13 @@ QVariant BaseType::maxVal(quint8 baseType)
         return std::numeric_limits<quint8>::max();
     case SET:
         return 31;
-    case SHORTINT:
+    case INT8:
+        return std::numeric_limits<qint8>::max();
+    case INT16:
         return std::numeric_limits<qint16>::max();
-    case INTEGER:
+    case INT32:
         return std::numeric_limits<qint32>::max();
-    case LONGINT:
+    case INT64:
         return std::numeric_limits<qint64>::max();
     case REAL:
         return std::numeric_limits<float>::max();
@@ -1337,11 +1340,13 @@ QVariant BaseType::minVal(quint8 baseType)
     case BYTE:
     case SET:
         return 0;
-    case SHORTINT:
+    case INT8:
+        return std::numeric_limits<qint8>::min();
+    case INT16:
         return std::numeric_limits<qint16>::min();
-    case INTEGER:
+    case INT32:
         return std::numeric_limits<qint32>::min();
-    case LONGINT:
+    case INT64:
         return std::numeric_limits<qint64>::min();
     case REAL:
         return std::numeric_limits<float>::min();
@@ -1358,16 +1363,17 @@ quint32 BaseType::getByteSize() const
     case BOOLEAN:
     case CHAR:
     case BYTE:
+    case INT8:
         return 1;
     case WCHAR:
-    case SHORTINT:
+    case INT16:
         return 2;
     case SET:
-    case INTEGER:
+    case INT32:
     case REAL:
     case ENUMINT:
         return 4;
-    case LONGINT:
+    case INT64:
     case LONGREAL:
         return 8;
     }

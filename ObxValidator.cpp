@@ -543,7 +543,7 @@ struct ValidatorImp : public AstVisitor
 
     inline bool isBasicOrSet( Type* lhs ) const
     {
-        return lhs == bt.d_boolType || lhs == bt.d_charType || lhs == bt.d_wcharType ||
+        return lhs == bt.d_boolType || lhs == bt.d_charType || lhs == bt.d_wcharType || lhs == bt.d_int8Type ||
                 lhs == bt.d_byteType || lhs == bt.d_intType || lhs == bt.d_shortType || lhs == bt.d_longType ||
                 lhs == bt.d_realType || lhs == bt.d_longrealType || lhs == bt.d_setType;
     }
@@ -965,7 +965,7 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 1 )
             {
                 Type* lhs = derefed(args->d_args.first()->d_type.data());
-                const bool ok = lhs == bt.d_charType ||
+                const bool ok = lhs == bt.d_charType || lhs == bt.d_int8Type ||
                         lhs == bt.d_byteType || lhs == bt.d_intType || lhs == bt.d_shortType ||
                         lhs == bt.d_realType;
                 if( !ok && lhs != bt.d_stringType && charArrayType(lhs,false) != bt.d_charType )
@@ -1019,6 +1019,12 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::BYTESIZE:
             if( args->d_args.size() != 1 )
                 error( args->d_loc, Validator::tr("expecting one argument"));
+            else
+            {
+                Named* n = args->d_args[0]->getIdent();
+                if( n == 0 || n->getTag() != Thing::T_NamedType )
+                    error( args->d_loc, Validator::tr("expecting a type argument"));
+            }
             break; // accepts any type
         case BuiltIn::COPY:
             if( args->d_args.size() != 2 )
@@ -1303,7 +1309,7 @@ struct ValidatorImp : public AstVisitor
 #endif
 #ifdef _OBX_USE_NEW_FFI_
         if( pt->d_unsafe && tf->d_unsafe && tftag == Thing::T_Pointer &&
-                ta->isInteger() && ta->getBaseType() != Type::LONGINT )
+                ta->isInteger() && ta->getBaseType() != Type::INT64 )
         {
             Type* fpt = derefed(cast<Pointer*>(tf)->d_to.data());
             if( fpt->getBaseType() == Type::CVOID )
@@ -1441,7 +1447,7 @@ struct ValidatorImp : public AstVisitor
             if( !args.isEmpty() )
             {
                 Type* td = derefed(args.first()->d_type.data());
-                if( td && td->getBaseType() == Type::LONGINT )
+                if( td && td->getBaseType() == Type::INT64 )
                     return bt.d_longType;
                 else
                     return bt.d_intType;
@@ -1462,7 +1468,7 @@ struct ValidatorImp : public AstVisitor
             if( !args.isEmpty() )
             {
                 Type* td = derefed(args.first()->d_type.data());
-                if( td && td->getBaseType() == Type::LONGINT )
+                if( td && td->getBaseType() == Type::INT64 )
                     return bt.d_longrealType;
                 else
                     return bt.d_realType;
@@ -1475,8 +1481,8 @@ struct ValidatorImp : public AstVisitor
             {
                 Type* lhs = derefed(args.first()->d_type.data());
                 Type* rhs = derefed(args.last()->d_type.data());
-                if( (lhs && lhs->getBaseType() == Type::LONGINT) ||
-                    (rhs && rhs->getBaseType() == Type::LONGINT) )
+                if( (lhs && lhs->getBaseType() == Type::INT64) ||
+                    (rhs && rhs->getBaseType() == Type::INT64) )
                     return bt.d_longType;
                 else
                     return bt.d_intType;
@@ -1499,14 +1505,14 @@ struct ValidatorImp : public AstVisitor
                 if( t == bt.d_longType )
                     return bt.d_shortType;
                 else if( t == bt.d_shortType )
-                    return bt.d_byteType;
+                    return bt.d_int8Type;
                 else if( t == bt.d_intType )
                     return bt.d_shortType;
                 else if( t == bt.d_longrealType )
                     return bt.d_realType;
 #ifdef OBX_BBOX
                 else if( t == bt.d_wcharType || charArrayType(t) == bt.d_wcharType )
-                    return bt.d_charType;
+                    return bt.d_charType; // TODO: array of wchar to array of char
 #endif
                 else
                     error( args.first()->d_loc, Validator::tr("SHORT not applicable to given argument"));
@@ -1516,7 +1522,7 @@ struct ValidatorImp : public AstVisitor
             if( !args.isEmpty() )
             {
                 Type* t = derefed(args.first()->d_type.data());
-                if( t == bt.d_charType || t == bt.d_byteType )
+                if( t == bt.d_int8Type || t == bt.d_byteType )
                     return bt.d_shortType;
                 else if( t == bt.d_shortType )
                     return bt.d_intType;
@@ -1525,7 +1531,7 @@ struct ValidatorImp : public AstVisitor
                 else if( t == bt.d_realType )
                     return bt.d_longrealType;
 #ifdef OBX_BBOX
-                else if( t == bt.d_charType || charArrayType(t) == bt.d_charType )
+                else if( t == bt.d_charType || charArrayType(t) == bt.d_charType ) // TODO array of char -> array of wchar
                     return bt.d_wcharType;
 #endif
                 else
@@ -2053,7 +2059,10 @@ struct ValidatorImp : public AstVisitor
         case Literal::Enum:
             break; // keep the Enumeration type
         case Literal::Integer:
-            if( i >= 0 && i <= bt.d_byteType->maxVal().toInt()
+            if( i >= bt.d_int8Type->minVal().toInt() && i <= bt.d_int8Type->maxVal().toInt()
+                     && !me->d_wide && !me->d_minInt )
+                me->d_type = bt.d_int8Type;
+            else if( i >= 0 && i <= bt.d_byteType->maxVal().toInt()
                     && !me->d_wide && !me->d_minInt )
                 me->d_type = bt.d_byteType;
             else if( i >= bt.d_shortType->minVal().toInt() && i <= bt.d_shortType->maxVal().toInt()
@@ -2338,7 +2347,7 @@ struct ValidatorImp : public AstVisitor
         {
             f->accept(this);
 
-            checkSelfRef(f->d_type.data());
+            checkSelfRef(f->d_type.data()); // TODO: was already called by field ref
             checkNoVla(f->d_type.data(),f->d_loc);
 #ifdef OBX_BBOX
             if( me->d_unsafe )
@@ -2357,7 +2366,7 @@ struct ValidatorImp : public AstVisitor
             Named* found = me->d_baseRec ? me->d_baseRec->find( f->d_name, true ) : 0;
             if( found  )
             {
-#ifdef OBX_BBOX
+#if 0 // #ifdef OBX_BBOX
                 bool ok = false;
                 if( found->getTag() == Thing::T_Field )
                 {
@@ -2376,8 +2385,10 @@ struct ValidatorImp : public AstVisitor
                     }
                 }
                 if( !ok )
+                    error( f->d_loc, Validator::tr("field name collides with a name in the base record") );
+#else
+                warning( f->d_loc, Validator::tr("field name shadows equally named field in a base record") );
 #endif
-                error( f->d_loc, Validator::tr("field name collides with a name in the base record") );
             }
         }
         // note that bound procedures are handled in the procedure visitor
@@ -2489,11 +2500,14 @@ struct ValidatorImp : public AstVisitor
             Type* newType = td;
             if( newType->getBaseType() == Type::BYTE &&
                     ( v < 0 || v > bt.d_byteType->maxVal().toInt() ) )
+                newType = bt.d_int8Type;
+            if( newType->getBaseType() == Type::INT8 &&
+                    ( v < bt.d_int8Type->minVal().toInt() || v > bt.d_int8Type->maxVal().toInt() ) )
                 newType = bt.d_shortType;
-            if( newType->getBaseType() == Type::SHORTINT &&
+            if( newType->getBaseType() == Type::INT16 &&
                     ( v < bt.d_shortType->minVal().toInt() || v > bt.d_shortType->maxVal().toInt() ) )
                 newType = bt.d_intType;
-            if( newType->getBaseType() == Type::INTEGER &&
+            if( newType->getBaseType() == Type::INT32 &&
                     ( v < bt.d_intType->minVal().toInt() || v > bt.d_intType->maxVal().toInt() ) )
                 newType = bt.d_longType;
             if( newType != td )
@@ -2859,7 +2873,7 @@ struct ValidatorImp : public AstVisitor
         {
             me->d_what->accept(this);
             Expression* proc = me->d_what.data();
-            if( proc->getTag() != Thing::T_ArgExpr )
+            if( proc->getTag() != Thing::T_ArgExpr || proc->getUnOp() != UnExpr::CALL )
             {
                 Type* t = derefed(proc->d_type.data());
                 if( t == 0 || t->getTag() != Thing::T_ProcType )
@@ -3044,7 +3058,7 @@ struct ValidatorImp : public AstVisitor
                     {
                         bool lwide,rwide;
                         Type* tl = derefed(e->d_type.data() );
-                        if( ( te->isInteger() && !includes(te,tl) ) ||
+                        if( ( te->isInteger() && !includes(te,tl) && !byteCompat(te,tl) ) ||
                             ( te->isChar(&lwide) && ( !isCharConst(e.data(),&rwide) || (!lwide && rwide) ) ) ||
                                 ( te->getTag() == Thing::T_Enumeration && te != tl ))
                             error( e->d_loc, Validator::tr("label expression type not compatible with case expression type"));
@@ -3323,11 +3337,13 @@ struct ValidatorImp : public AstVisitor
         {
         case Type::BYTE:
             return bt.d_byteType;
-        case Type::SHORTINT:
+        case Type::INT8:
+            return bt.d_int8Type;
+        case Type::INT16:
             return bt.d_shortType;
-        case Type::INTEGER:
+        case Type::INT32:
             return bt.d_intType;
-        case Type::LONGINT:
+        case Type::INT64:
             return bt.d_longType;
         case Type::REAL:
             return bt.d_realType;
@@ -3573,6 +3589,25 @@ struct ValidatorImp : public AstVisitor
 
     }
 
+    bool byteCompat(Type* lhs, Type* rhs ) const
+    {
+        // expexts derefed
+        if( lhs == 0 || rhs == 0 )
+            return false;
+        if( lhs == rhs )
+            return true;
+        // As as an exceptional case, the type BYTE is compatible with INT8 and CHAR.
+        if( lhs->getBaseType() == Type::BYTE && rhs->getBaseType() == Type::INT8 )
+            return true;
+        if( lhs->getBaseType() == Type::INT8 && rhs->getBaseType() == Type::BYTE )
+            return true;
+        if( lhs->getBaseType() == Type::CHAR && rhs->getBaseType() == Type::BYTE )
+            return true;
+        if( lhs->getBaseType() == Type::BYTE && rhs->getBaseType() == Type::CHAR )
+            return true;
+        return false;
+    }
+
     bool assignmentCompatible( Type* lhsT, Expression* rhs ) const
     {
         if( lhsT == 0 || rhs == 0 || rhs->d_type.isNull() )
@@ -3588,8 +3623,8 @@ struct ValidatorImp : public AstVisitor
         const int rtag = rhsT->getTag();
 
         // T~v~ is a BYTE type and T~e~ is a Latin-1 character type
-        // Oberon 90: The type BYTE is compatible with CHAR (shortint is 16 bit here)
-        if( lhsT == bt.d_byteType && rhsT == bt.d_charType )
+        // Oberon 90: The type BYTE is compatible with CHAR and INT8 (SHORTINT can be INT8 or INT16 here)
+        if( byteCompat(lhsT,rhsT) )
             return true;
 #if 0
         // not necessary
@@ -3619,7 +3654,8 @@ struct ValidatorImp : public AstVisitor
             return true;
 
         // T~v~ is a SET type and T~e~ is of INTEGER or smaller type
-        if( lhsT == bt.d_setType && ( rhsT == bt.d_intType || rhsT == bt.d_shortType || rhsT == bt.d_byteType ) )
+        if( lhsT == bt.d_setType &&
+                ( rhsT == bt.d_intType || rhsT == bt.d_shortType || rhsT == bt.d_byteType || rhsT == bt.d_int8Type ) )
             return true;
 
         // TODO: can we assign records with private fields? if yes, doesn't this undermine class integrity?
@@ -3661,7 +3697,8 @@ struct ValidatorImp : public AstVisitor
         }
 
 #if 1
-        if( ( lhsT == bt.d_charType || lhsT == bt.d_wcharType ) && isCharConst(rhs) )
+        // string literal to char or byte
+        if( ( lhsT == bt.d_charType || lhsT == bt.d_byteType || lhsT == bt.d_wcharType ) && isCharConst(rhs) )
             return true;
 #else
         if( ( lhsT == bt.d_charType && rhsT == bt.d_stringType ) ||
@@ -3764,12 +3801,13 @@ struct ValidatorImp : public AstVisitor
             if( lat == bt.d_byteType && rat != bt.d_byteType )
             {
                 Q_ASSERT( !equalType(tf,ta) );
-                warning( rhs->d_loc, Validator::tr("Oberon VAR ARRAY OF BYTE trick not officially supported") );
+#define OBX_BYTE_ARRAY_TRICK "The Oberon VAR ARRAY OF BYTE trick is not supported by Oberon+ backends"
+                warning( rhs->d_loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
                 return true;
             }
 
-            // Oberon 90: The type BYTE is compatible with CHAR and SHORTINT (shortint is 16 bit here)
-            if( tf == bt.d_byteType && ta == bt.d_charType )
+            // Oberon 90: The type BYTE is compatible with CHAR and INT8 (SHORTINT can be INT8 or INT16 here)
+            if( byteCompat(tf,ta) )
                 return true;
 
 #ifdef OBX_BBOX
@@ -3872,7 +3910,7 @@ struct ValidatorImp : public AstVisitor
         //   actual parameter may be of any type.
         if( laT == bt.d_byteType && raT != bt.d_byteType )
         {
-            warning( loc, Validator::tr("Oberon VAR ARRAY OF BYTE trick not officially supported") );
+            warning( loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
             return true;
         }
 
@@ -3973,6 +4011,7 @@ struct ValidatorImp : public AstVisitor
         Type* td = derefed(t);
         if( td == ctdd && ctdd->getTag() != Thing::T_Pointer )
             error(t->d_loc, Validator::tr("a structured type cannot contain itself"));
+        // TODO: S3 has record N a field of which is a pointer to array of N
         else if( td == ctdd )
             t->d_selfRef = true;
         else if( td == t ) // dont follow qualitypes
@@ -3994,24 +4033,24 @@ struct ValidatorImp : public AstVisitor
             // and a pointer cannot point to a pointer anyway
 #endif
 
-        switch( td->getTag() )
+        switch( t->getTag() )
         {
         case Thing::T_Record:
             {
-                Record* r = cast<Record*>(td);
+                Record* r = cast<Record*>(t);
                 foreach( const Ref<Field>& f, r->d_fields )
                     markSelfRef(f->d_type.data());
             }
             break;
         case Thing::T_Array:
             {
-                Array* a = cast<Array*>(td);
+                Array* a = cast<Array*>(t);
                 markSelfRef(a->d_type.data());
             }
             break;
         case Thing::T_Pointer:
             {
-                Pointer* p = cast<Pointer*>(td);
+                Pointer* p = cast<Pointer*>(t);
                 Type* d = derefed(p->d_to.data());
                 if( d == p->d_to.data() )
                     checkSelfRef(d);
@@ -4051,29 +4090,32 @@ bool Validator::includesType(quint8 lhs, quint8 rhs)
         return true;
 
     /*
-        LONGINT >= INTEGER >= SHORTINT >= BYTE
-        LONGREAL >= REAL >= SHORTINT >= BYTE
-        LONGREAL >= INTEGER >= SHORTINT >= BYTE
+        INT64 >= INT32 >= INT16 >= INT8
+        LONGREAL >= REAL >= INT16 >= INT8
+        LONGREAL >= INT32 >= INT16 >= INT8
+        INT16 >= BYTE
         WCHAR >= CHAR
 
-        non-inclusive pairs: REAL/INTEGER, REAL/LONGINT, LONGREAL/LONGINT
+        non-inclusive pairs: REAL/INT32, REAL/INT64, LONGREAL/INT64
+        exception: BYTE ~ INT8
     */
 
     switch( lhs )
     {
-    case Type::LONGINT:
-        return rhs == Type::BYTE || rhs == Type::INTEGER || rhs == Type::SHORTINT;
-    case Type::INTEGER:
-        return rhs == Type::BYTE || rhs == Type::SHORTINT;
-    case Type::SHORTINT:
-        return rhs == Type::BYTE;
+    case Type::INT64:
+        return rhs == Type::BYTE || rhs == Type::INT8 || rhs == Type::INT32 || rhs == Type::INT16;
+    case Type::INT32:
+        return rhs == Type::BYTE || rhs == Type::INT8 || rhs == Type::INT16;
+    case Type::INT16:
+        return rhs == Type::INT8 || rhs == Type::BYTE;
     case Type::BYTE:
+    case Type::INT8:
         break;
     case Type::LONGREAL:
-        return rhs == Type::BYTE || rhs == Type::INTEGER || rhs == Type::SHORTINT ||
-                rhs == Type::REAL;
+        return rhs == Type::BYTE || rhs == Type::INT8 || rhs == Type::INT32 ||
+                rhs == Type::INT16 || rhs == Type::REAL;
     case Type::REAL:
-        return rhs == Type::BYTE || rhs == Type::SHORTINT;
+        return rhs == Type::BYTE || rhs == Type::INT8 || rhs == Type::INT16;
     case Type::WCHAR:
         return rhs == Type::CHAR;
     case Type::WSTRING:
@@ -4090,14 +4132,17 @@ QPair<quint8, bool> Validator::inclusiveType(quint8 lhs, quint8 rhs)
         return qMakePair(rhs,true);
 
     // and now for the non-inclusive pairs
-    if( ( lhs == Type::REAL && rhs == Type::INTEGER ) ||
-        ( lhs == Type::INTEGER && rhs == Type::REAL ) )
+    if( ( lhs == Type::BYTE && rhs == Type::INT8 ) ||
+        ( lhs == Type::INT8 && rhs == Type::BYTE ) )
+        return qMakePair(Type::INT16,true); // no conversion warning
+    if( ( lhs == Type::REAL && rhs == Type::INT32 ) ||
+        ( lhs == Type::INT32 && rhs == Type::REAL ) )
         return qMakePair(Type::REAL,false);
-    if( ( lhs == Type::REAL && rhs == Type::LONGINT ) ||
-        ( lhs == Type::LONGINT && rhs == Type::REAL ) )
+    if( ( lhs == Type::REAL && rhs == Type::INT64 ) ||
+        ( lhs == Type::INT64 && rhs == Type::REAL ) )
         return qMakePair(Type::LONGREAL,false);
-    if( ( lhs == Type::LONGREAL && rhs == Type::LONGINT ) ||
-        ( lhs == Type::LONGINT && rhs == Type::LONGREAL ) )
+    if( ( lhs == Type::LONGREAL && rhs == Type::INT64 ) ||
+        ( lhs == Type::INT64 && rhs == Type::LONGREAL ) )
         return qMakePair(Type::LONGREAL,false);
     Q_ASSERT(false);
     return qMakePair(0,false);
@@ -4112,5 +4157,5 @@ void Validator::BaseTypes::check() const
 {
     Q_ASSERT( d_boolType && d_charType && d_byteType && d_intType && d_realType && d_setType &&
               d_stringType && d_nilType && d_anyType && d_shortType && d_longType && d_longrealType &&
-              d_anyRec && d_wcharType && d_wstringType && d_voidType && d_byteArrayType && d_noType );
+              d_anyRec && d_wcharType && d_wstringType && d_voidType && d_byteArrayType && d_noType && d_int8Type );
 }

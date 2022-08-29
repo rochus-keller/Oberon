@@ -1199,11 +1199,13 @@ struct ObxCilGenImp : public AstVisitor
             return "char";
         case Type::BYTE:
             return "uint8";
-        case Type::SHORTINT:
+        case Type::INT8:
+            return "int8";
+        case Type::INT16:
             return "int16";
-        case Type::INTEGER:
+        case Type::INT32:
             return "int32";
-        case Type::LONGINT:
+        case Type::INT64:
             return "int64";
         case Type::REAL:
             return "float32";
@@ -1497,13 +1499,12 @@ struct ObxCilGenImp : public AstVisitor
             else
                 line(loc).ldc_i4(0);
             break;
-        case Type::SHORTINT:
+        case Type::INT8:
+        case Type::INT16:
+        case Type::INT32:
             line(loc).ldc_i4(val.toInt());
             break;
-        case Type::INTEGER:
-            line(loc).ldc_i4(val.toInt());
-            break;
-        case Type::LONGINT:
+        case Type::INT64:
             line(loc).ldc_i8(val.toLongLong());
             break;
         case Type::BYTE:
@@ -1661,17 +1662,20 @@ struct ObxCilGenImp : public AstVisitor
             case Type::REAL:
                 line(loc).ldind_(IlEmitter::R4);
                 break;
-            case Type::LONGINT:
+            case Type::INT64:
                 line(loc).ldind_(IlEmitter::I8);
                 break;
-            case Type::INTEGER:
+            case Type::INT32:
                 line(loc).ldind_(IlEmitter::I4);
                 break;
             case Type::SET:
                 line(loc).ldind_(IlEmitter::U4);
                 break;
-            case Type::SHORTINT:
+            case Type::INT16:
                 line(loc).ldind_(IlEmitter::I2);
+                break;
+            case Type::INT8:
+                line(loc).ldind_(IlEmitter::I1);
                 break;
             case Type::CHAR:
                 if( unsafe )
@@ -1992,10 +1996,10 @@ struct ObxCilGenImp : public AstVisitor
         switch( t->getBaseType() )
         {
         case Type::LONGREAL:
-            convertTo(Type::LONGINT,t,loc);
+            convertTo(Type::INT64,t,loc);
             break;
         case Type::REAL:
-            convertTo(Type::INTEGER,t,loc);
+            convertTo(Type::INT32,t,loc);
             break;
         }
     }
@@ -2096,7 +2100,7 @@ struct ObxCilGenImp : public AstVisitor
                     }
                 }else if( td->isInteger() )
                 {
-                    if( td->getBaseType() <= Type::INTEGER )
+                    if( td->getBaseType() <= Type::INT32 )
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
                     else
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int64)",1);
@@ -2194,7 +2198,7 @@ struct ObxCilGenImp : public AstVisitor
                         BaseType* bt = cast<BaseType*>(t);
                         switch( bt->getBaseType() )
                         {
-                        case Type::LONGINT:
+                        case Type::INT64:
                             if( bi->d_func == BuiltIn::MAX )
                                 line(ae->d_loc).ldc_i8(bt->maxVal().toLongLong());
                             else
@@ -2216,8 +2220,9 @@ struct ObxCilGenImp : public AstVisitor
                         case Type::CHAR:
                         case Type::WCHAR:
                         case Type::BYTE:
-                        case Type::SHORTINT:
-                        case Type::INTEGER:
+                        case Type::INT8:
+                        case Type::INT16:
+                        case Type::INT32:
                         case Type::SET:
                             if( bi->d_func == BuiltIn::MAX )
                                 line(ae->d_loc).ldc_i4(bt->maxVal().toInt());
@@ -2331,7 +2336,7 @@ struct ObxCilGenImp : public AstVisitor
                     ae->d_args[i]->accept(this);
                     const int len = temps.buy("int32");
                     lengths.append(len);
-                    convertTo(Type::INTEGER,ae->d_args[i]->d_type.data(),ae->d_args[i]->d_loc,debug);
+                    convertTo(Type::INT32,ae->d_args[i]->d_type.data(),ae->d_args[i]->d_loc,debug);
                     line(ae->d_loc).stloc_(len);
                 }
 
@@ -2444,7 +2449,7 @@ struct ObxCilGenImp : public AstVisitor
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
                 Type* td = derefed(ae->d_args.first()->d_type.data());
-                if( td && td->getBaseType() == Type::LONGINT )
+                if( td && td->getBaseType() == Type::INT64 )
                     line(ae->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::ODD(int64)", 1, true );
                 else
                     line(ae->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::ODD(int32)", 1, true );
@@ -2464,13 +2469,14 @@ struct ObxCilGenImp : public AstVisitor
                 case Type::REAL:
                     line(ae->d_loc).call_("float32 [mscorlib]System.Math::Abs(float32)", 1, true );
                     break;
-                case Type::LONGINT:
+                case Type::INT64:
                     line(ae->d_loc).call_("int64 [mscorlib]System.Math::Abs(int64)", 1, true );
                     break;
-                case Type::INTEGER:
+                case Type::INT32:
                     line(ae->d_loc).call_("int32 [mscorlib]System.Math::Abs(int32)", 1, true );
                     break;
-                case Type::SHORTINT:
+                case Type::INT16:
+                case Type::INT8:
                 case Type::BYTE:
                     line(ae->d_loc).call_("int16 [mscorlib]System.Math::Abs(int16)", 1, true );
                     break;
@@ -2515,9 +2521,9 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            convertTo( Type::INT32,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).ldc_i4(1);
-            if( ae->d_args.first()->d_type->derefed()->getBaseType() == Type::LONGINT )
+            if( ae->d_args.first()->d_type->derefed()->getBaseType() == Type::INT64 )
                 line(ae->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::Ash64(int64,int32,bool)", 2, true );
             else
                 line(ae->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::Ash32(int32,int32,bool)", 2, true );
@@ -2528,7 +2534,7 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            convertTo( Type::INT32,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shr_();
             break;
 #if 0
@@ -2576,7 +2582,7 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            convertTo( Type::INT32,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shl_();
             break;
         case BuiltIn::ROR:
@@ -2585,7 +2591,7 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             assureInteger(ae->d_args.first()->d_type.data(),ae->d_loc);
             ae->d_args.last()->accept(this);
-            convertTo( Type::INTEGER,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
+            convertTo( Type::INT32,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shr_(true);
             break;
         case BuiltIn::WCHR:
@@ -2603,13 +2609,13 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     switch(td->getBaseType())
                     {
-                    case Type::LONGINT:
+                    case Type::INT64:
                         line(ae->d_loc).conv_(IlEmitter::ToI4);
                         break;
-                    case Type::INTEGER:
+                    case Type::INT32:
                         line(ae->d_loc).conv_(IlEmitter::ToI2);
                         break;
-                    case Type::SHORTINT:
+                    case Type::INT16:
                         line(ae->d_loc).conv_(IlEmitter::ToU1);
                         break;
                     case Type::LONGREAL:
@@ -2626,12 +2632,13 @@ struct ObxCilGenImp : public AstVisitor
             ae->d_args.first()->accept(this);
             switch(derefed(ae->d_args.first()->d_type.data())->getBaseType())
             {
-            case Type::INTEGER:
+            case Type::INT32:
                 line(ae->d_loc).conv_(IlEmitter::ToI8);
                 break;
-            case Type::SHORTINT:
+            case Type::INT16:
                 line(ae->d_loc).conv_(IlEmitter::ToI4);
                 break;
+            case Type::INT8:
             case Type::BYTE:
                 line(ae->d_loc).conv_(IlEmitter::ToI2);
                 break;
@@ -2686,18 +2693,19 @@ struct ObxCilGenImp : public AstVisitor
                 case Type::BOOLEAN:
                 case Type::CHAR:
                 case Type::BYTE:
+                case Type::INT8:
                     line(ae->d_loc).ldc_i4(1);
                     break;
                 case Type::WCHAR:
-                case Type::SHORTINT:
+                case Type::INT16:
                     line(ae->d_loc).ldc_i4(2);
                     break;
-                case Type::INTEGER:
+                case Type::INT32:
                 case Type::REAL:
                 case Type::SET:
                     line(ae->d_loc).ldc_i4(4);
                     break;
-                case Type::LONGINT:
+                case Type::INT64:
                 case Type::LONGREAL:
                     line(ae->d_loc).ldc_i4(8);
                     break;
@@ -3136,18 +3144,21 @@ struct ObxCilGenImp : public AstVisitor
             if( fromBaseType != Type::LONGREAL )
                 line(loc).conv_(IlEmitter::ToR8); // always r8 on stack
             break;
-        case Type::LONGINT:
+        case Type::INT64:
             line(loc).conv_(IlEmitter::ToI8);
             break;
-        case Type::INTEGER:
+        case Type::INT32:
         case Type::SET:
         case Type::ENUMINT:
             line(loc).conv_(IlEmitter::ToI4, checkOvf);
             break;
-        case Type::SHORTINT:
+        case Type::INT16:
         case Type::CHAR:
-        case Type::WCHAR:
+        case Type::WCHAR: // TODO: is CHAR really signed?
             line(loc).conv_(IlEmitter::ToI2, checkOvf);
+            break;
+        case Type::INT8:
+            line(loc).conv_(IlEmitter::ToI1, checkOvf, checkOvf);
             break;
         case Type::BYTE:
         case Type::BOOLEAN:
@@ -3164,8 +3175,9 @@ struct ObxCilGenImp : public AstVisitor
         case Type::CHAR:
         case Type::WCHAR:
         case Type::BYTE:
-        case Type::SHORTINT:
-            return Type::INTEGER;
+        case Type::INT8:
+        case Type::INT16:
+            return Type::INT32;
         default:
             return baseType;
         }
@@ -3192,8 +3204,8 @@ struct ObxCilGenImp : public AstVisitor
         // c and o could be INTEGER, LONGINT, REAL and LONGREAL
         if( c == o )
             return;
-        if( o == Type::LONGINT && c != Type::LONGINT )
-            convertTo(Type::LONGINT, cur, loc);
+        if( o == Type::INT64 && c != Type::INT64 )
+            convertTo(Type::INT64, cur, loc);
         Q_ASSERT( o != Type::LONGREAL && o != Type::REAL );
     }
 
@@ -3207,7 +3219,7 @@ struct ObxCilGenImp : public AstVisitor
             if( td && debug && td->isInteger() )
             {
                 line(me->d_loc).add_(true);
-                ovfCheck = td->getBaseType() < Type::INTEGER;
+                ovfCheck = td->getBaseType() < Type::INT32;
             }else
                 line(me->d_loc).add_();
             break;
@@ -3215,7 +3227,7 @@ struct ObxCilGenImp : public AstVisitor
             if( td && debug && td->isInteger() )
             {
                 line(me->d_loc).sub_(true);
-                ovfCheck = td->getBaseType() < Type::INTEGER;
+                ovfCheck = td->getBaseType() < Type::INT32;
             }else
                 line(me->d_loc).sub_();
             break;
@@ -3223,7 +3235,7 @@ struct ObxCilGenImp : public AstVisitor
             if( td && debug && td->isInteger() )
             {
                 line(me->d_loc).mul_(true);
-                ovfCheck = td->getBaseType() < Type::INTEGER;
+                ovfCheck = td->getBaseType() < Type::INT32;
             }else
                 line(me->d_loc).mul_();
             break;
@@ -3351,7 +3363,7 @@ struct ObxCilGenImp : public AstVisitor
             if( lhsT->isInteger() && rhsT->isInteger() )
             {
 #if 1
-                if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
+                if( lhsT->getBaseType() <= Type::INT32 && rhsT->getBaseType() <= Type::INT32 )
                     line(me->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::DIV(int32,int32)",2,true );
                 else
                     line(me->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::DIV(int64,int64)",2,true );
@@ -3365,7 +3377,7 @@ struct ObxCilGenImp : public AstVisitor
             if( lhsT->isInteger() && rhsT->isInteger() )
             {
 #if 1
-                if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
+                if( lhsT->getBaseType() <= Type::INT32 && rhsT->getBaseType() <= Type::INT32 )
                     line(me->d_loc).call_("int32 [OBX.Runtime]OBX.Runtime::MOD(int32,int32)",2,true);
                 else
                     line(me->d_loc).call_("int64 [OBX.Runtime]OBX.Runtime::MOD(int64,int64)",2,true);
@@ -3860,10 +3872,10 @@ struct ObxCilGenImp : public AstVisitor
                 case Type::REAL:
                     line(me->d_loc).stind_(IlEmitter::R4);
                     break;
-                case Type::LONGINT:
+                case Type::INT64:
                     line(me->d_loc).stind_(IlEmitter::I8);
                     break;
-                case Type::INTEGER:
+                case Type::INT32:
                 case Type::SET:
                     line(me->d_loc).stind_(IlEmitter::I4);
                     break;
@@ -3873,12 +3885,13 @@ struct ObxCilGenImp : public AstVisitor
                     else
                         line(me->d_loc).stind_(IlEmitter::I2);
                     break;
-                case Type::SHORTINT:
+                case Type::INT16:
                 case Type::WCHAR:
                     line(me->d_loc).stind_(IlEmitter::I2);
                     break;
                 case Type::BYTE:
                 case Type::BOOLEAN:
+                case Type::INT8:
                     line(me->d_loc).stind_(IlEmitter::I1);
                     break;
                 default:
@@ -4162,12 +4175,13 @@ struct ObxCilGenImp : public AstVisitor
             case Type::CHAR:
             case Type::WCHAR:
             case Type::BYTE:
-            case Type::SHORTINT:
-            case Type::INTEGER:
+            case Type::INT8:
+            case Type::INT16:
+            case Type::INT32:
             case Type::SET:
                 line(loc).ldc_i4(0);
                 break;
-            case Type::LONGINT:
+            case Type::INT64:
                 line(loc).ldc_i8(0);
                 break;
             case Type::REAL:
@@ -4230,7 +4244,7 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     len = temps.buy("int32");
                     a->d_lenExpr->accept(this);
-                    convertTo(Type::INTEGER,a->d_lenExpr->d_type.data(),loc,debug);
+                    convertTo(Type::INT32,a->d_lenExpr->d_type.data(),loc,debug);
                     line(loc).dup_();
                     line(loc).stloc_(len);
                 }else
@@ -4276,7 +4290,7 @@ struct ObxCilGenImp : public AstVisitor
                     if( td->isStructured() )
                     {
                         len = temps.buy("int32");
-                        convertTo(Type::INTEGER,a->d_lenExpr->d_type.data(),loc,debug);
+                        convertTo(Type::INT32,a->d_lenExpr->d_type.data(),loc,debug);
                         line(loc).dup_();
                         line(loc).stloc_(len);
                     }

@@ -186,8 +186,8 @@ namespace Obx
 
     struct Type : public Thing
     {
-        enum BT { NONE, ANY, ANYREC, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, SHORTINT,
-               INTEGER, LONGINT, REAL, LONGREAL, SET, ENUMINT };
+        enum BT { NONE, ANY, ANYREC, CVOID, NIL, BYTEARRAY, STRING, WSTRING, BOOLEAN, CHAR, WCHAR, BYTE, INT8, INT16,
+               INT32, INT64, REAL, LONGREAL, SET, ENUMINT };
 
         Named* d_decl; // a reference to the corresponding declaration (type, var, etc.) or null if type is anonymous
         Type* d_binding; // points back to pointer or array type in case of anonymous type
@@ -216,7 +216,7 @@ namespace Obx
         virtual quint32 getAlignment() const { return getByteSize(); }
         Named* findDecl(bool recursive = false) const;
         int getBaseType() const { return d_baseType; }
-        bool isInteger() const { return d_baseType >= BYTE && d_baseType <= LONGINT; }
+        bool isInteger() const { return d_baseType >= BYTE && d_baseType <= INT64; }
         bool isReal() const { return d_baseType == REAL || d_baseType == LONGREAL; }
         bool isNumeric() const { return isInteger() || isReal(); }
         bool isString(bool* wide = 0) const;

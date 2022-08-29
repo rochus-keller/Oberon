@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2022-08-28");
+    a.setApplicationVersion("2022-08-29");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -122,6 +122,7 @@ int main(int argc, char *argv[])
             out << "  -main=A[.B]   run module A or procedure B in module A and quit" << endl;
             out << "  -oak          use built-in oakwood definitions" << endl;
             out << "  -obs          use built-in Oberon System backend definitions" << endl;
+            out << "  -int16        INTEGER is mapped to INT16 instead of INT32" << endl;
             return 0;
         }else if( args[i] == "-oak" )
             pro.setUseBuiltInOakwood(true);
@@ -131,6 +132,8 @@ int main(int argc, char *argv[])
             genAsm = true;
         else if( args[i] == "-run" )
             run = true;
+        else if( args[i] == "-int16" )
+            pro.setInt16(true);
         else if( args[i] == "-debug" )
             debug = true;
         else if( args[i] == "-build" )

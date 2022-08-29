@@ -52,6 +52,9 @@ namespace Obx
         Ob::FileCache* getFc() const { return d_fc; }
         void addPreload(const QByteArray& name, const QByteArray& source);
 
+        bool getInt16() const { return d_int16; }
+        void setInt16(bool);
+
         // Instantiator imp
         Module* instantiate( Module* generic, const MetaActuals& actuals );
         QList<Module*> instances( Module* generic );
@@ -75,6 +78,7 @@ namespace Obx
         Ref<BaseType> d_charType;  // 8 bit latin-1 (ISO-8859-1) character
         Ref<BaseType> d_wcharType; // 16 bit Unicode plane 0 character, the Basic Multilingual Plane (BMP)
         Ref<BaseType> d_byteType;
+        Ref<BaseType> d_int8Type;
         Ref<BaseType> d_intType;
         Ref<BaseType> d_shortType;
         Ref<BaseType> d_longType;
@@ -88,6 +92,9 @@ namespace Obx
         Ref<BaseType> d_anyType;
         Ref<BaseType> d_voidType;
         Ref<Record> d_anyRec;
+        Ref<NamedType> d_integer;
+        Ref<NamedType> d_shortint;
+        Ref<NamedType> d_longint;
         Ref<ProcType> d_cmdType;
         Ref<Module> d_systemModule;
         QList<Module*> d_depOrder; // most (0) to least (n-1) dependent
@@ -106,6 +113,7 @@ namespace Obx
         Ob::Errors* d_errs;
         Ob::FileCache* d_fc;
         bool d_fillXref;
+        bool d_int16;
     };
 }
 

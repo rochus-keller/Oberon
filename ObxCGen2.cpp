@@ -468,11 +468,13 @@ struct ObxCGenImp : public AstVisitor
             return "char";
         case Type::WCHAR:
             return "wchar_t";
-        case Type::SHORTINT:
+        case Type::INT8:
+            return "int8_t";
+        case Type::INT16:
             return "int16_t";
-        case Type::INTEGER:
+        case Type::INT32:
             return "int32_t";
-        case Type::LONGINT:
+        case Type::INT64:
             return "int64_t";
         case Type::REAL:
             return "float";
@@ -1220,12 +1222,13 @@ struct ObxCGenImp : public AstVisitor
         switch( basetype )
         {
         case Type::BOOLEAN:
-        case Type::SHORTINT:
-        case Type::INTEGER:
+        case Type::INT8:
+        case Type::INT16:
+        case Type::INT32:
         case Type::BYTE:
             b << val.toInt();
             break;
-        case Type::LONGINT:
+        case Type::INT64:
             b << val.toLongLong() << "ll";
             break;
         case Type::ENUMINT:
@@ -1645,8 +1648,9 @@ struct ObxCGenImp : public AstVisitor
         case Type::CHAR:
         case Type::WCHAR:
         case Type::BYTE:
-        case Type::SHORTINT:
-            return Type::INTEGER;
+        case Type::INT8:
+        case Type::INT16:
+            return Type::INT32;
         default:
             return baseType;
         }
@@ -1736,7 +1740,7 @@ struct ObxCGenImp : public AstVisitor
             Q_ASSERT( ae->d_args.size() == 2 );
             switch( ae->d_args.first()->d_type->derefed()->getBaseType() )
             {
-            case Type::LONGINT:
+            case Type::INT64:
                 b << "OBX$Ash64(";
                 break;
             default:
@@ -1753,7 +1757,7 @@ struct ObxCGenImp : public AstVisitor
             Q_ASSERT( ae->d_args.size() == 2 );
             switch( ae->d_args.first()->d_type->derefed()->getBaseType() )
             {
-            case Type::LONGINT:
+            case Type::INT64:
                 b << "OBX$Asr64(";
                 break;
             default:
@@ -1841,11 +1845,12 @@ struct ObxCGenImp : public AstVisitor
                 case Type::REAL:
                     b << "fabsf(";
                     break;
-                case Type::LONGINT:
+                case Type::INT64:
                     b << "llabs(";
                     break;
-                case Type::SHORTINT:
-                case Type::INTEGER:
+                case Type::INT8:
+                case Type::INT16:
+                case Type::INT32:
                 case Type::BYTE:
                     b << "abs(";
                     break;
@@ -1982,7 +1987,7 @@ struct ObxCGenImp : public AstVisitor
                     }
                 }else if( td->isInteger() )
                 {
-                    if( td->getBaseType() <= Type::INTEGER )
+                    if( td->getBaseType() <= Type::INT32 )
                         format = "\"%d\\n\"";
                     else
                         format = "\"%lld\\n\"";
@@ -2221,7 +2226,7 @@ struct ObxCGenImp : public AstVisitor
                         BaseType* bt = cast<BaseType*>(t);
                         switch( bt->getBaseType() )
                         {
-                        case Type::LONGINT:
+                        case Type::INT64:
                             if( bi->d_func == BuiltIn::MAX )
                                 b << bt->maxVal().toLongLong();
                             else
@@ -2234,8 +2239,9 @@ struct ObxCGenImp : public AstVisitor
                             else
                                 b << bt->minVal().toDouble();
                             break;
-                        case Type::SHORTINT:
-                        case Type::INTEGER:
+                        case Type::INT8:
+                        case Type::INT16:
+                        case Type::INT32:
                             if( bi->d_func == BuiltIn::MAX )
                                 b << bt->maxVal().toInt();
                             else
@@ -2284,7 +2290,7 @@ struct ObxCGenImp : public AstVisitor
         case BuiltIn::LONG:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
-            // TODO: text
+            // TODO: text types
             break;
         case BuiltIn::CHR:
             Q_ASSERT( ae->d_args.size() == 1 );
@@ -2314,18 +2320,19 @@ struct ObxCGenImp : public AstVisitor
                 case Type::BOOLEAN:
                 case Type::CHAR:
                 case Type::BYTE:
+                case Type::INT8:
                     b << 1;
                     break;
                 case Type::WCHAR:
-                case Type::SHORTINT:
+                case Type::INT16:
                     b << 2;
                     break;
-                case Type::INTEGER:
+                case Type::INT32:
                 case Type::REAL:
                 case Type::SET:
                     b << 4;
                     break;
-                case Type::LONGINT:
+                case Type::INT64:
                 case Type::LONGREAL:
                     b << 8;
                     break;
@@ -3309,7 +3316,7 @@ struct ObxCGenImp : public AstVisitor
         case BinExpr::DIV:
             if( lhsT->isInteger() && rhsT->isInteger() )
             {
-                if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
+                if( lhsT->getBaseType() <= Type::INT32 && rhsT->getBaseType() <= Type::INT32 )
                     b << "OBX$Div32(";
                 else
                     b << "OBX$Div64(";
@@ -3323,7 +3330,7 @@ struct ObxCGenImp : public AstVisitor
         case BinExpr::MOD:
             if( lhsT->isInteger() && rhsT->isInteger() )
             {
-                if( lhsT->getBaseType() <= Type::INTEGER && rhsT->getBaseType() <= Type::INTEGER )
+                if( lhsT->getBaseType() <= Type::INT32 && rhsT->getBaseType() <= Type::INT32 )
                     b << "OBX$Mod32(";
                 else
                     b << "OBX$Mod64(";

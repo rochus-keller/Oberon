@@ -93,6 +93,8 @@ namespace Obx
         void setBuildDir( const QString& );
         QByteArrayList getOptions() const { return d_options; }
         void setOptions( const QByteArrayList& );
+        bool getInt16() const;
+        void setInt16(bool);
 
         bool addFile(const QString& filePath, const VirtualPath& package = QByteArrayList() );
         bool removeFile( const QString& filePath );

@@ -798,6 +798,7 @@ void Ide::createMenuBar()
     pop->addSeparator();
     pop->addCommand( "Set Build Directory...", this, SLOT( onBuildDir() ) );
     pop->addCommand( "Built-in Oakwood", this, SLOT(onOakwood()) );
+    pop->addCommand( "INTEGER is INT16", this, SLOT(onSetInt16()) );
     pop->addCommand( "Set Configuration Variables...", this, SLOT( onSetOptions()) );
     pop->addCommand( "Set Oberon File System Root...", this, SLOT( onWorkingDir() ) );
 
@@ -3389,13 +3390,20 @@ void Ide::onSetOptions()
     d_pro->setOptions(l);
 }
 
+void Ide::onSetInt16()
+{
+    CHECKED_IF(true,d_pro->getInt16());
+
+    d_pro->setInt16(!d_pro->getInt16());
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.77");
+    a.setApplicationVersion("0.9.78");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

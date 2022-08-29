@@ -36,6 +36,7 @@ namespace Obx
             BaseType* d_wcharType;
             BaseType* d_byteType;
             BaseType* d_intType;
+            BaseType* d_int8Type;
             BaseType* d_shortType;
             BaseType* d_longType;
             BaseType* d_realType;

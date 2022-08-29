@@ -523,7 +523,7 @@ struct EvalVisitor : public AstVisitor
                     val.d_vtype = Literal::Invalid;
                     if( bi->d_baseType == BaseType::CHAR || bi->d_baseType == BaseType::WCHAR )
                         val.d_vtype = Literal::Char;
-                    else if( bi->d_baseType >= BaseType::BYTE && bi->d_baseType <= BaseType::LONGINT )
+                    else if( bi->d_baseType >= BaseType::BYTE && bi->d_baseType <= BaseType::INT64 )
                         val.d_vtype = Literal::Integer;
                     else if( bi->d_baseType >= BaseType::REAL && bi->d_baseType <= BaseType::LONGREAL )
                         val.d_vtype = Literal::Real;
@@ -807,6 +807,20 @@ struct EvalVisitor : public AstVisitor
             if( evalBitOps(f->d_func,me) )
                 return;
             break;
+        case BuiltIn::BYTESIZE:
+            if( me->d_args.size() == 1 )
+            {
+                val.d_value = 0;
+                val.d_vtype = Literal::Integer;
+                Named* n = me->d_args[0]->getIdent();
+                if( n && n->getTag() == Thing::T_NamedType )
+                {
+                    Type* t = derefed(n->d_type.data());
+                    if( t )
+                        val.d_value = t->getByteSize();
+                }
+            }
+            break;
         case BuiltIn::INC:
         case BuiltIn::DEC:
         case BuiltIn::INCL:
@@ -830,7 +844,6 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::CAP:
         case BuiltIn::HALT:
         case BuiltIn::COPY:
-        case BuiltIn::BYTESIZE:
         case BuiltIn::ENTIER:
         case BuiltIn::BITS:
         case BuiltIn::SYS_MOVE:

@@ -1102,6 +1102,17 @@ void Project::setOptions(const QByteArrayList& o)
     touch();
 }
 
+bool Project::getInt16() const
+{
+    return d_mdl->getInt16();
+}
+
+void Project::setInt16(bool on)
+{
+    d_mdl->setInt16(on);
+    touch();
+}
+
 bool Project::printTreeShaken(const QString& module, const QString& fileName)
 {
     FileRef f = d_files.value(module);
@@ -1459,6 +1470,7 @@ bool Project::save()
     out.setValue("WorkingDir", d_workingDir );
     out.setValue("BuildDir", d_buildDir );
     out.setValue("Options", d_options.join(' ') );
+    out.setValue("IntegerIsInt16", d_mdl->getInt16() );
 
     FileGroup root = getRootFileGroup();
     out.beginWriteArray("Modules", root.d_files.size() ); // nested arrays don't work
@@ -1519,6 +1531,7 @@ bool Project::loadFrom(const QString& filePath)
     d_workingDir = in.value("WorkingDir").toString();
     d_buildDir = in.value("BuildDir").toString();
     d_options = in.value("Options").toByteArray().split(' ');
+    d_mdl->setInt16( in.value("IntegerIsInt16").toBool() );
 
     int count = in.beginReadArray("Modules");
     for( int i = 0; i < count; i++ )
