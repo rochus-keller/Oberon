@@ -1496,7 +1496,7 @@ bool Project::save()
     {
         if(d_groups[i].d_package.isEmpty())
             continue;
-        out.beginWriteArray("." + d_groups[i].d_package.join('.'), d_groups[i].d_files.size() );
+        out.beginWriteArray(QString::fromUtf8("." + d_groups[i].d_package.join('.')), d_groups[i].d_files.size() );
         for( int j = 0; j < d_groups[i].d_files.size(); j++ )
         {
             const QString absPath = d_groups[i].d_files[j]->d_filePath;
@@ -1565,7 +1565,7 @@ bool Project::loadFrom(const QString& filePath)
 
     for( int j = 0; j < paths.size(); j++ )
     {
-        count = in.beginReadArray("." + paths[j].join('.'));
+        count = in.beginReadArray(QString::fromUtf8("." + paths[j].join('.')));
         for( int i = 0; i < count; i++ )
         {
             in.setArrayIndex(i);
@@ -1598,4 +1598,10 @@ bool Project::saveTo(const QString& filePath)
     emit sigRenamed();
     return res;
 }
+
+#ifdef QT_NO_QOBJECT
+void Project::sigModified(bool){}
+void Project::sigRenamed(){}
+void Project::sigReparsed(){}
+#endif
 

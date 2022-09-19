@@ -40,7 +40,9 @@ namespace Obx
 
     class Project : public QObject
     {
+#ifndef QT_NO_QOBJECT
         Q_OBJECT
+#endif
     public:
         struct FileGroup;
         struct File : public QSharedData

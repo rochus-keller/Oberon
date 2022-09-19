@@ -1,0 +1,66 @@
+# author: Rochus Keller (me@rochus-keller.ch)
+# License: GPL
+# See https://github.com/rochus-keller/LeanQt and https://github.com/rochus-keller/BUSY/blob/main/README.md on how to use this file
+
+submod pelib = ../PeLib
+submod qt = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP)
+
+let oberon : SourceSet {
+	.sources += [
+		./ObToken.cpp 
+		./ObLexer.cpp 
+		./ObFileCache.cpp 
+		./ObErrors.cpp 
+		./ObRowCol.cpp 
+		./ObxValidator.cpp 
+		./ObxProject.cpp 
+		./ObxParser.cpp 
+		./ObxPackage.cpp 
+		./ObxModel.cpp 
+		./ObxEvaluator.cpp 
+		./ObxAst.cpp 
+		./ObTokenType.cpp
+	]
+	.configs += qt.client_config;
+	.include_dirs += ..
+	.defines += [ "_HAS_GENERICS" "OBX_BBOX" ]
+	.deps += qt.sources
+}
+
+let qrc_file = root_build_dir + relpath() + ./qrc_OBXMC.cpp
+
+let run_rcc : LuaScript {
+	.script = abspath(qt) + ./tools/execute.lua
+	.args += [
+		tostring( root_build_dir + ./qt/tools/rcc )
+		"-name OBXMC"
+		tostring(abspath( ./OBXMC.qrc ))
+		"-o"
+		tostring( qrc_file )
+	]
+	.deps += qt.rcc
+}
+
+let compiler : SourceSet {
+	.sources += [
+	    ./ObxIlEmitter.cpp
+    	./ObxPelibGen.cpp
+    	./ObxCilGen.cpp
+    	../MonoTools/MonoMdbGen.cpp
+    	./ObxCGen2.cpp
+    	qrc_file
+	]
+	.configs += qt.client_config;
+	.defines += "_OBX_USE_NEW_FFI_" + oberon.defines;
+	.include_dirs = oberon.include_dirs;
+	.deps += [ pelib.sources oberon run_rcc ]
+	.cflags_cc = pelib.sources.cflags_cc # c++11 even in Pelib headers
+}
+
+let OBXMC ! : Executable {
+	.configs += qt.client_config;
+	.sources += ./ObxMcMain.cpp
+	.deps += compiler;
+	.include_dirs = compiler.include_dirs;
+	.defines = compiler.defines + "QT_NO_PROCESS"
+}

@@ -29,6 +29,7 @@
 #include <QFile>
 #include <QDir>
 #include <QCryptographicHash>
+#include <limits>
 using namespace Obx;
 using namespace Ob;
 

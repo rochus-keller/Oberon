@@ -122,6 +122,8 @@ Follow these steps if you want to build e.g. the Oberon+ IDE yourself:
 
 Alternatively you can open ObxIde2.pro or any other included .pro file using QtCreator and build it there.
 
+Note that the OBXMC tool can also be built using the BUSY build system without a pre-installed Qt version; see see https://github.com/rochus-keller/LeanQt/blob/main/Readme.md for more information.
+
 Note that the Mono version of the Oberon+ IDE expects a subdirectory relative to the IDE executable called "mono"; this subdirectory shall contain copies of or links to the mono executable and the mscorlib.dll. Precompiled versions of these files are included in the binary versions referenced above.
 
 ## Collaboration

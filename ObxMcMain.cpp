@@ -23,13 +23,16 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QDateTime>
+#ifndef QT_NO_PROCESS
 #include <QProcess>
+#endif
 #include "ObxModel.h"
 #include "ObErrors.h"
 #include "ObxProject.h"
 #include "ObxCilGen.h"
 #include "ObFileCache.h"
 #include "ObxCGen2.h"
+
 
 static QStringList collectFiles( const QDir& dir )
 {
@@ -72,7 +75,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2022-08-29");
+    a.setApplicationVersion("2022-09-19");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -255,15 +258,19 @@ int main(int argc, char *argv[])
         QDir dir(outPath);
         if( build && genAsm )
         {
+#ifndef QT_NO_PROCESS
             start = QTime::currentTime();
             if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
                 return -1;
             qDebug() << "built with ilasm in" << start.msecsTo(QTime::currentTime()) << "[ms]";
+#endif
         }
         if( run )
         {
+#ifndef QT_NO_PROCESS
             if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
                 return -1;
+#endif
         }
     }
 

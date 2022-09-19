@@ -20,6 +20,7 @@
 #include "ObxEvaluator.h"
 #include "ObxValidator.h"
 #include <QtDebug>
+#include <limits>
 using namespace Obx;
 using namespace Ob;
 
