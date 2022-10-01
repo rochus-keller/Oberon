@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2022-09-19");
+    a.setApplicationVersion("2022-10-01");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -260,7 +260,8 @@ int main(int argc, char *argv[])
         {
 #ifndef QT_NO_PROCESS
             start = QTime::currentTime();
-            if( QProcess::execute(dir.absoluteFilePath("build.sh")) < 0 )
+            const QString path = dir.absoluteFilePath("build.sh");
+            if( QProcess::execute(path) < 0 )
                 return -1;
             qDebug() << "built with ilasm in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 #endif
@@ -268,7 +269,8 @@ int main(int argc, char *argv[])
         if( run )
         {
 #ifndef QT_NO_PROCESS
-            if( QProcess::execute(dir.absoluteFilePath("run.sh")) < 0 )
+            const QString path = dir.absoluteFilePath("run.sh");
+            if( QProcess::execute(path) < 0 )
                 return -1;
 #endif
         }

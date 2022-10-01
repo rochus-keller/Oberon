@@ -3,7 +3,7 @@
 # See https://github.com/rochus-keller/LeanQt and https://github.com/rochus-keller/BUSY/blob/main/README.md on how to use this file
 
 submod pelib = ../PeLib
-submod qt = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP)
+submod qt = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP, HAVE_PROCESS)
 
 let oberon : SourceSet {
 	.sources += [
@@ -62,5 +62,5 @@ let OBXMC ! : Executable {
 	.sources += ./ObxMcMain.cpp
 	.deps += compiler;
 	.include_dirs = compiler.include_dirs;
-	.defines = compiler.defines + "QT_NO_PROCESS"
+	.defines = compiler.defines
 }
