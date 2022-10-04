@@ -21,10 +21,10 @@ let oberon : SourceSet {
 		./ObxAst.cpp 
 		./ObTokenType.cpp
 	]
-	.configs += qt.client_config;
+	.configs += qt.core_client_config;
 	.include_dirs += ..
 	.defines += [ "_HAS_GENERICS" "OBX_BBOX" ]
-	.deps += qt.sources
+	.deps += qt.core_sources
 }
 
 let qrc_file = root_build_dir + relpath() + ./qrc_OBXMC.cpp
@@ -50,7 +50,7 @@ let compiler : SourceSet {
     	./ObxCGen2.cpp
     	qrc_file
 	]
-	.configs += qt.client_config;
+	.configs += qt.core_client_config;
 	.defines += "_OBX_USE_NEW_FFI_" + oberon.defines;
 	.include_dirs = oberon.include_dirs;
 	.deps += [ pelib.sources oberon run_rcc ]
@@ -58,7 +58,7 @@ let compiler : SourceSet {
 }
 
 let OBXMC ! : Executable {
-	.configs += qt.client_config;
+	.configs += qt.core_client_config;
 	.sources += ./ObxMcMain.cpp
 	.deps += compiler;
 	.include_dirs = compiler.include_dirs;
