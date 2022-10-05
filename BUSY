@@ -27,17 +27,8 @@ let oberon : SourceSet {
 	.deps += qt.core_sources
 }
 
-let qrc_file = root_build_dir + relpath() + ./qrc_OBXMC.cpp
-
-let run_rcc : LuaScript {
-	.script = abspath(qt) + ./tools/execute.lua
-	.args += [
-		tostring( root_build_dir + ./qt/tools/rcc/rcc )
-		"-name OBXMC"
-		tostring(abspath( ./OBXMC.qrc ))
-		"-o"
-		tostring( qrc_file )
-	]
+let run_rcc : Rcc {
+	.sources += ./OBXMC.qrc
 	.deps += qt.rcc
 }
 
@@ -48,7 +39,6 @@ let compiler : SourceSet {
     	./ObxCilGen.cpp
     	../MonoTools/MonoMdbGen.cpp
     	./ObxCGen2.cpp
-    	qrc_file
 	]
 	.configs += qt.core_client_config;
 	.defines += "_OBX_USE_NEW_FFI_" + oberon.defines;
