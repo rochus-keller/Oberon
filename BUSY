@@ -42,7 +42,7 @@ let compiler : SourceSet {
 	]
 	.configs += qt.core_client_config;
 	.defines += "_OBX_USE_NEW_FFI_" + oberon.defines;
-	.include_dirs = oberon.include_dirs;
+	.include_dirs += oberon.include_dirs;
 	.deps += [ pelib.sources oberon run_rcc ]
 	.cflags_cc = pelib.sources.cflags_cc # c++11 even in Pelib headers
 }
@@ -51,6 +51,6 @@ let OBXMC ! : Executable {
 	.configs += qt.core_client_config;
 	.sources += ./ObxMcMain.cpp
 	.deps += compiler;
-	.include_dirs = compiler.include_dirs;
-	.defines = compiler.defines
+	.include_dirs += compiler.include_dirs;
+	.defines += compiler.defines
 }
