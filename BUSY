@@ -2,11 +2,13 @@
 # License: GPL
 # See https://github.com/rochus-keller/LeanQt and https://github.com/rochus-keller/BUSY/blob/main/README.md on how to use this file
 
-submod pelib = ../PeLib
-submod qt = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP, HAVE_PROCESS)
+param HAVE_NOOPT = false	   # if true don't optimize
 
-let oberon : SourceSet {
-	.sources += [
+submod pelib = ../PeLib
+submod qtmini = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP, HAVE_PROCESS)
+submod qtfull = ../LeanQt (HAVE_ITEMVIEWS, HAVE_PROCESS, HAVE_NET_MINIMUM)
+
+let compiler_files = [
 		./ObToken.cpp 
 		./ObLexer.cpp 
 		./ObFileCache.cpp 
@@ -20,37 +22,104 @@ let oberon : SourceSet {
 		./ObxEvaluator.cpp 
 		./ObxAst.cpp 
 		./ObTokenType.cpp
-	]
-	.configs += qt.core_client_config;
-	.include_dirs += ..
-	.defines += [ "_HAS_GENERICS" "OBX_BBOX" ]
-	.deps += qt.core_sources
-}
-
-let run_rcc : Rcc {
-	.sources += ./OBXMC.qrc
-	.deps += qt.rcc
-}
-
-let compiler : SourceSet {
-	.sources += [
 	    ./ObxIlEmitter.cpp
     	./ObxPelibGen.cpp
     	./ObxCilGen.cpp
     	../MonoTools/MonoMdbGen.cpp
     	./ObxCGen2.cpp
 	]
-	.configs += qt.core_client_config;
-	.defines += "_OBX_USE_NEW_FFI_" + oberon.defines;
-	.include_dirs += oberon.include_dirs;
-	.deps += [ pelib.sources oberon run_rcc ]
+	
+let ide_files = [
+		../GuiTools/AutoMenu.cpp
+		../GuiTools/AutoShortcut.cpp
+		../GuiTools/AutoToolBar.cpp
+		../GuiTools/NamedFunction.cpp
+		../GuiTools/UiFunction.cpp
+    	../GuiTools/CodeEditor.cpp
+    	../GuiTools/DocSelector.cpp
+    	../GuiTools/DocTabWidget.cpp
+		../MonoTools/MonoEngine.cpp
+		../MonoTools/MonoDebugger.cpp
+		../MonoTools/MonoIlView.cpp
+    	./ObnHighlighter.cpp
+    	./ObxIde2.cpp
+	]
+	
+let imp_config : Config {
+	.include_dirs += ..
+	.defines += [ "_HAS_GENERICS" "OBX_BBOX" "_OBX_USE_NEW_FFI_" ]
 	.cflags_cc = pelib.sources.cflags_cc # c++11 even in Pelib headers
 }
 
-let OBXMC ! : Executable {
-	.configs += qt.core_client_config;
-	.sources += ./ObxMcMain.cpp
-	.deps += compiler;
-	.include_dirs += compiler.include_dirs;
-	.defines += compiler.defines
+let compiler_only_rcc : Rcc {
+	.deps += qtmini.copy_rcc;
+	.tool_dir = root_build_dir + relpath(qtmini);
+	.sources += ./OBXMC.qrc
+}
+
+let compiler_only ! : Executable {
+	.configs += [ imp_config qtmini.core_client_config ]
+	.sources += ./ObxMcMain.cpp + compiler_files ;
+	.deps += [ qtmini.copy_rcc pelib.sources qtmini.core_sources compiler_only_rcc ]
+	.cflags_cc = pelib.sources.cflags_cc ; # c++11 even in Pelib headers
+	.name = "OBXMC"
+}
+
+let compiler_moc : Moc {
+	.sources += ./ObxProject.h
+}
+
+let compiler_rcc : Rcc {
+	.sources += ./OBXMC.qrc
+}
+
+let compiler : Executable {
+	.configs += [ imp_config qtfull.core_client_config ]
+	.sources += ./ObxMcMain.cpp + compiler_files ;
+	.deps += [ qtfull.copy_rcc pelib.sources qtfull.core_sources compiler_rcc compiler_moc ]
+	.name = "OBXMC"
+}
+
+let ide_moc : Moc {
+	.sources += [
+		../GuiTools/UiFunction.h
+		../GuiTools/AutoShortcut.h
+		../GuiTools/AutoMenu.h
+		../MonoTools/MonoIlView.h
+		../MonoTools/MonoDebugger.h
+		../MonoTools/MonoEngine.h
+		../GuiTools/DocTabWidget.h
+		../GuiTools/DocSelector.h
+		../GuiTools/CodeEditor.h
+		./ObxIde2.h	
+	]
+}
+
+let ide_rcc : Rcc {
+	.sources += [ ./ObxIde2.qrc ./Font2.qrc ]
+}
+
+let ide * : Executable {
+	.configs += [ imp_config qtfull.qt_client_config ]
+	.deps += [ ide_rcc pelib.sources qtfull.libqt compiler_moc ide_moc ]
+	.sources += compiler_files + ide_files;
+	.defines += [ "_MONO_ENGINE_EXT_" "_OBX_USE_NEW_FFI_" ]
+	if target_os == `win32 {
+		.deps += qtfull.libqtwinmain
+	}
+	.name = "ObxIDE"
+}
+
+let compiler_and_ide * : Group {
+	.deps += [ compiler ide ]
+}
+
+let nooptconf : Config {
+	if target_toolchain == `msvc {
+		.cflags += "-MD"
+	}
+}
+
+if HAVE_NOOPT {
+	set_defaults(target_toolchain,nooptconf)
 }
