@@ -101,7 +101,7 @@ let ide_rcc : Rcc {
 
 let ide * : Executable {
 	.configs += [ imp_config qtfull.qt_client_config ]
-	.deps += [ ide_rcc pelib.sources qtfull.libqt compiler_moc ide_moc ]
+	.deps += [ pelib.sources qtfull.libqt ide_rcc compiler_moc ide_moc ]
 	.sources += compiler_files + ide_files;
 	.defines += [ "_MONO_ENGINE_EXT_" "_OBX_USE_NEW_FFI_" ]
 	if target_os == `win32 {
