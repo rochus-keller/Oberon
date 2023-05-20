@@ -184,21 +184,18 @@ FieldListSequence ::= FieldList
 	{';' [FieldList] } // added support for empty ';' due to PO code
 #endif
 
-FieldList ::= IdentList ':' type
+FieldList ::= [WEAK] IdentList ':' type
 
 IdentList ::= identdef { [','] identdef}
 
 /// 6.4. Pointer types
 
 PointerType ::= ( 
-#ifdef OBNX
-	UNSAFE
-#endif
 	POINTER 
 #ifdef BBOX
-	[ SysFlag ]
+		[ SysFlag ]
 #endif
-	TO
+		TO
 #ifdef OBNX
 	| '^'  // abbreviation for POINTER TO
 	| CPOINTER TO
@@ -223,7 +220,7 @@ ProcedureType ::= ( PROCEDURE
 
 /// 7. Variable declarations
 
-VariableDeclaration ::= IdentList ':' type
+VariableDeclaration ::= [WEAK] IdentList ':' type
 
 /// 8. Expressions
 

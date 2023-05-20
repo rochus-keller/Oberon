@@ -2,7 +2,11 @@
 # License: GPL
 # See https://github.com/rochus-keller/LeanQt and https://github.com/rochus-keller/BUSY/blob/main/README.md on how to use this file
 
-param HAVE_NOOPT = false	   # if true don't optimize
+# param HAVE_NOOPT = false	   # no longer supported; use -M nonoptimized instead
+
+if busy_version < "2023-01-15" {
+	error("this version of BUSY is not compatible with this build")
+}
 
 submod pelib = ../PeLib
 submod qtmini = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP, HAVE_PROCESS)
@@ -114,12 +118,4 @@ let compiler_and_ide * : Group {
 	.deps += [ compiler ide ]
 }
 
-let nooptconf : Config {
-	if target_toolchain == `msvc {
-		.cflags += "-MD"
-	}
-}
 
-if HAVE_NOOPT {
-	set_defaults(target_toolchain,nooptconf)
-}

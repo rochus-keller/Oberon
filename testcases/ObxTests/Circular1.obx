@@ -1,7 +1,9 @@
 module Circular1
 
 type
-	A = record b: pointer to B; c: integer end // error if b is B, not pointer to B
+	A = record b: pointer to B  // error if b is B, not pointer to B
+          	d: pointer to array 3 of B // error if d is array, not pointer to array
+          	c: integer end 
 	B = record c: C end
 	C = record a: A end
 

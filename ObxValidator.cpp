@@ -2134,7 +2134,12 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_to.isNull() )
         {
+            Type* temp = curTypeDecl;
+            curTypeDecl = 0;
+            // S3 has record N a field of which is a pointer to array of N
+            // each pointer breaks self refs, so deactivate it for this run
             me->d_to->accept(this);
+            curTypeDecl = temp;
             Type* t = derefed(me->d_to.data());
             checkNoVla(t, me->d_loc);
             if( me->d_unsafe )
@@ -2347,8 +2352,7 @@ struct ValidatorImp : public AstVisitor
         foreach( const Ref<Field>& f, me->d_fields )
         {
             f->accept(this);
-
-            checkSelfRef(f->d_type.data()); // TODO: was already called by field ref
+            checkSelfRef(f->d_type.data());
             checkNoVla(f->d_type.data(),f->d_loc);
 #ifdef OBX_BBOX
             if( me->d_unsafe )
@@ -4012,7 +4016,6 @@ struct ValidatorImp : public AstVisitor
         Type* td = derefed(t);
         if( td == ctdd && ctdd->getTag() != Thing::T_Pointer )
             error(t->d_loc, Validator::tr("a structured type cannot contain itself"));
-        // TODO: S3 has record N a field of which is a pointer to array of N
         else if( td == ctdd )
             t->d_selfRef = true;
         else if( td == t ) // dont follow qualitypes
@@ -4026,13 +4029,6 @@ struct ValidatorImp : public AstVisitor
             return; // error already reported
         if( td != t )
             return; // don't check type aliasses, only original types
-
-#if 0 // we do this now in markSelfRef
-        Type* ctdd = derefed(curTypeDecl);
-        if( ctdd && ctdd->getTag() == Thing::T_Pointer )
-            return; // legal in any case
-            // and a pointer cannot point to a pointer anyway
-#endif
 
         switch( t->getTag() )
         {
@@ -4051,10 +4047,13 @@ struct ValidatorImp : public AstVisitor
             break;
         case Thing::T_Pointer:
             {
+#if 0
+                // pointers breaks self reference
                 Pointer* p = cast<Pointer*>(t);
                 Type* d = derefed(p->d_to.data());
                 if( d == p->d_to.data() )
                     checkSelfRef(d);
+#endif
             }
             break;
         }
