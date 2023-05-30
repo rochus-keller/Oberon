@@ -21,7 +21,7 @@
  * THE SOFTWARE.
  *)
  
-module Pair<K,V>
+module Pair(K,V)
 
 type
     Pair* = record

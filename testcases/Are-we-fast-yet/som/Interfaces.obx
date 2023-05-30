@@ -21,7 +21,7 @@
  * THE SOFTWARE.
  *)
  
- module Interfaces<E>
+ module Interfaces(E)
 
     type ForEachInterface* = record end
 

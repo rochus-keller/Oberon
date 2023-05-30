@@ -21,10 +21,10 @@
  * THE SOFTWARE.
  *)
 
-module Dictionary<K,V>
+module Dictionary(K,V)
 
-    import KV := Vector<K>
-        VV := Vector<V>
+    import KV := Vector(K)
+        VV := Vector(V)
         
     /////// Entry ////////
     type

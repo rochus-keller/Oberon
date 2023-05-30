@@ -1,4 +1,4 @@
-module Generic1<T>
+module Generic1(T)
 
 type
 	List* = pointer to record 

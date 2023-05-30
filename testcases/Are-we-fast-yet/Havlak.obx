@@ -90,7 +90,7 @@ module Havlak
   
     //////////////// BasicBlock ////////////////
     import
-        BBV := som.Vector<BasicBlock>
+        BBV := som.Vector(BasicBlock)
     type 
         BasicBlock = pointer to record
                             inEdges, outEdges: BBV.Vector
@@ -131,7 +131,7 @@ module Havlak
                     
     ////////////// ControlFlowGraph ///////////////
     import
-        BEV := som.Vector<BasicBlockEdge>
+        BEV := som.Vector(BasicBlockEdge)
     type
         ControlFlowGraph = pointer to record
                                     basicBlockMap: BBV.Vector
@@ -169,8 +169,8 @@ module Havlak
 
     ////////////// SimpleLoop ////////////////
     import
-        ISB := som.IdentitySet<BasicBlock>
-        ISL := som.IdentitySet<SimpleLoop>
+        ISB := som.IdentitySet(BasicBlock)
+        ISL := som.IdentitySet(SimpleLoop)
     type
         SimpleLoop = pointer to record
                             basicBlocks: ISB.IdentitySet
@@ -209,7 +209,7 @@ module Havlak
             
     ////////////// UnionFindNode ////////////
     import 
-        UNV := som.Vector<UnionFindNode>
+        UNV := som.Vector(UnionFindNode)
     type
         UnionFindNode = pointer to record
                                 parent: UnionFindNode
@@ -255,7 +255,7 @@ module Havlak
             
     ////////////// LoopStructureGraph ////////////////
     import 
-        SLV := som.Vector<SimpleLoop>
+        SLV := som.Vector(SimpleLoop)
     type
         LoopStructureGraph = pointer to record
                                         root: SimpleLoop
@@ -459,11 +459,11 @@ module Havlak
   
     //////////////////// HavlakLoopFinder ////////////////////
     import
-        SI := som.Set<integer>
-        VSI := som.Vector<SI.Set>
-        VI := som.Vector<integer>
-        VVI := som.Vector<VI.Vector>
-        ID := som.IdentityDictionary<BasicBlock,integer>
+        SI := som.Set(integer)
+        VSI := som.Vector(SI.Set)
+        VI := som.Vector(integer)
+        VVI := som.Vector(VI.Vector)
+        ID := som.IdentityDictionary(BasicBlock,integer)
     const 
         UNVISITED = max(integer)
         MAXNONBACKPREDS = 32 * 1024i

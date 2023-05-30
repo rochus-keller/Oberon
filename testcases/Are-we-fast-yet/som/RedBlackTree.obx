@@ -21,9 +21,9 @@
  * THE SOFTWARE.
  *)
 
-module RedBlackTree<K,V>
+module RedBlackTree(K,V)
 
-    import I := Interfaces<Entry>
+    import I := Interfaces(Entry)
     
     ////////// Node //////////////////
     type

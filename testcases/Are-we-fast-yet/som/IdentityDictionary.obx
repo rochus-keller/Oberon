@@ -21,9 +21,9 @@
  * THE SOFTWARE.
  *)
 
-module IdentityDictionary<K,V>
+module IdentityDictionary(K,V)
 
-    import D := Dictionary<K,V>
+    import D := Dictionary(K,V)
     
     type
        HashFunc* = D.HashFunc

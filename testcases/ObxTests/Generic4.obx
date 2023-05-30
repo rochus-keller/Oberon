@@ -1,4 +1,4 @@
-module Generic4<T>
+module Generic4(T)
 
 type
 	Element = record 

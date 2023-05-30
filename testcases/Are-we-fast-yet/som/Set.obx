@@ -21,11 +21,11 @@
  * THE SOFTWARE.
  *)
  
-module Set<E>
+module Set(E)
 
 import 
-    V := Vector<E>, 
-    I := Interfaces<E>
+    V := Vector(E)
+    I := Interfaces(E)
 
 const
     INITIAL_SIZE* = 10

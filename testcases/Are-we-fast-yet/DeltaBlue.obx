@@ -75,8 +75,8 @@ module DeltaBlue
      * pointer comparison can be used for value comparison.
    *)
     import 
-        SID := som.IdentityDictionary<Sym,integer>
-        SSD := som.IdentityDictionary<Sym,Strength>
+        SID := som.IdentityDictionary(Sym,integer)
+        SSD := som.IdentityDictionary(Sym,Strength)
     type
         Strength = pointer to record
                             arithmeticValue: integer
@@ -130,7 +130,7 @@ module DeltaBlue
     // of storing the constrained variables and other information required
     // to represent a constraint.
     import
-        IV := som.Interfaces<Variable>
+        IV := som.Interfaces(Variable)
         
     type 
         AbstractConstraint = pointer to record strength: Strength end
@@ -252,7 +252,7 @@ module DeltaBlue
   
     /////////////////// Variable ///////////////////////
     import
-        ACV := som.Vector<AbstractConstraint>
+        ACV := som.Vector(AbstractConstraint)
     type
         Variable = pointer to record 
                         value: integer
@@ -506,7 +506,7 @@ module DeltaBlue
   end change
 
   import
-      IAC := som.Interfaces<AbstractConstraint>
+      IAC := som.Interfaces(AbstractConstraint)
       
   proc (this: Planner) constraintsConsuming(v: Variable; var fn: IAC.ForEachInterface)
       var determiningC, c: AbstractConstraint
@@ -534,7 +534,7 @@ module DeltaBlue
   end newMark
 
   import
-      VAV := som.Vector<Variable>
+      VAV := som.Vector(Variable)
       
   // Update the walkabout strengths and stay flags of all variables
   // downstream of the given constraint. Answer a collection of

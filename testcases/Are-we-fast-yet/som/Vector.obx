@@ -21,9 +21,9 @@
  * THE SOFTWARE.
  *)
  
-module Vector<E>
+module Vector(E)
 import
-    I := Interfaces<E>
+    I := Interfaces(E)
     
     type
         Vector* = pointer to record

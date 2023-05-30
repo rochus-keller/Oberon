@@ -1,6 +1,6 @@
 module GenericTest1
 
-import IL := Generic1<integer>
+import IL := Generic1(integer)
 
 var
 	IntList : IL.List

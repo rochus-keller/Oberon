@@ -1,7 +1,7 @@
 module GenericTest6
 
 import 
-	RL := Generic3<R>
+	RL := Generic3(R)
 
 type 
 	R = record

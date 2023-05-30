@@ -1,8 +1,8 @@
 module GenericTest3
 
 import 
-	SL := Generic1<String>,
-	IL := Generic1<integer>
+	SL := Generic1(String),
+	IL := Generic1(integer)
 
 
 type

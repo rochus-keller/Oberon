@@ -23,16 +23,16 @@
 module Tester
 
 import 
-    IV := som.Vector<integer>
-    I := som.Interfaces<integer>
+    IV := som.Vector(integer)
+    I := som.Interfaces(integer)
     H := Harness
     R := som.Random
-    B := som.RedBlackTree<integer,String>
-    IB := som.Interfaces<B.Entry>
-    SV := som.Vector<String>
+    B := som.RedBlackTree(integer,String)
+    IB := som.Interfaces(B.Entry)
+    SV := som.Vector(String)
     CD, CD2
-    RVV := som.RedBlackTree<CD.Vector2D,SV.Vector>
-    IVV := som.Interfaces<RVV.Entry>
+    RVV := som.RedBlackTree(CD.Vector2D,SV.Vector)
+    IVV := som.Interfaces(RVV.Entry)
     Out
 
     type

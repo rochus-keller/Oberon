@@ -81,8 +81,9 @@ struct ValidatorImp : public AstVisitor
     QSet<Const*> constTrace;
     QList<Expression*> deferProcCheck;
     bool returnValueFound;
+    bool selfRefBroken;
 
-    ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0),returnValueFound(false) {}
+    ValidatorImp():err(0),mod(0),curTypeDecl(0),prevStat(0),returnValueFound(false),selfRefBroken(false) {}
 
     //////// Scopes
 
@@ -2134,12 +2135,10 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_to.isNull() )
         {
-            Type* temp = curTypeDecl;
-            curTypeDecl = 0;
+            selfRefBroken = true;
             // S3 has record N a field of which is a pointer to array of N
             // each pointer breaks self refs, so deactivate it for this run
             me->d_to->accept(this);
-            curTypeDecl = temp;
             Type* t = derefed(me->d_to.data());
             checkNoVla(t, me->d_loc);
             if( me->d_unsafe )
@@ -2447,6 +2446,7 @@ struct ValidatorImp : public AstVisitor
     void visit( NamedType* me )
     {
         curTypeDecl = me->d_type.data();
+        selfRefBroken = false;
         if( me->d_type )
             me->d_type->accept(this);
         checkNoVla(me->d_type.data(), me->d_loc);
@@ -4014,7 +4014,7 @@ struct ValidatorImp : public AstVisitor
     {
         Type* ctdd = derefed(curTypeDecl);
         Type* td = derefed(t);
-        if( td == ctdd && ctdd->getTag() != Thing::T_Pointer )
+        if( !selfRefBroken && td == ctdd && ctdd->getTag() != Thing::T_Pointer )
             error(t->d_loc, Validator::tr("a structured type cannot contain itself"));
         else if( td == ctdd )
             t->d_selfRef = true;

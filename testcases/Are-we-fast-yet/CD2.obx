@@ -98,15 +98,15 @@ module CD
     /////////////////////////////////////////////////////////
     
     import Math
-        CV := som.Vector<CallSign>
-        AV := som.Vector<Aircraft>
-        MV := som.Vector<Motion>
-        OV := som.Vector<Collision>
-        VV := som.Vector<MV.Vector>
-        RCV := som.RedBlackTree<CallSign, Vector3D>
-        RVV := som.RedBlackTree<Vector2D,MV.Vector>
-        RVB := som.RedBlackTree<Vector2D, boolean>
-        RCB := som.RedBlackTree<CallSign, boolean>
+        CV := som.Vector(CallSign)
+        AV := som.Vector(Aircraft)
+        MV := som.Vector(Motion)
+        OV := som.Vector(Collision)
+        VV := som.Vector(MV.Vector)
+        RCV := som.RedBlackTree(CallSign, Vector3D)
+        RVV := som.RedBlackTree(Vector2D,MV.Vector)
+        RVB := som.RedBlackTree(Vector2D, boolean)
+        RCB := som.RedBlackTree(CallSign, boolean)
 
     const
         MIN_X = 0.0

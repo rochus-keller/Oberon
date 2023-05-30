@@ -1,8 +1,8 @@
 module GenericTest5
 
 import 
-	IL := Generic4<integer>,
-	SL := Generic4<String>
+	IL := Generic4(integer),
+	SL := Generic4(String)
 
 var
 	IntList : IL.List
