@@ -95,13 +95,15 @@ struct ValidatorImp : public AstVisitor
             if( n->getTag() == Thing::T_Const )
                 n->accept(this);
         }
-#if 0
-        foreach( const Ref<Named>& n, me->d_order )
+        if( me->getTag() == Thing::T_Module )
         {
-            if( n->getTag() == Thing::T_NamedType )
-                n->accept(this);
+            Module* mod = static_cast<Module*>(me);
+            for( int i = 0; i < mod->d_metaParams.size(); i++ )
+            {
+                mod->d_metaParams[i]->accept(this);
+                // TODO check type is a record or pointer to record
+            }
         }
-#else
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_NamedType && n->d_type && !n->d_type->isStructured(true) )
@@ -123,7 +125,6 @@ struct ValidatorImp : public AstVisitor
             foreach( Record* r, circular )
                 error(r->d_loc, Validator::tr("RECORD used as field value type has circular dependency on itself"));
         }
-#endif
         foreach( const Ref<Named>& n, me->d_order )
         {
             const int tag = n->getTag();
@@ -196,11 +197,15 @@ struct ValidatorImp : public AstVisitor
                 Q_ASSERT( me->d_metaActuals.size() == me->d_metaParams.size() );
                 for( int i = 0; i < me->d_metaActuals.size(); i++ )
                     me->d_metaParams[i]->d_type = me->d_metaActuals[i];
+                    // TODO: check compatibility of type and actual
             }else
             {
                 // this is a generic module
                 for( int i = 0; i < me->d_metaParams.size(); i++ )
-                    me->d_metaParams[i]->d_type = bt.d_anyType;
+                {
+                    if( me->d_metaParams[i]->d_type.isNull() )
+                        me->d_metaParams[i]->d_type = bt.d_anyType;
+                }
             }
         }
 
@@ -3201,12 +3206,16 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
+    void visit( GenericName* me)
+    {
+        me->d_type->accept(this);
+        me->d_visited = true;
+    }
 
     ///////// NOP
 
     void visit( BaseType* ) { }
     void visit( BuiltIn* ) { }
-    void visit( GenericName* ) {}
 
     ////////// Utility
 
@@ -3217,7 +3226,10 @@ struct ValidatorImp : public AstVisitor
             me->d_type->accept(this);
             me->d_visited = true;
             if( !me->d_type->hasByteSize() )
+            {
+                me->d_type->hasByteSize();
                 error(me->d_type->d_loc, Validator::tr("this type cannot be used here") );
+            }
             checkNoAnyRecType(me->d_type.data());
             // checkRecordUse(me->d_type.data());
             checkNoBooleanTypeInUnsafe(me->d_type.data(),me->d_unsafe, me->d_loc);

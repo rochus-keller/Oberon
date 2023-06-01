@@ -46,6 +46,7 @@ namespace Obx
         Ref<Expression> expression();
         Ref<NamedType> typeDeclaration(Scope* scope);
         MetaParams typeParams();
+        Ref<GenericName> typeParam();
         Ref<Type> type(Scope* scope, Named* id, Type* binding );
         MetaActuals typeActuals();
         Ref<Type> enumeration(Scope* scope, Named* id, Type* binding);

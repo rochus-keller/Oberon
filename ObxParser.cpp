@@ -107,7 +107,7 @@ bool Parser::module(bool definition )
         }
     }else
     {
-        if( d_la == Tok_Lt || d_la == Tok_Lpar )
+        if( /* d_la == Tok_Lt || */ d_la == Tok_Lpar )
         {
             m->d_metaParams = typeParams();
             for( int i = 0; i < m->d_metaParams.size(); i++ )
@@ -367,9 +367,13 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
 MetaParams Parser::typeParams()
 {
     bool usesPar = false;
+#if 0
+    // no longer supported
     if( d_la == Tok_Lt )
         next();
-    else if( d_la == Tok_Lpar )
+    else
+#endif
+    if( d_la == Tok_Lpar )
     {
         next();
         usesPar = true;
@@ -378,21 +382,13 @@ MetaParams Parser::typeParams()
 #ifndef _HAS_GENERICS
     syntaxError(tr("this version of the parser doesn't support generic types") );
 #endif
-    MATCH( Tok_ident, tr("at least one identifier required as type parameter") );
     MetaParams res;
-    Ref<GenericName> t = new GenericName();
-    t->d_name = d_cur.d_val;
-    t->d_loc = d_cur.toRowCol();
-    res << t;
+    res << typeParam();
     while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
         if( d_la == Tok_Comma )
             next();
-        MATCH( Tok_ident, tr("identifier expected in type parameter list") );
-        Ref<GenericName> t = new GenericName();
-        t->d_name = d_cur.d_val;
-        t->d_loc = d_cur.toRowCol();
-        res << t;
+        res << typeParam();
     }
     if( usesPar )
     {
@@ -402,6 +398,25 @@ MetaParams Parser::typeParams()
         MATCH( Tok_Gt, tr("expecting '>' to end type parameters") );
     }
     return res;
+}
+
+// TODO: GenericName is actually a NamedType; we likely don't need a separate AST element.
+// TODO: we should also support Const and assign compile time expressions in instantiations
+// TODO: we should add these to the order list of the module scope
+Ref<GenericName> Parser::typeParam()
+{
+    if( d_la == Tok_TYPE )
+        next();
+    MATCH( Tok_ident, tr("identifier expected in type parameter list") );
+    Ref<GenericName> t = new GenericName();
+    t->d_name = d_cur.d_val;
+    t->d_loc = d_cur.toRowCol();
+    if( d_la == Tok_Colon )
+    {
+        next();
+        t->d_type = namedType(0,0).data();
+    }
+    return t;
 }
 
 Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
@@ -447,9 +462,13 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
 MetaActuals Parser::typeActuals()
 {
     bool usesPar = false;
+#if 0
+    // no longer supported
     if( d_la == Tok_Lt )
         next();
-    else if( d_la == Tok_Lpar )
+    else
+#endif
+    if( d_la == Tok_Lpar )
     {
         next();
         usesPar = true;
@@ -2173,7 +2192,7 @@ void Parser::import()
         }else
             hasErr = true;
     }
-    if( d_la == Tok_Lt || d_la == Tok_Lpar )
+    if( /* d_la == Tok_Lt || */ d_la == Tok_Lpar )
     {
         imp->d_metaActuals = typeActuals();
     }

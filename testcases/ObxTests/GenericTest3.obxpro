@@ -1,18 +1,29 @@
 [General]
+BuildDir=
 BuiltInOakwood=false
 BuiltInObSysInner=false
+IntegerIsInt16=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
+Options=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
+[.]
+size=0
+
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest3.obx
-1\RelPath=GenericTest3.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic1.obx
-2\RelPath=Generic1.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic5.obx
+1\RelPath=Generic5.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest7.obx
+2\RelPath=GenericTest7.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic5.obx
+3\RelPath=Generic5.obx
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest7.obx
+4\RelPath=GenericTest7.obx
 size=2
 
 [Packages]
 1\Name=@ByteArray()
-size=1
+2\Name=@ByteArray()
+size=2
