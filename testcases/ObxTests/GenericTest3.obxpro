@@ -17,10 +17,6 @@ size=0
 1\RelPath=Generic5.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest7.obx
 2\RelPath=GenericTest7.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic5.obx
-3\RelPath=Generic5.obx
-4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest7.obx
-4\RelPath=GenericTest7.obx
 size=2
 
 [Packages]

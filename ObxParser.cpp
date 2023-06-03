@@ -109,13 +109,13 @@ bool Parser::module(bool definition )
     {
         if( /* d_la == Tok_Lt || */ d_la == Tok_Lpar )
         {
-            m->d_metaParams = typeParams();
+            m->d_metaParams = metaParams();
             for( int i = 0; i < m->d_metaParams.size(); i++ )
             {
                 m->d_metaParams[i]->d_slot = i;
                 m->d_metaParams[i]->d_slotValid = true;
                 if( !m->add( m->d_metaParams[i].data() ) )
-                    semanticError(m->d_metaParams[i]->d_loc,tr("name of type parameter must be unique"));
+                    semanticError(m->d_metaParams[i]->d_loc,tr("name of generic parameter must be unique"));
             }
         }
     }
@@ -364,59 +364,76 @@ Ref<NamedType> Parser::typeDeclaration(Scope* scope)
     return nt;
 }
 
-MetaParams Parser::typeParams()
+MetaParams Parser::metaParams()
 {
-    bool usesPar = false;
-#if 0
-    // no longer supported
-    if( d_la == Tok_Lt )
-        next();
-    else
-#endif
-    if( d_la == Tok_Lpar )
-    {
-        next();
-        usesPar = true;
-    }else
-        syntaxError( tr("expecting '<' or '(' to start type parameters") );
+    MATCH( Tok_Lpar, tr("expecting '(' to start generic parameter list") );
+
 #ifndef _HAS_GENERICS
     syntaxError(tr("this version of the parser doesn't support generic types") );
 #endif
     MetaParams res;
-    res << typeParam();
+
+    res << metaSection();
+    while( d_la != Tok_Rpar )
+    {
+        if( d_la == Tok_Semi )
+            next();
+        res << metaSection();
+    }
+
+    MATCH( Tok_Rpar, tr("expecting ')' at the end of the generic parameter list") );
+    return res;
+}
+
+MetaParams Parser::metaSection()
+{
+    // similar to fpSection
+
+    bool isConst = false;
+    if( d_la == Tok_TYPE )
+        next();
+    else if( d_la == Tok_CONST )
+    {
+        isConst = true;
+        next();
+    }
+
+    QList<Token> names;
+    MATCH( Tok_ident, tr("expecting generic parameter name") );
+    if( d_cur.isValid() )
+        names << d_cur;
     while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
         if( d_la == Tok_Comma )
             next();
-        res << typeParam();
+        MATCH( Tok_ident, tr("expecting generic parameter name") );
+        if( d_cur.isValid() )
+            names << d_cur;
     }
-    if( usesPar )
-    {
-        MATCH( Tok_Rpar, tr("expecting ')' to end type parameters") );
-    }else
-    {
-        MATCH( Tok_Gt, tr("expecting '>' to end type parameters") );
-    }
-    return res;
-}
 
-// TODO: GenericName is actually a NamedType; we likely don't need a separate AST element.
-// TODO: we should also support Const and assign compile time expressions in instantiations
-// TODO: we should add these to the order list of the module scope
-Ref<GenericName> Parser::typeParam()
-{
-    if( d_la == Tok_TYPE )
-        next();
-    MATCH( Tok_ident, tr("identifier expected in type parameter list") );
-    Ref<GenericName> t = new GenericName();
-    t->d_name = d_cur.d_val;
-    t->d_loc = d_cur.toRowCol();
+    Ref<Type> t;
     if( d_la == Tok_Colon )
     {
         next();
-        t->d_type = namedType(0,0).data();
+        t = namedType(0,0).data();
     }
-    return t;
+
+    MetaParams res;
+    foreach( const Token& name, names )
+    {
+        Ref<Named> n;
+        if( isConst )
+            n = new Const();
+        else
+            n = new NamedType();
+        n->d_name = name.d_val;
+        n->d_loc = name.toRowCol();
+        n->d_generic = true;
+        n->d_type = t;
+        res << n;
+    }
+
+    return res;
 }
 
 Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
@@ -459,7 +476,7 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
     return 0;
 }
 
-MetaActuals Parser::typeActuals()
+MetaActuals Parser::metaActuals()
 {
     bool usesPar = false;
 #if 0
@@ -478,16 +495,16 @@ MetaActuals Parser::typeActuals()
     syntaxError(tr("this version of the parser doesn't support generic types") );
 #endif
     MetaActuals res;
-    Ref<Type> t = typeActual();
-    if( !t.isNull() )
-        res << t;
+    Ref<Expression> e = constExpression();
+    if( !e.isNull() )
+        res << MetaActual(e.data());
     while( d_la == Tok_Comma || d_la == Tok_ident ) // comma is optional
     {
         if( d_la == Tok_Comma )
             next();
-        t = typeActual();
-        if( !t.isNull() )
-            res << t;
+        e = constExpression();
+        if( !e.isNull() )
+            res << MetaActual(e.data());
     }
     if( usesPar )
     {
@@ -557,46 +574,7 @@ Ref<QualiType> Parser::namedType(Named* id, Type* binding)
 
 Ref<Type> Parser::returnType(Scope* scope, Type* binding)
 {
-#if 0
-    switch( d_la )
-    {
-    case Tok_POINTER:
-    case Tok_CPOINTER:
-        {
-            next();
-            Ref<Pointer> p = new Pointer();
-            p->d_loc = d_cur.toRowCol();
-            if( d_cur.d_type == Tok_CPOINTER )
-                p->d_unsafe = true;
-            MATCH( Tok_TO, tr("expecting the TO keyword after the POINTER keyword") );
-            p->d_to = namedType(0,0).data();
-            if( p->d_to )
-                p->d_to->d_binding = p.data();
-            p->d_binding = binding;
-            return p.data();
-        }
-        break;
-    case Tok_Hat:
-    case Tok_Star:
-        {
-            next();
-            Ref<Pointer> p = new Pointer();
-            p->d_loc = d_cur.toRowCol();
-            if( d_cur.d_type == Tok_Star )
-                p->d_unsafe = true;
-            p->d_to = namedType(0,0).data();
-            if( p->d_to )
-                p->d_to->d_binding = p.data();
-            p->d_binding = binding;
-            return p.data();
-        }
-        break;
-    default:
-        return namedType(0,binding).data();
-    }
-#else
     return type(scope,0,binding);
-#endif
 }
 
 Ref<Type> Parser::arrayType(Scope* scope, Named* id, Type* binding)
@@ -780,31 +758,6 @@ Ref<Type> Parser::procedureType(Scope* scope, Named* id, Type* binding)
             formalParameters(scope, p.data());
     }
     return p.data();
-}
-
-Ref<Type> Parser::typeActual()
-{
-    switch( d_la )
-    {
-    case Tok_ident:
-        return namedType(0,0).data(); // TODO
-
-    case Tok_integer:
-    case Tok_real:
-    case Tok_string:
-    case Tok_hexstring:
-    case Tok_hexchar:
-    case Tok_NIL:
-    case Tok_TRUE:
-    case Tok_FALSE:
-    case Tok_Lbrace:
-        //return literal().data();
-
-    default:
-        syntaxError(tr("expecting type as actual type parameters"));
-        break;
-    }
-    return 0;
 }
 
 Ref<Expression> Parser::literal()
@@ -2194,7 +2147,7 @@ void Parser::import()
     }
     if( /* d_la == Tok_Lt || */ d_la == Tok_Lpar )
     {
-        imp->d_metaActuals = typeActuals();
+        imp->d_metaActuals = metaActuals();
     }
     if( !hasAlias ) // no alias present
         imp->d_name = suff.d_val;

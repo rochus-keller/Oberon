@@ -45,10 +45,10 @@ namespace Obx
         Ref<Expression> constExpression();
         Ref<Expression> expression();
         Ref<NamedType> typeDeclaration(Scope* scope);
-        MetaParams typeParams();
-        Ref<GenericName> typeParam();
+        MetaParams metaParams();
+        MetaParams metaSection();
         Ref<Type> type(Scope* scope, Named* id, Type* binding );
-        MetaActuals typeActuals();
+        MetaActuals metaActuals();
         Ref<Type> enumeration(Scope* scope, Named* id, Type* binding);
         Ref<QualiType> namedType(Named* id, Type* binding);
         Ref<Type> returnType(Scope* scope,Type* binding);
@@ -56,7 +56,6 @@ namespace Obx
         Ref<Type> recordType(Scope* scope, Named* id, Type* binding);
         Ref<Type> pointerType(Scope* scope, Named* id, Type* binding);
         Ref<Type> procedureType(Scope* scope, Named* id, Type* binding);
-        Ref<Type> typeActual();
         Ref<Expression> literal();
         QList< Ref<Expression> > lengthList();
         Ref<Expression> length();

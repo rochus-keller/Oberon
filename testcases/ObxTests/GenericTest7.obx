@@ -1,4 +1,26 @@
 module GenericTest7
 
+import G := Generic5(Sub)
+  // H := Generic5(33)
 
+type 
+  Sub = record(G.Super) i: integer end
+  
+  proc (var this: Sub) hello*()
+  begin
+    println(this.i)
+  end hello
+var
+  l: G.List
+  
+begin
+  println("Begin GenericTest7")
+  new(l)
+  l.value.i := 33
+  new(l.next)
+  l.next.value.i := 44
+  new(l.next.next)
+  l.next.next.value.i := 55
+  l.iterate()
+  println("End GenericTest7")
 end GenericTest7

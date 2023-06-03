@@ -80,6 +80,7 @@ struct ValidatorImp : public AstVisitor
     Statement* prevStat;
     QSet<Const*> constTrace;
     QList<Expression*> deferProcCheck;
+    QList< QPair<Type*,Type*> > deferExtensionCheck;
     bool returnValueFound;
     bool selfRefBroken;
 
@@ -95,19 +96,16 @@ struct ValidatorImp : public AstVisitor
             if( n->getTag() == Thing::T_Const )
                 n->accept(this);
         }
-        if( me->getTag() == Thing::T_Module )
-        {
-            Module* mod = static_cast<Module*>(me);
-            for( int i = 0; i < mod->d_metaParams.size(); i++ )
-            {
-                mod->d_metaParams[i]->accept(this);
-                // TODO check type is a record or pointer to record
-            }
-        }
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_NamedType && n->d_type && !n->d_type->isStructured(true) )
                 n->accept(this);
+        }
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Procedure )
+                registerBoundProc( cast<Procedure*>(n.data()) );
+            // add bound proc to its record as soon as possible because generic imports could access it
         }
         foreach( const Ref<Named>& n, me->d_order )
         {
@@ -135,6 +133,20 @@ struct ValidatorImp : public AstVisitor
         {
             if( n->getTag() == Thing::T_Procedure )
                 visitHeader( cast<Procedure*>(n.data()) ); // body can call procs defined later
+        }
+        if( !deferExtensionCheck.isEmpty() )
+        {
+#if 0
+            // doesn't work if super is in instantiated generic module because the type in the template generic
+            // module is a different one than the type seen by sub as a base type
+            // shoudln't matter anyway because the validator would report an error for other reasons
+            for( int i = 0; i < deferExtensionCheck.size(); i++ )
+            {
+                if( !typeExtension(deferExtensionCheck[i].first,deferExtensionCheck[i].second,false) )
+                    error(deferExtensionCheck[i].second->d_loc, Validator::tr("actual doesn't match formal generic parameter"));
+            }
+#endif
+            deferExtensionCheck.clear();
         }
         foreach( const Ref<Named>& n, me->d_order )
         {
@@ -196,8 +208,11 @@ struct ValidatorImp : public AstVisitor
                 // this is an instantiated generic module
                 Q_ASSERT( me->d_metaActuals.size() == me->d_metaParams.size() );
                 for( int i = 0; i < me->d_metaActuals.size(); i++ )
-                    me->d_metaParams[i]->d_type = me->d_metaActuals[i];
-                    // TODO: check compatibility of type and actual
+                {
+                    // if( me->d_metaParams[i]->d_type == bt.d_anyType )
+                        me->d_metaParams[i]->d_type = me->d_metaActuals[i].d_type.data();
+                }
+                    // TODO: adapt to const params
             }else
             {
                 // this is a generic module
@@ -205,6 +220,7 @@ struct ValidatorImp : public AstVisitor
                 {
                     if( me->d_metaParams[i]->d_type.isNull() )
                         me->d_metaParams[i]->d_type = bt.d_anyType;
+                        // for both NamedType and Const
                 }
             }
         }
@@ -246,10 +262,11 @@ struct ValidatorImp : public AstVisitor
         levels.pop_back();
     }
 
-    void visitBoundProc( Procedure* me )
+    void registerBoundProc( Procedure* me )
     {
-        // Helper of visitHeader
-        Q_ASSERT( !me->d_receiver.isNull() );
+        if( me->d_receiver.isNull() )
+            return;
+
         me->d_receiver->accept(this);
 
         Type* t = derefed(me->d_receiver->d_type.data());
@@ -297,10 +314,17 @@ struct ValidatorImp : public AstVisitor
             if( me->d_scope != decl->d_scope )
                 error( me->d_loc, Validator::tr("type bound procedures must be declared in the same scope as the record they bind to"));
         }
-        if( r->d_baseRec )
+    }
+
+    void visitBoundProc( Procedure* me )
+    {
+        // Helper of visitHeader
+        // registerBoundProc was already called
+
+        if( me->d_receiverRec && me->d_receiverRec->d_baseRec )
         {
             // check wheter base has a method with this name and the signature is compatible
-            Named* n = r->d_baseRec->find( me->d_name, true );
+            Named* n = me->d_receiverRec->d_baseRec->find( me->d_name, true );
             if( n == 0 )
                 return; // this is no override
             if( n->getTag() != Thing::T_Procedure )
@@ -339,7 +363,7 @@ struct ValidatorImp : public AstVisitor
 
         if( !me->d_receiver.isNull() )
         {
-            // receiver was already accepted in visitScope
+            // receiver was already accepted
             visitBoundProc(me);
         }
 
@@ -951,7 +975,7 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 1 )
             {
                 Named* n = args->d_args.first()->getIdent();
-                if( n == 0 || ( n->getTag() != Thing::T_NamedType && n->getTag() != Thing::T_GenericName ) )
+                if( n == 0 || ( n->getTag() != Thing::T_NamedType ) )
                     error( args->d_args.first()->d_loc, Validator::tr("expecting a type name") );
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
@@ -1051,7 +1075,7 @@ struct ValidatorImp : public AstVisitor
             if( args->d_args.size() == 2 )
             {
                 Named* n = args->d_args.first()->getIdent();
-                if( n == 0 || ( n->getTag() != Thing::T_NamedType && n->getTag() != Thing::T_GenericName ) )
+                if( n == 0 || ( n->getTag() != Thing::T_NamedType ) )
                 {
                     error( args->d_args.first()->d_loc, Validator::tr("expecting a type name") );
                     break;
@@ -2191,10 +2215,11 @@ struct ValidatorImp : public AstVisitor
                 {
                     bool ok;
                     const qint64 len = res.d_value.toLongLong(&ok);
-                    if( res.d_vtype != Literal::Integer || !ok || len <= 0 )
+                    // len can be 0 e.g. in a generic module where len is a generic param
+                    if( res.d_vtype != Literal::Integer || !ok || len < 0 )
                     {
                         me->d_len = -1;
-                        error( me->d_lenExpr->d_loc, Validator::tr("expecting positive non-zero integer for array length") );
+                        error( me->d_lenExpr->d_loc, Validator::tr("expecting positive integer for array length") );
                     }else if( len > std::numeric_limits<qint32>::max() )
                     {
                         me->d_len = -1;
@@ -2462,8 +2487,32 @@ struct ValidatorImp : public AstVisitor
 
     void visit( Const* me )
     {
-        if( me->d_constExpr.isNull() || me->d_visited )
+        if( me->d_visited )
             return;
+        if( me->d_constExpr.isNull() )
+        {
+            if( !me->d_type.isNull() )
+            {
+                // happens for Const generic params
+                me->d_type->accept(this);
+                me->d_visited = true;
+                Type* td = derefed( me->d_type.data() );
+                if( td == bt.d_boolType )
+                {
+                    me->d_vtype = Literal::Boolean;
+                    me->d_val = false;
+                }else if( td->isInteger() )
+                {
+                    me->d_vtype = Literal::Integer;
+                    me->d_val = 0;
+                }else if( td->isReal() )
+                {
+                    me->d_vtype = Literal::Real;
+                    me->d_val = 0.0;
+                }
+            }
+            return;
+        }
         if( constTrace.contains(me) )
         {
             error(me->d_loc, Validator::tr("const depends on itself"));
@@ -2482,29 +2531,6 @@ struct ValidatorImp : public AstVisitor
         Type* td = derefed(me->d_type.data());
         if( td && td->isInteger() )
         {
-#if 0
-            bool overflow = false;
-            qint64 v = me->d_val.toLongLong();
-            switch(td->getBaseType())
-            {
-            case Type::BYTE:
-                if( v > 255 || v < 0 )
-                    overflow = true;
-                break;
-            case Type::SHORTINT:
-                if( v > std::numeric_limits<qint16>::max() || v < std::numeric_limits<qint16>::min() )
-                    overflow = true;
-                break;
-            case Type::INTEGER:
-            case Type::SET:
-            case Type::ENUMINT:
-                if( v > std::numeric_limits<qint32>::max() || v < std::numeric_limits<qint32>::min() )
-                    overflow = true;
-                break;
-            }
-            if( overflow )
-                warning(me->d_constExpr->d_loc, Validator::tr("value is out of range") );
-#else
             // if the type according to expression rules is not wide enough to accomodate the number, widen it
             qint64 v = me->d_val.toLongLong();
             Type* newType = td;
@@ -2527,7 +2553,6 @@ struct ValidatorImp : public AstVisitor
                         .arg(BaseType::s_typeName[newType->getBaseType()]));
                 me->d_type = newType;
             }
-#endif
         }
     }
 
@@ -2927,12 +2952,6 @@ struct ValidatorImp : public AstVisitor
                 error( me->d_loc, Validator::tr("cannot call this expression") );
                 return;
             }
-#if 0 // called twice?? already called in me->d_what->accept(this); above
-            ProcType* pt = cast<ProcType*>(t);
-            const bool isBuiltIn = pt->d_decl && pt->d_decl->getTag() == Thing::T_BuiltIn;
-            if( !isBuiltIn || !checkBuiltInArgs( pt, ae ) )
-                checkCallArgs( pt, ae );
-#endif
             Named* id = proc->getIdent();
             if( id )
             {
@@ -3151,29 +3170,110 @@ struct ValidatorImp : public AstVisitor
         //qDebug() << "check imports of" << mod->getName();
         if( !me->d_metaActuals.isEmpty() )
         {
+            if( me->d_mod->d_metaParams.isEmpty() )
+            {
+                error( me->d_loc, Validator::tr("the imported module is not generic") );
+                return;
+            }
+            if( me->d_mod->d_metaParams.size() != me->d_metaActuals.size() )
+            {
+                error( me->d_loc, Validator::tr("the number of formal and actual generic parameters doesn't match") );
+                return;
+            }
             if( insts == 0 )
             {
                 error( me->d_loc, Validator::tr("this import requires generic module support"));
                 return;
             }
-            foreach( const Ref<Type>& t, me->d_metaActuals )
+
+            Q_ASSERT( !me->d_mod->d_metaParams.isEmpty() &&
+                      me->d_mod->d_metaParams.size() == me->d_metaActuals.size() );
+            for( int i = 0; i < me->d_metaActuals.size(); i++ )
             {
-                t->accept(this);
-                Type* td = t->derefed();
-                Q_ASSERT( td != 0 );
-                if( !td->hasByteSize() )
+                MetaActual& actual = me->d_metaActuals[i];
+                Named* formal = me->d_mod->d_metaParams[i].data();
+                if( formal->getTag() == Thing::T_NamedType )
                 {
-                    error( t->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
-                    return;
-                }
-                if( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY )
-                    continue; // type is yet another generic type; ok, ANY has no d_decl
-                Named* n = td->findDecl();
-                if( n == 0 || n->getTag() != Thing::T_NamedType )
+                    // The generic parameter is a type parameter
+                    QualiType* qt = new QualiType();
+                    qt->d_quali = actual.d_constExpr.data();
+                    qt->d_loc = actual.d_constExpr->d_loc;
+                    actual.d_type = qt;
+                    actual.d_type->accept(this);
+                    actual.d_vtype = LiteralValue::TypeLit;
+                    Type* td = qt->derefed();
+                    Q_ASSERT( td != 0 );
+                    if( !td->hasByteSize() )
+                    {
+                        error( qt->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
+                        return;
+                    }
+                    if( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY )
+                        continue; // type is yet another generic type; ok, ANY has no d_decl
+                    // TODO: check compatibility of type formal and actual param
+                    Type* tf = derefed(formal->d_type.data());
+                    if( tf && tf->toRecord() )
+                        // we have to defer typeExtension check because base is not resoved yet, even more if its in the import
+                        deferExtensionCheck.append(qMakePair(tf,qt));
+                    else
+                    {
+                        const bool compatible = tf &&
+                                ( tf->getBaseType() == Type::ANY
+                                || assignmentCompatible(tf,actual.d_constExpr.data()));
+                        if( !compatible )
+                        {
+                            error( qt->d_loc, Validator::tr("actual doesn't match formal generic type") );
+                            return;
+                        }
+                    }
+                    Named* n = td->findDecl();
+                    if( n == 0 || n->getTag() != Thing::T_NamedType )
+                    {
+                        error( qt->d_loc, Validator::tr("only named types allowed as actual generic type parameters") );
+                        return;
+                    }
+                }else if( formal->getTag() == Thing::T_Const )
                 {
-                    error( t->d_loc, Validator::tr("only named types allowed as actual generic type parameters") );
-                    return;
-                }
+                    // the generic parameter is a value parameter
+                    actual.d_constExpr->accept(this);
+                    actual.d_type = actual.d_constExpr->d_type.data();
+                    Type* tf = derefed(formal->d_type.data());
+                    const bool compatible = true; // assignmentCompatible(tf,actual.d_constExpr.data());
+                    // TODO: compatibility check might fail if formal param type is declared in the instantiated
+                    // generic module, because each instance has a separate, incompatible copy of the same declarations,
+                    // but even without this check the validator will find incompatibilities
+                    if( !compatible )
+                    {
+                        error( actual.d_constExpr->d_loc, Validator::tr("actual doesn't match formal generic parameter") );
+                        return;
+                    }
+                    if( tf && tf->getTag() == Thing::T_ProcType )
+                    {
+                        actual.d_vtype = LiteralValue::ProcLit;
+                        Named* n = actual.d_constExpr->getIdent();
+                        if( n == 0 || n->getTag() != Thing::T_Procedure )
+                        {
+                            // TODO: check visible
+                            error( actual.d_constExpr->d_loc, Validator::tr("expecting a procedure qualident") );
+                            return;
+                        }
+                        Procedure* p = cast<Procedure*>(n);
+                        if( !p->d_receiver.isNull() )
+                        {
+                            error( actual.d_constExpr->d_loc, Validator::tr("cannot pass bound procedure as actual generic parameter") );
+                            return;
+                        }
+                        // TODO: how about unsafe?
+                    }else
+                    {
+                        Evaluator::Result res = Evaluator::eval(actual.d_constExpr.data(), mod, false, err);
+                        actual.d_val = res.d_value;
+                        actual.d_vtype = res.d_vtype;
+                        actual.d_wide = res.d_wide;
+                        actual.d_strLen = res.d_strLen;
+                    }
+                }else
+                    qWarning() << "Validator::visit(Import): unexpected generic param type" << formal->getTagName();
             }
             if( me->d_mod )
                 me->d_mod = insts->instantiate( me->d_mod.data(), me->d_metaActuals );
@@ -3203,13 +3303,8 @@ struct ValidatorImp : public AstVisitor
                 }
                 //me->d_mod->dump(); // TEST
             }
-        }
-    }
-
-    void visit( GenericName* me)
-    {
-        me->d_type->accept(this);
-        me->d_visited = true;
+        }else if( !me->d_mod->d_metaParams.isEmpty() )
+            error( me->d_loc, Validator::tr("the imported module is generic and requires parameters") );
     }
 
     ///////// NOP
@@ -3537,12 +3632,6 @@ struct ValidatorImp : public AstVisitor
                 if( l->d_unsafe && r->d_unsafe && equalType( l->d_type.data(), r->d_type.data() ) )
                     return true;
             }
-#if 0
-            else if( l->d_lenExpr.isNull() &&
-                      ( ( lt == bt.d_charType && rhs == bt.d_stringType ) ||
-                        ( lt == bt.d_wcharType && ( rhs == bt.d_stringType || rhs == bt.d_wstringType ) ) ) )
-                return true; // because of ADDROF with unsafe pointers
-#endif
         }
         if( lhstag == Thing::T_ProcType && rhstag == Thing::T_ProcType )
             return matchingFormalParamLists( cast<ProcType*>(lhs), cast<ProcType*>(rhs) ) &&
@@ -3757,12 +3846,6 @@ struct ValidatorImp : public AstVisitor
                     return true;
                 if( lt == bt.d_byteType && rt == bt.d_byteType )
                     return true;
-
-#if 0
-                if( l->d_unsafe && r->d_unsafe && !l->d_lenExpr.isNull() && !r->d_lenExpr.isNull()
-                        && l->d_len == r->d_len && equalType(lt,rt) )
-                    return true;
-#endif
 
                 // NOTE: open carrays cannot be rhs because len is unknown at runtime
             }else if( lt == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
@@ -3984,7 +4067,6 @@ struct ValidatorImp : public AstVisitor
             {
             case Thing::T_BuiltIn:
             case Thing::T_Import:
-            case Thing::T_GenericName:
             case Thing::T_Procedure:
             case Thing::T_NamedType:
                 error( lhs->d_loc, Validator::tr("cannot assign to '%1'").arg(id->d_name.constData()));
@@ -4003,24 +4085,6 @@ struct ValidatorImp : public AstVisitor
         }
         return true;
     }
-
-#if 0
-    void checkUnsafePointer( Type* t, bool isReturn, const RowCol& r )
-    {
-        // TEST code
-        t = derefed(t);
-        if( t && t->getTag() == Thing::T_Pointer )
-        {
-            Pointer* p = cast<Pointer*>(t);
-            t = derefed(p->d_to.data());
-            if( p->d_unsafe && t && ( t->getBaseType() >= Type::BOOLEAN  ||
-                                      t->getTag() == Thing::T_Pointer
-                                      || t->getTag() == Thing::T_Enumeration || t->getTag() == Thing::T_ProcType ) )
-                qDebug() << (isReturn ? "return" : "param" ) << "pointer to"
-                         << t->getTagName() << "in" << mod->d_name << r.d_row << r.d_col;
-        }
-    }
-#endif
 
     void markSelfRef( Type* t )
     {

@@ -1,9 +1,10 @@
-module Generic5 ( type T: integer, K: Super)
+module Generic5 (T: Super)
 
 type Super* = record end
-
+ 
   proc (var this: Super) hello*()
-  end
+  begin
+  end hello
 
 type
 	List* = pointer to record 
@@ -13,8 +14,7 @@ type
 
   proc (this: List) iterate*()
   begin
-    //this.value.hello()
-    this.value := 33
+    this.value.hello()
     if this.next # nil then this.next.iterate() end
   end iterate
 

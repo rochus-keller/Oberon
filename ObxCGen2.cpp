@@ -829,7 +829,7 @@ struct ObxCGenImp : public AstVisitor
             {
                 for( int i = 0; i < imp->d_mod->d_metaActuals.size(); i++ )
                 {
-                    Type* at = imp->d_mod->d_metaActuals[i].data();
+                    Type* at = imp->d_mod->d_metaActuals[i].d_type.data();
                     //Q_ASSERT( !at->d_slotValid );
                     at->d_slot = i;
                     at->d_slotValid = true;
@@ -845,8 +845,8 @@ struct ObxCGenImp : public AstVisitor
             QSet<Module*> imports;
             for( int i = 0; i < me->d_metaActuals.size(); i++ )
             {
-                Q_ASSERT( me->d_metaActuals[i]->getTag() == Thing::T_QualiType );
-                QualiType* t = cast<QualiType*>(me->d_metaActuals[i].data());
+                Q_ASSERT( me->d_metaActuals[i].d_type->getTag() == Thing::T_QualiType );
+                QualiType* t = cast<QualiType*>(me->d_metaActuals[i].d_type.data());
                 Named* n = t->d_quali->getIdent();
                 Q_ASSERT(n);
                 Module* m = n->getModule();
@@ -873,7 +873,7 @@ struct ObxCGenImp : public AstVisitor
 
         for( int i = 0; i < me->d_metaActuals.size(); i++ )
         {
-            Type* td = derefed(me->d_metaActuals[i].data());
+            Type* td = derefed(me->d_metaActuals[i].d_type.data());
             Q_ASSERT(td);
             if( Record* r = td->toRecord() )
                 h << ws() << (r->d_union ? "union " : "struct " ) << classRef(r) << "; // meta actual" << endl;
@@ -1432,7 +1432,7 @@ struct ObxCGenImp : public AstVisitor
             QualiType* qt = cast<QualiType*>(t);
             Named* n = qt->d_quali->getIdent();
             Type* td = derefed(t);
-            return n && n->getTag() == Thing::T_GenericName && td->getTag() == Thing::T_Record;
+            return n && n->getTag() == Thing::T_NamedType && n->d_generic && td->getTag() == Thing::T_Record;
         }
         return false;
     }
@@ -2706,7 +2706,6 @@ struct ObxCGenImp : public AstVisitor
             {
             case Thing::T_BuiltIn:
             case Thing::T_Import:
-            case Thing::T_GenericName:
             case Thing::T_Procedure:
             case Thing::T_NamedType:
             case Thing::T_Module:
@@ -3824,7 +3823,6 @@ struct ObxCGenImp : public AstVisitor
     void visit( LocalVar* ) { Q_ASSERT(false); }
     void visit( Const* ) { Q_ASSERT(false); }
     void visit( Array* ) { Q_ASSERT(false); }
-    void visit( GenericName* )  { Q_ASSERT(false); }
     void visit( NamedType* ) { Q_ASSERT(false); }
     void visit( Import* ) { Q_ASSERT(false); }
     void visit( BuiltIn* ) { Q_ASSERT(false); }

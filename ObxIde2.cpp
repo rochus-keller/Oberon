@@ -2209,9 +2209,6 @@ void Ide::fillXref()
         case Thing::T_Module:
             type = "Module";
             break;
-        case Thing::T_GenericName:
-            type = "Type Parameter";
-            break;
         case Thing::T_Enumeration:
             type = "Enumeration";
             break;
@@ -3403,7 +3400,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.80");
+    a.setApplicationVersion("0.9.81");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

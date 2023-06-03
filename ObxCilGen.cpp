@@ -853,7 +853,7 @@ struct ObxCilGenImp : public AstVisitor
             {
                 for( int i = 0; i < imp->d_mod->d_metaActuals.size(); i++ )
                 {
-                    Type* at = imp->d_mod->d_metaActuals[i].data();
+                    Type* at = imp->d_mod->d_metaActuals[i].d_type.data();
                     //Q_ASSERT( !at->d_slotValid );
                     at->d_slot = i;
                     at->d_slotValid = true;
@@ -4576,7 +4576,6 @@ struct ObxCilGenImp : public AstVisitor
     // NOP
     void visit( NamedType* ) {Q_ASSERT( false );}
     void visit( Const* ) {Q_ASSERT( false );}
-    void visit( GenericName* ) {Q_ASSERT( false );}
     void visit( BuiltIn* ) {Q_ASSERT( false );}
     void visit( Parameter* ) { Q_ASSERT( false ); }
     void visit( Import* ) { Q_ASSERT( false ); }

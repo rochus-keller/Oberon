@@ -281,7 +281,7 @@ struct ObxAstPrinter : public AstVisitor
             {
                 out << endl << ws();
                 out << "TPAR ";
-                n->d_metaActuals[i]->accept(this);
+                n->d_metaActuals[i].d_constExpr->accept(this);
             }
             d_level--;
 
@@ -849,7 +849,6 @@ quint8 IdentLeaf::visibilityFor(Module*) const
     {
     case Thing::T_Import:
     case Thing::T_Const:
-    case Thing::T_GenericName:
     case Thing::T_NamedType:
     case Thing::T_Procedure:
     case Thing::T_BuiltIn:
@@ -877,7 +876,7 @@ quint8 IdentLeaf::visibilityFor(Module*) const
 
 QSet<Thing*> Thing::insts;
 
-Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false),d_unsafe(false)
+Thing::Thing():d_slot(0),d_slotValid(false),d_slotAllocated(false),d_visited(false),d_unsafe(false),d_generic(false)
 {
     insts.insert(this);
 }
@@ -1564,14 +1563,14 @@ QByteArray Module::formatMetaActuals() const
         {
             if( i != 0 )
                 name += ",";
-            Type* td = d_metaActuals[i]->derefed();
+            Type* td = d_metaActuals[i].d_type->derefed();
             Q_ASSERT( td );
             Named* n = td->findDecl();
             if( n )
                 name += n->getQualifiedName().join('.'); // n->getName();
-            else if( d_metaActuals[i]->getTag() == Thing::T_QualiType )
+            else if( d_metaActuals[i].d_type->getTag() == Thing::T_QualiType )
             {
-                QualiType* q = cast<QualiType*>( d_metaActuals[i].data() );
+                QualiType* q = cast<QualiType*>( d_metaActuals[i].d_type.data() );
                 name += q->getQualiString().join('.');
             }else
                 name += "?";
@@ -1593,7 +1592,7 @@ bool Module::isFullyInstantiated() const
 
     for( int i = 0; i < d_metaActuals.size(); i++ )
     {
-        Type* td = d_metaActuals[i].data();
+        Type* td = d_metaActuals[i].d_type.data();
         if( td )
             td = td->derefed();
         if( td == 0 || ( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY ) )
@@ -1658,8 +1657,8 @@ bool BinExpr::isArithOp() const
     return ( d_op >= ADD && d_op <= SUB ) || ( d_op >= MUL && d_op <= MOD );
 }
 
-
 quint32 Enumeration::getByteSize() const
 {
     return BaseType(Type::ENUMINT).getByteSize();
 }
+

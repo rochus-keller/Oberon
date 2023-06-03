@@ -95,8 +95,8 @@ struct Model::CrossReferencer : public AstVisitor
             d_mdl->d_xref[me->d_mod.data()].append( e2 );
         }
 
-        foreach( const Ref<Type>& a, me->d_metaActuals )
-            a->accept(this);
+        foreach( const MetaActual& a, me->d_metaActuals )
+            a.d_constExpr->accept(this);
     }
 
     void visit( Procedure* me )
@@ -218,11 +218,6 @@ struct Model::CrossReferencer : public AstVisitor
     void visit( Parameter* me )
     {
         visitVar(me, me->d_receiver );
-    }
-
-    void visit( GenericName* me )
-    {
-        visitVar(me);
     }
 
     void visit( Const* me )
@@ -733,7 +728,6 @@ struct TreeShaker : public AstVisitor
     void visit( ForLoop* ) {}
     void visit( CaseStmt* ) {}
     void visit( Enumeration* ) {}
-    void visit( GenericName* ) {}
     void visit( Exit* ) {}
 };
 
@@ -822,7 +816,7 @@ static inline bool match( const MetaActuals& lhs, const MetaActuals& rhs )
         return false;
     for( int i = 0; i < lhs.size(); i++ )
     {
-        if( lhs[i]->derefed() != rhs[i]->derefed() )
+        if( lhs[i].d_type->derefed() != rhs[i].d_type->derefed() )
             return false;
     }
     return true;

@@ -157,8 +157,8 @@ struct ObxHitTest : public AstVisitor
 
     void visit( Import* i )
     {
-        foreach( const Ref<Type>& a, i->d_metaActuals )
-            a->accept(this);
+        foreach( const MetaActual& a, i->d_metaActuals )
+            a.d_constExpr->accept(this);
     }
 
     void visit( Procedure* m)
@@ -305,14 +305,6 @@ struct ObxHitTest : public AstVisitor
         foreach( const Ref<Const>& c, me->d_items )
             c->accept(this);
     }
-
-    virtual void visit( GenericName* v)
-    {
-        //if( v->d_type->d_ident == 0 )
-        if( v->d_type )
-            v->d_type->accept(this);
-    }
-
 };
 
 struct ObxModuleDump : public AstVisitor
@@ -806,7 +798,6 @@ struct ObxModuleDump : public AstVisitor
     void visit( ForLoop* ) {}
     void visit( CaseStmt* ) {}
     void visit( Enumeration* ) {}
-    void visit( GenericName* ) {}
     void visit( Exit* ) {}
 };
 
@@ -1265,26 +1256,6 @@ int Project::findPackage(const VirtualPath& path) const
     return pos;
 }
 
-#if 0
-bool Project::generate(Module* m)
-{
-    Q_ASSERT( m );
-    if( !m->isFullyInstantiated() )
-        return false;
-    FileHash::iterator f = d_files.find(m->d_file);
-    if( f == d_files.end() )
-        return false;
-
-    qDebug() << "generating" << m->getName();
-    QBuffer buf;
-    buf.open(QIODevice::WriteOnly);
-    LjbcGen::translate(m, &buf, false, d_mdl->getErrs() );
-    buf.close();
-    f.value()->d_byteCode[m] = buf.buffer();
-    return true;
-}
-#endif
-
 bool Project::reparse()
 {
     d_modules.clear();
@@ -1318,7 +1289,7 @@ bool Project::reparse()
                 foreach( Module* inst, insts )
                     d_modules.insert(inst->getName(),qMakePair(f, inst));
             }
-            //m->dump();
+            //m->dump(); // TEST
         }else
         {
             qDebug() << "missing" << m->d_name;
@@ -1328,88 +1299,6 @@ bool Project::reparse()
     emit sigReparsed();
     return res;
 }
-
-#if 0 // moved to IDE to make Project independent of backend
-bool Project::generate()
-{
-    FileHash::const_iterator i;
-    for( i = d_files.begin(); i != d_files.end(); ++i )
-        i.value()->d_byteCode.clear();
-    const quint32 errs = d_mdl->getErrs()->getErrCount();
-    QList<Module*> mods = d_mdl->getDepOrder();
-#if 0
-    qDebug() << "******* module generating order:";
-    QSet<Module*> test;
-    foreach( Module* m, mods )
-    {
-        if( m->d_metaParams.isEmpty() )
-        {
-            qDebug() << m->getName();
-            QList<Module*> result;
-            m->findAllInstances(result);
-            foreach( Module* inst, result )
-            {
-                if( test.contains(inst) )
-                    qWarning() << "already seen" << inst->getName();
-                else if( inst->isFullyInstantiated() )
-                    qDebug() << "instance" << inst->getName();
-                else
-                    qWarning() << "not fully instantiated" << inst->getName();
-                test.insert(inst);
-            }
-        }
-    }
-#endif
-    QSet<Module*> generated;
-    foreach( Module* m, mods )
-    {
-        if( m->d_synthetic )
-            ; // NOP
-        else if( m->d_hasErrors )
-        {
-            qDebug() << "terminating because of errors in" << m->d_name;
-            return false;
-        }else if( m->d_isDef )
-        {
-            qDebug() << "allocating" << m->d_name;
-#ifdef _DEBUG
-            QBuffer buf;
-            buf.open(QIODevice::WriteOnly);
-            LjbcGen::allocateDef(m, &buf, d_mdl->getErrs());
-            buf.close();
-            qDebug() << "********** Definition of" << m->d_name;
-            qDebug() << buf.buffer();
-#else
-            LjbcGen::allocateDef(m, 0, d_mdl->getErrs());
-#endif
-        }else
-        {
-            if( m->d_metaParams.isEmpty() )
-            {
-                LjbcGen::allocateSlots(m);
-                // module slots are allocated before generic instances are generated because records of
-                // the module could be used in the generic instance
-
-                QList<Module*> result;
-                m->findAllInstances(result);
-                foreach( Module* inst, result )
-                {
-                    // instances must be generated after the modules using them, otherwise we get !slotValid assertions
-                    if( !generated.contains(inst) )
-                    {
-                        generated.insert(inst);
-                        LjbcGen::allocateSlots(inst);
-                        generate(inst);
-                    }
-                }
-                // module is generated after the generic instances it depends on because there are required slots
-                generate(m);
-            }
-        }
-    }
-    return errs == d_mdl->getErrs()->getErrCount();
-}
-#endif
 
 QList<Module*> Project::getModulesToGenerate(bool includeTemplates) const
 {

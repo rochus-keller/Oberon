@@ -59,7 +59,7 @@ namespace Obx
                    T_ArgExpr, T_Literal, T_SetExpr, T_IdentLeaf, T_UnExpr, T_IdentSel, T_BinExpr, T_Field,
                    T_Const, T_BuiltIn, T_Parameter, T_Return, T_Procedure, T_Variable, T_LocalVar,
                    T_QualiType, T_Call, T_Assign, T_IfLoop, T_ForLoop, T_CaseStmt, T_Scope,
-                   T_Enumeration, T_GenericName, T_Exit,
+                   T_Enumeration, T_Exit,
                    T_MAX };
         static const char* s_tagName[];
 
@@ -71,6 +71,7 @@ namespace Obx
         uint d_slotAllocated : 1;
         uint d_visited : 1;
         uint d_unsafe : 1;  // used by Pointer, Record (CSTRUCT, CUNION) and Array, or fields of cstruct/cunion
+        uint d_generic : 1;  // used by names and types in generic module param lists
 
     #ifdef _DEBUG
         static QSet<Thing*> insts;
@@ -136,7 +137,6 @@ namespace Obx
     struct ArgExpr;
     struct BinExpr;
     struct Enumeration;
-    struct GenericName;
     struct Exit;
     struct SysAttr;
 
@@ -174,13 +174,8 @@ namespace Obx
         virtual void visit( IdentSel* ) {}
         virtual void visit( ArgExpr* ) {}
         virtual void visit( BinExpr* ) {}
-        virtual void visit( GenericName* ) {}
         virtual void visit( Exit* ) {}
     };
-
-    typedef QList< Ref<Type> > MetaActuals; // actually only NamedTypes, but not resolvable before validation
-                                            // for comparison and naming Type::derefed::findDecl is used
-    typedef QList< Ref<GenericName> > MetaParams;
 
     typedef QHash<QByteArray, Ref<SysAttr> > SysAttrs;
 
@@ -379,12 +374,6 @@ namespace Obx
         const char* visibilitySymbol() const;
     };
 
-    struct GenericName : public Named
-    {
-        void accept(AstVisitor* v) { v->visit(this); }
-        int getTag() const { return T_GenericName; }
-    };
-
     struct Field : public Named // Record field
     {
         Record* d_owner; // the record owning the field
@@ -418,16 +407,25 @@ namespace Obx
         bool isVarParam() const { return ( d_var || d_const ); }
     };
 
-    struct Const : public Named
+    struct LiteralValue
     {
+        enum ValueType { Invalid, Integer, Real, Boolean, String /* bytearray utf8 */, Bytes /* bytearray */,
+                         Char /* quint16 */, Nil, Set, Enum,
+                         TypeLit, ProcLit };
         QVariant d_val;
         uint d_vtype : 8;
         uint d_strLen : 22;
         uint d_wide : 1; // mark WSTRING and WCHAR, double vs float, longint vs integer
         uint d_minInt : 1;
+        LiteralValue():d_vtype(0),d_wide(false),d_strLen(0),d_minInt(false){}
+    };
+
+
+    struct Const : public Named, public LiteralValue
+    {
         Ref<Expression> d_constExpr;
-        Const():d_vtype(0),d_wide(false),d_strLen(0),d_minInt(false){}
         Const(const QByteArray& name, Literal* lit );
+        Const(){}
         int getTag() const { return T_Const; }
         void accept(AstVisitor* v) { v->visit(this); }
     };
@@ -440,6 +438,16 @@ namespace Obx
         QString pretty() const { return "enumeration"; }
         quint32 getByteSize() const;
     };
+
+    struct MetaActual : public LiteralValue
+    {
+        Ref<Expression> d_constExpr;
+        Ref<Type> d_type;
+        MetaActual(Expression* e = 0):d_constExpr(e){}
+    };
+
+    typedef QList<MetaActual> MetaActuals; // const expr for both NamedType and Const
+    typedef QList< Ref<Named> > MetaParams; // either NamedType or Const
 
     struct Import : public Named
     {
@@ -641,21 +649,14 @@ namespace Obx
         virtual IdentRole getIdentRole() const { return NoRole; }
     };
 
-    struct Literal : public Expression
+    struct Literal : public Expression, public LiteralValue
     {
         enum { SET_BIT_LEN = 32 };
         typedef std::bitset<SET_BIT_LEN> SET;
 
-        enum ValueType { Invalid, Integer, Real, Boolean, String /* bytearray utf8 */, Bytes /* bytearray */,
-                         Char /* quint16 */, Nil, Set, Enum };
-        QVariant d_val;
-        uint d_vtype : 8;
-        uint d_strLen : 22;
-        uint d_wide : 1; // mark WSTRING and WCHAR, or double precision float, or LONGINT
-        uint d_minInt : 1; // integer type is at least INTEGER
         Literal( ValueType t = Invalid, Ob::RowCol l = Ob::RowCol(),
-                 const QVariant& v = QVariant(), Type* typ = 0 ):
-                        d_val(v),d_vtype(t),d_strLen(0),d_wide(0),d_minInt(0){ d_loc = l; d_type = typ; }
+                 const QVariant& v = QVariant(), Type* typ = 0 )
+                        { d_val = v; d_vtype = t; d_strLen = 0; d_wide = 0; d_minInt = 0; d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }
         void accept(AstVisitor* v) { v->visit(this); }
         static bool isWide( const QString& );
