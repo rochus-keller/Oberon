@@ -843,6 +843,24 @@ Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
         if( inst.isNull() || inst->d_hasErrors )
             return 0; // already reported
         inst->d_metaActuals = actuals;
+        if( !actuals.isEmpty() )
+        {
+            for( int i = 0; i < actuals.size(); i++ )
+            {
+                Named* formal = inst->d_metaParams[i].data();
+                const MetaActual& a = actuals[i];
+                if( formal->getTag() == Thing::T_Const )
+                {
+                    Const* c = cast<Const*>(formal);
+                    c->d_constExpr = a.d_constExpr;
+                    c->d_val = a.d_val;
+                    c->d_vtype = a.d_vtype;
+                    c->d_strLen = a.d_strLen;
+                    c->d_wide = a.d_wide;
+                    c->d_minInt = a.d_minInt;
+                }
+            }
+        }
         inst->d_fullName = generic->d_fullName;
         inst->d_scope = generic->d_scope;
         if( resolveImport(inst.data()) )

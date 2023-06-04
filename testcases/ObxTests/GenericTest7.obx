@@ -1,6 +1,6 @@
 module GenericTest7
 
-import G := Generic5(Sub)
+import G := Generic5(Sub,33)
   // H := Generic5(33)
 
 type 
@@ -16,7 +16,7 @@ var
 begin
   println("Begin GenericTest7")
   new(l)
-  l.value.i := 33
+  l.value.i := G.i
   new(l.next)
   l.next.value.i := 44
   new(l.next.next)

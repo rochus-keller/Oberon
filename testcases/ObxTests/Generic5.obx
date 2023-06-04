@@ -1,4 +1,6 @@
-module Generic5 (T: Super)
+module Generic5 (T: Super; const l: integer)
+
+const i* = l
 
 type Super* = record end
  

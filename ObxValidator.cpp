@@ -136,16 +136,11 @@ struct ValidatorImp : public AstVisitor
         }
         if( !deferExtensionCheck.isEmpty() )
         {
-#if 0
-            // doesn't work if super is in instantiated generic module because the type in the template generic
-            // module is a different one than the type seen by sub as a base type
-            // shoudln't matter anyway because the validator would report an error for other reasons
             for( int i = 0; i < deferExtensionCheck.size(); i++ )
             {
                 if( !typeExtension(deferExtensionCheck[i].first,deferExtensionCheck[i].second,false) )
                     error(deferExtensionCheck[i].second->d_loc, Validator::tr("actual doesn't match formal generic parameter"));
             }
-#endif
             deferExtensionCheck.clear();
         }
         foreach( const Ref<Named>& n, me->d_order )
@@ -208,11 +203,8 @@ struct ValidatorImp : public AstVisitor
                 // this is an instantiated generic module
                 Q_ASSERT( me->d_metaActuals.size() == me->d_metaParams.size() );
                 for( int i = 0; i < me->d_metaActuals.size(); i++ )
-                {
-                    // if( me->d_metaParams[i]->d_type == bt.d_anyType )
-                        me->d_metaParams[i]->d_type = me->d_metaActuals[i].d_type.data();
-                }
-                    // TODO: adapt to const params
+                    me->d_metaParams[i]->d_type = me->d_metaActuals[i].d_type.data();
+                    // for both NamedType and Const
             }else
             {
                 // this is a generic module
@@ -3210,22 +3202,6 @@ struct ValidatorImp : public AstVisitor
                     }
                     if( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY )
                         continue; // type is yet another generic type; ok, ANY has no d_decl
-                    // TODO: check compatibility of type formal and actual param
-                    Type* tf = derefed(formal->d_type.data());
-                    if( tf && tf->toRecord() )
-                        // we have to defer typeExtension check because base is not resoved yet, even more if its in the import
-                        deferExtensionCheck.append(qMakePair(tf,qt));
-                    else
-                    {
-                        const bool compatible = tf &&
-                                ( tf->getBaseType() == Type::ANY
-                                || assignmentCompatible(tf,actual.d_constExpr.data()));
-                        if( !compatible )
-                        {
-                            error( qt->d_loc, Validator::tr("actual doesn't match formal generic type") );
-                            return;
-                        }
-                    }
                     Named* n = td->findDecl();
                     if( n == 0 || n->getTag() != Thing::T_NamedType )
                     {
@@ -3238,15 +3214,6 @@ struct ValidatorImp : public AstVisitor
                     actual.d_constExpr->accept(this);
                     actual.d_type = actual.d_constExpr->d_type.data();
                     Type* tf = derefed(formal->d_type.data());
-                    const bool compatible = true; // assignmentCompatible(tf,actual.d_constExpr.data());
-                    // TODO: compatibility check might fail if formal param type is declared in the instantiated
-                    // generic module, because each instance has a separate, incompatible copy of the same declarations,
-                    // but even without this check the validator will find incompatibilities
-                    if( !compatible )
-                    {
-                        error( actual.d_constExpr->d_loc, Validator::tr("actual doesn't match formal generic parameter") );
-                        return;
-                    }
                     if( tf && tf->getTag() == Thing::T_ProcType )
                     {
                         actual.d_vtype = LiteralValue::ProcLit;
@@ -3282,6 +3249,50 @@ struct ValidatorImp : public AstVisitor
             if( !me->d_mod->d_isValidated )
             {
                 qDebug() << "analyzing" << me->d_mod->getName();
+#if 0
+                // still doesn't work; types of template and instantiated generic module are still mixed
+                if( !me->d_metaActuals.isEmpty() )
+                {
+                    // this checks are made here so that we use the d_metaParams of the newly instantiated module,
+                    // otherwise type compatibility with types declared in the generic module is never achieved
+
+                    for( int i = 0; i < me->d_metaActuals.size(); i++ )
+                    {
+                        MetaActual& actual = me->d_metaActuals[i];
+                        Named* formal = me->d_mod->d_metaParams[i].data();
+                        if( formal->getTag() == Thing::T_NamedType )
+                        {
+                            Type* tf = derefed(formal->d_type.data());
+                            if( tf && tf->toRecord() )
+                                // we have to defer typeExtension check because base is not resoved yet, even more if its in the import
+                                deferExtensionCheck.append(qMakePair(tf,me->d_metaActuals[i].d_type.data()));
+                            else
+                            {
+                                const bool compatible = tf &&
+                                        ( tf->getBaseType() == Type::ANY
+                                        || assignmentCompatible(tf,actual.d_constExpr.data()));
+                                if( !compatible )
+                                {
+                                    error( actual.d_constExpr->d_loc, Validator::tr("actual doesn't match formal generic type") );
+                                    return;
+                                }
+                            }
+                        }else if( formal->getTag() == Thing::T_Const )
+                        {
+                            // the generic parameter is a value parameter
+                            const bool compatible = true; // assignmentCompatible(tf,actual.d_constExpr.data());
+                            // TODO: compatibility check might fail if formal param type is declared in the instantiated
+                            // generic module, because each instance has a separate, incompatible copy of the same declarations,
+                            // but even without this check the validator will find incompatibilities
+                            if( !compatible )
+                            {
+                                error( actual.d_constExpr->d_loc, Validator::tr("actual doesn't match formal generic parameter") );
+                                return;
+                            }
+                        }
+                    }
+                }
+#endif
                 Errors err2;
                 err2.setShowWarnings(true);
                 err2.setReportToConsole(false);

@@ -845,18 +845,20 @@ struct ObxCGenImp : public AstVisitor
             QSet<Module*> imports;
             for( int i = 0; i < me->d_metaActuals.size(); i++ )
             {
-                Q_ASSERT( me->d_metaActuals[i].d_type->getTag() == Thing::T_QualiType );
-                QualiType* t = cast<QualiType*>(me->d_metaActuals[i].d_type.data());
-                Named* n = t->d_quali->getIdent();
-                Q_ASSERT(n);
-                Module* m = n->getModule();
-                if( m ) // 0 in case of e.g. INTEGER
-                    imports.insert(m);
-                Type* td = t->derefed();
-                if( td->getTag() == Thing::T_Record )
+                //Q_ASSERT( me->d_metaActuals[i].d_type->getTag() == Thing::T_QualiType );
+                //QualiType* t = cast<QualiType*>(me->d_metaActuals[i].d_type.data());
+                Named* n = me->d_metaActuals[i].d_constExpr->getIdent(); // t->d_quali->getIdent();
+                if(n)
                 {
-                    h << formatType(t) << ";" << endl;
-                    declToInline.insert(cast<Record*>(td));
+                    Module* m = n->getModule();
+                    if( m ) // 0 in case of e.g. INTEGER
+                        imports.insert(m);
+                    Type* td = n->d_type->derefed();
+                    if( td->getTag() == Thing::T_Record )
+                    {
+                        h << formatType(n->d_type.data()) << ";" << endl;
+                        declToInline.insert(cast<Record*>(td));
+                    }
                 }
             }
             foreach(Module* m, imports)
