@@ -75,8 +75,8 @@ module DeltaBlue
      * pointer comparison can be used for value comparison.
    *)
     import 
-        SID := som.IdentityDictionary(Sym,integer)
-        SSD := som.IdentityDictionary(Sym,Strength)
+        SID := som.IdentityDictionary2(Sym,integer,symHash)
+        SSD := som.IdentityDictionary2(Sym,Strength,symHash)
     type
         Strength = pointer to record
                             arithmeticValue: integer
@@ -1025,7 +1025,7 @@ begin
     WEAK_DEFAULT := createSym(6)
     ABSOLUTE_WEAKEST := createSym(7)
     
-     strengthTable := SID.create(symHash)
+     strengthTable := SID.create()
     strengthTable.atPut(ABSOLUTE_STRONGEST, -10000i)
     strengthTable.atPut(REQUIRED,           -800i)
     strengthTable.atPut(STRONG_PREFERRED,   -600i)
@@ -1035,7 +1035,7 @@ begin
     strengthTable.atPut(WEAK_DEFAULT,       500i)
     strengthTable.atPut(ABSOLUTE_WEAKEST,   10000i)
 
-     strengthConstant := SSD.create(symHash)
+     strengthConstant := SSD.create()
     strengthConstant.atPut(ABSOLUTE_STRONGEST, createStrength(ABSOLUTE_STRONGEST))
     required          := createStrength(REQUIRED)
     strengthConstant.atPut(REQUIRED,           required)

@@ -1,0 +1,9 @@
+module Generic7(T; const eq: EQ)
+
+import G := Generic6(T,eq)
+
+type EQ* = proc(in lhs,rhs: T):boolean;
+
+type List* = G.List
+
+end Generic7

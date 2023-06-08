@@ -1,0 +1,265 @@
+(* This code is derived from the SOM benchmarks, see AUTHORS.md file.
+ *
+ * Copyright (c) 2021 Rochus Keller <me@rochus-keller.ch> (for Oberon+ migration)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the 'Software'), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *)
+
+module Dictionary2(K,V; const hf: HashFunc)
+
+    import KV := Vector(K)
+        VV := Vector(V)
+        
+    /////// Entry ////////
+    type
+        Entry = pointer to record
+                        hash: integer
+                        key: K
+                        value: V
+                        next: Entry
+                  end
+                  
+    proc createEntry( hash: integer; key: K; value: V; next: Entry ): Entry
+        var e: Entry
+    begin
+        new(e)
+        e.hash := hash
+        e.key := key
+        e.value := value
+        e.next := next
+        return e
+    end createEntry
+
+    proc (this: Entry) match(hash: integer; key: K): boolean
+        return (hash = this.hash) & (key = this.key) end
+        
+    /////// Dictionary ///////////
+    const INITIAL_CAPACITY = 16
+    
+    type
+        HashFunc* = proc(in k: K):integer
+        Dictionary* = pointer to record
+                            buckets: pointer to array of Entry
+                            size: integer
+                        end
+                        
+    proc create*(): Dictionary            
+        return createWithSize(INITIAL_CAPACITY) end
+    
+    proc createWithSize*(size: integer): Dictionary            
+        var d: Dictionary
+    begin
+        new(d)
+        new(d.buckets, size)
+        d.size := 0
+        return d
+    end createWithSize
+    
+    proc (this: Dictionary) hash(in key: K ): integer
+        var h: integer
+    begin
+        h := hf(key)
+        // not supported in OBX: h := key.customHash()
+       return bitxor( h, ror(h, 16) )
+   end hash
+   
+   proc (this: Dictionary) getSize*(): integer return this.size end
+   
+   proc (this: Dictionary) isEmpty*():boolean return this.size = 0 end
+   
+   proc (this: Dictionary) getBucketIdx(hash: integer): integer
+        return bitand(len(this.buckets) - 1, hash) end
+    
+    proc (this: Dictionary) getBucket(hash: integer): Entry
+       return this.buckets[this.getBucketIdx(hash)] end
+
+    proc (this: Dictionary) at*(in key: K): V
+        var h: integer
+            e: Entry
+    begin
+      h := this.hash(key)
+      e := this.getBucket(h)
+
+      while e # nil do
+          if e.match(h, key) then
+              return e.value
+          end
+          e := e.next
+       end
+       return default(V)
+   end at
+   
+   proc (this: Dictionary) containsKey*(in key: K): boolean
+       var h: integer
+           e: Entry
+    begin
+       h := this.hash(key)
+      e := this.getBucket(h)
+
+      while e # nil do
+        if e.match(h, key) then
+          return true
+        end
+        e := e.next
+      end
+      return false
+   end containsKey
+   
+   proc (this: Dictionary) atPut*(in key: K; in value: V) 
+       var h, i: integer
+           current: Entry
+   begin
+       h := this.hash(key)
+       i := this.getBucketIdx(h)
+
+      current := this.buckets[i]
+
+      if current = nil then
+          this.buckets[i] := this.newEntry(key, value, h)
+          inc(this.size)
+      else
+          this.insertBucketEntry(key, value, h, current)
+      end
+
+      if this.size > len(this.buckets) then
+          this.resize()
+      end
+   end atPut
+   
+   proc (this: Dictionary) newEntry*(in key: K; in value: V; hash: integer):Entry
+       return createEntry(hash, key,value,nil) end
+   
+   proc (this: Dictionary) insertBucketEntry(in key: K; in value: V; hash: integer; head: Entry )
+       var current: Entry
+    begin
+       current := head
+
+      while true do
+           if current.match(hash, key) then
+              current.value := value
+             return
+          end
+         if current.next = nil then
+             inc(this.size)
+            current.next := this.newEntry(key, value, hash)
+            return
+         end
+         current := current.next
+      end
+   end insertBucketEntry
+   
+   proc (this: Dictionary) resize()
+       var oldStorage, newStorage: pointer to array of Entry
+    begin
+       oldStorage := this.buckets
+        new(newStorage, len(oldStorage) * 2)
+       this.buckets := newStorage
+      this.transferEntries(oldStorage)
+   end resize
+   
+   proc (this: Dictionary) transferEntries(oldStorage: pointer to array of Entry)
+       var i: integer
+           current: Entry
+   begin
+       for i := 0 to len(oldStorage)-1 do
+          current := oldStorage[i]
+         if current # nil then
+             oldStorage[i] := nil
+            if current.next = nil then
+                this.buckets[ bitand(current.hash, len(this.buckets) - 1)] := current
+            else
+                 this.splitBucket(oldStorage, i, current)
+            end
+          end
+       end
+   end transferEntries
+   
+   proc (this: Dictionary) splitBucket(oldStorage: pointer to array of Entry; i: 
+                                                       integer; head: Entry)
+       var loHead, loTail, hiHead, hiTail, current: Entry
+    begin
+        current := head
+      while current # nil do
+          if bitand(current.hash, len(oldStorage)) = 0 then
+            if loTail = nil then
+              loHead := current
+            else
+              loTail.next := current
+            end
+            loTail := current
+          else
+            if hiTail = nil then
+              hiHead := current
+            else 
+              hiTail.next := current
+            end
+            hiTail := current
+          end
+          current := current.next
+        end
+    
+        if loTail # nil then
+          loTail.next := nil
+          this.buckets[i] := loHead
+        end
+        if hiTail # nil then
+          hiTail.next := nil
+          this.buckets[i + len(oldStorage)] := hiHead
+     end
+   end splitBucket
+   
+   proc (this: Dictionary) removeAll*()
+   begin
+       new(this.buckets, len(this.buckets))
+      this.size := 0
+   end removeAll
+   
+   proc (this: Dictionary) getKeys*(): KV.Vector
+       var keys: KV.Vector
+           i: integer
+           current: Entry
+    begin
+        keys := KV.createWithSize(this.size)
+       for i := 0 to len(this.buckets)-1 do
+          current := this.buckets[i]
+         while current # nil do
+             keys.append(current.key)
+            current := current.next
+         end
+      end
+      return keys
+   end getKeys
+  
+   proc (this: Dictionary) getValues*(): VV.Vector
+       var values: VV.Vector
+           i: integer
+           current: Entry
+    begin
+        values := VV.createWithSize(this.size)
+       for i := 0 to len(this.buckets)-1 do
+          current := this.buckets[i]
+         while current # nil do
+             values.append(current.value)
+            current := current.next
+         end
+      end
+      return values
+   end getValues
+        
+end Dictionary2

@@ -137,6 +137,13 @@ struct ObxCilGenCollector : public AstVisitor
         case Thing::T_NamedType:
             collect(n->d_type.data());
             break;
+        case Thing::T_Const:
+            {
+                Const* c = cast<Const*>(n);
+                if( c->d_vtype == Const::ProcLit )
+                    collect(n->d_type.data());
+            }
+            break;
         case Thing::T_Variable:
         case Thing::T_Parameter:
         case Thing::T_LocalVar:
@@ -412,6 +419,14 @@ struct ObxCilGenImp : public AstVisitor
                             moduleRef(thisMod) + "::" + escape( p->getModule()->getName() + "#" + p->d_name ) + sig;
                 }
 #endif
+            }
+            break;
+        case Thing::T_Const:
+            {
+                Const* c = cast<Const*>(member);
+                Procedure* p = c->findProc();
+                Q_ASSERT(false);
+                return memberRef(p,varargs);
             }
             break;
         default:
@@ -853,11 +868,15 @@ struct ObxCilGenImp : public AstVisitor
             {
                 for( int i = 0; i < imp->d_mod->d_metaActuals.size(); i++ )
                 {
-                    Type* at = imp->d_mod->d_metaActuals[i].d_type.data();
-                    //Q_ASSERT( !at->d_slotValid );
-                    at->d_slot = i;
-                    at->d_slotValid = true;
-                    at->d_metaActual = true;
+                    Q_ASSERT(i < imp->d_mod->d_metaParams.size());
+                    if( imp->d_mod->d_metaParams[i]->getTag() == Thing::T_NamedType )
+                    {
+                        Type* at = imp->d_mod->d_metaActuals[i].d_type.data();
+                        //Q_ASSERT( !at->d_slotValid );
+                        at->d_slot = i;
+                        at->d_slotValid = true;
+                        at->d_metaActual = true;
+                    }
                 }
             }
         }
@@ -1707,9 +1726,12 @@ struct ObxCilGenImp : public AstVisitor
         {
         case Thing::T_Const:
             {
+                Const* c = cast<Const*>(id);
+                if( c->d_vtype == Const::ProcLit )
+                    return;
                 Type* td = derefed(me->d_type.data() );
                 Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
-                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
+                emitConst( td->getBaseType(), c->d_val, me->d_loc );
             }
             return;
         case Thing::T_Import:
@@ -1793,10 +1815,13 @@ struct ObxCilGenImp : public AstVisitor
             return;
         case Thing::T_Const:
             {
+                Const* c = cast<Const*>(id);
+                if( c->d_vtype == Const::ProcLit )
+                    return;
                 Q_ASSERT( derefImport );
                 Type* td = derefed(id->d_type.data() );
                 Q_ASSERT( td && ( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration ) );
-                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
+                emitConst( td->getBaseType(), c->d_val, me->d_loc );
             }
             return;
         case Thing::T_BuiltIn:
@@ -2858,7 +2883,14 @@ struct ObxCilGenImp : public AstVisitor
             emitBuiltIn( cast<BuiltIn*>(func), me );
             return;
         }else if( funcTag != Thing::T_Procedure )
-            func = 0; // apparently a function pointer or delegate
+        {
+            if( funcTag == Thing::T_Const )
+            {
+                Const* c = cast<Const*>(func);
+                func = c->findProc();
+            }else
+                func = 0; // apparently a function pointer or delegate
+        }
 
         Type* subT = derefed( me->d_sub->d_type.data() );
         Q_ASSERT( subT && subT->getTag() == Thing::T_ProcType );

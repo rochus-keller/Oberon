@@ -1,0 +1,18 @@
+module Generic6(T; const eq: EQ)
+
+type EQ* = proc(in lhs,rhs: T):boolean;
+
+	List* = pointer to record 
+            value* : T
+            next*  : List
+        end
+
+  proc (this: List)contains*(in what: T):boolean
+  var res: boolean
+  begin
+    if eq(this.value,what) then res := true end
+    if ~res & (this.next # nil) then res := this.next.contains(what) end
+    return res
+  end contains
+
+end Generic6

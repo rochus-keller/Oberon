@@ -1,7 +1,6 @@
 module GenericTest7
 
 import G := Generic5(Sub,33)
-  // H := Generic5(33)
 
 type 
   Sub = record(G.Super) i: integer end
@@ -10,6 +9,7 @@ type
   begin
     println(this.i)
   end hello
+    
 var
   l: G.List
   

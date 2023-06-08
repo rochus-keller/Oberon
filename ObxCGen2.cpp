@@ -290,6 +290,13 @@ struct ObxCGenImp : public AstVisitor
     QByteArray dottedName( Named* n, bool withModule = true )
     {
         // concatenate names up to but not including module
+        if( n->getTag() == Thing::T_Const )
+        {
+            Const* c = cast<Const*>(n);
+            Procedure* p = c->findProc();
+            if( p )
+                n = p;
+        }
         QByteArray name = n->d_name; // TODO: check escape is done by callers
         Named* scope = n->d_scope;
         if( n->getTag() == Thing::T_Procedure )
@@ -845,9 +852,7 @@ struct ObxCGenImp : public AstVisitor
             QSet<Module*> imports;
             for( int i = 0; i < me->d_metaActuals.size(); i++ )
             {
-                //Q_ASSERT( me->d_metaActuals[i].d_type->getTag() == Thing::T_QualiType );
-                //QualiType* t = cast<QualiType*>(me->d_metaActuals[i].d_type.data());
-                Named* n = me->d_metaActuals[i].d_constExpr->getIdent(); // t->d_quali->getIdent();
+                Named* n = me->d_metaActuals[i].d_constExpr->getIdent();
                 if(n)
                 {
                     Module* m = n->getModule();
@@ -1347,9 +1352,17 @@ struct ObxCGenImp : public AstVisitor
         {
         case Thing::T_Const:
             {
+                Const* c = cast<Const*>(id);
+                if( c->d_vtype == Const::ProcLit )
+                {
+                    Named* proc = c->findProc();
+                    Q_ASSERT(proc);
+                    b << dottedName(proc);
+                    return;
+                }
                 Q_ASSERT(td);
                 Q_ASSERT( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration );
-                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
+                emitConst( td->getBaseType(), c->d_val, me->d_loc );
             }
             break;
         case Thing::T_Import:
@@ -1500,10 +1513,18 @@ struct ObxCGenImp : public AstVisitor
             break;
         case Thing::T_Const:
             {
+                Const* c = cast<Const*>(id);
+                if( c->d_vtype == Const::ProcLit )
+                {
+                    Named* proc = c->findProc();
+                    Q_ASSERT(proc);
+                    b << dottedName(proc);
+                    return;
+                }
                 Q_ASSERT(td);
                 Q_ASSERT( derefImport );
                 Q_ASSERT( td->getTag() == Thing::T_BaseType || td->getTag() == Thing::T_Enumeration );
-                emitConst( td->getBaseType(), cast<Const*>(id)->d_val, me->d_loc );
+                emitConst( td->getBaseType(), c->d_val, me->d_loc );
             }
             break;
         default:

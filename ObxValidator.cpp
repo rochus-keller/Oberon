@@ -104,6 +104,11 @@ struct ValidatorImp : public AstVisitor
         foreach( const Ref<Named>& n, me->d_order )
         {
             if( n->getTag() == Thing::T_Procedure )
+                visitHeader( cast<Procedure*>(n.data()) ); // body can call procs defined later
+        }
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Procedure )
                 registerBoundProc( cast<Procedure*>(n.data()) );
             // add bound proc to its record as soon as possible because generic imports could access it
         }
@@ -128,11 +133,6 @@ struct ValidatorImp : public AstVisitor
             const int tag = n->getTag();
             if( tag == Thing::T_Variable || tag == Thing::T_LocalVar )
                 n->accept(this);
-        }
-        foreach( const Ref<Named>& n, me->d_order )
-        {
-            if( n->getTag() == Thing::T_Procedure )
-                visitHeader( cast<Procedure*>(n.data()) ); // body can call procs defined later
         }
         if( !deferExtensionCheck.isEmpty() )
         {
@@ -196,25 +196,23 @@ struct ValidatorImp : public AstVisitor
         if( me->d_visited )
             return;
         me->d_visited = true;
-        if( !me->d_metaParams.isEmpty() )
+
+        for( int i = 0; i < me->d_metaParams.size(); i++ )
         {
-            if( !me->d_metaActuals.isEmpty() )
-            {
-                // this is an instantiated generic module
-                Q_ASSERT( me->d_metaActuals.size() == me->d_metaParams.size() );
-                for( int i = 0; i < me->d_metaActuals.size(); i++ )
-                    me->d_metaParams[i]->d_type = me->d_metaActuals[i].d_type.data();
-                    // for both NamedType and Const
-            }else
-            {
-                // this is a generic module
-                for( int i = 0; i < me->d_metaParams.size(); i++ )
-                {
-                    if( me->d_metaParams[i]->d_type.isNull() )
-                        me->d_metaParams[i]->d_type = bt.d_anyType;
-                        // for both NamedType and Const
-                }
-            }
+            if( me->d_metaParams[i]->d_type.isNull() )
+                me->d_metaParams[i]->d_type = bt.d_anyType; // make sure there is at least ANY type
+        }
+
+        if( !me->d_metaActuals.isEmpty() )
+        {
+            // this is an instantiated generic module
+#if 0
+            // this is now done in Model::instantiate
+            Q_ASSERT( me->d_metaActuals.size() == me->d_metaParams.size() );
+            for( int i = 0; i < me->d_metaActuals.size(); i++ )
+                me->d_metaParams[i]->d_type = me->d_metaActuals[i].d_type.data();
+                // for both NamedType and Const
+#endif
         }
 
         SysAttrs::const_iterator i;
@@ -308,10 +306,9 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
-    void visitBoundProc( Procedure* me )
+    void connectSuperSubBoundProc( Procedure* me )
     {
-        // Helper of visitHeader
-        // registerBoundProc was already called
+        // visitHeader and registerBoundProc was already called
 
         if( me->d_receiverRec && me->d_receiverRec->d_baseRec )
         {
@@ -353,12 +350,6 @@ struct ValidatorImp : public AstVisitor
         else if( me->d_sysAttrs.contains("varargs") )
             pt->d_varargs = true;
 
-        if( !me->d_receiver.isNull() )
-        {
-            // receiver was already accepted
-            visitBoundProc(me);
-        }
-
         SysAttrs::const_iterator i;
         for( i = me->d_sysAttrs.begin(); i != me->d_sysAttrs.end(); ++i )
         {
@@ -373,6 +364,12 @@ struct ValidatorImp : public AstVisitor
 
     void visitBody( Procedure* me )
     {
+        if( !me->d_receiver.isNull() )
+        {
+            // receiver was already accepted
+            connectSuperSubBoundProc(me);
+        }
+
         levels.push_back(me);
         visitScope(me); // also handles formal parameters
         foreach( const Ref<Named>& n, me->d_order )
@@ -1395,6 +1392,7 @@ struct ValidatorImp : public AstVisitor
             // Otherwise Ta must be parameter compatible to f
             if( !paramCompatible( formal, actual.data() ) )
             {
+                paramCompatible( formal, actual.data() ); // TEST
                 error( actual->d_loc,
                    Validator::tr("actual parameter type %1 not compatible with formal type %2%3")
                    .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
@@ -2481,13 +2479,18 @@ struct ValidatorImp : public AstVisitor
     {
         if( me->d_visited )
             return;
+        if( constTrace.contains(me) )
+        {
+            error(me->d_loc, Validator::tr("const depends on itself"));
+            return;
+        }
+        constTrace.insert(me);
         if( me->d_constExpr.isNull() )
         {
             if( !me->d_type.isNull() )
             {
                 // happens for Const generic params
                 me->d_type->accept(this);
-                me->d_visited = true;
                 Type* td = derefed( me->d_type.data() );
                 if( td == bt.d_boolType )
                 {
@@ -2501,16 +2504,21 @@ struct ValidatorImp : public AstVisitor
                 {
                     me->d_vtype = Literal::Real;
                     me->d_val = 0.0;
-                }
+                }else if( td->isString())
+                    me->d_vtype = Literal::String;
+                else if( td->getTag() == Thing::T_ProcType )
+                    me->d_vtype = Literal::ProcLit;
+                else if( td->isChar() )
+                    me->d_vtype = Literal::Char;
+                else if( td->isSet() )
+                    me->d_vtype = Literal::Set;
+                else if( td->getTag() == Thing::T_Enumeration )
+                    me->d_vtype = Literal::Enum;
             }
+            me->d_visited = true;
+            constTrace.remove(me);
             return;
         }
-        if( constTrace.contains(me) )
-        {
-            error(me->d_loc, Validator::tr("const depends on itself"));
-            return;
-        }
-        constTrace.insert(me);
         me->d_constExpr->accept(this);
         me->d_type = me->d_constExpr->d_type.data();
         Evaluator::Result res = Evaluator::eval(me->d_constExpr.data(), mod, false, err);
@@ -2754,6 +2762,7 @@ struct ValidatorImp : public AstVisitor
     {
         if( me->d_lhs.isNull() || me->d_rhs.isNull() )
             return; // error already reported
+
         me->d_lhs->accept(this);
         markIdent( true, me->d_lhs.data() );
         me->d_rhs->accept(this);
@@ -2899,10 +2908,10 @@ struct ValidatorImp : public AstVisitor
         if( !me->d_what.isNull() )
         {
             me->d_what->accept(this);
-            Expression* proc = me->d_what.data();
-            if( proc->getTag() != Thing::T_ArgExpr || proc->getUnOp() != UnExpr::CALL )
+            Expression* callWhat = me->d_what.data();
+            if( callWhat->getTag() != Thing::T_ArgExpr || callWhat->getUnOp() != UnExpr::CALL )
             {
-                Type* t = derefed(proc->d_type.data());
+                Type* t = derefed(callWhat->d_type.data());
                 if( t == 0 || t->getTag() != Thing::T_ProcType )
                 {
                     if( prevStat && prevStat->getTag() == Thing::T_Return && !levels.isEmpty()
@@ -2919,16 +2928,17 @@ struct ValidatorImp : public AstVisitor
                     error( me->d_loc, Validator::tr("this procedure requires actual arguments") );
                     return;
                 }
+                // apparently a call without ()
                 Ref<ArgExpr> ae = new ArgExpr();
                 ae->d_op = UnExpr::CALL;
                 ae->d_loc = me->d_what->d_loc;
                 ae->d_type = pt->d_return.data();
-                ae->d_sub = proc;
+                ae->d_sub = callWhat;
                 me->d_what = ae.data();
-                proc = ae.data();
+                callWhat = ae.data();
             }
-            Q_ASSERT( proc->getTag() == Thing::T_ArgExpr );
-            ArgExpr* ae = cast<ArgExpr*>(proc);
+            Q_ASSERT( callWhat->getTag() == Thing::T_ArgExpr );
+            ArgExpr* ae = cast<ArgExpr*>(callWhat);
 #if 0
             // no, we allow that to avoid having to declar a lot of dummy vars when not using the result
             if( !ae->d_type.isNull() )
@@ -2937,23 +2947,23 @@ struct ValidatorImp : public AstVisitor
                 return;
             }
 #endif
-            proc = ae->d_sub.data();
-            Type* t = derefed(proc->d_type.data());
+            callWhat = ae->d_sub.data();
+            Type* t = derefed(callWhat->d_type.data());
             if( ae->d_op != UnExpr::CALL || t == 0 || t->getTag() != Thing::T_ProcType )
             {
                 error( me->d_loc, Validator::tr("cannot call this expression") );
                 return;
             }
-            Named* id = proc->getIdent();
+            Named* id = callWhat->getIdent();
             if( id )
             {
-                switch( proc->getTag() )
+                switch( callWhat->getTag() )
                 {
                 case Thing::T_IdentLeaf:
-                    cast<IdentLeaf*>(proc)->d_role = CallRole;
+                    cast<IdentLeaf*>(callWhat)->d_role = CallRole;
                     break;
                 case Thing::T_IdentSel:
-                    cast<IdentSel*>(proc)->d_role = CallRole;
+                    cast<IdentSel*>(callWhat)->d_role = CallRole;
                     break;
                 default:
                     Q_ASSERT( false );
@@ -3159,7 +3169,7 @@ struct ValidatorImp : public AstVisitor
         if( mod->d_externC && me->d_mod && !me->d_mod->d_externC )
             error( me->d_loc, Validator::tr("regular modules cannot be imported by external library modules") );
 
-        //qDebug() << "check imports of" << mod->getName();
+        //qDebug() << "check" << mod->getName() << "imports" << me->d_mod->getName();
         if( !me->d_metaActuals.isEmpty() )
         {
             if( me->d_mod->d_metaParams.isEmpty() )
@@ -3187,17 +3197,22 @@ struct ValidatorImp : public AstVisitor
                 if( formal->getTag() == Thing::T_NamedType )
                 {
                     // The generic parameter is a type parameter
+                    actual.d_constExpr->accept(this);
+#if 0
+                    actual.d_type = actual.d_constExpr->d_type.data();
+#else
+                    // the QualiType is required by the code generators to produce appropriate references
                     QualiType* qt = new QualiType();
                     qt->d_quali = actual.d_constExpr.data();
                     qt->d_loc = actual.d_constExpr->d_loc;
+                    qt->d_visited = true;
                     actual.d_type = qt;
-                    actual.d_type->accept(this);
-                    actual.d_vtype = LiteralValue::TypeLit;
-                    Type* td = qt->derefed();
+#endif
+                    Type* td = actual.d_type->derefed();
                     Q_ASSERT( td != 0 );
                     if( !td->hasByteSize() )
                     {
-                        error( qt->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
+                        error( actual.d_constExpr->d_loc, Validator::tr("this type cannot be used as actual generic type parameter") );
                         return;
                     }
                     if( td->getTag() == Thing::T_BaseType && td->d_baseType == Type::ANY )
@@ -3205,7 +3220,7 @@ struct ValidatorImp : public AstVisitor
                     Named* n = td->findDecl();
                     if( n == 0 || n->getTag() != Thing::T_NamedType )
                     {
-                        error( qt->d_loc, Validator::tr("only named types allowed as actual generic type parameters") );
+                        error( actual.d_constExpr->d_loc, Validator::tr("only named types allowed as actual generic type parameters") );
                         return;
                     }
                 }else if( formal->getTag() == Thing::T_Const )
@@ -3216,28 +3231,34 @@ struct ValidatorImp : public AstVisitor
                     Type* tf = derefed(formal->d_type.data());
                     if( tf && tf->getTag() == Thing::T_ProcType )
                     {
-                        actual.d_vtype = LiteralValue::ProcLit;
                         Named* n = actual.d_constExpr->getIdent();
-                        if( n == 0 || n->getTag() != Thing::T_Procedure )
+                        if( n != 0 && n->getTag() == Thing::T_Const )
                         {
-                            // TODO: check visible
-                            error( actual.d_constExpr->d_loc, Validator::tr("expecting a procedure qualident") );
-                            return;
-                        }
-                        Procedure* p = cast<Procedure*>(n);
-                        if( !p->d_receiver.isNull() )
+                            Const* c = cast<Const*>(n);
+                            if( c->d_vtype == Const::NoValue && c->d_generic )
+                                error( c->d_loc, Validator::tr("generic parameter type cannot be resolved") );
+
+                            Type* td = derefed(c->d_type.data());
+                            if( td && !td->d_visited )
+                                td->accept(this); // RISK: fix if generic module is imported by another whose types are not all yet visited
+
+                            // here the actual param is a constant which is legal
+                        }else
                         {
-                            error( actual.d_constExpr->d_loc, Validator::tr("cannot pass bound procedure as actual generic parameter") );
-                            return;
+                            if( n == 0 || n->getTag() != Thing::T_Procedure )
+                            {
+                                // TODO: check visible
+                                error( actual.d_constExpr->d_loc, Validator::tr("expecting a procedure qualident") );
+                                return;
+                            }
+                            Procedure* p = cast<Procedure*>(n);
+                            if( !p->d_receiver.isNull() )
+                            {
+                                error( actual.d_constExpr->d_loc, Validator::tr("cannot pass bound procedure as actual generic parameter") );
+                                return;
+                            }
+                            // TODO: how about unsafe?
                         }
-                        // TODO: how about unsafe?
-                    }else
-                    {
-                        Evaluator::Result res = Evaluator::eval(actual.d_constExpr.data(), mod, false, err);
-                        actual.d_val = res.d_value;
-                        actual.d_vtype = res.d_vtype;
-                        actual.d_wide = res.d_wide;
-                        actual.d_strLen = res.d_strLen;
                     }
                 }else
                     qWarning() << "Validator::visit(Import): unexpected generic param type" << formal->getTagName();
@@ -3320,7 +3341,7 @@ struct ValidatorImp : public AstVisitor
 
     ///////// NOP
 
-    void visit( BaseType* ) { }
+    void visit( BaseType* t ) {  t->d_visited = true; }
     void visit( BuiltIn* ) { }
 
     ////////// Utility
@@ -3405,8 +3426,14 @@ struct ValidatorImp : public AstVisitor
     Type* derefed( Type* t ) const
     {
         if( t )
+        {
+#if 0
+            if( !t->d_visited )
+                t->accept(const_cast<ValidatorImp*>(this)); // RISK
+                // helps Generic7.obx, worsens are-we-fast-yet
+#endif
             return t->derefed();
-        else
+        }else
             return 0;
     }
 

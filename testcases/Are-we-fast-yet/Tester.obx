@@ -34,10 +34,14 @@ import
     RVV := som.RedBlackTree(CD.Vector2D,SV.Vector)
     IVV := som.Interfaces(RVV.Entry)
     Out
+    // D := som.Dictionary2(String,integer,Hash)
 
     type
         String = array 32 of char
         
+    proc Hash(in k: String):integer
+    end
+    
     proc TestVector()
         var
             l : IV.Vector

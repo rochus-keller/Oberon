@@ -1262,6 +1262,26 @@ Const::Const(const QByteArray& name, Literal* lit)
     }
 }
 
+Procedure*Const::findProc() const
+{
+    if( d_vtype != ProcLit )
+        return 0;
+    Named* n = 0;
+    if( !d_constExpr.isNull() )
+        n = d_constExpr->getIdent();
+    if( n == 0 && !d_type.isNull() )
+    {
+        Type* td = d_type->derefed();
+        n = td->findDecl();
+    }
+    if( n && n->getTag() == Thing::T_Const )
+        n = cast<Const*>(n)->findProc();
+    if( n && n->getTag() == Thing::T_Procedure )
+        return cast<Procedure*>(n);
+    else
+        return 0;
+}
+
 quint8 Pointer::s_pointerByteSize = sizeof(void*);
 
 QString Pointer::pretty() const
@@ -1534,16 +1554,7 @@ bool Literal::isWide(const QString& str)
 
 QByteArray Module::getName() const
 {
-    if( d_fullName.isEmpty() )
-        return d_name;
-#if 0
-    if( d_instSuffix.isEmpty() )
-        return d_fullName.join('.');
-    else
-        return d_fullName.join('.') + "." + d_instSuffix;
-#else
     return getFullName() + formatMetaActuals();
-#endif
 }
 
 QByteArray Module::getFullName() const
@@ -1555,29 +1566,85 @@ QByteArray Module::getFullName() const
 
 QByteArray Module::formatMetaActuals() const
 {
-    QByteArray name;
+    if( !d_mac.isEmpty() )
+        return d_mac;
     if( !d_metaActuals.isEmpty() )
+        d_mac = format( d_metaParams, d_metaActuals );
+    return d_mac;
+}
+
+static QByteArray formatType( Type* t )
+{
+    QByteArray res;
+    Type* td = t->derefed();
+    Q_ASSERT( td );
+    Named* n = td->findDecl();
+    if( n )
+        res += n->getQualifiedName().join('.'); // n->getName();
+    else if( t->getTag() == Thing::T_QualiType )
     {
-        name += "("; // use () instead of <> so the name can be used in the file system too
-        for( int i = 0; i < d_metaActuals.size(); i++ )
+        QualiType* q = cast<QualiType*>( t );
+        res += q->getQualiString().join('.');
+    }else
+        res += "?";
+    return res;
+}
+
+QByteArray Module::format(const MetaParams& mp, const MetaActuals& ma)
+{
+    QByteArray res = "("; // use () instead of <> so the name can be used in the file system too
+    for( int i = 0; i < ma.size(); i++ )
+    {
+        if( i != 0 )
+            res += ",";
+        Q_ASSERT( i < mp.size() );
+        if( mp[i]->getTag() == Thing::T_Const )
         {
-            if( i != 0 )
-                name += ",";
-            Type* td = d_metaActuals[i].d_type->derefed();
-            Q_ASSERT( td );
-            Named* n = td->findDecl();
-            if( n )
-                name += n->getQualifiedName().join('.'); // n->getName();
-            else if( d_metaActuals[i].d_type->getTag() == Thing::T_QualiType )
+            Const* c = cast<Const*>(mp[i].data());
+            switch( c->d_vtype )
             {
-                QualiType* q = cast<QualiType*>( d_metaActuals[i].d_type.data() );
-                name += q->getQualiString().join('.');
-            }else
-                name += "?";
+            case Const::ProcLit:
+                {
+                    Named* n = c->d_constExpr.isNull() ? 0 : c->d_constExpr->getIdent();
+                    if( n )
+                        res += n->getQualifiedName().join('.');
+                    else
+                        res += formatType(ma[i].d_type.data());
+                }
+                break;
+            case Const::Integer:
+            case Const::Real:
+            case Const::Boolean:
+                res += c->d_val.toByteArray();
+                break;
+            case Const::Set:
+                res += "{" + c->d_val.toByteArray() + "}";
+                break;
+            case Const::Enum:
+                res += "#E" + c->d_val.toByteArray(); // TODO: type + name
+                break;
+            case Const::Char:
+                {
+                    res += "0" + QByteArray::number(c->d_val.toUInt(),16) + "X";
+                    break;
+                }
+            case Const::String:
+                res += "#S" + c->d_val.toByteArray().toHex();
+                break;
+            case Const::Bytes:
+                res += "$" + c->d_val.toByteArray().toHex();
+                break;
+            default:
+                res += formatType(ma[i].d_type.data());
+                break;
+            }
+        }else
+        {
+            res += formatType(ma[i].d_type.data());
         }
-        name += ")";
     }
-    return name;
+    res += ")";
+    return res;
 }
 
 bool Module::isFullyInstantiated() const
@@ -1661,4 +1728,6 @@ quint32 Enumeration::getByteSize() const
 {
     return BaseType(Type::ENUMINT).getByteSize();
 }
+
+
 

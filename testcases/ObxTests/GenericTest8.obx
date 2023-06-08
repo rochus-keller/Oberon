@@ -1,0 +1,24 @@
+module GenericTest8
+import H := Generic7(integer,eq)
+
+type 
+  proc eq(in lhs,rhs: integer):boolean
+  begin
+    return lhs = rhs
+  end eq
+  
+var
+  l: H.List
+  i: integer
+begin
+  println("Begin GenericTest8")
+  new(l)
+  l.value := 33
+  new(l.next)
+  l.next.value := 44
+  new(l.next.next)
+  l.next.next.value := 55
+  i := 44
+  if l.contains(i) then println(i) end
+  println("End GenericTest8")
+end GenericTest8

@@ -409,9 +409,8 @@ namespace Obx
 
     struct LiteralValue
     {
-        enum ValueType { Invalid, Integer, Real, Boolean, String /* bytearray utf8 */, Bytes /* bytearray */,
-                         Char /* quint16 */, Nil, Set, Enum,
-                         TypeLit, ProcLit };
+        enum ValueType { NoValue, Integer, Real, Boolean, String /* bytearray utf8 */, Bytes /* bytearray */,
+                         Char /* quint16 */, Nil, Set, Enum, ProcLit };
         QVariant d_val;
         uint d_vtype : 8;
         uint d_strLen : 22;
@@ -428,6 +427,7 @@ namespace Obx
         Const(){}
         int getTag() const { return T_Const; }
         void accept(AstVisitor* v) { v->visit(this); }
+        Procedure* findProc() const;
     };
 
     struct Enumeration : public Type
@@ -439,8 +439,9 @@ namespace Obx
         quint32 getByteSize() const;
     };
 
-    struct MetaActual : public LiteralValue
+    struct MetaActual // : public LiteralValue
     {
+        // TODO: MetaActual is just an expression; rest is redundant, i.e. held in metaparam
         Ref<Expression> d_constExpr;
         Ref<Type> d_type;
         MetaActual(Expression* e = 0):d_constExpr(e){}
@@ -548,9 +549,11 @@ namespace Obx
         QByteArray getName() const;
         QByteArray getFullName() const;
         QByteArray formatMetaActuals() const;
+        static QByteArray format(const MetaParams&,const MetaActuals&);
         bool isFullyInstantiated() const;
         Import* findImport(Module*) const;
         void findAllInstances(QList<Module*>&) const;
+        mutable QByteArray d_mac; // cache for formatMetaActuals
       };
 
     struct NamedType : public Named
@@ -654,7 +657,7 @@ namespace Obx
         enum { SET_BIT_LEN = 32 };
         typedef std::bitset<SET_BIT_LEN> SET;
 
-        Literal( ValueType t = Invalid, Ob::RowCol l = Ob::RowCol(),
+        Literal( ValueType t = NoValue, Ob::RowCol l = Ob::RowCol(),
                  const QVariant& v = QVariant(), Type* typ = 0 )
                         { d_val = v; d_vtype = t; d_strLen = 0; d_wide = 0; d_minInt = 0; d_loc = l; d_type = typ; }
         int getTag() const { return T_Literal; }

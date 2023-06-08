@@ -520,7 +520,7 @@ struct EvalVisitor : public AstVisitor
                         val.d_value = bi->maxVal();
                     else
                         val.d_value = bi->minVal();
-                    val.d_vtype = Literal::Invalid;
+                    val.d_vtype = Literal::NoValue;
                     if( bi->d_baseType == BaseType::CHAR || bi->d_baseType == BaseType::WCHAR )
                         val.d_vtype = Literal::Char;
                     else if( bi->d_baseType >= BaseType::BYTE && bi->d_baseType <= BaseType::INT64 )

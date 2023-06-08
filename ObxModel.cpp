@@ -21,6 +21,7 @@
 #include "ObErrors.h"
 #include "ObFileCache.h"
 #include "ObxValidator.h"
+#include "ObxEvaluator.h"
 #include <QBuffer>
 #include <QFile>
 #include <QDir>
@@ -810,28 +811,17 @@ void Model::setInt16(bool on)
     }
 }
 
-static inline bool match( const MetaActuals& lhs, const MetaActuals& rhs )
-{
-    if( lhs.size() != rhs.size() )
-        return false;
-    for( int i = 0; i < lhs.size(); i++ )
-    {
-        if( lhs[i].d_type->derefed() != rhs[i].d_type->derefed() )
-            return false;
-    }
-    return true;
-}
-
 Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
 {
     Q_ASSERT( generic && generic->d_metaActuals.isEmpty() && !generic->d_metaParams.isEmpty() &&
               generic->d_metaParams.size() == actuals.size() );
 
     ModList& insts = d_insts[generic];
+    const QByteArray ref = Module::format(generic->d_metaParams, actuals);
     Ref<Module> inst;
     for( int i = 0; i < insts.size(); i++ )
     {
-        if( match(insts[i]->d_metaActuals,actuals) )
+        if( insts[i]->formatMetaActuals() == ref )
         {
             inst = insts[i];
             break;
@@ -842,25 +832,40 @@ Module* Model::instantiate(Module* generic, const MetaActuals& actuals)
         inst = parseFile( generic->d_file );
         if( inst.isNull() || inst->d_hasErrors )
             return 0; // already reported
-        inst->d_metaActuals = actuals;
         if( !actuals.isEmpty() )
         {
             for( int i = 0; i < actuals.size(); i++ )
             {
+                Q_ASSERT( i < inst->d_metaParams.size() );
+
                 Named* formal = inst->d_metaParams[i].data();
                 const MetaActual& a = actuals[i];
+
                 if( formal->getTag() == Thing::T_Const )
                 {
                     Const* c = cast<Const*>(formal);
                     c->d_constExpr = a.d_constExpr;
-                    c->d_val = a.d_val;
-                    c->d_vtype = a.d_vtype;
-                    c->d_strLen = a.d_strLen;
-                    c->d_wide = a.d_wide;
-                    c->d_minInt = a.d_minInt;
-                }
+                    c->d_type = a.d_type;
+                    c->d_visited = true;
+
+                    Type* tf = formal->d_type->derefed();
+                    if( tf && tf->getTag() == Thing::T_ProcType )
+                    {
+                        c->d_vtype = LiteralValue::ProcLit;
+                    }else
+                    {
+                        Evaluator::Result res = Evaluator::eval(a.d_constExpr.data(), inst.data(), false, d_errs);
+                        c->d_val = res.d_value;
+                        c->d_vtype = res.d_vtype;
+                        c->d_wide = res.d_wide;
+                        c->d_strLen = res.d_strLen;
+                        c->d_minInt = res.d_minInt;
+                    }
+                }else
+                    formal->d_type = a.d_type;
             }
         }
+        inst->d_metaActuals = actuals;
         inst->d_fullName = generic->d_fullName;
         inst->d_scope = generic->d_scope;
         if( resolveImport(inst.data()) )

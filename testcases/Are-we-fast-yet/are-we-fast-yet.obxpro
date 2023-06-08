@@ -2,8 +2,10 @@
 BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
 BuiltInOakwood=true
 BuiltInObSysInner=false
+IntegerIsInt16=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
+Options=@ByteArray()
 Suffixes=@Invalid()
 WorkingDir=
 
@@ -13,6 +15,10 @@ size=0
 [.som]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/som/Pair.obx
 1\RelPath=som/Pair.obx
+10\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/som/Dictionary2.obx
+10\RelPath=som/Dictionary2.obx
+11\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/som/IdentityDictionary2.obx
+11\RelPath=som/IdentityDictionary2.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/som/Vector.obx
 2\RelPath=som/Vector.obx
 3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/som/Set.obx
@@ -29,7 +35,7 @@ size=0
 8\RelPath=som/IdentitySet.obx
 9\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/som/RedBlackTree.obx
 9\RelPath=som/RedBlackTree.obx
-size=9
+size=11
 
 [Modules]
 1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/Are-we-fast-yet/Tester.obx
