@@ -2179,6 +2179,9 @@ void Ide::fillXref()
 
         QString type;
         QString name = hitSym->getName();
+        name.replace(",", ", ");
+        if( name.indexOf("(") > 20 )
+            name.replace("(", "( ");
         switch( hitSym->getTag() )
         {
         case Thing::T_Field:
@@ -3397,10 +3400,10 @@ void Ide::onSetInt16()
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    a.setOrganizationName("me@rochus-keller.ch");
-    a.setOrganizationDomain("github.com/rochus-keller/Oberon");
+    a.setOrganizationName("Dr. Rochus Keller");
+    a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.84");
+    a.setApplicationVersion("0.9.85");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

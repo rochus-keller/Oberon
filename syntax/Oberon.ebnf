@@ -34,6 +34,7 @@
 // - optional commas in FPSection, IdentList, enumeration and TypeParams
 // - UNSAFE POINTER TO deprecated by CPOINTER TO and '*'; VOID is a predeclared identifier which can be used as *VOID
 // - SystemAttrs
+// - Generic type vs const params
 
 #define OBN2
 // combine OBN2 with either OBNX or BBOX
@@ -113,11 +114,11 @@ type ::= NamedType
 NamedType ::= qualident 
 
 #ifdef OBNX
-TypeParams ::= '<' ident { [','] ident } '>' | '(' ident { [','] ident } ')'
+MetaParams ::= '(' MetaSection { [';'] MetaSection } ')'
 
-TypeActuals ::= '<' TypeActual { [','] TypeActual } '>' | '(' TypeActual { [','] TypeActual } ')' 
+MetaSection ::= [ TYPE | CONST ] ident { \LL:2\ [','] ident } [ ':' NamedType ]
 
-TypeActual ::= NamedType
+MetaActuals ::= '(' ConstExpression { [','] ConstExpression } ')' 
 
 enumeration ::= '('  ident { [','] ident } ')' 
 #endif
@@ -524,7 +525,7 @@ FormalType ::=
 
 module ::= MODULE ident 
 #ifdef OBNX
-	[ TypeParams ] 
+	[ MetaParams ] 
 #endif 
 	(
 #ifdef BBOX
@@ -552,7 +553,7 @@ ImportList ::= IMPORT import { [ ',' ] import } [';']
 import ::= [ \LL:2\ ident ':=' ] ident 
 #ifdef OBNX
 	{ '.' ident } // NOTE: paths are not case sensitive 
-	[ TypeActuals ] 
+	[ MetaActuals ] 
 #endif
 
 /// 11.1 The Module SYSTEM

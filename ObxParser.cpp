@@ -478,19 +478,10 @@ Ref<Type> Parser::type(Scope* scope, Named* id, Type* binding)
 
 MetaActuals Parser::metaActuals()
 {
-    bool usesPar = false;
-#if 0
-    // no longer supported
-    if( d_la == Tok_Lt )
+    if( d_la == Tok_Lpar )
         next();
     else
-#endif
-    if( d_la == Tok_Lpar )
-    {
-        next();
-        usesPar = true;
-    }else
-        syntaxError( tr("expecting '<' or '(' to start type actuals") );
+        syntaxError( tr("expecting '(' to start type actuals") );
 #ifndef _HAS_GENERICS
     syntaxError(tr("this version of the parser doesn't support generic types") );
 #endif
@@ -506,13 +497,7 @@ MetaActuals Parser::metaActuals()
         if( !e.isNull() )
             res << MetaActual(e.data());
     }
-    if( usesPar )
-    {
-        MATCH( Tok_Rpar, tr("expecting ')' to end type actuals") );
-    }else
-    {
-        MATCH( Tok_Gt, tr("expecting '>' to end type actuals") );
-    }
+    MATCH( Tok_Rpar, tr("expecting ')' to end type actuals") );
     return res;
 }
 
