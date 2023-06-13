@@ -419,8 +419,8 @@ Ide::Ide(QWidget *parent)
 
     createMods();
     createMod();
-    createHier();
     createXref();
+    createHier();
     createErrs();
     createIlView();
     createLocals();
@@ -453,6 +453,8 @@ Ide::Ide(QWidget *parent)
 }
 Ide::~Ide()
 {
+    QSettings s;
+    s.setValue( "DockState", saveState() );
 }
 
 void Ide::loadFile(const QString& path)
@@ -511,8 +513,6 @@ void Ide::logMessage(const QString& msg, LogLevel l, bool addNewLine)
 
 void Ide::closeEvent(QCloseEvent* event)
 {
-    QSettings s;
-    s.setValue( "DockState", saveState() );
     const bool ok = checkSaved( tr("Quit Application"));
     event->setAccepted(ok);
 }
@@ -610,7 +610,7 @@ void Ide::createHier()
     d_hier->setAlternatingRowColors(true);
     vbox->addWidget(d_hier);
     dock->setWidget(pane);
-    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    addDockWidget( Qt::RightDockWidgetArea, dock );
     connect( d_hier, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onHierDblClicked(QTreeWidgetItem*,int)) );
 }
 
@@ -658,7 +658,7 @@ void Ide::createXref()
     d_xref->setRootIsDecorated(false);
     vbox->addWidget(d_xref);
     dock->setWidget(pane);
-    addDockWidget( Qt::LeftDockWidgetArea, dock );
+    addDockWidget( Qt::RightDockWidgetArea, dock );
     connect(d_xref, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)), this, SLOT(onXrefDblClicked()) );
 }
 
@@ -3403,7 +3403,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.85");
+    a.setApplicationVersion("0.9.86");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
