@@ -103,7 +103,7 @@ Just download, unpack and run it; no installer is needed. The ZIP includes the n
 Here is a binary version of the old OberonViewer for Linux x86: http://software.rochus-keller.ch/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
-[^1]: the integrated Mono executable is still x86_64 and runs under the Rosetta emulator; the OS might block Mono when you try to run your Oberon+ app; if so, show the contents of the application bundle and start the mono executable (located at App/Contents/MacOS/mono/mono) "Open" from the Finder context menu; finally if you try to run an Oberon+ app accessing a dylib by FFI the system blocks this access; this can be circumvented by selecting the dylib (e.g. libSDL2.dylib) in the Finder and execute "Open with + Terminal" from the context menu; the OS then asks for permission to do so and if you accept it can later also be accessed from your Oberon+ app.
+[^1]: the integrated Mono executable is still x86_64 and runs under the Rosetta emulator; the OS might block Mono when you try to run your Oberon+ app; if so, show the contents of the application bundle and start the mono executable (located at App/Contents/MacOS/mono/mono) using "Open" from the Finder context menu; finally if you try to run an Oberon+ app accessing a dylib by FFI, the system might block this access; this can be circumvented by selecting the dylib (e.g. libSDL2.dylib) in the Finder and execute "Open with + Terminal" from the context menu; the OS then asks for permission to do so and if you accept it can later also be accessed from your Oberon+ app.
 
 ### Build Steps
 

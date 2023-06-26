@@ -250,11 +250,11 @@ import
 
     proc RunEachOnce()
     begin
-        H.run("DeltaBlue", 1, 1 )
+       H.run("DeltaBlue", 1, 1 )
        H.run("Richards", 1, 1)
        H.run("Json", 1, 1)
        H.run("Havlak", 1, 1 )
-      H.run("CD2", 1, 2)
+       H.run("CD2", 1, 2)
        H.run("Bounce", 1, 1)
        H.run("List", 1, 1)
        H.run("Mandelbrot", 1, 1)
