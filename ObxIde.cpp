@@ -1923,9 +1923,6 @@ void Ide::fillXref()
         case Thing::T_Module:
             type = "Module";
             break;
-        case Thing::T_GenericName:
-            type = "Type Parameter";
-            break;
         case Thing::T_Enumeration:
             type = "Enumeration";
             break;
@@ -2344,9 +2341,9 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
         case Type::BYTE:
             item->setText(1,QString("%1h").arg(lua_tointeger(L,-1),0,16));
             return;
-        case Type::SHORTINT:
-        case Type::INTEGER:
-        case Type::LONGINT:
+        case Type::INT16:
+        case Type::INT32:
+        case Type::INT64:
             item->setText(1,QString::number(lua_tointeger(L,-1)));
             return;
         case Type::REAL:
@@ -2422,13 +2419,13 @@ void Ide::printLocalVal(QTreeWidgetItem* item, Type* type, int depth)
                     case Type::BYTE:
                         createArrayElems<quint8>( item, ptr, bytesize, numOfFetchedElems);
                         break;
-                    case Type::SHORTINT:
+                    case Type::INT16:
                         createArrayElems<qint16>( item, ptr, bytesize, numOfFetchedElems);
                         break;
-                    case Type::INTEGER:
+                    case Type::INT32:
                         createArrayElems<qint32>( item, ptr, bytesize, numOfFetchedElems);
                         break;
-                    case Type::LONGINT:
+                    case Type::INT64:
                         createArrayElems<qint64>( item, ptr, bytesize, numOfFetchedElems);
                         break;
                     case Type::REAL:
@@ -3122,7 +3119,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("Oberon+ IDE (LuaJIT)");
-    a.setApplicationVersion("0.8.19");
+    a.setApplicationVersion("0.8.20");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

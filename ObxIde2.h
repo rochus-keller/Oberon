@@ -175,6 +175,7 @@ namespace Obx
         void onSetInputFile();
         void onSetOptions();
         void onSetInt16();
+        void onNoWarnings();
     private:
         class DocTab;
         DocTab* d_tab;
@@ -207,6 +208,7 @@ namespace Obx
         bool d_ovflCheck;
         bool d_suspended; // we are in debugger but code is suspended
         bool d_breakOnExceptions;
+        bool d_noWarnings;
         quint32 d_curThread;
         enum Status { Idle, Compiling, Generating, Running };
         Status d_status;

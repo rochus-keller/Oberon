@@ -379,7 +379,8 @@ void messageHander(QtMsgType type, const QMessageLogContext& ctx, const QString&
 Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
       d_lock2(false),d_lock3(false),d_lock4(false),d_debugging(false),d_ovflCheck(true),d_mode(LineMode),
-      d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_status(Idle),d_breakOnExceptions(false)
+      d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_status(Idle),
+      d_breakOnExceptions(false),d_noWarnings(false)
 {
     s_this = this;
 
@@ -805,6 +806,7 @@ void Ide::createMenuBar()
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "Suppress Warnings", this, SLOT(onNoWarnings()) );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
@@ -1430,10 +1432,8 @@ void Ide::onErrors()
 
     for( int i = 0; i < errs.size(); i++ )
     {
-#if 0
-        if( !errs[i].d_isErr)
-            continue; // TEST
-#endif
+        if( d_noWarnings && !errs[i].d_isErr)
+            continue;
         QTreeWidgetItem* item = new QTreeWidgetItem(d_errs);
         item->setText(2, errs[i].d_msg );
         item->setToolTip(2, item->text(2) );
@@ -3397,13 +3397,20 @@ void Ide::onSetInt16()
     d_pro->setInt16(!d_pro->getInt16());
 }
 
+void Ide::onNoWarnings()
+{
+    CHECKED_IF(true, d_noWarnings );
+    d_noWarnings = !d_noWarnings;
+    onErrors();
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.86");
+    a.setApplicationVersion("0.9.87");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

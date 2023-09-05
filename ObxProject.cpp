@@ -256,6 +256,8 @@ struct ObxHitTest : public AstVisitor
             for( int j = 0; j < c->d_cases[i].d_block.size(); j++ )
                 c->d_cases[i].d_block[j]->accept(this);
         }
+        foreach( const Ref<Statement>& s, c->d_else )
+            s->accept(this);
     }
 
     void visit( Literal* ) {} // NOP

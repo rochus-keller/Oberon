@@ -1051,7 +1051,7 @@ struct ValidatorImp : public AstVisitor
                 error( args->d_loc, Validator::tr("expecting two arguments"));
             else
             {
-                if( toCharArray( derefed(args->d_args.last()->d_type.data()), false ) == 0 )
+                if( toCharArray( derefed(args->d_args.last()->d_type.data()), true ) == 0 )
                     error( args->d_loc, Validator::tr("incompatible arguments"));
                 Assign assig;
                 assig.d_loc = args->d_loc;
@@ -2072,6 +2072,24 @@ struct ValidatorImp : public AstVisitor
         me->d_type = bt.d_setType;
     }
 
+    Type* smallestIntType(qint64 i, bool wide, bool minInt) const
+    {
+        if( i >= bt.d_int8Type->minVal().toInt() && i <= bt.d_int8Type->maxVal().toInt()
+                 && !wide && !minInt )
+            return bt.d_int8Type;
+        else if( i >= 0 && i <= bt.d_byteType->maxVal().toInt()
+                && !wide && !minInt )
+            return bt.d_byteType;
+        else if( i >= bt.d_shortType->minVal().toInt() && i <= bt.d_shortType->maxVal().toInt()
+                 && !wide && !minInt )
+            return bt.d_shortType;
+        else if( i >= bt.d_intType->minVal().toInt() && i <= bt.d_intType->maxVal().toInt()
+                 && !wide )
+            return bt.d_intType;
+        else
+            return bt.d_longType;
+    }
+
     void visit( Literal* me )
     {
         const qint64 i = me->d_val.toLongLong();
@@ -2080,20 +2098,7 @@ struct ValidatorImp : public AstVisitor
         case Literal::Enum:
             break; // keep the Enumeration type
         case Literal::Integer:
-            if( i >= bt.d_int8Type->minVal().toInt() && i <= bt.d_int8Type->maxVal().toInt()
-                     && !me->d_wide && !me->d_minInt )
-                me->d_type = bt.d_int8Type;
-            else if( i >= 0 && i <= bt.d_byteType->maxVal().toInt()
-                    && !me->d_wide && !me->d_minInt )
-                me->d_type = bt.d_byteType;
-            else if( i >= bt.d_shortType->minVal().toInt() && i <= bt.d_shortType->maxVal().toInt()
-                     && !me->d_wide && !me->d_minInt )
-                me->d_type = bt.d_shortType;
-            else if( i >= bt.d_intType->minVal().toInt() && i <= bt.d_intType->maxVal().toInt()
-                     && !me->d_wide )
-                me->d_type = bt.d_intType;
-            else
-                me->d_type = bt.d_longType;
+            me->d_type = smallestIntType(i, me->d_wide, me->d_minInt );
             break;
         case Literal::Real:
             if( me->d_wide )
@@ -2533,26 +2538,24 @@ struct ValidatorImp : public AstVisitor
         {
             // if the type according to expression rules is not wide enough to accomodate the number, widen it
             qint64 v = me->d_val.toLongLong();
-            Type* newType = td;
-            if( newType->getBaseType() == Type::BYTE &&
-                    ( v < 0 || v > bt.d_byteType->maxVal().toInt() ) )
+            Type* newType = smallestIntType(v, false, false ); // use as narrow type as possible
+            const int b = td->getBaseType();
+            if( b == Type::BYTE && ( v < 0 || v > bt.d_byteType->maxVal().toInt() ) )
                 newType = bt.d_int8Type;
-            if( newType->getBaseType() == Type::INT8 &&
-                    ( v < bt.d_int8Type->minVal().toInt() || v > bt.d_int8Type->maxVal().toInt() ) )
+            if( b == Type::INT8 && ( v < bt.d_int8Type->minVal().toInt() || v > bt.d_int8Type->maxVal().toInt() ) )
                 newType = bt.d_shortType;
-            if( newType->getBaseType() == Type::INT16 &&
-                    ( v < bt.d_shortType->minVal().toInt() || v > bt.d_shortType->maxVal().toInt() ) )
+            if( b == Type::INT16 && ( v < bt.d_shortType->minVal().toInt() || v > bt.d_shortType->maxVal().toInt() ) )
                 newType = bt.d_intType;
-            if( newType->getBaseType() == Type::INT32 &&
-                    ( v < bt.d_intType->minVal().toInt() || v > bt.d_intType->maxVal().toInt() ) )
+            if( b == Type::INT32 && ( v < bt.d_intType->minVal().toInt() || v > bt.d_intType->maxVal().toInt() ) )
                 newType = bt.d_longType;
-            if( newType != td )
+            if( newType->getBaseType() > td->getBaseType() )
             {
                 warning(me->d_constExpr->d_loc, Validator::tr("widened type from %1 to %2")
                         .arg(BaseType::s_typeName[td->getBaseType()])
                         .arg(BaseType::s_typeName[newType->getBaseType()]));
-                me->d_type = newType;
             }
+            if( td != newType )
+                me->d_type = newType;
         }
     }
 
@@ -3033,9 +3036,9 @@ struct ValidatorImp : public AstVisitor
             return res.d_value.toLongLong();
         if( res.d_vtype == Literal::String )
         {
-            const QByteArray str = res.d_value.toByteArray();
+            const QString str = QString::fromUtf8(res.d_value.toByteArray());
             if( !str.isEmpty() )
-                return (quint8)str[0];
+                return str[0].unicode();
         }
         return 0;
     }
@@ -3139,17 +3142,6 @@ struct ValidatorImp : public AstVisitor
                     if( !samePointerness(me->d_exp->d_type.data(),c.d_labels.first()->d_type.data()) )
                         error(c.d_labels.first()->d_loc, Validator::tr("both the case variable and the case label must bei either of record or pointer to record type") );
                 }
-            }else
-            {
-                qSort( ranges );
-                for( int i = 1; i < ranges.size(); i++ )
-                {
-                    if( ranges[i].first <= ranges[i-1].second )
-                    {
-                        error( me->d_loc, Validator::tr("no case label must occur more than once"));
-                        break;
-                    }
-                }
             }
 
             visitStats( c.d_block );
@@ -3157,6 +3149,18 @@ struct ValidatorImp : public AstVisitor
 
         if( me->d_typeCase )
             caseId->d_type = orig;
+        else
+        {
+            qSort( ranges );
+            for( int i = 1; i < ranges.size(); i++ )
+            {
+                if( ranges[i].first <= ranges[i-1].second )
+                {
+                    error( me->d_loc, Validator::tr("no case label must occur more than once"));
+                    break;
+                }
+            }
+        }
 
         visitStats( me->d_else );
     }

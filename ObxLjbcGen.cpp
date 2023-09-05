@@ -1325,7 +1325,6 @@ struct ObxLjbcGenImp : public AstVisitor
     void visit( ProcType* ) {}
     void visit( QualiType* ) {}
     void visit( Enumeration* ) {}
-    void visit( GenericName* ) {}
     void visit( BuiltIn* ) {}
     void visit( Field* ) {}
     void visit( Parameter* ) {}
@@ -1421,19 +1420,19 @@ struct ObxLjbcGenImp : public AstVisitor
             case Type::BYTE:
                 fetchObxlibMember(tmp,8,loc); // module.createByteArray
                 break;
-            case Type::SHORTINT:
+            case Type::INT16:
                 fetchObxlibMember(tmp,3,loc); // module.createShortArray
                 break;
             case Type::WCHAR:
                 fetchObxlibMember(tmp,2,loc); // module.createWcharArray
                 break;
-            case Type::INTEGER:
+            case Type::INT32:
                 fetchObxlibMember(tmp,4,loc); // module.createIntArray
                 break;
             case Type::SET:
                 fetchObxlibMember(tmp,24,loc); // module.createSetArray
                 break;
-            case Type::LONGINT:
+            case Type::INT64:
                 fetchObxlibMember(tmp,5,loc); // module.createLongArray
                 break;
             case Type::REAL:
@@ -2176,15 +2175,15 @@ struct ObxLjbcGenImp : public AstVisitor
                     bc.KSET(res,1,e->d_loc.packed());
                     break;
                 case Type::WCHAR:
-                case Type::SHORTINT:
+                case Type::INT16:
                     bc.KSET(res,2,e->d_loc.packed());
                     break;
-                case Type::INTEGER:
+                case Type::INT32:
                 case Type::REAL:
                 case Type::SET:
                     bc.KSET(res,4,e->d_loc.packed());
                     break;
-                case Type::LONGINT:
+                case Type::INT64:
                 case Type::LONGREAL:
                     bc.KSET(res,8,e->d_loc.packed());
                     break;
@@ -2220,7 +2219,7 @@ struct ObxLjbcGenImp : public AstVisitor
             bc.MOV(res,slotStack.back(),ae->d_loc.packed());
             releaseSlot();
             break;
-        case BuiltIn::VAL:
+        case BuiltIn::CAST:
         case BuiltIn::SYS_VAL:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.last()->accept(this);
@@ -2259,17 +2258,17 @@ struct ObxLjbcGenImp : public AstVisitor
             case Type::BYTEARRAY:
                 // NOP
                 break;
-            case Type::SHORTINT:
+            case Type::INT16:
             case Type::WCHAR:
             case Type::WSTRING:
                 divisor = 2;
                 break;
-            case Type::INTEGER:
+            case Type::INT32:
             case Type::SET:
             case Type::REAL:
                 divisor = 4;
                 break;
-            case Type::LONGINT:
+            case Type::INT64:
             case Type::LONGREAL:
                 divisor = 8;
                 break;

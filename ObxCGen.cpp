@@ -258,11 +258,11 @@ QByteArray CGen::renderBasicType(Type* t)
         return "uint16_t";
     case Type::BYTE:
         return "uint8_t";
-    case Type::SHORTINT:
+    case Type::INT16:
         return "int16_t";
-    case Type::INTEGER:
+    case Type::INT32:
         return "int32_t";
-    case Type::LONGINT:
+    case Type::INT64:
         return "int64_t";
     case Type::REAL:
         return "float";
