@@ -963,6 +963,12 @@ void Model::fillGlobals()
     bi = new BuiltIn(BuiltIn::SYS_REG, new ProcType( Type::List() << d_intType.data(), d_intType.data() ) );
     sys->add( bi.data());
 
+    bi = new BuiltIn(BuiltIn::SYS_PORTOUT, new ProcType( Type::List() << d_intType.data() << d_anyType.data() ) );
+    sys->add( bi.data());
+    bi = new BuiltIn(BuiltIn::SYS_PORTIN, new ProcType( Type::List() << d_intType.data() << d_anyType.data(),
+                                                        ProcType::Vars() << false << true ) );
+    sys->add( bi.data());
+
     bi = new BuiltIn(BuiltIn::SYS_VAL, new ProcType( Type::List() << d_anyType.data() << d_anyType.data(), d_anyType.data() ) );
     sys->add( bi.data());
 
@@ -1088,6 +1094,8 @@ void Model::fillGlobals()
     d_globals->add( new BuiltIn(BuiltIn::BITSHL, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITSHR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::BITASR, new ProcType( Type::List() << d_intType.data() << d_intType.data(), d_intType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::BYTES, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
+    d_globals->add( new BuiltIn(BuiltIn::NUMBER, new ProcType( Type::List() << d_anyType.data() << d_anyType.data() ) ) );
     d_globals->add( new BuiltIn(BuiltIn::ADR, new ProcType( Type::List() << d_anyType.data(), d_anyType.data() ) ) );
     Ref<NamedType> anyrec = new NamedType(Lexer::getSymbol(BaseType::s_typeName[d_anyRec->d_baseType]),d_anyRec.data() );
     d_globals->add( anyrec.data() );

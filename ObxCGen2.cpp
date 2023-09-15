@@ -1928,7 +1928,7 @@ struct ObxCGenImp : public AstVisitor
             ae->d_args.last()->accept(this);
             b << ")";
             break;
-        case BuiltIn::ROR:
+        case BuiltIn::ROR: // TODO: ROR is not the same as BITSHR
         case BuiltIn::BITSHR:
             Q_ASSERT( ae->d_args.size() == 2 );
             b << "(((";

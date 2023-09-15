@@ -44,7 +44,7 @@ const char* BuiltIn::s_typeName[] =
     "ABS", "ODD", "LEN", "LSL", "ASR", "ROR", "FLOOR", "FLT", "ORD",
     "CHR", "INC", "DEC", "INCL", "EXCL", "NEW", "ASSERT", "PACK", "UNPK",
     "LED", "TRAP", "TRAPIF", "TRACE", "NOP", "LDMOD", "LDCMD",
-    "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "VAL", "COPY",
+    "ADR", "BIT", "GET", "H", "LDREG", "PUT", "REG", "PORTIN", "PORTOUT", "VAL", "COPY",
     "MAX", "CAP", "LONG", "SHORT", "HALT", "COPY", "ASH", "MIN", "SIZE", "ENTIER",
     "BITS",
     // Oberon-2 SYSTEM
@@ -53,7 +53,7 @@ const char* BuiltIn::s_typeName[] =
     "TYP",
     // Oberon+
     "CAST", "STRLEN", "WCHR", "PRINTLN", "DEFAULT", "BITAND", "BITNOT", "BITOR", "BITXOR",
-    "BITSHL", "BITSHR", "BITASR", "ADR", "PCALL", "RAISE"
+    "BITSHL", "BITSHR", "BITASR", "BYTES", "NUMBER", "ADR", "PCALL", "RAISE"
 };
 
 const char* UnExpr::s_opName[] =
@@ -1465,7 +1465,7 @@ bool Type::isText(bool* wide, bool resolvePtr) const
     return false;
 }
 
-bool Type::isByteArray(bool resolvePtr) const
+bool Type::isByteArray(bool resolvePtr, bool withLiteral, bool charOrByte) const
 {
     Type* t = const_cast<Type*>(this);
     int tag = t->getTag();
@@ -1477,7 +1477,7 @@ bool Type::isByteArray(bool resolvePtr) const
             t = t->derefed();
         tag = t ? t->getTag() : 0;
     }
-    if( t->getBaseType() == Type::BYTEARRAY )
+    if( withLiteral && t->getBaseType() == Type::BYTEARRAY )
     {
         // we also accept pointer to bytearray literal
         // this can happen with automatic ADDROF
@@ -1490,6 +1490,8 @@ bool Type::isByteArray(bool resolvePtr) const
         if( t )
             t = t->derefed();
         if( t && t->getBaseType() == Type::BYTE )
+            return true;
+        if( charOrByte && t && t->getBaseType() == Type::CHAR )
             return true;
     }
     return false;

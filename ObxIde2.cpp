@@ -1900,7 +1900,8 @@ void Ide::fillMods()
             {
                 Ref<Module> m = new Module();
                 m->d_file = files[i]->d_filePath;
-                m->d_name = QFileInfo(files[i]->d_filePath).baseName().toUtf8();
+                m->d_fullName = QFileInfo(files[i]->d_filePath).completeBaseName().toUtf8().split('.');
+                m->d_name = m->d_fullName.last();
                 temp << m;
                 sort << m.data();
             }else
@@ -3410,7 +3411,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.87");
+    a.setApplicationVersion("0.9.88");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

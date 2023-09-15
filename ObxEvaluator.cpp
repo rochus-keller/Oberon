@@ -839,6 +839,8 @@ struct EvalVisitor : public AstVisitor
         case BuiltIn::SYS_LDREG:
         case BuiltIn::SYS_PUT:
         case BuiltIn::SYS_REG:
+        case BuiltIn::SYS_PORTIN:
+        case BuiltIn::SYS_PORTOUT:
         case BuiltIn::SYS_VAL:
         case BuiltIn::SYS_COPY:
         case BuiltIn::CAP:

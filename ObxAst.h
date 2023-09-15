@@ -218,7 +218,7 @@ namespace Obx
         bool isChar(bool* wide = 0) const;
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0, bool resolvePtr = false) const;
-        bool isByteArray(bool resolvePtr = false) const;
+        bool isByteArray(bool resolvePtr = false, bool withLiteral = true, bool charOrByte = false) const;
         Record* toRecord(bool* isPtr = 0) const;
         Array* toArray(bool* isPtr = 0) const;
         Module* declaredIn();
@@ -469,7 +469,8 @@ namespace Obx
                // IDE
                TRAP, TRAPIF, TRACE, NOP, LDMOD, LDCMD,
                // SYSTEM
-               SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG, SYS_VAL, SYS_COPY, // obsolete
+               SYS_ADR, SYS_BIT, SYS_GET, SYS_H, SYS_LDREG, SYS_PUT, SYS_REG,
+               SYS_PORTIN, SYS_PORTOUT, SYS_VAL, SYS_COPY, // obsolete
                // Oberon-2
                MAX, CAP, LONG, SHORT, HALT, COPY, ASH, MIN, BYTESIZE, ENTIER, // BYTESIZE=SIZE
                // Blackbox
@@ -480,7 +481,7 @@ namespace Obx
                SYS_TYP,
                // Oberon+
                CAST, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
-               BITSHL, BITSHR, BITASR,
+               BITSHL, BITSHR, BITASR, BYTES, NUMBER,
                ADR, // obsolete
                PCALL, RAISE,
                MAXBUILTIN

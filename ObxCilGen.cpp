@@ -2611,7 +2611,7 @@ struct ObxCilGenImp : public AstVisitor
             convertTo( Type::INT32,ae->d_args.last()->d_type.data(), ae->d_args.last()->d_loc );
             line(ae->d_loc).shl_();
             break;
-        case BuiltIn::ROR:
+        case BuiltIn::ROR: // TODO: ROR is not the same as BITSHR
         case BuiltIn::BITSHR:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);

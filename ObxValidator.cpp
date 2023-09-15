@@ -761,6 +761,47 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting two arguments"));
             break;
+        case BuiltIn::BYTES:
+            if( args->d_args.size() == 2 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data());
+                if( td == 0 )
+                    break;
+                if( !td->isByteArray(false,false,true) )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting ARRAY OF BYTE or ARRAY OF CHAR"));
+                if( !checkValidLhs(args->d_args.first().data()) )
+                    error( args->d_args.first()->d_loc, Validator::tr("cannot write to left argument"));
+                Array* a = cast<Array*>(td);
+                td = derefed(args->d_args.last()->d_type.data());
+                if( !td->isNumeric() && !td->isSet() )
+                    error( args->d_args.last()->d_loc, Validator::tr("expecting numeric or set argument"));
+                if( a->d_len > 0 && a->d_len < td->getByteSize() )
+                    error( args->d_args.first()->d_loc, Validator::tr("ARRAY has insufficient length"));
+            }else
+                error( args->d_loc, Validator::tr("expecting two arguments"));
+            break;
+        case BuiltIn::NUMBER:
+            if( args->d_args.size() == 2 )
+            {
+                Type* td = derefed(args->d_args.first()->d_type.data());
+                if( td == 0 )
+                    break;
+                if( !td->isNumeric() && !td->isSet() )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting numeric or set argument"));
+                if( !checkValidLhs(args->d_args.first().data()) )
+                    error( args->d_args.first()->d_loc, Validator::tr("cannot write to left argument"));
+                const int bytesize = td->getByteSize();
+                td = derefed(args->d_args.last()->d_type.data());
+                if( td == 0 )
+                    break;
+                if( !td->isByteArray(false,false,true) )
+                    error( args->d_args.last()->d_loc, Validator::tr("expecting ARRAY OF BYTE or ARRAY OF CHAR"));
+                Array* a = cast<Array*>(td);
+                if( a->d_len > 0 && a->d_len < bytesize )
+                    error( args->d_args.last()->d_loc, Validator::tr("ARRAY has insufficient length"));
+            }else
+                error( args->d_loc, Validator::tr("expecting two arguments"));
+            break;
         case BuiltIn::FLOOR:
         case BuiltIn::ENTIER:
             if( args->d_args.size() == 1 )
@@ -1167,6 +1208,8 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::SYS_GET:
         case BuiltIn::SYS_PUT:
         case BuiltIn::SYS_VAL:
+        case BuiltIn::SYS_PORTIN:
+        case BuiltIn::SYS_PORTOUT:
         case BuiltIn::SYS_MOVE:
         case BuiltIn::SYS_NEW:
         case BuiltIn::SYS_ROT:
@@ -1352,8 +1395,7 @@ struct ValidatorImp : public AstVisitor
 #ifdef OBX_BBOX
             if( ta == bt.d_nilType )
             {
-                Q_ASSERT( tftag == Thing::T_Pointer );
-                ok = true;
+                ok = tftag == Thing::T_Pointer;
             }
 #endif
             if( !ok )
@@ -3940,12 +3982,14 @@ struct ValidatorImp : public AstVisitor
             //   actual parameter may be of any type.
             Type* lat = tf->getTag() == Thing::T_Array ? derefed(cast<Array*>(tf)->d_type.data()) : 0;
             Type* rat = ta->getTag() == Thing::T_Array ? derefed(cast<Array*>(ta)->d_type.data()) : 0;
-            if( lat == bt.d_byteType && rat != bt.d_byteType )
+            if( lat == bt.d_byteType )
             {
-                Q_ASSERT( !equalType(tf,ta) );
+               Q_ASSERT( !equalType(tf,ta) );
 #define OBX_BYTE_ARRAY_TRICK "The Oberon VAR ARRAY OF BYTE trick is not supported by Oberon+ backends"
-                warning( rhs->d_loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
-                return true;
+                if( byteCompat(lat, rat) ) // we at least support byte sized arrays
+                    return true;
+                // else
+                //  warning( rhs->d_loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
             }
 
             // Oberon 90: The type BYTE is compatible with CHAR and INT8 (SHORTINT can be INT8 or INT16 here)
@@ -4050,10 +4094,12 @@ struct ValidatorImp : public AstVisitor
         //   actual parameter may be of any type.
         // Oberon-2: If a formal **variable** parameter is of type ARRAY OF BYTE then the corresponding
         //   actual parameter may be of any type.
-        if( laT == bt.d_byteType && raT != bt.d_byteType )
+        if( laT == bt.d_byteType )
         {
-            warning( loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
-            return true;
+            if( byteCompat(laT, raT) ) // we at least support byte sized arrays
+                return true;
+            // else
+            //  warning( loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
         }
 
 
