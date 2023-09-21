@@ -1,0 +1,14 @@
+
+
+submod qt = ../../../LeanQt (HAVE_GUI)
+
+
+let Pal ! : Library {
+    .lib_type = `shared
+	.configs += [ qt.qt_client_config ]
+    .deps += [ qt.libqt ]
+    .sources = [
+		./File.cpp
+		./Display.cpp
+	]
+}

@@ -926,9 +926,12 @@ struct ValidatorImp : public AstVisitor
                 if( isCharConst(args->d_args[0].data()) )
                     break;
 
+#if 1
+				// TODO
                 if( d.d_type->getTag() == Thing::T_Pointer ||
                         d.d_type->getBaseType() == Type::REAL || d.d_type->getBaseType() == Type::LONGREAL )
                     break; // undocumented oberon feature
+#endif
 
                 if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data())
                         && !paramCompatible( &e, args->d_args[0].data())

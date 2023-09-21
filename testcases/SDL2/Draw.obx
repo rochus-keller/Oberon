@@ -1,0 +1,84 @@
+module Draw
+
+import SDL, Out
+
+  const WIDTH = 800; HEIGHT = 600; COL = 4;
+  var
+    window : *SDL.Window
+    texture : *SDL.Texture
+    renderer : *SDL.Renderer
+		ver: SDL.version
+    buf: array WIDTH * COL * HEIGHT of byte
+    e: SDL.Event
+    down: boolean
+    time, lastUpdate, i : integer
+    r: SDL.Rect
+begin
+		SDL.GetVersion(ver)
+		SDL.Log("Loaded SDL version %d.%d.%d"+0ax, ver.major, ver.minor, ver.patch )
+
+    window := SDL.CreateWindow("Draw and SDL",
+                          SDL.WINDOWPOS_UNDEFINED, 
+                          SDL.WINDOWPOS_UNDEFINED, 
+                          WIDTH,  
+                          HEIGHT, 
+                          SDL.WINDOW_SHOWN)
+    if window = nil then
+      SDL.Log("There was an issue creating the window. %s",SDL.GetError())
+      halt(0)
+    end
+    
+    renderer := SDL.CreateRenderer(window, 
+                                      -1, 
+                                      SDL.RENDERER_ACCELERATED + 
+                                      SDL.RENDERER_PRESENTVSYNC)
+    if renderer = nil then
+      SDL.Log("There was an issue creating the renderer. %s",SDL.GetError())
+      halt(0)
+    end       
+
+    texture := SDL.CreateTexture(renderer,
+                                       ord(SDL.PIXELFORMAT_BGRA8888),
+                                       ord(SDL.TEXTUREACCESS_STREAMING),
+                                       WIDTH,
+                                       HEIGHT)
+    if texture = nil then
+      SDL.Log("There was an issue creating the texture. %s",SDL.GetError())
+      halt(0)
+    end 
+    
+    for i := 0 to len(buf) - 1 do buf[i] := 255 end
+    
+    loop
+      if SDL.WaitEventTimeout(e,0) = 1 then
+        case e.type_ of
+          | SDL.QUIT:
+            SDL.Log("quitting")
+            exit
+          | SDL.MOUSEMOTION:
+            if down & ( e.motion.x >= 0 ) & ( e.motion.x < WIDTH ) & 
+              ( e.motion.y >= 0 ) & ( e.motion.y < HEIGHT ) then
+              i := e.motion.y * WIDTH * COL + e.motion.x * COL;
+              buf[i+2] := 0
+              buf[i+1] := 0 
+            end
+          | SDL.MOUSEBUTTONDOWN,
+            SDL.MOUSEBUTTONUP:
+              down := (e.button.state = SDL.PRESSED)
+        end
+      end
+      time := SDL.GetTicks()
+      if ( time - lastUpdate ) > 30 then 
+        lastUpdate := time
+        r.x := 0
+        r.y := 0
+        r.w := WIDTH
+        r.h := HEIGHT
+        SDL.UpdateTexture(texture, r, buf, WIDTH * COL)
+        SDL.RenderClear(renderer)
+        SDL.RenderCopy(renderer, texture, r, r)
+        SDL.RenderPresent(renderer)
+      end  
+    end
+    
+end Draw

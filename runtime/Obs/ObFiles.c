@@ -4,17 +4,16 @@
 * This file is part of the Oberon+ parser/compiler library.
 *
 * The following is the license that applies to this copy of the
-* library. For a license to use the library under conditions
+* file. For a license to use the file under conditions
 * other than those described here, please email to me@rochus-keller.ch.
 *
-* GNU General Public License Usage
-* This file may be used under the terms of the GNU General Public
-* License (GPL) versions 2.0 or 3.0 as published by the Free Software
-* Foundation and appearing in the file LICENSE.GPL included in
-* the packaging of this file. Please review the following information
-* to ensure GNU General Public Licensing requirements will be met:
-* http://www.fsf.org/licensing/licenses/info/GPLv2.html and
-* http://www.gnu.org/copyleft/gpl.html.
+* This file may be used under the terms of the GNU Lesser
+* General Public License version 2.1 or version 3 as published by the Free
+* Software Foundation and appearing in the file LICENSE.LGPLv21 and
+* LICENSE.LGPLv3 included in the packaging of this file. Please review the
+* following information to ensure the GNU Lesser General Public License
+* requirements will be met: https://www.gnu.org/licenses/lgpl.html and
+* http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
 */
 #include "ObFiles.h"
 #include <time.h>
@@ -298,7 +297,7 @@ void ObFiles$freeFile(int32_t buffer)
 
 int ObFiles$saveFile(struct OBX$Array$1 filename, int32_t buffer)
 {
-    if( buffer >= 0 && buffer < MAX_FILES && s_buffers[buffer] && filename.$a == 0 && *(const char*)filename.$a == 0 )
+    if( buffer >= 0 && buffer < MAX_FILES && s_buffers[buffer] && filename.$a != 0 && *(const char*)filename.$a != 0 )
     {
         char path[300];
         getFilePath(path,300,(const char*)filename.$a);
