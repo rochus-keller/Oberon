@@ -157,7 +157,7 @@ struct ValidatorImp : public AstVisitor
 
     void collectNonLocals( Procedure* caller, QSet<Procedure*>& visited, int level = 0 )
     {
-        //qDebug() << QByteArray(level*4,' ').constData() << caller->d_name << visited.contains(caller);
+        // this procedure follows the call-chain starting from caller
         if( visited.contains(caller) )
             return;
         visited.insert(caller);
@@ -166,6 +166,7 @@ struct ValidatorImp : public AstVisitor
         {
 #if 0
             // this is wrong, since a procedure might not yet be identified as intermediate, even if so;
+            // addNonLocal is called bottom up!
             // Example: GameHunter msysTextOut.Set.WriteInt
             if( !called->d_upvalIntermediate && !called->d_upvalSink )
                 continue;
@@ -232,7 +233,7 @@ struct ValidatorImp : public AstVisitor
         visitScope(me);
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_Procedure && n->d_upvalSource )
+            if( n->getTag() == Thing::T_Procedure && ( n->d_upvalSource || n->d_upvalIntermediate || n->d_upvalSink ) )
             {
                 QSet<Procedure*> visited;
                 collectNonLocals( cast<Procedure*>(n.data()), visited );
@@ -372,16 +373,20 @@ struct ValidatorImp : public AstVisitor
 
         levels.push_back(me);
         visitScope(me); // also handles formal parameters
+        returnValueFound = false;
+        visitStats( me->d_body );
+
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_Procedure && n->d_upvalSource )
+            // this must be after visitstats(body) because the local procs could be called there
+            if( n->getTag() == Thing::T_Procedure && ( n->d_upvalSource || n->d_upvalIntermediate || n->d_upvalSink ) )
             {
+                // must also run for upvalSink, see CLUTs::Init::blueloop in Oberon System 3
                 QSet<Procedure*> visited;
                 collectNonLocals( cast<Procedure*>(n.data()), visited );
             }
         }
-        returnValueFound = false;
-        visitStats( me->d_body );
+
         if( !mod->d_isDef &&
                 !( me->d_noBody && me->d_order.size() == me->d_parCount ) // empty or only one return statement, and no declarations
                 )
@@ -419,6 +424,9 @@ struct ValidatorImp : public AstVisitor
                 int i = levels.size() - 2;
                 while( i > 0 && levels[i].scope != n->d_scope )
                 {
+                    // mark all static outer procedures (i=0 is the module and all others are procedure scopes)
+                    // as intermediates if they don't declare n; since they don't declare n they must
+                    // transport n as an extra paramter
                     levels[i].scope->d_upvalIntermediate = true;
                     pt = cast<ProcType*>(levels[i].scope->d_type.data());
                     pt->addNonLocal(n);
@@ -428,13 +436,12 @@ struct ValidatorImp : public AstVisitor
                 }
                 levels.back().scope->d_upvalSink = true;
                 pt = cast<ProcType*>(levels.back().scope->d_type.data());
+                // we currently are in procedure pt's scope and access n from an outer procedure scope; therefore
+                // pt must transport n as an extra parameter
                 pt->addNonLocal(n);
                 if( pt->d_typeBound )
                     error( e->d_loc, Validator::tr("type-bound procedures cannot access non-local variables and parameters") );
                 n->d_upvalSource = true;
-                // no longer true:
-                //error( e->d_loc, Validator::tr("cannot access local variables and parameters of outer procedures") );
-                //warning( e->d_loc, Validator::tr("non-local access") );
             }
         }
     }
@@ -902,11 +909,10 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::CAP:
             if( args->d_args.size() == 1 )
             {
-                Parameter a,b;
+                Parameter a;
                 a.d_type = bt.d_charType;
-                b.d_type = bt.d_wcharType;
-                if( !paramCompatible( &a, args->d_args[0].data()) && !paramCompatible( &b, args->d_args[0].data()) )
-                    error( args->d_args[0]->d_loc, Validator::tr("expecting char or wchar argument"));
+                if( !paramCompatible( &a, args->d_args[0].data()) )
+                    error( args->d_args[0]->d_loc, Validator::tr("expecting char argument"));
             }else
                 error( args->d_loc, Validator::tr("expecting one argument"));
             break;
@@ -3184,8 +3190,11 @@ struct ValidatorImp : public AstVisitor
                 }else
                 {
                     caseId->d_type = c.d_labels.first()->getIdent()->d_type;
+#if 1
+                    // why?
                     if( !samePointerness(me->d_exp->d_type.data(),c.d_labels.first()->d_type.data()) )
                         error(c.d_labels.first()->d_loc, Validator::tr("both the case variable and the case label must bei either of record or pointer to record type") );
+#endif
                 }
             }
 

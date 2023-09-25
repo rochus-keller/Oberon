@@ -2,6 +2,7 @@
 BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
 BuiltInOakwood=true
 BuiltInObSysInner=false
+IntegerIsInt16=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
 Options=@ByteArray()
@@ -12,8 +13,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Pcall2.obx
-1\RelPath=Pcall2.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Bytes.obx
+1\RelPath=Bytes.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Pcall2.obx
 2\RelPath=Pcall2.obx
 size=1

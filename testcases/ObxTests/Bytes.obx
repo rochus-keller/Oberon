@@ -1,0 +1,75 @@
+module Bytes
+
+var
+  a: array 8 of byte
+  i8: int8
+  i16: int16
+  i32: int32
+  i64: int64
+  r4: real
+  r8: longreal
+begin
+  i8 := 123
+  bytes(a,i8)
+  println("i8")
+  println(a[0])
+  number(i8,a)
+  println(i8)
+
+  i16 := 12345
+  bytes(a,i16)
+  println("i16")
+  println(a[0])
+  println(a[1])
+  number(i16,a)
+  println(i16)
+  
+  i32 := 1234567890
+  bytes(a,i32)
+  println("i32")
+  println(a[0])
+  println(a[1])
+  println(a[2])
+  println(a[3])
+  number(i32,a)
+  println(i32)
+  
+  i64 := 1234567890321654987
+  bytes(a,i64)
+  println("i64")
+  println(a[0])
+  println(a[1])
+  println(a[2])
+  println(a[3])
+  println(a[4])
+  println(a[5])
+  println(a[6])
+  println(a[7])
+  number(i64,a)
+  println(i64)
+  
+  r4 := 1234.567
+  bytes(a,r4)
+  println("r4")
+  println(a[0])
+  println(a[1])
+  println(a[2])
+  println(a[3])
+  number(r4,a)
+  println(r4)
+  
+  r8 := 12345.67890
+  bytes(a,r8)
+  println("r8")
+  println(a[0])
+  println(a[1])
+  println(a[2])
+  println(a[3])
+  println(a[4])
+  println(a[5])
+  println(a[6])
+  println(a[7])
+  number(r8,a)
+  println(r8)
+
+end Bytes

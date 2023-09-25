@@ -37,6 +37,7 @@ PAL_EXPORT void PAL_dispose();
 PAL_EXPORT int32_t PAL_file_list();
 PAL_EXPORT const char* PAL_file_name(int32_t i);
 PAL_EXPORT int32_t PAL_file_open(const char* filename);
+PAL_EXPORT int32_t PAL_file_key(const char* filename);
 PAL_EXPORT int32_t PAL_file_new();
 PAL_EXPORT void PAL_file_free(int32_t buffer);
 PAL_EXPORT int PAL_file_save(const char* filename, int32_t buffer);
@@ -57,6 +58,18 @@ enum PixelFormat { Mono = 0, RGB };
 PAL_EXPORT int PAL_open_screen(int width, int height, int format);
 PAL_EXPORT int PAL_process_event(int sleep, void* buffer);
 PAL_EXPORT int PAL_next_key();
+PAL_EXPORT int PAL_pending_keys();
 PAL_EXPORT int PAL_mouse_state(int* x, int* y, int* keys);
+
+/**************** Math **********************************/
+
+PAL_EXPORT double PAL_sin(double x);
+PAL_EXPORT double PAL_cos(double x);
+PAL_EXPORT double PAL_arctan(double x);
+PAL_EXPORT double PAL_sqrt(double x);
+PAL_EXPORT double PAL_ln(double x);
+PAL_EXPORT double PAL_exp(double x);
+PAL_EXPORT double PAL_pow(double x, double e);
+
 
 #endif // OBX_PAL_API_H

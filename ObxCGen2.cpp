@@ -2421,8 +2421,15 @@ struct ObxCGenImp : public AstVisitor
                 ae->d_args.last()->accept(this);
             }
             break;
+        case BuiltIn::CAP:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            b << "toupper(";
+            ae->d_args.first()->accept(this);
+            b << ")";
+            break;
         default:
-             qCritical() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
+             qCritical() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func]
+                         << "in" << thisMod->d_name;
              break;
         }
     }

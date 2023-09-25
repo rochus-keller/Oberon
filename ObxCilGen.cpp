@@ -2047,6 +2047,35 @@ struct ObxCilGenImp : public AstVisitor
             Q_ASSERT(false);
     }
 
+    IlEmitter::IndType toIndType(Type* t)
+    {
+        Type* td = derefed(t);
+        if( td == 0 )
+            return IlEmitter::I4;
+        switch( td->getBaseType() )
+        {
+        case Type::BOOLEAN:
+        case Type::CHAR:
+        case Type::BYTE:
+        case Type::INT8:
+            return IlEmitter::I1;
+        case Type::WCHAR:
+        case Type::INT16:
+            return IlEmitter::I2;
+        case Type::INT32:
+        case Type::SET:
+        case Type::ENUMINT:
+        default:
+            return IlEmitter::I4;
+        case Type::INT64:
+            return IlEmitter::I8;
+        case Type::REAL:
+            return IlEmitter::R4;
+        case Type::LONGREAL:
+            return IlEmitter::R8;
+        }
+    }
+
     void emitBuiltIn( BuiltIn* bi, ArgExpr* ae )
     {
         switch( bi->d_func )
@@ -2192,6 +2221,29 @@ struct ObxCilGenImp : public AstVisitor
                 ass->d_rhs = add.data();
                 ass->accept(this);
             }
+            break;
+        case BuiltIn::CAP:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            ae->d_args.first()->accept(this);
+            line(ae->d_loc).call_("char [mscorlib]System.Char::ToUpper(char)",1,true);
+            break;
+        case BuiltIn::BYTES:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            ae->d_args.first()->accept(this);
+            line(ae->d_args.first()->d_loc).ldc_i4(0);
+            line(ae->d_args.first()->d_loc).ldelema_("[mscorlib]System.Byte");
+            ae->d_args.last()->accept(this);
+            // stack: address of first element of byte array, number
+            line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.last()->d_type.data()));
+            break;
+        case BuiltIn::NUMBER:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            emitFetchDesigAddr(ae->d_args.first().data());
+            ae->d_args.last()->accept(this);
+            line(ae->d_args.last()->d_loc).ldc_i4(0);
+            line(ae->d_args.last()->d_loc).ldelema_("[mscorlib]System.Byte");
+            line(ae->d_args.last()->d_loc).ldind_(toIndType(ae->d_args.first()->d_type.data()));
+            line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.first()->d_type.data()));
             break;
         case BuiltIn::TRAP:
             // doesn't work:
@@ -2754,7 +2806,8 @@ struct ObxCilGenImp : public AstVisitor
             }
             break;
         default:
-             qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func];
+             qWarning() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func]
+                        << "in" << thisMod->d_name;
              break;
         }
     }
@@ -2982,8 +3035,9 @@ struct ObxCilGenImp : public AstVisitor
                     // TEST CODE
                     if( pos < 0 )
                     {
-                        qDebug() << "***non-local issue" << thisMod->d_name << me->d_loc.d_row << me->d_loc.d_col
-                                 << nl->d_name << "scope" << scope->d_name;
+                        qDebug() << "***non-local issue" << thisMod->d_name << "in" << scope->d_name <<
+                                 "when calling" << me->d_loc.d_row << me->d_loc.d_col << "missing"
+                                 << nl->d_name << "nl param for declaration" << nl->d_loc.d_row << nl->d_loc.d_col;
                         line(me->d_loc).ldnull_();
                     }else
                         line(me->d_loc).ldarg_(ptt->d_formals.size() + pos);
@@ -4084,8 +4138,8 @@ struct ObxCilGenImp : public AstVisitor
     {
         if( exitJump < 0 )
             exitJump = emitter->newLabel();
-        else
-            Q_ASSERT( false );
+        // else
+            // Q_ASSERT( false ); // no, there can be more than one EXIT statement in a LOOP
         line(me->d_loc).br_(exitJump);
     }
 

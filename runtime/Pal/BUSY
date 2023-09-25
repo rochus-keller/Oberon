@@ -10,5 +10,6 @@ let Pal ! : Library {
     .sources = [
 		./File.cpp
 		./Display.cpp
+        ./Math.cpp
 	]
 }

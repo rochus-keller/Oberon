@@ -164,6 +164,14 @@ int PAL_next_key()
     return (quint8)ctx->queue.takeLast();
 }
 
+int PAL_pending_keys()
+{
+    if( ctx == 0 )
+        return 0;
+    else
+        return ctx->queue.size();
+}
+
 int PAL_mouse_state(int* x, int* y, int* keys)
 {
     PAL_process_event(0,0);

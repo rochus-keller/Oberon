@@ -148,6 +148,8 @@ public:
     int file_save(const char* filename, int32_t id)
     {
         const QString name = QString::fromLatin1(filename);
+        if( name.isEmpty() )
+            return 0; // cannot save file with empty name
         QHash<QString,int>::const_iterator i = open.find(name);
         if( i != open.end() && i.value() != id )
             return 0; // already saved, but under a different name
@@ -159,14 +161,14 @@ public:
             open[name] = id;
             return 1;
         }else
-            return 0;
+            return -1;
     }
 
     int file_remove(const char* filename)
     {
         const QString name = QString::fromLatin1(filename);
         if( open.contains(name) )
-            return 0;
+            file_free(open.value(name));
         const QString to = QDir(getRootPath()).absoluteFilePath(name);
         return QFile::remove(to) ? 1 : 0;
     }
@@ -174,10 +176,19 @@ public:
     int file_rename(const char* oldName, const char* newName)
     {
         const QString name = QString::fromLatin1(oldName);
+        const QString name2 = QString::fromLatin1(newName);
         if( open.contains(name) )
-            return 0;
+        {
+            const QString from = QDir(tmpdir.path()).absoluteFilePath(name);
+            const QString to = QDir(tmpdir.path()).absoluteFilePath(name2);
+            if( !QFile::rename(from,to) )
+                return 0;
+            const int tmp = open.value(name);
+            open.remove(name);
+            open.insert(name2,tmp);
+        }
         const QString from = QDir(getRootPath()).absoluteFilePath(name);
-        const QString to = QDir(getRootPath()).absoluteFilePath(QString::fromLatin1(newName));
+        const QString to = QDir(getRootPath()).absoluteFilePath(name2);
         return QFile::rename(from,to) ? 1 : 0;
     }
 
@@ -233,7 +244,17 @@ public:
         {
             return (quint8)ch;
         }else
-            return 0;
+            return -1;
+    }
+
+    int32_t file_key(const char* filename)
+    {
+        const QString name = QString::fromLatin1(filename);
+        QHash<QString,int>::const_iterator i = open.find(name);
+        if( i != open.end() )
+            return i.value();
+        else
+            return -1;
     }
 };
 
@@ -274,6 +295,11 @@ const char* PAL_file_name(int32_t i) // Latin-1
 int32_t PAL_file_open(const char* filename)
 {
     return ctx()->file_open(filename);
+}
+
+int32_t PAL_file_key(const char* filename)
+{
+    return ctx()->file_key(filename);
 }
 
 int32_t PAL_file_new()
