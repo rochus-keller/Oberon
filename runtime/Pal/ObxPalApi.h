@@ -53,7 +53,7 @@ PAL_EXPORT int32_t PAL_file_read_byte(int32_t buffer);
 /**************** Display **********************************/
 
 enum KeyState { Right = 1, Mid = 2, Left = 4 }; // corresponds to the Oberon System assignment
-enum PixelFormat { Mono = 0, RGB };
+enum PixelFormat { Mono = 0, Index8 = 1, Color565 = 2, Color888 = 3, Color8888 = 4 };
 
 PAL_EXPORT int PAL_open_screen(int width, int height, int format);
 PAL_EXPORT int PAL_process_event(int sleep, void* buffer);

@@ -2246,6 +2246,7 @@ struct ObxCilGenImp : public AstVisitor
             line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.first()->d_type.data()));
             break;
         case BuiltIn::TRAP:
+        case BuiltIn::HALT:
             // doesn't work:
             //emitOpcode("ldstr \"trap hit\"",1,ae->d_loc); // TEST
             //emitOpcode("call void [mscorlib]System.Console::WriteLine(string)",-1,ae->d_loc);

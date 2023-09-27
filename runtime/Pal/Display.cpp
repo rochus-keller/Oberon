@@ -21,6 +21,7 @@
 #include <QBackingStore>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QtDebug>
 
 static int argc = 1;
 static char * argv = "PAL";
@@ -31,7 +32,7 @@ class PalScreen : public QWindow
 {
 public:
     PalScreen(int width, int height, int format):
-        w(width),h(height),f(format),buf(0),prev(0),x(0),y(0)
+        x(0),y(0), w(width),h(height),f(format),buf(0),prev(0)
     {
         bs = new QBackingStore(this);
         const QSize s(w,h);
@@ -73,12 +74,12 @@ public:
             b = Qt::RightButton;
     }
 
-    void hideEvent(QHideEvent *ev)
+    void hideEvent(QHideEvent *)
     {
         quit = true;
     }
 
-    void update( quint32* raster )
+    void updateMono( quint32* raster )
     {
         QImage img( w, h, QImage::Format_Mono );
 
@@ -94,6 +95,31 @@ public:
                     img.setPixel(x + b,line, (pixels & 1) );
                     pixels >>= 1;
                 }
+            }
+        }
+        QRect rect(0, 0, w, h);
+        bs->beginPaint(rect);
+        QPainter p(bs->paintDevice());
+        p.drawImage(0,0,img);
+        bs->endPaint();
+        bs->flush(rect);
+    }
+
+    void update8888( quint32* raster )
+    {
+        QImage img( w, h, QImage::Format_RGB888 );
+        union
+        {
+            quint32 rgba;
+            quint8 bytes[4];
+        } point;
+
+        for( int line = h - 1; line >= 0; line--)
+        {
+            for( int col = 0; col < w; col++ )
+            {
+                point.rgba = raster[line * w + col];
+                img.setPixel(col,line, qRgb(point.bytes[2], point.bytes[1], point.bytes[0]) );
             }
         }
         QRect rect(0, 0, w, h);
@@ -139,8 +165,15 @@ int PAL_process_event(int sleep, void* buffer)
     {
         ctx->buf = buffer;
         ctx->prev = now;
-        if( ctx->f == Mono )
-            ctx->update((quint32*)buffer);
+        switch( ctx->f)
+        {
+        case Mono:
+            ctx->updateMono((quint32*)buffer);
+            break;
+        case Color8888:
+            ctx->update8888((quint32*)buffer);
+            break;
+        }
     }
     QGuiApplication::processEvents();
     if( sleep )
