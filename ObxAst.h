@@ -218,7 +218,8 @@ namespace Obx
         bool isChar(bool* wide = 0) const;
         bool isSet() const { return d_baseType == SET; }
         bool isText(bool* wide = 0, bool resolvePtr = false) const;
-        bool isByteArray(bool resolvePtr = false, bool withLiteral = true, bool charOrByte = false) const;
+        bool isByteArray(bool resolvePtr = false, bool withLiteral = true,
+                         bool acceptChar = false, bool acceptInt8 = false) const;
         Record* toRecord(bool* isPtr = 0) const;
         Array* toArray(bool* isPtr = 0) const;
         Module* declaredIn();

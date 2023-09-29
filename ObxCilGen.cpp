@@ -235,12 +235,12 @@ struct ObxCilGenImp : public AstVisitor
     QHash<Module*,QHash<Procedure*,QHash<QByteArray, QList<Type*> > > > substitutes; // replace vararg by overloads
 #endif
     QList<QPair<int,int> > pinnedTemps; // pinned temp var -> write back var or -1
-    int exitJump; // TODO: nested LOOPs
+    QList<int> exitJump;
     Procedure* scope;
     int suppressLine;
 
     ObxCilGenImp():ownsErr(false),err(0),thisMod(0),anonymousDeclNr(1),level(0),
-        exitJump(-1),scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),
+        scope(0),forceAssemblyPrefix(false),forceFormalIndex(false),
         suppressLine(0),debug(false),checkPtrSize(false),
         arrayAsElementType(false),structAsPointer(false)
     {
@@ -2230,20 +2230,40 @@ struct ObxCilGenImp : public AstVisitor
         case BuiltIn::BYTES:
             Q_ASSERT( ae->d_args.size() == 2 );
             ae->d_args.first()->accept(this);
-            line(ae->d_args.first()->d_loc).ldc_i4(0);
-            line(ae->d_args.first()->d_loc).ldelema_("[mscorlib]System.Byte");
-            ae->d_args.last()->accept(this);
-            // stack: address of first element of byte array, number
-            line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.last()->d_type.data()));
+            if( ae->d_args.first()->d_type->derefed()->isText(0,true) )
+            {
+                const int tmp = temps.buy(formatType(ae->d_args.last()->d_type->derefed()));
+                Q_ASSERT( tmp >= 0 );
+                ae->d_args.last()->accept(this);
+                line(ae->d_args.last()->d_loc).stloc_(tmp); // store rhs in temp var so also expressions work
+                line(ae->d_args.last()->d_loc).ldloca_(tmp);
+                line(ae->d_loc).ldc_i4(ae->d_args.last()->d_type->getByteSize() );
+                line(ae->d_loc).call_("void [OBX.Runtime]OBX.Runtime::toBytes(char[],native int, int32)",3,false);
+                temps.sell(tmp);
+            }else
+            {
+                line(ae->d_args.first()->d_loc).ldc_i4(0);
+                line(ae->d_args.first()->d_loc).ldelema_("[mscorlib]System.Byte");
+                ae->d_args.last()->accept(this);
+                // stack: address of first element of byte array, number
+                line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.last()->d_type.data()));
+            }
             break;
         case BuiltIn::NUMBER:
             Q_ASSERT( ae->d_args.size() == 2 );
             emitFetchDesigAddr(ae->d_args.first().data());
             ae->d_args.last()->accept(this);
-            line(ae->d_args.last()->d_loc).ldc_i4(0);
-            line(ae->d_args.last()->d_loc).ldelema_("[mscorlib]System.Byte");
-            line(ae->d_args.last()->d_loc).ldind_(toIndType(ae->d_args.first()->d_type.data()));
-            line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.first()->d_type.data()));
+            if( ae->d_args.last()->d_type->derefed()->isText(0,true) )
+            {
+                line(ae->d_loc).ldc_i4(ae->d_args.first()->d_type->getByteSize() );
+                line(ae->d_loc).call_("void [OBX.Runtime]OBX.Runtime::toNumber(native int, char[], int32)",3,false);
+            }else
+            {
+                line(ae->d_args.last()->d_loc).ldc_i4(0);
+                line(ae->d_args.last()->d_loc).ldelema_("[mscorlib]System.Byte");
+                line(ae->d_args.last()->d_loc).ldind_(toIndType(ae->d_args.first()->d_type.data()));
+                line(ae->d_args.first()->d_loc).stind_(toIndType(ae->d_args.first()->d_type.data()));
+            }
             break;
         case BuiltIn::TRAP:
         case BuiltIn::HALT:
@@ -2842,8 +2862,7 @@ struct ObxCilGenImp : public AstVisitor
             Pointer* p = cast<Pointer*>(td);
             Type* tp = derefed(p->d_to.data());
             if( tp == 0
-                    || ( tp->getTag() != Thing::T_Array &&
-                         !( tp->isString() || tp->getBaseType() == Type::BYTEARRAY ) )
+                    || ( tp->getTag() != Thing::T_Array && !( tp->isString() || tp->getBaseType() == Type::BYTEARRAY ) )
                               || tp->d_unsafe )
                 return;
             t = p->d_to.data();
@@ -3806,7 +3825,7 @@ struct ObxCilGenImp : public AstVisitor
             break;
         case IfLoop::LOOP:
             {
-                Q_ASSERT( exitJump == -1 );
+                exitJump.push_back(-1);
                 const int loopStart = emitter->newLabel();
                 line(me->d_loc).label_(loopStart);
 
@@ -3815,9 +3834,9 @@ struct ObxCilGenImp : public AstVisitor
 
                 line(me->d_loc).br_(loopStart);
 
-                if( exitJump != -1 )
-                    line(me->d_loc).label_(exitJump);
-                exitJump = -1;
+                if( exitJump.back() != -1 )
+                    line(me->d_loc).label_(exitJump.back());
+                exitJump.pop_back();
             }
             break;
         }
@@ -4137,11 +4156,12 @@ struct ObxCilGenImp : public AstVisitor
 
     void visit( Exit* me)
     {
-        if( exitJump < 0 )
-            exitJump = emitter->newLabel();
+        Q_ASSERT( !exitJump.isEmpty() );
+        if( exitJump.back() < 0 )
+            exitJump.back() = emitter->newLabel();
         // else
             // Q_ASSERT( false ); // no, there can be more than one EXIT statement in a LOOP
-        line(me->d_loc).br_(exitJump);
+        line(me->d_loc).br_(exitJump.back());
     }
 
     void emitReturn(ProcType* pt, Expression* what, const RowCol& loc)

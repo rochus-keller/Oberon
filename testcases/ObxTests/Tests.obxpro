@@ -13,8 +13,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Bytes.obx
-1\RelPath=Bytes.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ByteInt8Compat.obx
+1\RelPath=ByteInt8Compat.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Pcall2.obx
 2\RelPath=Pcall2.obx
 size=1

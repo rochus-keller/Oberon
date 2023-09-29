@@ -1,0 +1,29 @@
+module ByteTrick
+
+var
+  str : array 32 of char
+  ch : char
+  
+proc getByte(var b: byte)
+begin
+  b := 123
+end getByte
+
+proc getArray(var a: array of byte)
+begin
+  a[1] := 45
+  a[2] := 123
+end getArray
+
+begin
+
+  getByte(ch)
+  println(ord(ch)) // prints 123
+  
+  getArray(str)
+  println(ord(str[0])) // prints 11520 !!!
+  println(ord(str[1])) // prints 123
+  println(ord(str[2])) // prints 0
+  println(ord(str[3])) // prints 0
+
+end ByteTrick

@@ -2,6 +2,8 @@ module Bytes
 
 var
   a: array 8 of byte
+  s: array 8 of char
+  i: array 8 of int8
   i8: int8
   i16: int16
   i32: int32
@@ -26,12 +28,30 @@ begin
   
   i32 := 1234567890
   bytes(a,i32)
-  println("i32")
+  println("i32 byte")
   println(a[0])
   println(a[1])
   println(a[2])
   println(a[3])
   number(i32,a)
+  println(i32)
+  
+  bytes(s,1234567890)
+  println("i32 char")
+  println(ord(s[0]))
+  println(ord(s[1]))
+  println(ord(s[2]))
+  println(ord(s[3]))
+  number(i32,s)
+  println(i32)
+
+  bytes(i,1234567890)
+  println("i32 int8")
+  println(i[0])
+  println(i[1])
+  println(i[2])
+  println(i[3])
+  number(i32,i)
   println(i32)
   
   i64 := 1234567890321654987

@@ -378,6 +378,7 @@ namespace OBX
 					System.Console.WriteLine("cannot find begïn method in " + n);
 					return false;
 				}
+				// System.Console.WriteLine("found module "+new string(n)+" now calling begin" );
 				m.Invoke(null,null);
 				return true;
 			}catch
@@ -515,7 +516,19 @@ namespace OBX
 				throw new Exception(string.Format("This assembly only works in a {0} bit process", s * 8));
 			}
 		}
-				
+		
+		public static void toBytes( char[] to, IntPtr from, int size )
+		{
+			for( int i = 0; i < size; i++ )
+				to[i] = (char)Marshal.ReadByte(from, i);
+		}
+			
+		public static void toNumber( IntPtr to ,  char[] from, int size )
+		{
+			for( int i = 0; i < size; i++ )
+				Marshal.WriteByte(to, i, (byte)from[i]);
+		}
+	
 		private static Hashtable staticDelegs = new Hashtable();
 		// TODO public static Delegate
 		

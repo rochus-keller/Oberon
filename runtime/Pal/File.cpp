@@ -23,6 +23,7 @@
 #include <QTemporaryFile>
 #include <QElapsedTimer>
 #include <QtDebug>
+#include <iostream>
 
 class FileContext
 {
@@ -280,6 +281,13 @@ void PAL_dispose()
     if( s_ctx )
         delete s_ctx;
     s_ctx = 0;
+}
+
+void PAL_printChar(char ch)
+{
+    std::cout << ch;
+    if( ch == '\n' )
+        std::cout << std::flush;
 }
 
 int32_t PAL_file_list()

@@ -24,6 +24,13 @@
 using namespace Obx;
 using namespace Ob;
 
+// #define OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
+// support compatibility of VAR ARRAY OF BYTE or VAR BYTE with CHAR and INT8 as required by Oberon System since V1
+// The Oberon System also requires the trick with VAR ARRAY OF BYTE compat with any type, but this is not supported here!
+// This doesn't work with CilGen since CHAR has two bytes there which leads to unwanted results when passed to uint8&
+
+// #define OBX_SUPPORT_BYTE_CHAR_INT8_COMPAT // TEST
+
 struct ValidatorImp : public AstVisitor
 {
     struct VlaChecker : public AstVisitor
@@ -774,8 +781,8 @@ struct ValidatorImp : public AstVisitor
                 Type* td = derefed(args->d_args.first()->d_type.data());
                 if( td == 0 )
                     break;
-                if( !td->isByteArray(false,false,true) )
-                    error( args->d_args.first()->d_loc, Validator::tr("expecting ARRAY OF BYTE or ARRAY OF CHAR"));
+                if( !td->isByteArray(false,false,true, true) )
+                    error( args->d_args.first()->d_loc, Validator::tr("expecting ARRAY OF BYTE, CHAR or INT8"));
                 if( !checkValidLhs(args->d_args.first().data()) )
                     error( args->d_args.first()->d_loc, Validator::tr("cannot write to left argument"));
                 Array* a = cast<Array*>(td);
@@ -801,8 +808,8 @@ struct ValidatorImp : public AstVisitor
                 td = derefed(args->d_args.last()->d_type.data());
                 if( td == 0 )
                     break;
-                if( !td->isByteArray(false,false,true) )
-                    error( args->d_args.last()->d_loc, Validator::tr("expecting ARRAY OF BYTE or ARRAY OF CHAR"));
+                if( !td->isByteArray(false,false,true, true) )
+                    error( args->d_args.last()->d_loc, Validator::tr("expecting ARRAY OF BYTE, CHAR or INT8"));
                 Array* a = cast<Array*>(td);
                 if( a->d_len > 0 && a->d_len < bytesize )
                     error( args->d_args.last()->d_loc, Validator::tr("ARRAY has insufficient length"));
@@ -1155,7 +1162,7 @@ struct ValidatorImp : public AstVisitor
                 if( ( ltag == Thing::T_Enumeration && isInteger(rhs) ) ||
                         ( lhs == bt.d_intType && rhs == bt.d_setType ) ||
                         ( lhs == bt.d_setType && isInteger(rhs) ) ||
-                        ( lhs == bt.d_intType && rhs == bt.d_intType ) ) // shortcut for short()/long() sequences
+                        ( isInteger(lhs) && isInteger(rhs) ) ) // shortcut for short()/long() sequences
                     ; // ok
                 else
                     error( args->d_loc, Validator::tr("cannot cast type %1 to type %2").
@@ -1430,7 +1437,7 @@ struct ValidatorImp : public AstVisitor
         if( af && ( af->d_lenExpr.isNull() || af->d_vla || ta->d_vla ) )
         {
             // If Tf is an open array, then a must be array compatible with f
-            if( !arrayCompatible( af, actual->d_type.data(), actual->d_loc ) )
+            if( !arrayCompatible( formal, af, actual->d_type.data(), actual->d_loc ) )
             {
                 error( actual->d_loc,
                        Validator::tr("actual open array parameter type %1 not compatible with formal type of %2%3")
@@ -1443,7 +1450,6 @@ struct ValidatorImp : public AstVisitor
             // Otherwise Ta must be parameter compatible to f
             if( !paramCompatible( formal, actual.data() ) )
             {
-                paramCompatible( formal, actual.data() ); // TEST
                 error( actual->d_loc,
                    Validator::tr("actual parameter type %1 not compatible with formal type %2%3")
                    .arg(actual->d_type->pretty()).arg(var).arg(formal->d_type->pretty()));
@@ -3143,9 +3149,17 @@ struct ValidatorImp : public AstVisitor
                     {
                         bool lwide,rwide;
                         Type* tl = derefed(e->d_type.data() );
-                        if( ( te->isInteger() && !includes(te,tl) && !byteCompat(te,tl) ) ||
-                            ( te->isChar(&lwide) && ( !isCharConst(e.data(),&rwide) || (!lwide && rwide) ) ) ||
-                                ( te->getTag() == Thing::T_Enumeration && te != tl ))
+                        bool ok = true;
+                        if( te->isInteger() && !includes(te,tl) && !byteCompat(te,tl) )
+                            ok = false;
+                        else if( te->isChar(&lwide) && ( !isCharConst(e.data(),&rwide) || (!lwide && rwide) ) )
+                        {
+                            isCharConst(e.data(),&rwide);
+                            ok = false;
+                        }
+                        else if( te->getTag() == Thing::T_Enumeration && te != tl )
+                            ok = false;
+                        if( !ok )
                             error( e->d_loc, Validator::tr("label expression type not compatible with case expression type"));
                         if( e->getBinOp() == BinExpr::Range )
                         {
@@ -3640,11 +3654,29 @@ struct ValidatorImp : public AstVisitor
         Type* t = derefed(e->d_type.data());
         if( t == 0 )
             return false;
+        if( e->getBinOp() == BinExpr::Range )
+        {
+            BinExpr* range = cast<BinExpr*>(e);
+            bool w1, w2;
+            if( !isCharConst( range->d_lhs.data(), &w1 ) )
+                return false;
+            if( !isCharConst( range->d_rhs.data(), &w2 ) )
+                return false;
+            if( wide )
+                *wide = w1 || w2;
+            return true;
+        }
         if( t->isChar() )
         {
+            Named* id = e->getIdent();
+            bool ok = false;
+            if( id && id->getTag() == Thing::T_Const )
+                ok = true;
+            else if( e->getTag() == Thing::T_Literal )
+                ok = true;
             if( wide )
                 *wide = t->getBaseType() == Type::WCHAR;
-            return true;
+            return ok;
         }
         if( t->isString() )
         {
@@ -3824,10 +3856,13 @@ struct ValidatorImp : public AstVisitor
             return false;
         const int rtag = rhsT->getTag();
 
+#ifdef OBX_SUPPORT_BYTE_CHAR_INT8_COMPAT
         // T~v~ is a BYTE type and T~e~ is a Latin-1 character type
         // Oberon 90: The type BYTE is compatible with CHAR and INT8 (SHORTINT can be INT8 or INT16 here)
         if( byteCompat(lhsT,rhsT) )
             return true;
+#endif
+
 #if 0
         // not necessary
         if( lhsT == bt.d_byteType &&
@@ -3899,8 +3934,8 @@ struct ValidatorImp : public AstVisitor
         }
 
 #if 1
-        // string literal to char or byte
-        if( ( lhsT == bt.d_charType || lhsT == bt.d_byteType || lhsT == bt.d_wcharType ) && isCharConst(rhs) )
+        // string literal to char
+        if( ( lhsT == bt.d_charType || lhsT == bt.d_wcharType ) && isCharConst(rhs) )
             return true;
 #else
         if( ( lhsT == bt.d_charType && rhsT == bt.d_stringType ) ||
@@ -3990,25 +4025,14 @@ struct ValidatorImp : public AstVisitor
             if( sameType( tf, ta ) || typeExtension(tf,ta,true) )
                 return true;
 
-            // Oberon 90: If a formal variable parameter is of type ARRAY OF BYTE, then the corresponding
-            //   actual parameter may be of any type.
-            Type* lat = tf->getTag() == Thing::T_Array ? derefed(cast<Array*>(tf)->d_type.data()) : 0;
-            Type* rat = ta->getTag() == Thing::T_Array ? derefed(cast<Array*>(ta)->d_type.data()) : 0;
-            if( lat == bt.d_byteType )
-            {
-               Q_ASSERT( !equalType(tf,ta) );
-#define OBX_BYTE_ARRAY_TRICK "The Oberon VAR ARRAY OF BYTE trick is not supported by Oberon+ backends"
-                if( byteCompat(lat, rat) ) // we at least support byte sized arrays
-                    return true;
-                // else
-                //  warning( rhs->d_loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
-            }
-
+#ifdef OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
             // Oberon 90: The type BYTE is compatible with CHAR and INT8 (SHORTINT can be INT8 or INT16 here)
             if( byteCompat(tf,ta) )
                 return true;
+#endif
 
 #ifdef OBX_BBOX
+            Type* lat = tf->getTag() == Thing::T_Array ? derefed(cast<Array*>(tf)->d_type.data()) : 0;
             if( lhs->d_const && rhs->getTag() == Thing::T_Literal &&
                     ( ( lat == bt.d_charType && ta == bt.d_stringType ) ||
                       ( lat == bt.d_wcharType && ta->isString() )
@@ -4063,7 +4087,7 @@ struct ValidatorImp : public AstVisitor
         }
     }
 
-    bool arrayCompatible( Type* lhsT, Type* rhsT, const RowCol& loc ) const
+    bool arrayCompatible( Parameter* param, Type* lhsT, Type* rhsT, const RowCol& loc ) const
     {
         if( lhsT == 0 || rhsT == 0 )
             return false;
@@ -4089,7 +4113,7 @@ struct ValidatorImp : public AstVisitor
             return false; // Tf is not an open array
 
         // T~f~ is an open array, T~a~ is any array, and their element types are array compatible
-        if( ra && arrayCompatible( la->d_type.data(), ra->d_type.data(), loc ) )
+        if( ra && arrayCompatible( param, la->d_type.data(), ra->d_type.data(), loc ) )
             return true;
 
         Type* laT = la ? derefed(la->d_type.data()) : 0 ;
@@ -4108,8 +4132,12 @@ struct ValidatorImp : public AstVisitor
         //   actual parameter may be of any type.
         if( laT == bt.d_byteType )
         {
-            if( byteCompat(laT, raT) ) // we at least support byte sized arrays
+#ifdef OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
+            if( param->d_var && byteCompat(laT, raT) ) // we at least support byte sized arrays
                 return true;
+#endif
+
+//#define OBX_BYTE_ARRAY_TRICK "The Oberon VAR ARRAY OF BYTE trick is not supported by Oberon+ backends"
             // else
             //  warning( loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
         }

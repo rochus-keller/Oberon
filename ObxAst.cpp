@@ -1465,7 +1465,7 @@ bool Type::isText(bool* wide, bool resolvePtr) const
     return false;
 }
 
-bool Type::isByteArray(bool resolvePtr, bool withLiteral, bool charOrByte) const
+bool Type::isByteArray(bool resolvePtr, bool withLiteral, bool acceptChar, bool acceptInt8) const
 {
     Type* t = const_cast<Type*>(this);
     int tag = t->getTag();
@@ -1491,7 +1491,9 @@ bool Type::isByteArray(bool resolvePtr, bool withLiteral, bool charOrByte) const
             t = t->derefed();
         if( t && t->getBaseType() == Type::BYTE )
             return true;
-        if( charOrByte && t && t->getBaseType() == Type::CHAR )
+        if( acceptChar && t && t->getBaseType() == Type::CHAR )
+            return true;
+        if( acceptInt8 && t && t->getBaseType() == Type::INT8 )
             return true;
     }
     return false;

@@ -31,6 +31,7 @@
 
 PAL_EXPORT int32_t PAL_time(); // milliseconds
 PAL_EXPORT void PAL_dispose();
+PAL_EXPORT void PAL_printChar(char ch);
 
 /**************** File **********************************/
 

@@ -1101,8 +1101,8 @@ static inline QString toString( const QVariantList& v )
     for( int i = 0; i < v.size(); i++ )
     {
         const QChar ch = v[i].toChar();
-        if( ch.isNull() )
-            break;
+        // if( ch.isNull() )
+        //    break;
         res += ch;
     }
     return res;
@@ -1146,13 +1146,46 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
                     vals = dbg->getArrayValues(r.id,1);
                 if( !vals.isEmpty() && vals.first().type() == QVariant::Char )
                 {
+                    // This is an ARRAY OF CHAR
                     QVariantList vals = dbg->getArrayValues(r.id,len);
-                    const QString str = toString(vals);
-                    item->setToolTip(1,str);
+                    const QString raw = toString(vals);
+                    QString str = raw;
+                    bool anyNonPrint = false, anyNonAnsi = false;
+                    for( int i = 0; i < str.size(); i++ )
+                    {
+                        if( !raw[i].isPrint() && !raw[i].isNull() )
+                            anyNonPrint = true;
+                        if( raw[i].unicode() > 255 )
+                            anyNonAnsi = true;
+                    }
+                    QString tooltip;
+                    if( anyNonPrint )
+                    {
+                        if( anyNonAnsi )
+                        {
+                            str = "$";
+                            for( int i = 0; i < raw.size(); i++ )
+                            {
+                                if( i != 0 )
+                                    str += " ";
+                                str += QString::number( raw[i].unicode(), 16 );
+                            }
+                            str += "$";
+                        }else
+                            str = "$" + raw.toLatin1().toHex() + "$";
+                        tooltip = str;
+                    }else
+                    {
+                        tooltip = "\"" + str + "\"";
+                        str = tooltip.simplified();
+                    }
+
                     if( str.length() > 32 )
-                        item->setText(1,"\"" + str.left(32).simplified() + "...");
-                    else
-                        item->setText(1,"\"" + str.simplified() + "\"");
+                        str =  str.left(32) + "...";
+                    str += " (" + QString::number(raw.size()) + ")";
+
+                    item->setToolTip(1,tooltip);
+                    item->setText(1,str);
                 }else
                 {
                     item->setText(1,QString("<array length %1>").arg(len) );
@@ -3411,7 +3444,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.90");
+    a.setApplicationVersion("0.9.91");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

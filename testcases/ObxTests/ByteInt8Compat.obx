@@ -1,0 +1,21 @@
+module ByteInt8Compat
+
+var
+  b: byte
+  i: int8
+  i2: int16
+  
+begin
+  b := 123
+  i := b
+  println(i)
+  
+  i := -100
+  b := cast(byte,i)
+  i := cast(int8,b)
+  i2 := cast(int8,b)
+  println(i) // -100
+  println(i2)
+  println(b) // 156
+
+end ByteInt8Compat
