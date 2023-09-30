@@ -69,16 +69,19 @@ public:
 
     void mouseMoveEvent(QMouseEvent * ev)
     {
-        x = ev->x();
-        y = ev->y();
+        setPos(ev->x(), ev->y());
         setMouseButtons(ev->buttons(),ev->modifiers());
     }
 
     void mousePressEvent(QMouseEvent * ev)
     {
-        x = ev->x();
-        y = ev->y();
+        setPos(ev->x(), ev->y());
         setMouseButtons(ev->buttons(),ev->modifiers());
+    }
+
+    void mouseReleaseEvent(QMouseEvent *ev)
+    {
+        b = 0; // this is important; if not reset Oberon.Loop hangs until mouse is moved
     }
 
     void timerEvent(QTimerEvent *event)
@@ -99,6 +102,20 @@ public:
     void exposeEvent(QExposeEvent *ev)
     {
         update( ev->region().boundingRect() );
+    }
+
+    void setPos(int x_, int y_)
+    {
+        x = x_;
+        y = y_;
+        if( x < 0 )
+            x = 0;
+        if( y < 0 )
+            y = 0;
+        if( x >= w )
+            x = w-1;
+        if( y >= h )
+            y = h-1;
     }
 
     void setMouseButtons(Qt::MouseButtons b_, Qt::KeyboardModifiers m)
@@ -282,7 +299,6 @@ int PAL_mouse_state(int* x, int* y, int* keys)
         *keys |= Mid;
     if( ctx->b & Qt::RightButton )
         *keys |= Right;
-    ctx->b = 0; // this is important; mouse_state is a queue with lenght one; if not reset Oberon.Loop hangs until mouse is moved
     return 1;
 }
 
