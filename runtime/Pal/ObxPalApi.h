@@ -54,13 +54,16 @@ PAL_EXPORT int32_t PAL_file_read_byte(int32_t buffer);
 /**************** Display **********************************/
 
 enum KeyState { Right = 1, Mid = 2, Left = 4 }; // corresponds to the Oberon System assignment
+enum ShiftState { SHIFT = 1, CTRL = 2, ALT = 4 }; // corresponds to Oberon System assignment
 enum PixelFormat { Mono = 0, Index8 = 1, Color565 = 2, Color888 = 3, Color8888 = 4 };
 
-PAL_EXPORT int PAL_open_screen(int width, int height, int format);
-PAL_EXPORT int PAL_process_event(int sleep, void* buffer);
+PAL_EXPORT int PAL_open_screen(int width, int height, int format, const char* title, void* buffer);
+PAL_EXPORT int PAL_process_events(int sleep);
 PAL_EXPORT int PAL_next_key();
 PAL_EXPORT int PAL_pending_keys();
 PAL_EXPORT int PAL_mouse_state(int* x, int* y, int* keys);
+PAL_EXPORT int PAL_modifier_state(int* modifiers);
+PAL_EXPORT int PAL_update( int x, int y, int w, int h);
 
 /**************** Math **********************************/
 

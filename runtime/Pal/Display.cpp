@@ -22,6 +22,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QtDebug>
+#include <QThread>
 
 static int argc = 1;
 static char * argv = "PAL";
@@ -31,8 +32,8 @@ static bool quit = false;
 class PalScreen : public QWindow
 {
 public:
-    PalScreen(int width, int height, int format):
-        x(0),y(0), w(width),h(height),f(format),buf(0),prev(0)
+    PalScreen(int width, int height, int format, const char* title):
+        x(0),y(0), w(width),h(height),f(format),buf(0)
     {
         bs = new QBackingStore(this);
         const QSize s(w,h);
@@ -41,14 +42,29 @@ public:
         setMinimumSize(s);
         setMaximumSize(s);
         setCursor(Qt::BlankCursor);
+        setTitle(QString::fromLatin1(title));
         show();
+
+        startTimer(format == 0 ? 30: 20); // Mono format always updates the whole screen, thus slower
     }
 
     void keyPressEvent(QKeyEvent * ev)
     {
-        const QByteArray key = ev->text().toLatin1();
-        if( !key.isEmpty() )
-            queue.push_front(key[0]);
+        const QString key = ev->text();
+        if( !key.isEmpty() && key[0].unicode() <= 127 ) // only ascii
+            queue.push_front(key[0].unicode());
+        else
+        {
+            switch( ev->key() )
+            {
+            case Qt::Key_Left:
+                queue.push_front(0xc4); // see System 3 TextFrames
+                break;
+            case Qt::Key_Right:
+                queue.push_front(0xc3);
+                break;
+            }
+        }
     }
 
     void mouseMoveEvent(QMouseEvent * ev)
@@ -65,6 +81,26 @@ public:
         setMouseButtons(ev->buttons(),ev->modifiers());
     }
 
+    void timerEvent(QTimerEvent *event)
+    {
+        if( !isExposed() )
+            return;
+        switch( f)
+        {
+        case 0: // Mono:
+            updateMono();
+            break;
+        case 4: // Color8888:
+            update8888();
+            break;
+        }
+    }
+
+    void exposeEvent(QExposeEvent *ev)
+    {
+        update( ev->region().boundingRect() );
+    }
+
     void setMouseButtons(Qt::MouseButtons b_, Qt::KeyboardModifiers m)
     {
         b = b_;
@@ -79,10 +115,12 @@ public:
         quit = true;
     }
 
-    void updateMono( quint32* raster )
+    void updateMono()
     {
         QImage img( w, h, QImage::Format_Mono );
 
+        patches.clear();
+        quint32* raster = (quint32*)buf;
         for( int line = h - 1; line >= 0; line--)
         {
             const int line_start = (h - line - 1) * (w / 32);
@@ -105,14 +143,17 @@ public:
         bs->flush(rect);
     }
 
-    void update8888( quint32* raster )
+    void update8888()
     {
-        QImage img( w, h, QImage::Format_RGB888 );
         union
         {
             quint32 rgba;
             quint8 bytes[4];
         } point;
+        quint32* raster = (quint32*)buf;
+
+#if 0
+        QImage img( w, h, QImage::Format_RGB888 );
 
         for( int line = h - 1; line >= 0; line--)
         {
@@ -122,20 +163,56 @@ public:
                 img.setPixel(col,line, qRgb(point.bytes[2], point.bytes[1], point.bytes[0]) );
             }
         }
+
         QRect rect(0, 0, w, h);
         bs->beginPaint(rect);
         QPainter p(bs->paintDevice());
         p.drawImage(0,0,img);
+        p.setPen(Qt::green);
+        foreach( const QRect& r, patches )
+            p.drawRect( r.x(), r.y(), r.width(), r.height() );
+        patches.clear();
         bs->endPaint();
         bs->flush(rect);
+#else
+        if( patches.isEmpty() )
+            return;
+
+        QRegion reg;
+        foreach( const QRect& r, patches )
+            reg += r;
+        patches.clear();
+        const QRect bound = reg.boundingRect();
+        QImage img( bound.width(), bound.height(), QImage::Format_RGB888 );
+
+        for( int y = 0; y < bound.height(); y++)
+        {
+            for( int x = 0; x < bound.width(); x++ )
+            {
+                point.rgba = raster[(y + bound.y()) * w + ( x + bound.x() )];
+                img.setPixel(x,y, qRgb(point.bytes[2], point.bytes[1], point.bytes[0]) );
+            }
+        }
+
+        bs->beginPaint(bound);
+        QPainter p(bs->paintDevice());
+        p.drawImage(bound.x(),bound.y(),img);
+        bs->endPaint();
+        bs->flush(bound);
+#endif
+    }
+
+    void update(const QRect& r )
+    {
+        patches.append(r);
     }
 
     QBackingStore* bs;
     int x,y,w,h,f;
     Qt::MouseButtons b;
     void* buf;
-    QList<char> queue;
-    quint32 prev;
+    QList<quint8> queue;
+    QList<QRect> patches;
 };
 
 static PalScreen* ctx = 0;
@@ -143,41 +220,25 @@ static PalScreen* ctx = 0;
 extern "C" {
 #include "ObxPalApi.h"
 
-int PAL_open_screen(int width, int height, int format)
+int PAL_open_screen(int width, int height, int format, const char* title, void* buffer)
 {
     if( ctx == 0 )
     {
         app = new QGuiApplication(argc,&argv);
-        ctx = new PalScreen(width,height,format);
+        ctx = new PalScreen(width,height,format,title);
+        ctx->buf = buffer;
         return 1;
     }else
         return 0;
 }
 
-int PAL_process_event(int sleep, void* buffer)
+int PAL_process_events(int sleep)
 {
     if( ctx == 0 )
         return 1;
-    if( buffer == 0 )
-        buffer = ctx->buf;
-    const quint32 now = PAL_time();
-    if( buffer && ( now - ctx->prev ) >= 30 )
-    {
-        ctx->buf = buffer;
-        ctx->prev = now;
-        switch( ctx->f)
-        {
-        case Mono:
-            ctx->updateMono((quint32*)buffer);
-            break;
-        case Color8888:
-            ctx->update8888((quint32*)buffer);
-            break;
-        }
-    }
-    QGuiApplication::processEvents();
+    QGuiApplication::processEvents(QEventLoop::WaitForMoreEvents | QEventLoop::AllEvents);
     if( sleep )
-        QGuiApplication::processEvents(QEventLoop::WaitForMoreEvents,sleep);
+        QThread::msleep(sleep);
     if( quit )
     {
         delete ctx;
@@ -192,13 +253,15 @@ int PAL_process_event(int sleep, void* buffer)
 
 int PAL_next_key()
 {
+    PAL_process_events(0);
     if( ctx == 0 || ctx->queue.isEmpty() )
         return 0;
-    return (quint8)ctx->queue.takeLast();
+    return ctx->queue.takeLast();
 }
 
 int PAL_pending_keys()
 {
+    PAL_process_events(0);
     if( ctx == 0 )
         return 0;
     else
@@ -207,7 +270,7 @@ int PAL_pending_keys()
 
 int PAL_mouse_state(int* x, int* y, int* keys)
 {
-    PAL_process_event(0,0);
+    PAL_process_events(0);
     if( ctx == 0 )
         return 0;
     *x = ctx->x;
@@ -219,6 +282,31 @@ int PAL_mouse_state(int* x, int* y, int* keys)
         *keys |= Mid;
     if( ctx->b & Qt::RightButton )
         *keys |= Right;
+    ctx->b = 0; // this is important; mouse_state is a queue with lenght one; if not reset Oberon.Loop hangs until mouse is moved
+    return 1;
+}
+
+int PAL_modifier_state(int* modifiers)
+{
+    PAL_process_events(0);
+    const Qt::KeyboardModifiers mods = QGuiApplication::keyboardModifiers();
+    if( modifiers == 0 )
+        return 0;
+    *modifiers = 0;
+    if( mods & Qt::ShiftModifier )
+        *modifiers |= SHIFT;
+    if( mods & Qt::AltModifier )
+        *modifiers |= ALT;
+    if( mods & Qt::ControlModifier )
+        *modifiers |= CTRL;
+    return 1;
+}
+
+int PAL_update( int x, int y, int w, int h)
+{
+    if( ctx == 0 )
+        return 0;
+    ctx->update(QRect(x,y,w,h));
     return 1;
 }
 

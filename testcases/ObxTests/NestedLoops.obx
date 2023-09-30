@@ -1,0 +1,33 @@
+module NestedLoops
+
+var
+begin
+  println("start")
+  loop
+    println("1.0.0")
+    loop
+      println("1.1.0")
+      exit
+      println("nop")
+    end
+    println("2.0.0")
+    
+    
+    loop
+      println("2.1.0")
+      loop
+        println("2.1.1")
+        exit
+        println("noop")
+      end
+      println("2.2.0")
+      exit
+      println("nops")
+    end
+    println("3.0.0")
+  
+    exit
+    println("this is not printed")
+  end
+  println("end")
+end NestedLoops
