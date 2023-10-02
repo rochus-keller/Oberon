@@ -83,7 +83,7 @@ public:
         return fileNames.size();
     }
 
-    const char* file_name(int32_t i) // Latin-1
+    const char* file_list_item(int32_t i) // Latin-1
     {
         if( i >= 0 && i < fileNames.size() )
             return fileNames[i].constData();
@@ -257,6 +257,24 @@ public:
         else
             return -1;
     }
+
+    QByteArray tmp;
+    const char* file_name(int32_t id)
+    {
+        if( id >= 0 && id < files.size() && files[id] )
+        {
+            QHash<QString,int>::const_iterator i;
+            for( i = open.begin(); i != open.end(); ++i )
+            {
+                if( i.value() == id )
+                {
+                    tmp = i.key().toLatin1();
+                    return tmp.constData();
+                }
+            }
+        }
+        return "";
+    }
 };
 
 static FileContext* s_ctx = 0;
@@ -295,24 +313,32 @@ int32_t PAL_file_list()
     return ctx()->file_list();
 }
 
-const char* PAL_file_name(int32_t i) // Latin-1
+const char* PAL_file_list_item(int32_t i) // Latin-1
 {
-    return ctx()->file_name(i);
+    return ctx()->file_list_item(i);
 }
 
 int32_t PAL_file_open(const char* filename)
 {
-    return ctx()->file_open(filename);
+    const int32_t res = ctx()->file_open(filename);
+    return res;
 }
 
 int32_t PAL_file_key(const char* filename)
 {
-    return ctx()->file_key(filename);
+    const int32_t res = ctx()->file_key(filename);
+    return res;
+}
+
+const char *PAL_file_name(int32_t id)
+{
+    return ctx()->file_name(id);
 }
 
 int32_t PAL_file_new()
 {
-    return ctx()->file_new();
+    const int32_t res = ctx()->file_new();
+    return res;
 }
 
 void PAL_file_free(int32_t id)

@@ -35,10 +35,11 @@ PAL_EXPORT void PAL_printChar(char ch);
 
 /**************** File **********************************/
 
-PAL_EXPORT int32_t PAL_file_list();
-PAL_EXPORT const char* PAL_file_name(int32_t i);
+PAL_EXPORT int32_t PAL_file_list(); // number of files in directory
+PAL_EXPORT const char* PAL_file_list_item(int32_t i); // name of list item with index i
 PAL_EXPORT int32_t PAL_file_open(const char* filename);
 PAL_EXPORT int32_t PAL_file_key(const char* filename);
+PAL_EXPORT const char* PAL_file_name(int32_t buffer);
 PAL_EXPORT int32_t PAL_file_new();
 PAL_EXPORT void PAL_file_free(int32_t buffer);
 PAL_EXPORT int PAL_file_save(const char* filename, int32_t buffer);
