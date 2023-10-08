@@ -269,11 +269,14 @@ namespace OBX
 		{
 			return !(n % 2 == 0);
 		}
-		public static void CheckOvf(int i, int width)
+		// 0..BYTE, 1..INT8, 2..INT16
+		public static void CheckOvf(int i, int type)
 		{
-			if( width == 1 && i >= 0 && i <= 255 )
+			if( type == 0 && i >= 0 && i <= 255 )
 				return;
-			else if( width == 2 && i >= -32768 && i <= 32767 )
+			if( type == 1 && i >= -128 && i <= 127 )
+				return;
+			else if( type == 2 && i >= -32768 && i <= 32767 )
 				return;
 			// else
 			throw new System.OverflowException();

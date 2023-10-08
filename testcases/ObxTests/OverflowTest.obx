@@ -1,0 +1,18 @@
+module Test
+
+const
+	pinsize = 10; offset = 2;
+	TimeUnit = 1000;
+
+var i: int16
+    t: int32
+
+begin
+
+	//i := -pinsize + 1 - offset
+	//println(i)
+	
+	t := 500I * TimeUnit DIV 1000; // 500 * TimeUnit is 500000 which is too big for INT16
+	println(t)
+
+end Test

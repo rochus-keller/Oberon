@@ -3352,7 +3352,20 @@ struct ObxCilGenImp : public AstVisitor
         if( ovfCheck )
         {
             line(me->d_loc).dup_();
-            line(me->d_loc).ldc_i4( td->getByteSize() );
+            int t = -1;
+            switch(td->getBaseType())
+            {
+            case Type::BYTE:
+                t = 0;
+                break;
+            case Type::INT8:
+                t = 1;
+                break;
+            case Type::INT16:
+                t = 2;
+                break;
+            }
+            line(me->d_loc).ldc_i4( t );
             line(me->d_loc).call_("void [OBX.Runtime]OBX.Runtime::CheckOvf(int32,int32)", 2 );
         }
     }
