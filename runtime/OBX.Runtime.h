@@ -29,6 +29,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <setjmp.h>
+#include <ctype.h>
 
 struct OBX$Array$1 { uint32_t $1: 31; uint32_t $s: 1; void* $a; }; // $s..static, 1 if literal or pointer to stack, 0 if allocated with OBX$Alloc
 struct OBX$Array$2 { uint32_t $1; uint32_t $2: 31; uint32_t $s: 1; void* $a; };

@@ -431,11 +431,21 @@ struct ObxCGenImp : public AstVisitor
                     p.d_decl = n;
                     p.d_loc = n->d_loc;
                 }
+#if 0
                 res += formatType( t );
                 if( tag != Thing::T_Array )
                     res += "*";
                 if( withName )
-                    res += " " + escape(n->d_name);
+                    res += " " + escape(n->d_name); // doesn't work with function pointers
+#else
+                // this also works with function pointers
+                QByteArray name;
+                if( tag != Thing::T_Array )
+                    name += "*";
+                if( withName )
+                    name += " " + escape(n->d_name);
+                res += formatType( t, name );
+#endif
             }
         }
         res += ")";
@@ -2426,6 +2436,28 @@ struct ObxCGenImp : public AstVisitor
             b << "toupper(";
             ae->d_args.first()->accept(this);
             b << ")";
+            break;
+        case BuiltIn::BYTES:
+            {
+                Type* td = derefed(ae->d_args.last()->d_type.data());
+                const int t = buyTemp(formatType(td));
+                b << "$t" << t << " = ";
+                ae->d_args.last()->accept(this);
+                b << ";" << endl << ws() << "memcpy(";
+                renderDesig(0,ae->d_args.first().data(),false);
+                b << ".$a, &$t" << t << "," << td->getByteSize() << ")";
+                sellTemp(t);
+            }
+            break;
+        case BuiltIn::NUMBER:
+            {
+                Type* td = derefed(ae->d_args.first()->d_type.data());
+                b << "memcpy(";
+                renderDesig(0,ae->d_args.first().data(),true);
+                b << ",";
+                renderDesig(0,ae->d_args.last().data(),false);
+                b << ".$a," << td->getByteSize() << ")";
+            }
             break;
         default:
              qCritical() << "missing generator implementation of" << BuiltIn::s_typeName[bi->d_func]

@@ -387,11 +387,14 @@ struct ValidatorImp : public AstVisitor
         foreach( const Ref<Named>& n, me->d_order )
         {
             // this must be after visitstats(body) because the local procs could be called there
-            if( n->getTag() == Thing::T_Procedure && ( n->d_upvalSource || n->d_upvalIntermediate || n->d_upvalSink ) )
+            if( n->getTag() == Thing::T_Procedure )
             {
-                // must also run for upvalSink, see CLUTs::Init::blueloop in Oberon System 3
-                QSet<Procedure*> visited;
-                collectNonLocals( cast<Procedure*>(n.data()), visited );
+                if( n->d_upvalSource || n->d_upvalIntermediate || n->d_upvalSink )
+                {
+                    // must also run for upvalSink, see CLUTs::Init::blueloop in Oberon System 3
+                    QSet<Procedure*> visited;
+                    collectNonLocals( cast<Procedure*>(n.data()), visited );
+                }
             }
         }
 
@@ -2989,7 +2992,7 @@ struct ValidatorImp : public AstVisitor
                     error( me->d_loc, Validator::tr("this procedure requires actual arguments") );
                     return;
                 }
-                // apparently a call without ()
+                // apparently a call without arguments, so add an empty one
                 Ref<ArgExpr> ae = new ArgExpr();
                 ae->d_op = UnExpr::CALL;
                 ae->d_loc = me->d_what->d_loc;
@@ -2997,6 +3000,8 @@ struct ValidatorImp : public AstVisitor
                 ae->d_sub = callWhat;
                 me->d_what = ae.data();
                 callWhat = ae.data();
+                me->d_what->accept(this); // give it a chance to process the (empty) arguments;
+                                          // TODO: ae->d_sub is accepted a second time here! might be an issue!
             }
             Q_ASSERT( callWhat->getTag() == Thing::T_ArgExpr );
             ArgExpr* ae = cast<ArgExpr*>(callWhat);

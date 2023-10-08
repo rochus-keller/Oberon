@@ -3051,20 +3051,18 @@ struct ObxCilGenImp : public AstVisitor
                     // here we just pass on the non-local access
                     ProcType* ptt = scope->getProcType();
                     const int pos = ptt->d_nonLocals.indexOf(nl);
-#if 0
-                    // TEST CODE
+
                     if( pos < 0 )
                     {
-                        qDebug() << "***non-local issue" << thisMod->d_name << "in" << scope->d_name <<
-                                 "when calling" << me->d_loc.d_row << me->d_loc.d_col << "missing"
-                                 << nl->d_name << "nl param for declaration" << nl->d_loc.d_row << nl->d_loc.d_col;
+                        // this is actually an internal error which means the non-local access machinery
+                        // in the validator doesn't work yet.
+                        err->error( Errors::Generator, Loc(me->d_loc, thisMod->d_file),
+                            QString("non-local issue: cannot access %2 declared at %3:%4; should pass it to this call").
+                                arg(nl->d_name.constData()).
+                                    arg(nl->d_loc.d_row).arg(nl->d_loc.d_col) );
                         line(me->d_loc).ldnull_();
                     }else
                         line(me->d_loc).ldarg_(ptt->d_formals.size() + pos);
-#else
-                    Q_ASSERT( pos >= 0 );
-                    line(me->d_loc).ldarg_(ptt->d_formals.size() + pos);
-#endif
                 }
             }
         }
