@@ -54,10 +54,14 @@ namespace Ob
 
         static QByteArray getSymbol( const QByteArray& );
         static void parseComment( const QByteArray& str, int& pos, int& level );
-        static bool skipOberonHeader( QIODevice* );
+
+        static QPair<quint32,quint32> inferTextRange(QIODevice*); // offset, len (or 0 for all)
+        static QByteArray extractText(QIODevice*); // recognizes Oberon file format and ASCII, returns Latin-1 UTF-8
+        // static bool skipOberonHeader( QIODevice* );
         static bool isV4File( QIODevice* );
         static QByteArray readV4Text(QIODevice*);
         static bool skipBom( QIODevice* );
+
         static bool isUtf8(const QByteArray& str);
         static bool isAscii( const QByteArray& str );
         static bool isValidIdent( const QByteArray& str );

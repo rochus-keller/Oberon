@@ -765,6 +765,7 @@ void Ide::createMenuBar()
     pop->addCommand( "Save", this, SLOT(onSaveFile()), tr("CTRL+S"), false );
     pop->addCommand( tr("Close file"), d_tab, SLOT(onCloseDoc()), tr("CTRL+W") );
     pop->addCommand( tr("Close all"), d_tab, SLOT(onCloseAll()) );
+    pop->addCommand( "Convert all files to UTF-8...", this, SLOT(onConvertAllToUtf8()) );
     pop->addSeparator();
 #ifdef QT_PRINTSUPPORT_LIB
     pop->addAutoCommand( "Print...", SLOT(handlePrint()), tr("CTRL+P"), true );
@@ -1278,7 +1279,7 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
         int w = 2;
         switch( int(var.type()) )
         {
-        case QMetaType::Char:
+        case QMetaType::QChar:
             {
                 const QChar ch = var.toChar();
                 QString str;
@@ -1292,6 +1293,7 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
         case QMetaType::Short:
         case QMetaType::UShort:
             w = 4;
+        case QMetaType::Char:
         case QMetaType::SChar:
         case QMetaType::UChar:
             {
@@ -1306,6 +1308,7 @@ static void setValue( QTreeWidgetItem* item, const QVariant& var, Debugger* dbg 
             break;
         default:
             item->setText(1,var.toString());
+            break;
         }
         item->setToolTip(1,item->text(1));
     }
@@ -1995,6 +1998,7 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
         QFile in(filePath);
         if( in.open(QIODevice::ReadOnly) )
         {
+#if 0
             if( Lexer::isV4File(&in) )
             {
                 QBuffer b;
@@ -2011,6 +2015,14 @@ Ide::Editor* Ide::showEditor(const QString& path, int row, int col, bool setMark
                 edit->loadFromFile(&b, filePath);
             }else
                 edit->loadFromFile(&in, filePath);
+#else
+            const QByteArray text = Lexer::extractText(&in);
+
+            QBuffer b;
+            b.buffer() = text;
+            b.open(QIODevice::ReadOnly);
+            edit->loadFromFile(&b, filePath);
+#endif
         }else
             qWarning() << "cannot open file for reading" << filePath;
 
@@ -3438,13 +3450,49 @@ void Ide::onNoWarnings()
     onErrors();
 }
 
+void Ide::onConvertAllToUtf8()
+{
+    ENABLED_IF(true);
+
+    if( QMessageBox::warning( this, tr("Convert all Files"),
+                              tr("Do you really want to convert all files of the project to UTF-8?\n"
+                                 "This cannot be undone!"),
+                           QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes ) != QMessageBox::Yes )
+        return;
+
+    QHash<QString,Editor*> open;
+    for( int i = 0; i < d_tab->count(); i++ )
+    {
+        Editor* edit = static_cast<Editor*>( d_tab->widget(i) );
+        if( edit == 0 )
+            continue; // can this happen?
+        open.insert(edit->getPath(),edit);
+    }
+    const Project::FileHash& files = d_pro->getFiles();
+    for( Project::FileHash::const_iterator i = files.begin(); i != files.end(); ++i )
+    {
+        QHash<QString,Editor*>::const_iterator j = open.find(i.value()->d_filePath);
+        if( j != open.end() )
+            j.value()->saveToFile(j.key(),false);
+        else
+        {
+            QFile f(i.value()->d_filePath);
+            f.open(QIODevice::ReadOnly);
+            const QByteArray text = Lexer::extractText(&f);
+            f.close();
+            f.open(QIODevice::WriteOnly);
+            f.write(text);
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.91");
+    a.setApplicationVersion("0.9.92");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

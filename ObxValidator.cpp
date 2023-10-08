@@ -24,12 +24,13 @@
 using namespace Obx;
 using namespace Ob;
 
-// #define OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
+//#define OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
 // support compatibility of VAR ARRAY OF BYTE or VAR BYTE with CHAR and INT8 as required by Oberon System since V1
 // The Oberon System also requires the trick with VAR ARRAY OF BYTE compat with any type, but this is not supported here!
 // This doesn't work with CilGen since CHAR has two bytes there which leads to unwanted results when passed to uint8&
 
-// #define OBX_SUPPORT_BYTE_CHAR_INT8_COMPAT // TEST
+//#define OBX_SUPPORT_BYTE_CHAR_INT8_COMPAT // TEST
+//#define OBX_SUPPORT_VAR_BYTE_ARRAY_TO_ANY_COMPAT // TEST
 
 struct ValidatorImp : public AstVisitor
 {
@@ -4132,14 +4133,14 @@ struct ValidatorImp : public AstVisitor
         //   actual parameter may be of any type.
         if( laT == bt.d_byteType )
         {
-#ifdef OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
-            if( param->d_var && byteCompat(laT, raT) ) // we at least support byte sized arrays
+#ifdef OBX_SUPPORT_VAR_BYTE_ARRAY_TO_ANY_COMPAT
+            if( param->d_var )
                 return true;
 #endif
-
-//#define OBX_BYTE_ARRAY_TRICK "The Oberon VAR ARRAY OF BYTE trick is not supported by Oberon+ backends"
-            // else
-            //  warning( loc, Validator::tr(OBX_BYTE_ARRAY_TRICK) );
+#ifdef OBX_SUPPORT_BYTE_CHAR_INT8_VAR_COMPAT
+            if( param->d_var && byteCompat(laT, raT) )
+                return true;
+#endif
         }
 
 

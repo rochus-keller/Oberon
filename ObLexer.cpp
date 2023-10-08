@@ -54,6 +54,7 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         d_sloc = 0;
         d_lineCounted = false;
 
+#if 0
         if( isV4File(d_in) )
         {
             QObject* parent = d_in;
@@ -76,6 +77,18 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
             d_in = b;
         }else
             skipBom( d_in );
+#else
+        const QByteArray text = Lexer::extractText(d_in);
+
+        QObject* parent = d_in;
+        if( d_in->parent() == this )
+            parent = this;
+
+        QBuffer* b = new QBuffer( parent );
+        b->buffer() = text;
+        b->open(QIODevice::ReadOnly);
+        d_in = b;
+#endif
     }
 }
 
@@ -586,6 +599,110 @@ static QByteArray readString(QIODevice* in)
 // Oberon System 3 uses 0xf7 0x07
 //          S3.Texts: TextBlockId := 0F0X, DocBlockId := 0F7X, TextSpex := 1X
 // Oberon System 2 uses 0x01 0xf0 (which is the inverse of the later System 4)
+
+QPair<quint32, quint32> Lexer::inferTextRange(QIODevice* in)
+{
+    QPair<quint32, quint32> res;
+    if( in == 0 )
+        return res;
+
+    skipBom(in);
+
+    quint8 ch = readUInt8(in);
+
+    static const quint8 DocBlockId = 0xF7;
+    static const quint8 TextBlockId = 0xF0;
+    static const quint8 OldTextBlockId = 0x01;
+
+    if( ch == DocBlockId )
+    {
+        // this is a V3 DocBlock; skip the DocHeader and redetermine type
+        ch = readUInt8(in); // ignore
+        readString(in);
+        in->read(8); // now 4 times int16, ignore
+        ch = readUInt8(in);
+        if( ch == 0xF7 )
+        {
+            // ignore meta info
+            ch = readUInt8(in);
+            if( ch == 0x08 )
+            {
+                const quint32 len = readUInt32(in);
+                in->read(len); // ignore
+                ch = readUInt8(in);
+            }
+        }
+    }
+    if( ch == TextBlockId || ch == OldTextBlockId )
+    {
+        res.first = in->pos();
+        readUInt8(in); // type, not required
+        const quint32 hlen = readUInt32(in);
+        in->seek( res.first - 1 + hlen - 4 );
+        const quint32 tlen = readUInt32(in);
+        res.first = in->pos();
+        res.second = tlen;
+    }
+    return res;
+}
+
+static inline char convert(char ch)
+{
+    // https://en.wikibooks.org/wiki/Oberon/ETH_Oberon/keyboard
+    static const char* utf8 = "ÄÖÜäöüâêîôûàèìòùéëïçáñß£¶Ç"; // 0x80 .. 0x99
+    static const QByteArray code = QString::fromUtf8(utf8).toLatin1();
+    const quint8 c = (quint8)ch;
+    if( c >= 0x80 && c <= 0x99 )
+        return code[c-0x80];
+    else
+        return ch;
+}
+
+static inline bool convertCharSet( QByteArray& str )
+{
+    bool latin1 = false;
+    for( int i = 0; i < str.size(); i++ )
+    {
+        if( quint8(str[i]) > 127 )
+            latin1 = true;
+        str[i] = convert(str[i]);
+    }
+    return latin1;
+}
+
+QByteArray Lexer::extractText(QIODevice* in)
+{
+    if( in == 0 )
+        return QByteArray();
+    QByteArray text;
+    if( isV4File(in) )
+    {
+        text = readV4Text(in);
+        if( convertCharSet(text) )
+            text = QString::fromLatin1(text).toUtf8();
+        return text;
+    }
+    QPair<quint32,quint32> r = Lexer::inferTextRange(in);
+    in->reset();
+    skipBom(in);
+    in->read(r.first);
+    if( r.second )
+        text = in->read(r.second);
+    else
+        text = in->readAll();
+
+    if( r.first )
+    {
+        text.replace( '\r', '\n' );
+        text.replace( 0x00, 0x20 );
+        if( convertCharSet(text) )
+            text = QString::fromLatin1(text).toUtf8();
+    }
+
+    return text;
+}
+
+#if 0 // no longer used
 static inline bool isV2File( const quint8* raw )
 {
     return  ( raw[0] == 0xf0 && raw[1] == 0x00 ) ||
@@ -636,6 +753,7 @@ bool Lexer::skipOberonHeader(QIODevice* in)
     }else
         return false;
 }
+#endif
 
 struct V4TextRun
 {

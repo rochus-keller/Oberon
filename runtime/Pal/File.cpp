@@ -151,9 +151,12 @@ public:
         const QString name = QString::fromLatin1(filename);
         if( name.isEmpty() )
             return 0; // cannot save file with empty name
+#if 0
+        // only used by PalFS.Register which immediatedly closes the file
         QHash<QString,int>::const_iterator i = open.find(name);
         if( i != open.end() && i.value() != id )
             return 0; // already saved, but under a different name
+#endif
         if( id >= 0 && id < files.size() && files[id] )
         {
             const QString to = QDir(getRootPath()).absoluteFilePath(name);

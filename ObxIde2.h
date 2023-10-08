@@ -176,6 +176,7 @@ namespace Obx
         void onSetOptions();
         void onSetInt16();
         void onNoWarnings();
+        void onConvertAllToUtf8();
     private:
         class DocTab;
         DocTab* d_tab;
