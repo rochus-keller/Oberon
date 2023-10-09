@@ -2599,7 +2599,8 @@ struct ValidatorImp : public AstVisitor
         {
             // if the type according to expression rules is not wide enough to accomodate the number, widen it
             qint64 v = me->d_val.toLongLong();
-            Type* newType = smallestIntType(v, false, false ); // use as narrow type as possible
+            Type* newType = smallestIntType(v, res.d_wide, res.d_minInt ); // use as narrow type as possible
+                                            // we must obey wide and minInt here, otherwise I suffix is ineffective
             const int b = td->getBaseType();
             if( b == Type::BYTE && ( v < 0 || v > bt.d_byteType->maxVal().toInt() ) )
                 newType = bt.d_int8Type;

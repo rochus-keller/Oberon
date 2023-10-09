@@ -551,7 +551,31 @@ namespace OBX
 			return String.Format("0x{0:x}",adr);
 		}
 		
-		public static long Ash64(long x, int n, bool arithmetic)
+		public static long Ash64(long x, int n)
+		{
+			if( n >= 0 )
+				return x << n;
+			else
+				return x >> (-n); // uses shr
+		}
+
+		public static int Ash32(int x, int n)
+		{
+			if( n >= 0 )
+				return x << n;
+			else
+				return x >> (-n); // uses shr
+		}
+
+		public static ulong Lsl64(ulong x, int n)
+		{
+			if( n >= 0 )
+				return x << n;
+			else
+				return x >> (-n);  // uses shr.un
+		}
+
+		public static uint Lsl32(uint x, int n)
 		{
 			if( n >= 0 )
 				return x << n;
@@ -559,12 +583,14 @@ namespace OBX
 				return x >> (-n); // uses shr.un
 		}
 
-		public static int Ash32(int x, int n, bool arithmetic)
+		public static ulong Ror64(ulong x, int n)
 		{
-			if( n >= 0 )
-				return x << n;
-			else
-				return x >> (-n); // uses shr.un
+			return (x >> n) | (x << (64 - n)); 
+		}
+
+		public static uint Ror32(uint x, int n)
+		{
+			return (x >> n) | (x << (32 - n)); 
 		}
 		
 		// https://stackoverflow.com/a/9995303/10830469

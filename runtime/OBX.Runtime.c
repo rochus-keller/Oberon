@@ -540,6 +540,33 @@ int32_t OBX$Ash32(int32_t x, int n)
 		return OBX$Asr32(x,-n);
 }
 
+uint64_t OBX$Lsl64(uint64_t x, int n)
+{
+	if( n >= 0 )
+		return x << n;
+	else
+		return x >> -n;
+}
+
+uint32_t OBX$Lsl32(uint32_t x, int n)
+{
+	if( n >= 0 )
+		return x << n;
+	else
+		return x >> -n;
+}
+
+uint64_t OBX$Ror64(uint64_t x, int n)
+{
+	return (x >> n) | (x << (64 - n)); 
+}
+
+uint32_t OBX$Ror32(uint32_t x, int n)
+{
+	return (x >> n) | (x << (32 - n)); 
+}
+
+
 typedef struct {
   char** names;
   OBX$Lookup* lookups;

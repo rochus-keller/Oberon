@@ -107,6 +107,10 @@ extern int64_t OBX$Asr64(int64_t x, int n);
 extern int32_t OBX$Asr32(int32_t x, int n);
 extern int64_t OBX$Ash64(int64_t x, int n);
 extern int32_t OBX$Ash32(int32_t x, int n);
+extern uint64_t OBX$Lsl64(uint64_t x, int n);
+extern uint32_t OBX$Lsl32(uint32_t x, int n);
+extern uint64_t OBX$Ror64(uint64_t x, int n);
+extern uint32_t OBX$Ror32(uint32_t x, int n);
 
 extern OBX$Lookup OBX$LoadModule(const char* module); // load OBX module dynamically or statically
 extern void OBX$RegisterModule(const char* module, OBX$Lookup);
