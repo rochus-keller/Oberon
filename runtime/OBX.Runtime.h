@@ -93,6 +93,7 @@ extern uint32_t OBX$UtfDecode(const uint8_t* in, int* len );
 extern void* OBX$FromUtf(const char* in, int len, int wide ); // len is decoded len incl. terminating zero
 extern void* OBX$FromUtf2(int len, int wide, int count, ...); // count of const char* str
 extern void OBX$PrintA(int ln, const char*);
+extern void OBX$Halt(int code, const char* file, int line);
 
 //int OBX$MaxI32(int32_t lhs, int32_t rhs ) { return lhs > rhs ? lhs : rhs; }
 //int OBX$MaxI64(int64_t lhs, int64_t rhs ) { return lhs > rhs ? lhs : rhs; }

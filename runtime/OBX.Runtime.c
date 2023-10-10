@@ -566,6 +566,11 @@ uint32_t OBX$Ror32(uint32_t x, int n)
 	return (x >> n) | (x << (32 - n)); 
 }
 
+void OBX$Halt(int code, const char* file, int line)
+{
+	fprintf(stderr,"HALT(%d) called in %s line %d\n",code,file,line);
+	//exit(code);
+}
 
 typedef struct {
   char** names;

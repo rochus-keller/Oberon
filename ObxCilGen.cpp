@@ -2266,12 +2266,27 @@ struct ObxCilGenImp : public AstVisitor
             }
             break;
         case BuiltIn::TRAP:
-        case BuiltIn::HALT:
             // doesn't work:
             //emitOpcode("ldstr \"trap hit\"",1,ae->d_loc); // TEST
             //emitOpcode("call void [mscorlib]System.Console::WriteLine(string)",-1,ae->d_loc);
             // doesn't work either: line(ae->d_loc).break_(); // in this case when in debug agent mono goes to 150% cpu and no longer reacts
 
+            line(ae->d_loc).call_("void [mscorlib]System.Diagnostics.Debugger::Break()");
+            break;
+        case BuiltIn::HALT:
+            Q_ASSERT( ae->d_args.size() == 1 );
+            line(ae->d_loc).ldstr_("\"HALT(\"");
+            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
+            ae->d_args.last()->accept(this);
+            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(int32)",1);
+            line(ae->d_loc).ldstr_("\") called in module \"");
+            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
+            line(ae->d_loc).ldstr_("\""+thisMod->d_name+"\"");
+            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
+            line(ae->d_loc).ldstr_("\" at line \"");
+            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
+            line(ae->d_loc).ldc_i4(ae->d_loc.d_row);
+            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
             line(ae->d_loc).call_("void [mscorlib]System.Diagnostics.Debugger::Break()");
             break;
         case BuiltIn::TRAPIF:
@@ -3336,7 +3351,9 @@ struct ObxCilGenImp : public AstVisitor
         default:
             Q_ASSERT(false);
         }
-        if( ovfCheck )
+        if( false ) // ovfCheck )
+            // TODO we should add a rule instead like in ComponentPascal that intermediate results are always
+            // at least 32 bit or the pointer width of the architecture in place
         {
             line(me->d_loc).dup_();
             int t = -1;

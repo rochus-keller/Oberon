@@ -1789,6 +1789,22 @@ struct ObxCGenImp : public AstVisitor
             ae->d_args.last()->accept(this);
             b << ")";
             break;
+        case BuiltIn::ROR:
+            Q_ASSERT( ae->d_args.size() == 2 );
+            switch( ae->d_args.first()->d_type->derefed()->getBaseType() )
+            {
+            case Type::INT64:
+                b << "OBX$Ror64(";
+                break;
+            default:
+                b << "OBX$Ror32(";
+                break;
+            }
+            ae->d_args.first()->accept(this);
+            b << ",";
+            ae->d_args.last()->accept(this);
+            b << ")";
+            break;
         case BuiltIn::ORD:
             {
                 Q_ASSERT( ae->d_args.size() == 1 );
@@ -1898,7 +1914,6 @@ struct ObxCGenImp : public AstVisitor
             ae->d_args.last()->accept(this);
             b << ")";
             break;
-        case BuiltIn::ROR: // TODO: ROR is not the same as BITSHR
         case BuiltIn::BITSHR:
             Q_ASSERT( ae->d_args.size() == 2 );
             b << "(((";
@@ -1911,9 +1926,9 @@ struct ObxCGenImp : public AstVisitor
             break;
         case BuiltIn::HALT:
             Q_ASSERT( ae->d_args.size() == 1 );
-            b << "exit(";
+            b << "OBX$Halt(";
             ae->d_args.first()->accept(this);
-            b << ")";
+            b << ",__FILE__,__LINE__)";
             break;
         case BuiltIn::FLT:
             {

@@ -310,8 +310,7 @@ namespace Obx
         Formals d_formals;
 
         QList<Named*> d_nonLocals; // if this is a nested procedure these are the required locals/params of the outer procs
-                                    // TODO: the name of a non-local might collide with a param name of an intermediate,
-                                    // see OberonSystem3::Sisiphus::HotSpot::Circle
+
         ProcType(const Type::List& f, Type* r = 0);
         ProcType(const Type::List& f, const Vars& var, Type* r = 0);
         ProcType(){}

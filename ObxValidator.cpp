@@ -192,6 +192,27 @@ struct ValidatorImp : public AstVisitor
         }
         if( callerPt->d_typeBound && caller->d_upvalIntermediate )
             error( callerPt->d_loc, Validator::tr("type-bound procedures cannot be non-local access intermediates") );
+        if( caller->d_upvalIntermediate )
+        {
+            foreach( Named* nl, callerPt->d_nonLocals )
+            {
+                for(int i = 0; i < callerPt->d_formals.size(); i++ )
+                {
+                    if( nl->d_name.constData() == callerPt->d_formals[i]->d_name.constData() )
+                    {
+                        // the name of a non-local collides with a param name of the intermediate,
+                        // see e.g. original OberonSystem3::Sisiphus::HotSpot::Circle
+                        error( callerPt->d_formals[i]->d_loc,
+                               Validator::tr("the parameter '%1' of this non-local access intermediate "
+                                            "procedure collides with the declaration at %2:%3 "
+                                            "accessed by a called procedure; please rename it")
+                               .arg(nl->d_name.constData()).arg(nl->d_loc.d_row).arg(nl->d_loc.d_col) );
+                    }
+                }
+
+            }
+        }
+
 #if 0
         qDebug() << "****" << caller->d_name << caller->getProcType()->d_nonLocals.size() <<
                     caller->d_upvalSource << caller->d_upvalIntermediate << caller->d_upvalSink;
@@ -4124,13 +4145,14 @@ struct ValidatorImp : public AstVisitor
             return true;
 
         Type* laT = la ? derefed(la->d_type.data()) : 0 ;
-        Type* raT = ra ? derefed(ra->d_type.data()) : 0 ;
+        // Type* raT = ra ? derefed(ra->d_type.data()) : 0 ;
 
         // T~f~ is an open array of CHAR and T~a~ is a Latin-1 string
-        if( la && laT == bt.d_charType && ( rhsT == bt.d_stringType || rhsT == bt.d_charType ) )
+        if( la && laT == bt.d_charType && rhsT == bt.d_stringType )
+            // here the literal is checked; the regular array compat was checked in equalType
             return true;
         // T~f~ is an open array of WCHAR and T~a~ is a Unicode BMP or Latin-1 string
-        if( la && laT == bt.d_wcharType &&  ( rhsT->isString() || rhsT->isChar() ) )
+        if( la && laT == bt.d_wcharType &&  rhsT->isString() )
             return true;
 
         // Oberon 90: If a formal parameter is of type ARRAY OF BYTE, then the corresponding
