@@ -22,6 +22,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QElapsedTimer>
+#include <QDateTime>
 #include <QtDebug>
 #include <iostream>
 
@@ -43,7 +44,7 @@ public:
     {
         for( int i = 0; i < files.size(); i++ )
             if( files[i] )
-                delete files[i];
+                file_free(i);
     }
 
     int32_t nextFreeBuffer()
@@ -83,11 +84,42 @@ public:
         return fileNames.size();
     }
 
+    int32_t file_list_masked(const char* mask)
+    {
+        const QString filter = QString::fromLatin1(mask);
+        const QStringList names = QDir(getRootPath()).entryList(QStringList() << filter, QDir::Files,QDir::Name);
+        fileNames.clear();
+        foreach( const QString& name, names )
+            fileNames.append( name.toLatin1() );
+        return fileNames.size();
+    }
+
     const char* file_list_item(int32_t i) // Latin-1
     {
         if( i >= 0 && i < fileNames.size() )
             return fileNames[i].constData();
         else
+            return "";
+    }
+
+    const char*  file_list_detail(int32_t i, int32_t* data )
+    {
+        if( i >= 0 && i < fileNames.size() )
+        {
+            if( data )
+            {
+                QFileInfo f( QDir(getRootPath()).absoluteFilePath(QString::fromLatin1(fileNames[i])) );
+                data[0] = f.size();
+                QDateTime dt = f.lastModified();
+                data[1] = dt.date().year();
+                data[2] = dt.date().month();
+                data[3] = dt.date().day();
+                data[4] = dt.time().hour();
+                data[5] = dt.time().minute();
+                data[6] = dt.time().second();
+            }
+            return fileNames[i].constData();
+        }else
             return "";
     }
 
@@ -139,6 +171,10 @@ public:
             {
                 if( i.value() == id )
                 {
+                    const QString to = QDir(getRootPath()).absoluteFilePath(i.key());
+                    QFile f(to);
+                    if( f.size() == 0 )
+                        f.remove();
                     open.remove(i.key());
                     break;
                 }
@@ -151,12 +187,6 @@ public:
         const QString name = QString::fromLatin1(filename);
         if( name.isEmpty() )
             return 0; // cannot save file with empty name
-#if 0
-        // only used by PalFS.Register which immediatedly closes the file
-        QHash<QString,int>::const_iterator i = open.find(name);
-        if( i != open.end() && i.value() != id )
-            return 0; // already saved, but under a different name
-#endif
         if( id >= 0 && id < files.size() && files[id] )
         {
             const QString to = QDir(getRootPath()).absoluteFilePath(name);
@@ -297,6 +327,28 @@ int32_t PAL_time()
     return ctx()->timer.elapsed();
 }
 
+void PAL_date(uint16_t* year, uint8_t* month, uint8_t* day)
+{
+    QDate d = QDate::currentDate();
+    if( year )
+        *year = d.year();
+    if( month )
+        *month = d.month();
+    if( day )
+        *day = d.day();
+}
+
+void PAL_clock(uint8_t* hour, uint8_t* minute, uint8_t* second)
+{
+    QTime t = QTime::currentTime();
+    if( hour )
+        *hour = t.hour();
+    if( minute )
+        *minute = t.minute();
+    if( second )
+        *second = t.second();
+}
+
 void PAL_dispose()
 {
     if( s_ctx )
@@ -316,9 +368,19 @@ int32_t PAL_file_list()
     return ctx()->file_list();
 }
 
+int32_t PAL_file_list_masked(const char* mask)
+{
+    return ctx()->file_list_masked(mask);
+}
+
 const char* PAL_file_list_item(int32_t i) // Latin-1
 {
     return ctx()->file_list_item(i);
+}
+
+const char *PAL_file_list_detail(int32_t i, int32_t* data )
+{
+    return ctx()->file_list_detail(i,data);
 }
 
 int32_t PAL_file_open(const char* filename)

@@ -63,6 +63,12 @@ public:
             case Qt::Key_Right:
                 queue.push_front(0xc3);
                 break;
+            case Qt::Key_Up:
+                queue.push_front(0xc1); // see System 3 Tetris
+                break;
+            case Qt::Key_Down:
+                queue.push_front(0xc2);
+                break;
             }
         }
     }

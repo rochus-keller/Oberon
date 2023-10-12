@@ -30,13 +30,17 @@
 /**************** General **********************************/
 
 PAL_EXPORT int32_t PAL_time(); // milliseconds
+PAL_EXPORT void PAL_date(uint16_t* year, uint8_t* month, uint8_t* day);
+PAL_EXPORT void PAL_clock(uint8_t* hour, uint8_t* minute, uint8_t* second);
 PAL_EXPORT void PAL_dispose();
 PAL_EXPORT void PAL_printChar(char ch);
 
 /**************** File **********************************/
 
 PAL_EXPORT int32_t PAL_file_list(); // number of files in directory
+PAL_EXPORT int32_t PAL_file_list_masked(const char* mask); // number of files in directory
 PAL_EXPORT const char* PAL_file_list_item(int32_t i); // name of list item with index i
+PAL_EXPORT const char*  PAL_file_list_detail(int32_t i, int32_t *data ); // array 7: size, year, month, day, hour, minute, second
 PAL_EXPORT int32_t PAL_file_open(const char* filename);
 PAL_EXPORT int32_t PAL_file_key(const char* filename);
 PAL_EXPORT const char* PAL_file_name(int32_t buffer);
