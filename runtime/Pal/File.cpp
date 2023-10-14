@@ -26,6 +26,8 @@
 #include <QtDebug>
 #include <iostream>
 
+static int s_version = 7; // TODO: increase if API changes
+
 class FileContext
 {
 public:
@@ -149,6 +151,15 @@ public:
         open[name] = id;
 
         return id;
+    }
+
+    int file_exists(const char* filename)
+    {
+        const QString name = QString::fromLatin1(filename);
+        if( name.isEmpty() )
+            return 0;
+        QFileInfo info( QDir(getRootPath()).absoluteFilePath(name) );
+        return info.exists() && info.size() != 0;
     }
 
     int32_t file_new()
@@ -322,6 +333,11 @@ static inline FileContext* ctx()
 extern "C" {
 #include "ObxPalApi.h"
 
+int PAL_version()
+{
+    return s_version;
+}
+
 int32_t PAL_time()
 {
     return ctx()->timer.elapsed();
@@ -387,6 +403,11 @@ int32_t PAL_file_open(const char* filename)
 {
     const int32_t res = ctx()->file_open(filename);
     return res;
+}
+
+int PAL_file_exists(const char* filename)
+{
+    return ctx()->file_exists(filename);
 }
 
 int32_t PAL_file_key(const char* filename)

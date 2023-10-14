@@ -50,25 +50,171 @@ public:
 
     void keyPressEvent(QKeyEvent * ev)
     {
+        // see also https://en.wikibooks.org/wiki/Oberon/ETH_Oberon/keyboard
+
         const QString key = ev->text();
         if( !key.isEmpty() && key[0].unicode() <= 127 ) // only ascii
-            queue.push_front(key[0].unicode());
-        else
         {
-            switch( ev->key() )
+            quint8 ch = key[0].unicode();
+            if( ev->modifiers() == Qt::AltModifier )
             {
-            case Qt::Key_Left:
-                queue.push_front(0xc4); // see System 3 TextFrames
+                switch( ch )
+                {
+                case 'a':
+                    ch = 131; // ä
+                    break;
+                case 'o':
+                    ch = 132; // ö
+                    break;
+                case 'u':
+                    ch = 133; // ü
+                    break;
+                case 'e':
+                    ch = 145; // ë
+                    break;
+                case 'i':
+                    ch = 146; // ï
+                    break;
+                case 'c':
+                    ch = 147; // ç
+                    break;
+                case 'n':
+                    ch = 149; // ñ
+                    break;
+                case 's':
+                    ch = 150; // ß
+                    break;
+                }
+            }else if( ev->modifiers() == ( Qt::AltModifier | Qt::ShiftModifier ) )
+            {
+                switch( ch )
+                {
+                case 'A':
+                    ch = 128; // Ä
+                    break;
+                case 'O':
+                    ch = 129; // Ô
+                    break;
+                case 'U':
+                    ch = 130; // Û
+                    break;
+                }
+            }
+            queue.push_front(ch);
+        }else if(!key.isEmpty())
+        {
+            quint8 ch = 0;
+            switch( key[0].unicode() )
+            {
+            case 0xc4:
+                ch = 128; // Ä
                 break;
-            case Qt::Key_Right:
-                queue.push_front(0xc3);
+            case 0xd6:
+                ch = 129; // Ô
                 break;
-            case Qt::Key_Up:
-                queue.push_front(0xc1); // see System 3 Tetris
+            case 0xdc:
+                ch = 130; // Û
                 break;
-            case Qt::Key_Down:
-                queue.push_front(0xc2);
+            case 0xe4:
+                ch = 131; // ä
                 break;
+            case 0xf6:
+                ch = 132; // ö
+                break;
+            case 0xfc:
+                ch = 133; // ü
+                break;
+            case 0xeb:
+                ch = 145; // ë
+                break;
+            case 0xef:
+                ch = 146; // ï
+                break;
+            case 0xe7:
+                ch = 147; // ç
+                break;
+            case 0xf1:
+                ch = 149; // ñ
+                break;
+            case 0xdf:
+                ch = 150; // ß
+                break;
+            }
+            if( ch )
+                queue.push_front(ch);
+        }else
+        {
+            if( ev->modifiers() == 0 )
+            {
+                switch( ev->key() )
+                {
+                case Qt::Key_Left:
+                    queue.push_front(196); // see System 3 TextFrames
+                    break;
+                case Qt::Key_Right:
+                    queue.push_front(195);
+                    break;
+                case Qt::Key_Up:
+                    queue.push_front(193); // see System 3 Tetris
+                    break;
+                case Qt::Key_Down:
+                    queue.push_front(194);
+                    break;
+                case Qt::Key_Insert:
+                    queue.push_front(160);
+                    break;
+                case Qt::Key_Delete:
+                    queue.push_front(161);
+                    break;
+                case Qt::Key_PageUp:
+                    queue.push_front(162);
+                    break;
+                case Qt::Key_PageDown:
+                    queue.push_front(163);
+                    break;
+                case Qt::Key_F1:
+                    queue.push_front(164);
+                    break;
+                case Qt::Key_F2:
+                    queue.push_front(165);
+                    break;
+                case Qt::Key_F4:
+                    queue.push_front(167);
+                    break;
+                case Qt::Key_Home:
+                    queue.push_front(168);
+                    break;
+                case Qt::Key_End:
+                    queue.push_front(169);
+                    break;
+                case Qt::Key_F5:
+                    queue.push_front(245);
+                    break;
+                case Qt::Key_F6:
+                    queue.push_front(246);
+                    break;
+                case Qt::Key_F7:
+                    queue.push_front(247);
+                    break;
+                case Qt::Key_F8:
+                    queue.push_front(248);
+                    break;
+                case Qt::Key_F9:
+                    queue.push_front(249);
+                    break;
+                case Qt::Key_F10:
+                    queue.push_front(250);
+                    break;
+                case Qt::Key_F11:
+                    queue.push_front(251);
+                    break;
+                case Qt::Key_F12:
+                    queue.push_front(252);
+                    break;
+                case Qt::Key_Escape:
+                    queue.push_front(254);
+                    break;
+                }
             }
         }
     }

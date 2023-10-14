@@ -58,19 +58,19 @@ int main(int argc, char *argv[])
 
     for( int i = 0; i < files.count(); i++ )
     {
-        Directory::File f = files.getFile(i);
-        if( f.name.isEmpty() && f.data.isEmpty() )
+        QPair<QByteArray, QByteArray> f = files.getFile(i);
+        if( f.first.isEmpty() && f.second.isEmpty() )
         {
             qCritical() << files.getError();
             return -1;
         }
-        QFile out( outDir.absoluteFilePath( QString::fromLatin1(f.name) ) );
+        QFile out( outDir.absoluteFilePath( QString::fromLatin1(f.first) ) );
         if( !out.open(QIODevice::WriteOnly) )
         {
             qCritical() << "cannot write to file" << out.fileName();
             return -1;
         }
-        out.write(f.data);
+        out.write(f.second);
     }
     qDebug() << "successfully extracted files to" << outDir.path();
     return 0;
@@ -146,38 +146,38 @@ bool Directory::read()
     return enumerate(DirRootAdr);
 }
 
-Directory::File Directory::getFile(int i) const
+QPair<QByteArray, QByteArray> Directory::getFile(int i) const
 {
-    File f;
+    QPair<QByteArray, QByteArray> f;
     if( i < 0 || i >= files.size() )
         return f;
-    const FileHeader* fh = &files[i];
-    f.name = fh->name;
+    const File* fh = &files[i];
+    f.first = fh->name;
     for( i = 0; i < fh->aleng + 1; i++)
     {
-        if( i >= SecTabSize )
+        if( i >= fh->sectors.size() )
         {
-            qCritical() << "truncated" << f.name; // we don't support extension tables yet
+            qCritical() << "truncated" << f.first; // shouldn't happen
             return f;
         }
         QByteArray buf;
-        if( !disk->GetSector(fh->sec[i], buf) )
+        if( !disk->GetSector(fh->sectors[i], buf) )
         {
-            d_error = QString("%1 when fetching %2").arg(disk->getError()).arg(fh->name);
-            return File();
+            d_error = QString("%1 when fetching %2").arg(disk->getError()).arg(fh->name.constData());
+            return QPair<QByteArray, QByteArray>();
         }
         if( i == 0 )
         {
-            f.data = buf.mid(HeaderSize);
+            f.second = buf.mid(HeaderSize);
         }else if( i == fh->aleng )
         {
-            f.data += buf.left(fh->bleng);
+            f.second += buf.left(fh->bleng);
         }else
         {
-            f.data += buf;
+            f.second += buf;
         }
     }
-    qDebug() << "extracted" << f.name << "with" << f.data.size() << "bytes";
+    qDebug() << "extracted" << f.first << "with" << f.second.size() << "bytes";
     return f;
 }
 
@@ -218,7 +218,43 @@ bool Directory::enumerate(quint32 dpg)
             return false;
         }
         FileHeader* fh = (FileHeader*)buf2.constData();
-        files.append(*fh);
+        File f;
+        f.name = fh->name;
+        f.aleng = fh->aleng;
+        f.bleng = fh->bleng;
+
+        int j;
+        for( j = 0; j < SecTabSize && j < (f.aleng + 1); j++ )
+            f.sectors << fh->sec[j];
+        if( f.aleng + 1 >= SecTabSize )
+        {
+            int n = f.aleng + 1 - SecTabSize;
+            int ext = 0;
+            while( n > 0 )
+            {
+                if( ext >= ExTabSize )
+                    break;
+                QByteArray buf3;
+                if( !disk->GetSector(fh->ext[ext], buf3) )
+                {
+                    d_error = disk->getError();
+                    return false;
+                }
+                if( buf3.size() < sizeof(IndexSector) )
+                {
+                    d_error = "invalid index sector";
+                    return false;
+                }
+                IndexSector* is = (IndexSector*) buf3.constData();
+                for( j = 0; j < IndexSize & n > 0; j++ )
+                {
+                    f.sectors << is->x[j];
+                    n--;
+                }
+                ext++;
+            }
+        }
+        files.append(f);
 
         i++;
     }

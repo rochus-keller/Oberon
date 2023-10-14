@@ -50,18 +50,15 @@ public:
         DirPgSize   = 50,
         ExTabSize   = 12,
         SecTabSize   = 64,
-        HeaderSize  = 352
-    };
-    struct File {
-        QByteArray name;
-        QByteArray data;
+        HeaderSize  = 352,
+        IndexSize  = VirtualDisk::SS / 4
     };
 
     Directory(VirtualDisk*);
 
     bool read();
     int count() const { return files.size(); }
-    File getFile(int i) const;
+    QPair<QByteArray,QByteArray> getFile(int i) const; // name, data
 
     const QString& getError() const { return d_error; }
 protected:
@@ -93,11 +90,22 @@ protected:
         quint32 size() const { return aleng * VirtualDisk::SS + bleng - HeaderSize; }
     };
 
+    struct IndexSector {
+        quint32 x[IndexSize];
+    };
 
     bool enumerate(quint32 sector);
 private:
     VirtualDisk* disk;
-    QList<FileHeader> files;
+
+    struct File {
+        QByteArray name;
+        quint16 aleng, bleng;
+        QList<quint32> sectors;
+    };
+
+    QList<File> files;
+
     mutable QString d_error;
 };
 
