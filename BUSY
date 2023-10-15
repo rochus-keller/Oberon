@@ -8,7 +8,6 @@ if busy_version < "2023-01-15" {
 	error("this version of BUSY is not compatible with this build")
 }
 
-submod pelib = ../PeLib
 submod qtmini = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP, HAVE_PROCESS)
 submod qtfull = ../LeanQt (HAVE_ITEMVIEWS, HAVE_PROCESS, HAVE_NET_MINIMUM)
 
@@ -48,11 +47,60 @@ let ide_files = [
     	./ObnHighlighter.cpp
     	./ObxIde2.cpp
 	]
+
+# TODO: look for a better solution how to e.g. pass a Qt config to a pelib BUSY file instead
+let pelib_files = [
+    ../PeLib/AssemblyDef.cpp
+    ../PeLib/bigdigits.cpp
+    ../PeLib/Class.cpp
+    ../PeLib/CodeContainer.cpp
+    ../PeLib/CreateGUID.cpp
+    ../PeLib/CustomAttributeContainer.cpp
+    ../PeLib/DataContainer.cpp
+    ../PeLib/Enum.cpp
+    ../PeLib/Field.cpp
+    ../PeLib/Instruction.cpp
+    ../PeLib/Method.cpp
+    ../PeLib/MethodSignature.cpp
+    ../PeLib/Namespace.cpp
+    ../PeLib/SignatureGenerator.cpp
+    ../PeLib/Operand.cpp
+    ../PeLib/PELib.cpp
+    ../PeLib/PELibError.cpp
+    ../PeLib/PEWriter.cpp
+    ../PeLib/Property.cpp
+    ../PeLib/Qualifiers.cpp
+    ../PeLib/RSAEncoder.cpp
+    ../PeLib/sha1.cpp
+    ../PeLib/Type.cpp
+    ../PeLib/Value.cpp
+    ../PeLib/Resource.cpp
+    ../PeLib/PEMetaTables.cpp
+    ../PeLib/Stream.cpp
+]
+
+let pelib_config : Config {
+    .include_dirs += ..
+    .defines += [ "HAVE_C99INCLUDES" "QT_CORE_LIB" ]
+    if (target_toolchain == `gcc) || (target_toolchain == `clang) {
+        .cflags_cc += "-std=c++11"
+    }
+}
+
+let pelib_compiler : SourceSet {
+    .sources += pelib_files;
+    .configs += [ pelib_config qtmini.core_client_config ]
+}
 	
+let pelib_ide : SourceSet {
+    .sources += pelib_files;
+    .configs += [ pelib_config qtfull.core_client_config ]
+}
+
 let imp_config : Config {
 	.include_dirs += ..
 	.defines += [ "_HAS_GENERICS" "OBX_BBOX" "_OBX_USE_NEW_FFI_" ]
-	.cflags_cc = pelib.sources.cflags_cc # c++11 even in Pelib headers
+    .cflags_cc += pelib_config.cflags_cc # c++11 even in Pelib headers
 }
 
 let compiler_only_rcc : Rcc {
@@ -64,8 +112,8 @@ let compiler_only_rcc : Rcc {
 let compiler_only ! : Executable {
 	.configs += [ imp_config qtmini.core_client_config ]
 	.sources += ./ObxMcMain.cpp + compiler_files ;
-	.deps += [ qtmini.copy_rcc pelib.sources qtmini.core_sources compiler_only_rcc ]
-	.cflags_cc = pelib.sources.cflags_cc ; # c++11 even in Pelib headers
+    .deps += [ qtmini.copy_rcc pelib_compiler qtmini.core_sources compiler_only_rcc ]
+    .cflags_cc += pelib_config.cflags_cc ; # c++11 even in Pelib headers
 	.name = "OBXMC"
 }
 
@@ -77,10 +125,10 @@ let compiler_rcc : Rcc {
 	.sources += ./OBXMC.qrc
 }
 
-let compiler : Executable {
+let compiler* : Executable {
 	.configs += [ imp_config qtfull.core_client_config ]
 	.sources += ./ObxMcMain.cpp + compiler_files ;
-	.deps += [ qtfull.copy_rcc pelib.sources qtfull.core_sources compiler_rcc compiler_moc ]
+    .deps += [ qtfull.copy_rcc pelib_ide qtfull.core_sources compiler_rcc compiler_moc ]
 	.name = "OBXMC"
 }
 
@@ -105,7 +153,7 @@ let ide_rcc : Rcc {
 
 let ide * : Executable {
 	.configs += [ imp_config qtfull.qt_client_config ]
-	.deps += [ pelib.sources qtfull.libqt ide_rcc compiler_moc ide_moc ]
+    .deps += [ pelib_ide qtfull.libqt ide_rcc compiler_moc ide_moc ]
 	.sources += compiler_files + ide_files;
 	.defines += [ "_MONO_ENGINE_EXT_" "_OBX_USE_NEW_FFI_" ]
 	if target_os == `win32 {
@@ -114,8 +162,24 @@ let ide * : Executable {
 	.name = "ObxIDE"
 }
 
+let pal * : Library {
+    .lib_type = `shared
+    .configs += [ imp_config qtfull.qt_client_config ]
+    .deps += [ qtfull.libqtcore qtfull.libqtgui ]
+    .sources = [
+        ./runtime/Pal/File.cpp
+        ./runtime/Pal/Display.cpp
+        ./runtime/Pal/Math.cpp
+    ]
+    .name = "Pal"
+}
+
 let compiler_and_ide * : Group {
 	.deps += [ compiler ide ]
+}
+
+let all * : Group {
+	.deps += [ compiler ide pal ]
 }
 
 

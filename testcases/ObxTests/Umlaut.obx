@@ -1,0 +1,7 @@
+module Umlaut
+
+begin
+
+  println(ORD("Ä"))
+
+end Umlaut

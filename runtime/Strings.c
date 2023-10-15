@@ -14,6 +14,10 @@
 * following information to ensure the GNU Lesser General Public License
 * requirements will be met: https://www.gnu.org/licenses/lgpl.html and
 * http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+*
+* Alternatively this file may be used under the terms of the Mozilla 
+* Public License. If a copy of the MPL was not distributed with this
+* file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
 #include "Strings.h"

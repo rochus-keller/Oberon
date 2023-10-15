@@ -13,8 +13,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/OverflowTest.obx
-1\RelPath=OverflowTest.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Umlaut.obx
+1\RelPath=Umlaut.obx
 2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Pcall2.obx
 2\RelPath=Pcall2.obx
 size=1
