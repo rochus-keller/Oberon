@@ -2418,9 +2418,9 @@ struct ObxCGenImp : public AstVisitor
                 const int t = buyTemp(formatType(td));
                 b << "$t" << t << " = ";
                 ae->d_args.last()->accept(this);
-                b << ";" << endl << ws() << "memcpy(";
+                b << ";" << endl << ws() << "memcpy(("; // this is a macro on clang/macos
                 renderDesig(0,ae->d_args.first().data(),false);
-                b << ".$a, &$t" << t << "," << td->getByteSize() << ")";
+                b << ".$a), &$t" << t << "," << td->getByteSize() << ")";
                 sellTemp(t);
             }
             break;
@@ -2429,9 +2429,9 @@ struct ObxCGenImp : public AstVisitor
                 Type* td = derefed(ae->d_args.first()->d_type.data());
                 b << "memcpy(";
                 renderDesig(0,ae->d_args.first().data(),true);
-                b << ",";
+                b << ",(";
                 renderDesig(0,ae->d_args.last().data(),false);
-                b << ".$a," << td->getByteSize() << ")";
+                b << ".$a)," << td->getByteSize() << ")";
             }
             break;
         default:

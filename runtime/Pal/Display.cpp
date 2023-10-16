@@ -144,7 +144,7 @@ public:
                 queue.push_front(ch);
         }else
         {
-            if( ev->modifiers() == 0 )
+            if( ev->modifiers() == 0 || ev->modifiers() == Qt::KeypadModifier )
             {
                 switch( ev->key() )
                 {

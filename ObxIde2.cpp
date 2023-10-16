@@ -3504,9 +3504,13 @@ int main(int argc, char *argv[])
 
 #ifdef Q_OS_MAC
     QDir cur = QCoreApplication::applicationDirPath();
-    cur.cdUp();
-    cur.cdUp();
-    cur.cdUp();
+    if( cur.path().endsWith("/Contents/MacOS") )
+    {
+        // we're in a bundle
+        cur.cdUp();
+        cur.cdUp();
+        cur.cdUp();
+    }
     QDir::setCurrent(cur.path());
 #endif
 

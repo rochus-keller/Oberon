@@ -8,6 +8,14 @@ if busy_version < "2023-01-15" {
 	error("this version of BUSY is not compatible with this build")
 }
 
+let mtconf : Config {
+    .cflags = [ "/O2", "/MT" ]
+}
+
+if (build_mode == `optimized) && (target_toolchain == `msvc) {
+    set_defaults(target_toolchain,mtconf)
+}
+
 submod qtmini = ../LeanQt (HAVE_FILEIO, HAVE_COREAPP, HAVE_PROCESS)
 submod qtfull = ../LeanQt (HAVE_ITEMVIEWS, HAVE_PROCESS, HAVE_NET_MINIMUM)
 
@@ -163,6 +171,8 @@ let ide * : Executable {
 }
 
 let pal * : Library {
+    # NOTE: this doesn't work on x86_64 because everything is supposed to be compiled with fPIC
+    # use the separate BUSY in the Pal directory to build the shared library instead
     .lib_type = `shared
     .configs += [ imp_config qtfull.qt_client_config ]
     .deps += [ qtfull.libqtcore qtfull.libqtgui ]
@@ -176,6 +186,9 @@ let pal * : Library {
 
 let compiler_and_ide * : Group {
 	.deps += [ compiler ide ]
+    if !((target_os == `linux) && (target_wordsize == `64)) {
+        .deps += [ pal ]
+    }
 }
 
 let all * : Group {

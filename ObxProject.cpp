@@ -1038,9 +1038,13 @@ QString Project::getWorkingDir(bool resolved) const
     QString path;
 #ifdef Q_OS_MAC
     QDir cur = QCoreApplication::applicationDirPath();
-    cur.cdUp();
-    cur.cdUp();
-    cur.cdUp();
+    if( cur.path().endsWith("/Contents/MacOS") )
+    {
+        // we're in a bundle
+        cur.cdUp();
+        cur.cdUp();
+        cur.cdUp();
+    }
     path = cur.path();
 #else
     path = QCoreApplication::applicationDirPath();
@@ -1072,9 +1076,13 @@ QString Project::getBuildDir(bool resolved) const
     QString path;
 #ifdef Q_OS_MAC
     QDir cur = QCoreApplication::applicationDirPath();
-    cur.cdUp();
-    cur.cdUp();
-    cur.cdUp();
+    if( cur.path().endsWith("/Contents/MacOS") )
+    {
+        // we're in a bundle
+        cur.cdUp();
+        cur.cdUp();
+        cur.cdUp();
+    }
     path = cur.path();
 #else
     path = QCoreApplication::applicationDirPath();

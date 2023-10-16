@@ -2,6 +2,13 @@
 
 submod qt = ../../../LeanQt (HAVE_GUI)
 
+let so64_conf : Config {
+	.cflags += [ "-O2" "-fPIC" ]
+}
+
+if (build_mode == `optimized) && (target_os == `linux) && (target_wordsize == `64)  {
+    set_defaults(target_toolchain,so64_conf)
+}
 
 let Pal ! : Library {
     .lib_type = `shared

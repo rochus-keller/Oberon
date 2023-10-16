@@ -6,7 +6,7 @@ Oberon turned out to be a language very well suited for compiler front and backe
 
 During my work with Oberon and systems implemented in Oberon, I kept asking myself what properties the language would need to have so that I could use it for my own systems too, without giving up the goal of making it as simple as possible. From these considerations a new language emerged, which I call **Oberon+** (i.e. "Oberon with extensions", abbreviated OBX); it is a general-purpose, procedural and object-oriented programming language in the tradition of and based on Oberon-07, Oberon-2 and Oberon 90, with all the elements of these languages, plus generic modules, enumerations, and many additional simplifications such as support for lower case keywords, optional semicolons, and flexible declaration sequences. See [the language report](https://github.com/oberon-lang/specification/blob/master/The_Programming_Language_Oberon%2B.adoc) and the [dedicated language site](http://oberon-lang.ch) for more information. The compiler supports both, Oberon+ as well as most of the syntax and semantics of the previous Oberon versions.
 
-For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite migrated to Oberon+](https://github.com/rochus-keller/Oberon/tree/master/testcases/Are-we-fast-yet). It also demonstrates generic programming with collections and iterators.
+For representative examples of Oberon+ see the [Are-we-fast-yet benchmark suite migrated to Oberon+](https://github.com/rochus-keller/Oberon/tree/master/testcases/Are-we-fast-yet). It also demonstrates generic programming with collections and iterators. A larger example also demonstrating backward compatibility is the [Oberon System 3](https://github.com/rochus-keller/OberonSystem3/).
 
 ### What this repository includes
 
@@ -88,7 +88,7 @@ Here is a version of the Oberon+ IDE (Mono) for **Linux x86**: http://software.r
 Qt 5.4.2 is statically linked with the executables. OBXMC, Mono3 and examples are included as well.
 And here is a version for Linux **x86_64**: http://software.rochus-keller.ch/OberonIDE_linux_x86_64.tar.gz.
 
-Here is a version of the Oberon IDE (Mono) for **macOS x86_64** (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg, and here is the version for **macOS M1** (>= Monterey, with some limitations [^1]): http://software.rochus-keller.ch/OberonIDE_macOS_M1.dmg. The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo; please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms.
+Here is a version of the Oberon IDE (Mono) for **macOS x86_64** (>= El Capitan): http://software.rochus-keller.ch/OberonIDE_macOS_x64.dmg, and here is the version for **macOS M1** (>= Monterey): http://software.rochus-keller.ch/OberonIDE_macOS_M1.dmg. The app can just be moved to the drive or used directly from the mounted DMG; everything required is included, also the Oberon System demo. Please note that the CTRL key is mapped to the command key on Mac, but you have to press CTRL+mouse key to trigger the right mouse button; to summarize: just click=left click, command+click=middle click, CTRL+click=right click; note that the shortcuts can differ between platforms. If macOS doesn't let you start the app with double click, use "Open" from the Finder context menu[^1].
 
 Here is the old version of the Oberon+ IDE (LuaJIT) for Windows: http://software.rochus-keller.ch/OberonIDE_LuaJIT_win32.zip.
 
@@ -103,26 +103,29 @@ Just download, unpack and run it; no installer is needed. The ZIP includes the n
 Here is a binary version of the old OberonViewer for Linux x86: http://software.rochus-keller.ch/OberonViewer_linux_x86.tar.gz
 It requires a preinstalled Qt version >= 5.4.
 
-[^1]: the integrated Mono executable is still x86_64 and runs under the Rosetta emulator; the OS might block Mono when you try to run your Oberon+ app; if so, show the contents of the application bundle and start the mono executable (located at App/Contents/MacOS/mono/mono) using "Open" from the Finder context menu; finally if you try to run an Oberon+ app accessing a dylib by FFI, the system might block this access; this can be circumvented by selecting the dylib (e.g. libSDL2.dylib) in the Finder and execute "Open with + Terminal" from the context menu; the OS then asks for permission to do so and if you accept it can later also be accessed from your Oberon+ app.
+[^1]: The OS might also block Mono when you try to run your Oberon+ app; if so, start the mono executable (located in the mono subdirectory) using "Open" from the Finder context menu; finally if you try to run an Oberon+ app accessing a dylib by FFI, the system might block this access; this can be circumvented by selecting the dylib (e.g. libSDL2.dylib) in the Finder and execute "Open with + Terminal" from the context menu; the OS then asks for permission to do so and if you accept it can later also be accessed from your Oberon+ app. The same might also apply to the mono native dylib.
 
 ### Build Steps
 
-Follow these steps if you want to build e.g. the Oberon+ IDE yourself:
+Follow these steps if you want to build the Oberon+ IDE (Mono version) yourself. The build is using LeanQt and the BUSY build system. Note that compiling on Linux requires the build essentials, xcb, libxcb1-dev and libx11-dev packages. On Mac and Windows there are no additional requirements than a toolchain.
 
-1. Make sure a Qt 5.x (libraries and headers) version compatible with your C++ compiler is installed on your system.
-1. Create an empty directory, call it e.g. Build.
-1. Download https://github.com/rochus-keller/GuiTools/archive/master.zip and unpack to in the Build directory. Rename it to GuiTools.
-1. Download https://github.com/rochus-keller/LjTools/archive/master.zip and unpack it to the Build directory. Rename it to LjTools.
-1. Download https://github.com/rochus-keller/LuaJIT/archive/LjTools.zip and unpack it to the Build directory. Rename it to LuaJIT. Go to the src subdirectory and run the build script appropriate to your platform (see LuaJIT/doc/install.html for more information).
-1. Download https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip and unpack it to the Build directory. Rename it to MonoTools. 
-1. Download https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip and unpack it to the Build directory. Rename it to PeLib. 
-1. Download https://github.com/rochus-keller/Oberon/archive/master.zip and unpack it to the Build directory. Rename it to Oberon.
-1. Goto the Build/Oberon directory and execute e.g. `QTDIR/bin/qmake ObxIde2.pro` (see the Qt documentation concerning QTDIR).
-1. Run make; after a couple of seconds you will find the executable in the build directory.
+1. Create a new directory; we call it the root directory here
+1. Download https://github.com/rochus-keller/Oberon/archive/refs/heads/master.zip and unpack it to the root directory; rename the resulting directory to "Oberon".
+1. Download https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip and unpack it to the root directory; rename the resulting directory to "PeLib".
+1. Download https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip and unpack it to the root directory; rename the resulting directory to "MonoTools".
+1. Download https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip and unpack it to the root directory; rename the resulting directory to "GuiTools".
+1. Download https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.zip and unpack it to the root directory; rename the resulting directory to "LeanQt".
+1. Download https://github.com/rochus-keller/BUSY/archive/refs/heads/master.zip and unpack it to the root directory; rename the resulting directory to "build".
+1. Open a command line in the build directory and type `cc *.c -O2 -lm -o lua` or `cl /O2 /MD /Fe:lua.exe *.c` depending on whether you are on a Unix or Windows machine; wait a few seconds until the Lua executable is built.
+1. Now type `./lua build.lua ../Oberon -T ide` (or `lua build.lua ../Oberon -T ide` on Windows); wait until the ObxIDE executable is built; you find it in the output subdirectory.
 
-Alternatively you can open ObxIde2.pro or any other included .pro file using QtCreator and build it there.
+Instead of the command line you can run the build using [LeanCreator](https://github.com/rochus-keller/LeanCreator) which uses multiple cores and thus builds faster.
 
-Note that the IDE and the OBXMC tool can also be built using the BUSY build system without a pre-installed Qt version; see see https://github.com/rochus-keller/LeanQt/blob/main/Readme.md for more information.
+It is still possible to build the tools using Qt 5 with qmake; use ObxIde2.pro for this purpose and proceed as usual when building with Qt.
+
+See https://github.com/rochus-keller/LeanQt/blob/main/Readme.md for instructions on how to build the OBXMC tool if you need it.
+
+The OBX Platform Abstraction Layer (libPal) can be built together with the IDE; in this case just replace the `-T ide` by `-T compiler_and_ide`; on Linux x64 please run the BUSY build file in the runtime/Pal subdirectory.
 
 Note that the Mono version of the Oberon+ IDE expects a subdirectory relative to the IDE executable called "mono"; this subdirectory shall contain copies of or links to the mono executable and the mscorlib.dll. Precompiled versions of these files are included in the binary versions referenced above.
 
