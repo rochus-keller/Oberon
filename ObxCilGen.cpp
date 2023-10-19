@@ -2768,7 +2768,7 @@ struct ObxCilGenImp : public AstVisitor
                 {
                     Type* p = derefed(cast<Pointer*>(to)->d_to.data());
                     if( p && p->getBaseType() == Type::CVOID )
-                        line(ae->d_loc).conv_(IlEmitter::ToI, false, false);
+                        line(ae->d_loc).conv_(IlEmitter::ToI);
                 }
             }
             break;
@@ -3242,6 +3242,22 @@ struct ObxCilGenImp : public AstVisitor
         convertTo( toBaseType, fromBaseType, loc, checkOvf );
     }
 
+    static inline bool isUnsigned(quint8 t)
+    {
+        switch( t )
+        {
+        case Type::BYTE:
+        case Type::SET:
+        case Type::ENUMINT:
+        case Type::CHAR:
+        case Type::WCHAR:
+        case Type::BOOLEAN:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     void convertTo( quint8 toBaseType, quint8 fromBaseType, const RowCol& loc, bool checkOvf = false )
     {
         if( toBaseType == fromBaseType )
@@ -3254,24 +3270,28 @@ struct ObxCilGenImp : public AstVisitor
                 line(loc).conv_(IlEmitter::ToR8); // always r8 on stack
             break;
         case Type::INT64:
-            line(loc).conv_(IlEmitter::ToI8);
+            line(loc).conv_(IlEmitter::ToI8, checkOvf, isUnsigned(fromBaseType));
             break;
         case Type::INT32:
+            line(loc).conv_(IlEmitter::ToI4, checkOvf, isUnsigned(fromBaseType));
+            break;
         case Type::SET:
         case Type::ENUMINT:
-            line(loc).conv_(IlEmitter::ToI4, checkOvf);
+            line(loc).conv_(IlEmitter::ToU4, checkOvf, isUnsigned(fromBaseType));
             break;
         case Type::INT16:
+            line(loc).conv_(IlEmitter::ToI2, checkOvf, isUnsigned(fromBaseType));
+            break;
         case Type::CHAR:
-        case Type::WCHAR: // TODO: is CHAR really signed?
-            line(loc).conv_(IlEmitter::ToI2, checkOvf);
+        case Type::WCHAR:
+            line(loc).conv_(IlEmitter::ToU2, checkOvf, isUnsigned(fromBaseType));
             break;
         case Type::INT8:
-            line(loc).conv_(IlEmitter::ToI1, checkOvf, checkOvf);
+            line(loc).conv_(IlEmitter::ToI1, checkOvf, isUnsigned(fromBaseType));
             break;
         case Type::BYTE:
         case Type::BOOLEAN:
-            line(loc).conv_(IlEmitter::ToU1, checkOvf, checkOvf);
+            line(loc).conv_(IlEmitter::ToU1, checkOvf, isUnsigned(fromBaseType));
             break;
         }
     }

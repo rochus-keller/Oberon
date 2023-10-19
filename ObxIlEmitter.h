@@ -155,7 +155,7 @@ namespace Obx
         void clt_(bool withUnsigned = false);
         void cpblk_();
         enum ToType { ToI1, ToI2, ToI4, ToI8, ToR4, ToR8, ToU1, ToU2, ToU4, ToU8, ToI };
-        void conv_( ToType, bool withOverflow = false, bool withUnsignedOverflow = false );
+        void conv_(ToType, bool withOverflowCheck = false, bool unsignedFromType = false );
         void div_(bool withUnsigned = false);
         void dup_();
         void initblk_();

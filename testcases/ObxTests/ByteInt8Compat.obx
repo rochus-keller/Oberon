@@ -11,11 +11,30 @@ begin
   println(i)
   
   i := -100
-  b := cast(byte,i)
+  b := cast(byte,i) // ldsfld int8 'i', conv.u1, stind.i1
   i := cast(int8,b)
   i2 := cast(int8,b)
   println(i) // -100
-  println(i2)
+  println(i2) // -100
   println(b) // 156
+  
+  i := -100
+  b := i // ldsfld int8 'i', conv.ovf.u1, stind.i1, raises overflow exception
+  println(b) // also 156
+  
+  i2 := -12345
+  b := i2 // ldsfld int16 'i2', conv.ovf.u1, stind.i1, raises overflow exception
+  i := i2 // ldsfld int16 'i2', conv.ovf.i1, stind.i1, raises overflow exception
+  println(i) // -57
+  i := cast(int8,i2) // ldsfld int16 'i2', conv.i1, stind.i1
+  println(i) // -57
+  println(b) // 199
+  
+  i2 := -123
+  b := i2 // ldsfld int16 'i2', conv.ovf.u1, stind.i1, raises overflow exception
+  i := i2 // ldsfld int16 'i2', conv.ovf.i1, stind.i1, ok
+  println(i) // -123
+  println(b) // 133
+
 
 end ByteInt8Compat

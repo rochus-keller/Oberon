@@ -369,39 +369,40 @@ void IlEmitter::cpblk_()
     delta(-3);
 }
 
-void IlEmitter::conv_(IlEmitter::ToType t, bool withOverflow, bool withUnsignedOverflow)
+void IlEmitter::conv_(IlEmitter::ToType t, bool withOverflowCheck, bool unsignedFromType)
 {
+    // NOTE that the value on the stack is at least int32 or uint32
     Q_ASSERT( !d_method.isEmpty() );
     switch( t )
     {
     case ToI1:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_i1_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_i1));
         else
             d_body.append(IlOperation(IL_conv_i1));
         break;
     case ToI2:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_i2_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_i2));
         else
             d_body.append(IlOperation(IL_conv_i2));
         break;
     case ToI4:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_i4_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_i4));
         else
             d_body.append(IlOperation(IL_conv_i4));
         break;
     case ToI8:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_i8_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_i8));
         else
             d_body.append(IlOperation(IL_conv_i8));
@@ -413,41 +414,41 @@ void IlEmitter::conv_(IlEmitter::ToType t, bool withOverflow, bool withUnsignedO
         d_body.append(IlOperation(IL_conv_r8));
         break;
     case ToU1:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_u1_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_u1));
         else
             d_body.append(IlOperation(IL_conv_u1));
         break;
     case ToU2:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_u2_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_u2));
         else
             d_body.append(IlOperation(IL_conv_u2));
         break;
     case ToU4:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_u4_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_u4));
         else
             d_body.append(IlOperation(IL_conv_u4));
         break;
     case ToU8:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_u8_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_u8));
         else
             d_body.append(IlOperation(IL_conv_u8));
         break;
     case ToI:
-        if( withUnsignedOverflow )
+        if( withOverflowCheck && unsignedFromType )
             d_body.append(IlOperation(IL_conv_ovf_i_un));
-        else if( withOverflow )
+        else if( withOverflowCheck )
             d_body.append(IlOperation(IL_conv_ovf_i));
         else
             d_body.append(IlOperation(IL_conv_i));
