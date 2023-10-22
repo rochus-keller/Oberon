@@ -23,6 +23,7 @@
 #include <QPainter>
 #include <QtDebug>
 #include <QThread>
+#include <private/qhighdpiscaling_p.h>
 
 static int argc = 1;
 static char * argv = "PAL";
@@ -35,12 +36,13 @@ public:
     PalScreen(int width, int height, int format, const char* title):
         x(0),y(0), w(width),h(height),f(format),buf(0)
     {
+        const qreal factor = QHighDpiScaling::factor(this);
+        d_smooth = factor - qreal(qFloor(factor)) != 0.0;
+
         bs = new QBackingStore(this);
         const QSize s(w,h);
         resize(s);
         bs->resize(s);
-        setMinimumSize(s);
-        setMaximumSize(s);
         setCursor(Qt::BlankCursor);
         setTitle(QString::fromLatin1(title));
         show();
@@ -206,7 +208,11 @@ public:
                     queue.push_front(250);
                     break;
                 case Qt::Key_F11:
-                    queue.push_front(251);
+                    //queue.push_front(251);
+                    if( windowState() & Qt::WindowFullScreen )
+                        showNormal();
+                    else
+                        showFullScreen();
                     break;
                 case Qt::Key_F12:
                     queue.push_front(252);
@@ -253,7 +259,14 @@ public:
 
     void exposeEvent(QExposeEvent *ev)
     {
-        update( ev->region().boundingRect() );
+        const QRect rect = ev->region().boundingRect();
+        update( rect );
+    }
+
+    void resizeEvent(QResizeEvent *ev)
+    {
+        if( ev->oldSize().width() < ev->size().width() || ev->oldSize().height() < ev->size().height() )
+            bs->resize(ev->size());
     }
 
     void setPos(int x_, int y_)
@@ -304,6 +317,25 @@ public:
                 }
             }
         }
+        if( width() > w )
+        {
+            QRect rect( w, 0, width() - w + 1, height() );
+            bs->beginPaint(rect);
+            QPainter p(bs->paintDevice());
+            p.fillRect(rect, Qt::black);
+            bs->endPaint();
+            bs->flush(rect);
+        }
+        if( height() > h )
+        {
+            QRect rect( 0, h, width(), height() - h + 1 );
+            bs->beginPaint(rect);
+            QPainter p(bs->paintDevice());
+            p.fillRect(rect, Qt::black);
+            bs->endPaint();
+            bs->flush(rect);
+        }
+
         QRect rect(0, 0, w, h);
         bs->beginPaint(rect);
         QPainter p(bs->paintDevice());
@@ -321,29 +353,6 @@ public:
         } point;
         quint32* raster = (quint32*)buf;
 
-#if 0
-        QImage img( w, h, QImage::Format_RGB888 );
-
-        for( int line = h - 1; line >= 0; line--)
-        {
-            for( int col = 0; col < w; col++ )
-            {
-                point.rgba = raster[line * w + col];
-                img.setPixel(col,line, qRgb(point.bytes[2], point.bytes[1], point.bytes[0]) );
-            }
-        }
-
-        QRect rect(0, 0, w, h);
-        bs->beginPaint(rect);
-        QPainter p(bs->paintDevice());
-        p.drawImage(0,0,img);
-        p.setPen(Qt::green);
-        foreach( const QRect& r, patches )
-            p.drawRect( r.x(), r.y(), r.width(), r.height() );
-        patches.clear();
-        bs->endPaint();
-        bs->flush(rect);
-#else
         if( patches.isEmpty() )
             return;
 
@@ -351,24 +360,55 @@ public:
         foreach( const QRect& r, patches )
             reg += r;
         patches.clear();
-        const QRect bound = reg.boundingRect();
-        QImage img( bound.width(), bound.height(), QImage::Format_RGB888 );
 
-        for( int y = 0; y < bound.height(); y++)
+        const QRect bound = reg.boundingRect();
+
+        if( bound.right() > w )
         {
-            for( int x = 0; x < bound.width(); x++ )
+            QRect rect( w, 0, width() - w + 1, height() );
+            bs->beginPaint(rect);
+            QPainter p(bs->paintDevice());
+            p.fillRect(rect, Qt::black);
+            bs->endPaint();
+            bs->flush(rect);
+        }
+
+        if( bound.bottom() > h )
+        {
+            QRect rect( 0, h, width(), height() - h + 1 );
+            bs->beginPaint(rect);
+            QPainter p(bs->paintDevice());
+            p.fillRect(rect, Qt::black);
+            bs->endPaint();
+            bs->flush(rect);
+        }
+
+        QRect patch = bound & QRect(0,0,w,h);
+        if( patch.isEmpty() )
+            return;
+
+        // increase the path to left/up a pixel to acommodate roundoff error in SmoothPixmapTransform
+        if( d_smooth )
+            patch = patch.adjusted(-1,-1,1,1) & QRect(0,0,w,h);
+
+        QImage img( patch.width(), patch.height(), QImage::Format_RGB888 );
+
+        for( int y = 0; y < patch.height(); y++)
+        {
+            for( int x = 0; x < patch.width(); x++ )
             {
-                point.rgba = raster[(y + bound.y()) * w + ( x + bound.x() )];
+                point.rgba = raster[(y + patch.y()) * w + ( x + patch.x() )];
                 img.setPixel(x,y, qRgb(point.bytes[2], point.bytes[1], point.bytes[0]) );
             }
         }
 
-        bs->beginPaint(bound);
+        bs->beginPaint(patch);
         QPainter p(bs->paintDevice());
-        p.drawImage(bound.x(),bound.y(),img);
+        if( d_smooth )
+            p.setRenderHint( QPainter::SmoothPixmapTransform, true); // affects QT_SCALE_FACTOR, renders smoother!
+        p.drawImage(patch.x(),patch.y(),img);
         bs->endPaint();
-        bs->flush(bound);
-#endif
+        bs->flush(patch);
     }
 
     void update(const QRect& r )
@@ -382,6 +422,7 @@ public:
     void* buf;
     QList<quint8> queue;
     QList<QRect> patches;
+    bool d_smooth;
 };
 
 static PalScreen* ctx = 0;
