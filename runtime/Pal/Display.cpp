@@ -34,10 +34,10 @@ class PalScreen : public QWindow
 {
 public:
     PalScreen(int width, int height, int format, const char* title):
-        x(0),y(0), w(width),h(height),f(format),buf(0)
+        x(0),y(0), w(width),h(height),f(format),buf(0), left(false), middle(false), right(false)
     {
         const qreal factor = QHighDpiScaling::factor(this);
-        d_smooth = factor - qreal(qFloor(factor)) != 0.0;
+        smooth = factor - qreal(qFloor(factor)) != 0.0;
 
         bs = new QBackingStore(this);
         const QSize s(w,h);
@@ -53,7 +53,6 @@ public:
     void keyPressEvent(QKeyEvent * ev)
     {
         // see also https://en.wikibooks.org/wiki/Oberon/ETH_Oberon/keyboard
-
         const QString key = ev->text();
         if( !key.isEmpty() && key[0].unicode() <= 127 ) // only ascii
         {
@@ -222,24 +221,37 @@ public:
                     break;
                 }
             }
+            else if( ev->modifiers() & Qt::ControlModifier && ev->key() == Qt::Key_Control)
+                controlPress();
+        }
+    }
+
+    void keyReleaseEvent(QKeyEvent * ev)
+    {
+        if( ev->key() == Qt::Key_Meta && right )
+        {
+            // this is to do a right to left interclick on mac
+            right = middle = false;
+            left = true; // right to middle interclick
         }
     }
 
     void mouseMoveEvent(QMouseEvent * ev)
     {
         setPos(ev->x(), ev->y());
-        setMouseButtons(ev->buttons(),ev->modifiers());
+        // setMouseButtons(ev->buttons(),ev->modifiers());
     }
 
     void mousePressEvent(QMouseEvent * ev)
     {
         setPos(ev->x(), ev->y());
-        setMouseButtons(ev->buttons(),ev->modifiers());
+        mousePress(ev->buttons(),ev->modifiers());
     }
 
     void mouseReleaseEvent(QMouseEvent *ev)
     {
-        b = 0; // this is important; if not reset Oberon.Loop hangs until mouse is moved
+        // setMouseButtons(ev->buttons(),ev->modifiers());
+        left = middle = right = false;
     }
 
     void timerEvent(QTimerEvent *event)
@@ -283,13 +295,30 @@ public:
             y = h-1;
     }
 
-    void setMouseButtons(Qt::MouseButtons b_, Qt::KeyboardModifiers m)
+    void mousePress(Qt::MouseButtons b, Qt::KeyboardModifiers m)
     {
-        b = b_;
-        if( ( b == Qt::RightButton || b == Qt::LeftButton ) && m == Qt::ControlModifier )
-            b = Qt::MidButton;
-        else if( b == Qt::LeftButton && m == ( Qt::ControlModifier | Qt::ShiftModifier ) )
-            b = Qt::RightButton;
+        left = b & Qt::LeftButton;
+        middle = b & Qt::MidButton;
+        right = b & Qt::RightButton;
+
+        if( ( b & Qt::RightButton || b & Qt::LeftButton ) && m == Qt::ControlModifier )
+        {
+            left = right = false;
+            middle = true;
+        }
+    }
+
+    void controlPress()
+    {
+        if( left )
+        {
+            left = right = false;
+            middle = true; // left to middle interclick
+        }else if( right )
+        {
+            right = left = false;
+            middle = true; // right to middle interclick
+        }
     }
 
     void hideEvent(QHideEvent *)
@@ -388,7 +417,7 @@ public:
             return;
 
         // increase the path to left/up a pixel to acommodate roundoff error in SmoothPixmapTransform
-        if( d_smooth )
+        if( smooth )
             patch = patch.adjusted(-1,-1,1,1) & QRect(0,0,w,h);
 
         QImage img( patch.width(), patch.height(), QImage::Format_RGB888 );
@@ -404,7 +433,7 @@ public:
 
         bs->beginPaint(patch);
         QPainter p(bs->paintDevice());
-        if( d_smooth )
+        if( smooth )
             p.setRenderHint( QPainter::SmoothPixmapTransform, true); // affects QT_SCALE_FACTOR, renders smoother!
         p.drawImage(patch.x(),patch.y(),img);
         bs->endPaint();
@@ -418,11 +447,11 @@ public:
 
     QBackingStore* bs;
     int x,y,w,h,f;
-    Qt::MouseButtons b;
     void* buf;
     QList<quint8> queue;
     QList<QRect> patches;
-    bool d_smooth;
+    bool left, middle, right; // current mouse button state
+    bool smooth;
 };
 
 static PalScreen* ctx = 0;
@@ -486,11 +515,11 @@ int PAL_mouse_state(int* x, int* y, int* keys)
     *x = ctx->x;
     *y = ctx->h - ctx->y - 1;
     *keys = 0;
-    if( ctx->b & Qt::LeftButton )
+    if( ctx->left )
         *keys |= Left;
-    if( ctx->b & Qt::MidButton )
+    if( ctx->middle )
         *keys |= Mid;
-    if( ctx->b & Qt::RightButton )
+    if( ctx->right )
         *keys |= Right;
     return 1;
 }
