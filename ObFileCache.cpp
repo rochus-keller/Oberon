@@ -41,6 +41,7 @@ void FileCache::addFile(const QString& filePath, const QByteArray& code, bool is
     e.d_code = code;
     e.d_desig = cpath;
     e.d_isModuleName = isModuleName;
+    e.d_modified = QDateTime::currentDateTime();
     d_lock.lockForWrite();
     d_files[e.d_desig] = e;
     d_lock.unlock();

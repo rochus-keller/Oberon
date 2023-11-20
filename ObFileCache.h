@@ -24,6 +24,7 @@
 #include <QObject>
 #include <QReadWriteLock>
 #include <QStringList>
+#include <QDateTime>
 
 class QIODevice;
 
@@ -38,6 +39,7 @@ namespace Ob
             QString d_desig; // file path or module name
             bool d_isModuleName;
             QByteArray d_code;
+            QDateTime d_modified;
             Entry():d_isModuleName(false) {}
         };
 

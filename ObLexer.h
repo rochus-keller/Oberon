@@ -22,6 +22,7 @@
 
 #include <QObject>
 #include <Oberon/ObToken.h>
+#include <QDateTime>
 #include <QHash>
 
 class QIODevice;
@@ -36,7 +37,7 @@ namespace Ob
     public:
         explicit Lexer(QObject *parent = 0);
 
-        void setStream( QIODevice*, const QString& sourcePath );
+        void setStream( QIODevice*, const QString& sourcePath, const QDateTime& ts = QDateTime() );
         bool setStream(const QString& sourcePath);
         void setErrors(Errors* p) { d_err = p; }
         void setCache(FileCache* p) { d_fcache = p; }
@@ -45,6 +46,7 @@ namespace Ob
         void setEnableExt( bool b ) { d_enableExt = b; }
         bool isEnabledExt() const { return d_enableExt; }
         void setSensExt( bool b ) { d_sensExt = b; }
+        const QDateTime& getTimeStamp() const { return d_when; }
 
         Token nextToken();
         Token peekToken(quint8 lookAhead = 1);
@@ -85,6 +87,7 @@ namespace Ob
         quint32 d_lineNr;
         quint16 d_colNr;
         QString d_sourcePath;
+        QDateTime d_when;
         QByteArray d_line;
         QList<Token> d_buffer;
         quint32 d_sloc; // number of lines of code without empty or comment lines

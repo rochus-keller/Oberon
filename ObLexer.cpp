@@ -37,7 +37,7 @@ Lexer::Lexer(QObject *parent) : QObject(parent),
 
 }
 
-void Lexer::setStream(QIODevice* in, const QString& sourcePath)
+void Lexer::setStream(QIODevice* in, const QString& sourcePath, const QDateTime& ts)
 {
     if( in == 0 )
         setStream( sourcePath );
@@ -53,6 +53,10 @@ void Lexer::setStream(QIODevice* in, const QString& sourcePath)
         d_sensed = false;
         d_sloc = 0;
         d_lineCounted = false;
+        if( ts.isValid() )
+            d_when = ts;
+        else
+            d_when = QDateTime::currentDateTime();
 
 #if 0
         if( isV4File(d_in) )
@@ -96,6 +100,7 @@ bool Lexer::setStream(const QString& sourcePath)
 {
     QIODevice* in = 0;
 
+    d_when = QDateTime();
     if( d_fcache )
     {
         bool found;
@@ -106,6 +111,7 @@ bool Lexer::setStream(const QString& sourcePath)
             buf->setData( content.d_code );
             buf->open(QIODevice::ReadOnly);
             in = buf;
+            d_when = content.d_modified;
         }
     }
 

@@ -83,7 +83,8 @@ Ref<Module> Parser::parse(const QByteArrayList& options)
             d_mod->d_hasErrors = true;
         d_errs->error( Errors::Syntax, d_next.toLoc(), tr("unexpected end of file found") );
     }
-
+    if( d_mod )
+        d_mod->d_when = d_lex->getTimeStamp();
     return d_mod;
 }
 

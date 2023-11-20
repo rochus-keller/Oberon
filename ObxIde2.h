@@ -88,7 +88,7 @@ namespace Obx
         void createMenuBar();
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
-        bool compile(bool doGenerate = false);
+        bool compile(bool all = true, bool doGenerate = false);
         bool generate();
         bool run();
         void fillMods();

@@ -4864,7 +4864,7 @@ static bool copyLib( const QDir& outDir, const QByteArray& name, QTextStream* co
     return true;
 }
 
-bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& where)
+bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& where, bool forceGen)
 {
     Q_ASSERT( pro );
     if( where.isEmpty() )
@@ -4891,6 +4891,7 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
 #endif
     const quint32 errCount = pro->getErrs()->getErrCount();
     QSet<Module*> generated;
+    int numGenerated = 0;
     foreach( Module* m, mods )
     {
         if( m->d_synthetic )
@@ -4922,49 +4923,60 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
                         if( how == Ilasm || how == Fastasm || how == IlOnly )
                         {
                             QFile f(outDir.absoluteFilePath(inst->getName() + ".il"));
-                            if( f.open(QIODevice::WriteOnly) )
+                            QFileInfo info(f.fileName());
+                            if( forceGen || !info.exists() || info.lastModified() < m->d_when )
                             {
-                                //qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
-                                IlAsmRenderer r(&f);
-                                IlEmitter e(&r);
-                                if( !CilGen::translate(inst,&e, debug, pro->getErrs()) )
+                                numGenerated++;
+                                if( f.open(QIODevice::WriteOnly) )
                                 {
-                                    qCritical() << "error generating IL for" << inst->getName();
-                                    return false;
-                                }
-                                if( how == Ilasm )
-                                    bout << "./ilasm /dll " << ( debug ? "/debug ": "" ) << "\"" << inst->getName() << ".il\"" << endl;
-                                else if( how == Fastasm )
-                                    bout << "/dll " << ( debug ? "/debug ": "" ) << inst->getName() << ".il" << endl;
-                                if( how == Ilasm )
-                                {
-                                    cout << "rm \"" << inst->getName() << ".il\"" << endl;
-                                    cout << "rm \"" << inst->getName() << ".dll\"" << endl;
-                                }else if( how == Fastasm )
-                                    cout << inst->getName() << endl;
-                            }else
-                                qCritical() << "could not open for writing" << f.fileName();
+                                    //qDebug() << "generating IL for" << m->getName() << "to" << f.fileName();
+                                    IlAsmRenderer r(&f);
+                                    IlEmitter e(&r);
+                                    if( !CilGen::translate(inst,&e, debug, pro->getErrs()) )
+                                    {
+                                        qCritical() << "error generating IL for" << inst->getName();
+                                        return false;
+                                    }
+                                    if( how == Ilasm )
+                                        bout << "./ilasm /dll " << ( debug ? "/debug ": "" ) << "\"" << inst->getName() << ".il\"" << endl;
+                                    else if( how == Fastasm )
+                                        bout << "/dll " << ( debug ? "/debug ": "" ) << inst->getName() << ".il" << endl;
+                                    if( how == Ilasm )
+                                    {
+                                        cout << "rm \"" << inst->getName() << ".il\"" << endl;
+                                        cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                                    }else if( how == Fastasm )
+                                        cout << inst->getName() << endl;
+                                }else
+                                    qCritical() << "could not open for writing" << f.fileName();
+                            }
                         }else
                         {
-                            PelibGen r;
-                            IlEmitter e(&r);
-                            if( !CilGen::translate(inst,&e,debug,pro->getErrs()) )
+                            const QString fileName = outDir.absoluteFilePath(inst->getName() + ".dll");
+                            QFileInfo info(fileName);
+                            if( forceGen || !info.exists() || info.lastModified() < m->d_when )
                             {
-                                qCritical() << "error generating assembly for" << inst->getName();
-                                return false;
-                            }
+                                numGenerated++;
+                                PelibGen r;
+                                IlEmitter e(&r);
+                                if( !CilGen::translate(inst,&e,debug,pro->getErrs()) )
+                                {
+                                    qCritical() << "error generating assembly for" << inst->getName();
+                                    return false;
+                                }
 #if 0
-                            // no longer used
-                            r.writeAssembler(outDir.absoluteFilePath(inst->getName() + ".il").toUtf8());
-                            cout << "rm \"" << inst->getName() << ".il\"" << endl;
+                                // no longer used
+                                r.writeAssembler(outDir.absoluteFilePath(inst->getName() + ".il").toUtf8());
+                                cout << "rm \"" << inst->getName() << ".il\"" << endl;
 #endif
-                            r.writeByteCode(outDir.absoluteFilePath(inst->getName() + ".dll").toUtf8());
-                            // cout << "rm \"" << inst->getName() << ".dll\"" << endl;
-                            if( debug )
-                            {
-                                Mono::MdbGen mdb;
-                                mdb.write( outDir.absoluteFilePath(inst->getName() + ".dll.mdb" ), r.getPelib(),
-                                           QByteArrayList() << ".ctor" << "#copy" );
+                                r.writeByteCode(fileName.toUtf8());
+                                // cout << "rm \"" << inst->getName() << ".dll\"" << endl;
+                                if( debug )
+                                {
+                                    Mono::MdbGen mdb;
+                                    mdb.write( outDir.absoluteFilePath(inst->getName() + ".dll.mdb" ), r.getPelib(),
+                                               QByteArrayList() << ".ctor" << "#copy" );
+                                }
                             }
                         }
                     }
@@ -4987,7 +4999,7 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
 #endif
         }
     }
-    if( !mods.isEmpty() )
+    if( numGenerated )
     {
         const QByteArray name = "Main#";
         QByteArrayList roots;
@@ -5058,63 +5070,65 @@ bool CilGen::translateAll(Project* pro, How how, bool debug, const QString& wher
             }else
                 qCritical() << "could not open for writing" << json.fileName();
         }
-    }
 
-    if( how == Ilasm )
-    {
-        QFile run( outDir.absoluteFilePath("run.sh") );
-        if( !run.open(QIODevice::WriteOnly) )
+        if( how == Ilasm )
         {
-            qCritical() << "could not open for writing" << run.fileName();
-            return false;
-        }else
-        {
-            run.write("export MONO_PATH=.\n");
-            run.write("./mono Main#.exe\n");
+            QFile run( outDir.absoluteFilePath("run.sh") );
+            if( !run.open(QIODevice::WriteOnly) )
+            {
+                qCritical() << "could not open for writing" << run.fileName();
+                return false;
+            }else
+            {
+                run.write("export MONO_PATH=.\n");
+                run.write("./mono Main#.exe\n");
+            }
         }
-    }
 
-    if( how != IlOnly )
-    {
-        const bool log = how == Ilasm;
-        if( pro->useBuiltInOakwood() )
+        if( how != IlOnly )
         {
-            copyLib(outDir,"In",log?&cout:0);
-            copyLib(outDir,"Out",log?&cout:0);
-            copyLib(outDir,"Files",log?&cout:0);
-            copyLib(outDir,"Input",log?&cout:0);
-            copyLib(outDir,"Math",log?&cout:0);
-            copyLib(outDir,"MathL",log?&cout:0);
-            copyLib(outDir,"Strings",log?&cout:0);
-            copyLib(outDir,"Coroutines",log?&cout:0);
-            copyLib(outDir,"XYplane",log?&cout:0);
+            const bool log = how == Ilasm;
+            if( pro->useBuiltInOakwood() )
+            {
+                copyLib(outDir,"In",log?&cout:0);
+                copyLib(outDir,"Out",log?&cout:0);
+                copyLib(outDir,"Files",log?&cout:0);
+                copyLib(outDir,"Input",log?&cout:0);
+                copyLib(outDir,"Math",log?&cout:0);
+                copyLib(outDir,"MathL",log?&cout:0);
+                copyLib(outDir,"Strings",log?&cout:0);
+                copyLib(outDir,"Coroutines",log?&cout:0);
+                copyLib(outDir,"XYplane",log?&cout:0);
+            }
+            copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
         }
-        copyLib(outDir,"OBX.Runtime",log ? &cout : 0);
+
+        if( how == Ilasm || how == Fastasm )
+        {
+            QFile build( outDir.absoluteFilePath( how == Ilasm ? "build.sh" : "batch" ) );
+            if( !build.open(QIODevice::WriteOnly) )
+            {
+                qCritical() << "could not open for writing" << build.fileName();
+                return false;
+            }else
+                build.write(buildStr);
+        }
+
+        if( how == Ilasm || how == Fastasm )
+        {
+            QFile clear( outDir.absoluteFilePath( how == Ilasm ? "clean.sh" : "modules" ) );
+            if( !clear.open(QIODevice::WriteOnly) )
+            {
+                qCritical() << "could not open for writing" << clear.fileName();
+                return false;
+            }else
+                clear.write(clearStr);
+        }
     }
 
     bout.flush();
     cout.flush();
 
-    if( how == Ilasm || how == Fastasm )
-    {
-        QFile build( outDir.absoluteFilePath( how == Ilasm ? "build.sh" : "batch" ) );
-        if( !build.open(QIODevice::WriteOnly) )
-        {
-            qCritical() << "could not open for writing" << build.fileName();
-            return false;
-        }else
-            build.write(buildStr);
-    }
-    if( how == Ilasm || how == Fastasm )
-    {
-        QFile clear( outDir.absoluteFilePath( how == Ilasm ? "clean.sh" : "modules" ) );
-        if( !clear.open(QIODevice::WriteOnly) )
-        {
-            qCritical() << "could not open for writing" << clear.fileName();
-            return false;
-        }else
-            clear.write(clearStr);
-    }
     const bool ok = pro->getErrs()->getErrCount() == errCount;
     return ok;
 }

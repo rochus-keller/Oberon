@@ -506,25 +506,7 @@ bool Model::parseFiles(const PackageList& files)
         return false; // stop on parsing errors, but only after we found the dependency order
 
     Validator::BaseTypes bt;
-    bt.d_noType = d_noType.data();
-    bt.d_boolType = d_boolType.data();
-    bt.d_charType = d_charType.data();
-    bt.d_byteType = d_byteType.data();
-    bt.d_intType = d_intType.data();
-    bt.d_int8Type = d_int8Type.data();
-    bt.d_shortType = d_shortType.data();
-    bt.d_longType = d_longType.data();
-    bt.d_realType = d_realType.data();
-    bt.d_longrealType = d_longrealType.data();
-    bt.d_setType = d_setType.data();
-    bt.d_stringType = d_stringType.data();
-    bt.d_byteArrayType = d_byteArrayType.data();
-    bt.d_nilType = d_nilType.data();
-    bt.d_voidType = d_voidType.data();
-    bt.d_anyType = d_anyType.data();
-    bt.d_anyRec = d_anyRec.data();
-    bt.d_wcharType = d_wcharType.data();
-    bt.d_wstringType = d_wstringType.data();
+    fillBt(bt);
 
     foreach( Module* m, d_depOrder )
     {
@@ -565,26 +547,124 @@ bool Model::parseFiles(const PackageList& files)
     return true;
 }
 
+bool Model::updateParse()
+{
+    d_errs->clear();
+
+    Validator::BaseTypes bt;
+    fillBt(bt);
+
+    foreach( Module* oldMod, d_depOrder )
+    {
+        if( oldMod == d_systemModule.data() || !oldMod->d_metaActuals.isEmpty() )
+            continue;
+
+        const QString filePath = oldMod->d_file;
+        const QDateTime oldTs = oldMod->d_when;
+        const QDateTime newTs = getModified(filePath);
+
+        if( oldTs.isValid() && newTs <= oldTs )
+            continue;
+
+        foreach( Module* mm, oldMod->d_usedBy )
+            mm->d_when = QDateTime(); // invalidate dependent modules
+            // TODO: only invalidate if public interface changed
+
+        qDebug() << "reparsing" << oldMod->getName();
+
+        Ref<Module> newMod = parseFile(filePath);
+        if( newMod.isNull() )
+        {
+            error( filePath, tr("cannot open file") );
+            continue;
+        }
+        if( d_errs->getErrCount() != 0 )
+            return false; // stop on parsing errors
+
+        newMod->d_fullName = oldMod->d_fullName;
+        newMod->d_scope = oldMod->d_scope;
+
+        // Ref<Module> tmp(oldMod); // keep a refcount
+        d_modules[newMod->d_fullName] = newMod; // replace existing
+        d_insts.remove(oldMod);
+        const int pos = d_depOrder.indexOf(oldMod);
+        Q_ASSERT( pos != -1 );
+        d_depOrder[pos] = newMod.data();
+        VirtualPath pack = oldMod->d_fullName;
+        pack.pop_back();
+        const int pos2 = d_packages[pack].indexOf(oldMod);
+        Q_ASSERT( pos2 != -1 );
+        d_packages[pack][pos2] = newMod.data();
+
+        resolveImport(newMod.data());
+
+        Validator::check(newMod.data(), bt, d_errs, this );
+
+#if 0
+        if( d_fillXref )
+        {
+            // we still get crashes in Ide::fillXref()
+            XRef::iterator i = d_xref.begin();
+            while( i != d_xref.end() )
+            {
+                // TODO: d_insts
+                Module* m = i.key()->getModule();
+                if( m == oldMod )
+                    i = d_xref.erase(i);
+                else
+                    i++;
+            }
+            CrossReferencer(this,newMod.data());
+            for( int i = 0; i < newMod->d_imports.size(); i++ )
+            {
+                if( !newMod->d_imports[i]->d_metaActuals.isEmpty() )
+                    CrossReferencer(this,newMod->d_imports[i]->d_mod.data());
+            }
+        }
+#endif
+    }
+    if( d_fillXref )
+    {
+        // this is a fix cost of about four times parsing/validation costs of one file,
+        // practically negligible; the benefit is no crash in Ide::fillXref() anymore
+        d_xref.clear();
+        foreach( Module* m, d_depOrder )
+        {
+            if( m == d_systemModule.data())
+                continue;
+            CrossReferencer(this,m);
+            for( int i = 0; i < m->d_imports.size(); i++ )
+            {
+                if( !m->d_imports[i]->d_metaActuals.isEmpty() )
+                    CrossReferencer(this,m->d_imports[i]->d_mod.data());
+            }
+        }
+    }
+    return true;
+}
+
 Ref<Module> Model::parseFile(const QString& filePath)
 {
     bool found;
     FileCache::Entry content = d_fc->getFile(filePath, &found );
+    Ref<Module> res;
     if( found )
     {
         QBuffer buf;
         buf.setData( content.d_code );
         buf.open(QIODevice::ReadOnly);
-        return parseFile( &buf, filePath );
+        res = parseFile( &buf, filePath, content.d_modified );
     }else
     {
         QFile file(filePath);
         if( !file.open(QIODevice::ReadOnly) )
             return 0;
-        return parseFile( &file, filePath );
+        res = parseFile( &file, filePath, QFileInfo(filePath).lastModified() );
     }
+    return res;
 }
 
-Ref<Module> Model::parseFile(QIODevice* in, const QString& filePath)
+Ref<Module> Model::parseFile(QIODevice* in, const QString& filePath, const QDateTime& ts)
 {
     Ob::Lexer lex;
     lex.setErrors(d_errs);
@@ -592,12 +672,45 @@ Ref<Module> Model::parseFile(QIODevice* in, const QString& filePath)
     lex.setIgnoreComments(true);
     lex.setPackComments(true);
     lex.setSensExt(true);
-    lex.setStream( in, filePath );
+    lex.setStream( in, filePath, ts );
     Obx::Parser p(&lex,d_errs);
     Ref<Module> res = p.parse(d_options);
     d_sloc += lex.getSloc();
     // qDebug() << filePath << "with" << lex.getSloc() << "SLOC";
     return res;
+}
+
+QDateTime Model::getModified(const QString& path) const
+{
+    bool ok;
+    const FileCache::Entry res = d_fc->getFile(path,&ok);
+    if( ok )
+        return res.d_modified;
+    QFileInfo info(path);
+    return info.lastModified();
+}
+
+void Model::fillBt(Validator::BaseTypes& bt)
+{
+    bt.d_noType = d_noType.data();
+    bt.d_boolType = d_boolType.data();
+    bt.d_charType = d_charType.data();
+    bt.d_byteType = d_byteType.data();
+    bt.d_intType = d_intType.data();
+    bt.d_int8Type = d_int8Type.data();
+    bt.d_shortType = d_shortType.data();
+    bt.d_longType = d_longType.data();
+    bt.d_realType = d_realType.data();
+    bt.d_longrealType = d_longrealType.data();
+    bt.d_setType = d_setType.data();
+    bt.d_stringType = d_stringType.data();
+    bt.d_byteArrayType = d_byteArrayType.data();
+    bt.d_nilType = d_nilType.data();
+    bt.d_voidType = d_voidType.data();
+    bt.d_anyType = d_anyType.data();
+    bt.d_anyRec = d_anyRec.data();
+    bt.d_wcharType = d_wcharType.data();
+    bt.d_wstringType = d_wstringType.data();
 }
 
 struct TreeShaker : public AstVisitor

@@ -1266,20 +1266,27 @@ int Project::findPackage(const VirtualPath& path) const
     return pos;
 }
 
-bool Project::reparse()
+bool Project::parse(bool reparse)
 {
     d_modules.clear();
-    PackageList fgs;
-    for( int i = 0; i < d_groups.size(); i++ )
+    bool res = false;
+    if( reparse )
     {
-        Package fg;
-        for( int j = 0; j < d_groups[i].d_files.size(); j++ )
-            fg.d_files << d_groups[i].d_files[j]->d_filePath;
-        fg.d_path = d_groups[i].d_package;
-        fgs << fg;
+        res = d_mdl->updateParse();
+    }else
+    {
+        PackageList fgs;
+        for( int i = 0; i < d_groups.size(); i++ )
+        {
+            Package fg;
+            for( int j = 0; j < d_groups[i].d_files.size(); j++ )
+                fg.d_files << d_groups[i].d_files[j]->d_filePath;
+            fg.d_path = d_groups[i].d_package;
+            fgs << fg;
+        }
+        d_mdl->setOptions(d_options);
+        res = d_mdl->parseFiles( fgs );
     }
-    d_mdl->setOptions(d_options);
-    const bool res = d_mdl->parseFiles( fgs );
     QList<Module*> mods = d_mdl->getDepOrder();
     foreach( Module* m, mods )
     {

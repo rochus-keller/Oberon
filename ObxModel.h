@@ -21,6 +21,7 @@
 */
 
 #include <Oberon/ObxParser.h>
+#include <Oberon/ObxValidator.h>
 
 namespace Ob
 {
@@ -36,8 +37,7 @@ namespace Obx
         void clear();
 
         bool parseFiles(const PackageList& files);
-        Ref<Module> parseFile( const QString& filePath );
-        Ref<Module> parseFile(QIODevice* , const QString& filePath);
+        bool updateParse();
         const QList<Module*>& getDepOrder() const { return d_depOrder; }
         quint32 getSloc() const { return d_sloc; }
         void setOptions(const QByteArrayList& o) { d_options = o; }
@@ -58,6 +58,7 @@ namespace Obx
         // Instantiator imp
         Module* instantiate( Module* generic, const MetaActuals& actuals );
         QList<Module*> instances( Module* generic );
+
     protected:
         void unbindFromGlobal();
         void fillGlobals();
@@ -68,6 +69,11 @@ namespace Obx
         bool error( const QString& file, const QString& msg );
         bool error( const Ob::Loc& loc, const QString& msg );
         bool warning( const Ob::Loc& loc, const QString& msg );
+        Ref<Module> parseFile( const QString& filePath );
+        Ref<Module> parseFile(QIODevice* , const QString& filePath, const QDateTime& ts);
+        QDateTime getModified(const QString& path) const;
+        void fillBt( Validator::BaseTypes& bt);
+
     private:
         struct CrossReferencer;
         Ref<Scope> d_globals;

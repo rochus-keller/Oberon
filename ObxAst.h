@@ -26,6 +26,7 @@
 #include <QSharedData>
 #include <QExplicitlySharedDataPointer>
 #include <QVariant>
+#include <QDateTime>
 #include <QSet>
 
 class QIODevice;
@@ -539,6 +540,7 @@ namespace Obx
         MetaParams d_metaParams;
         MetaActuals d_metaActuals; // set if this is an instance of a generic module
         Ob::RowCol d_begin;
+        QDateTime d_when; // file modification date when parsed last time
         bool d_isValidated;
         bool d_isDef; // DEFINITION module
         bool d_isExt;

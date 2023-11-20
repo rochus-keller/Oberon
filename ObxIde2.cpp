@@ -474,7 +474,7 @@ void Ide::loadFile(const QString& path)
 
     onCaption();
 
-    onParse();
+    compile(true);
 }
 
 void Ide::logMessage(const QString& msg, LogLevel l, bool addNewLine)
@@ -854,13 +854,13 @@ void Ide::createMenuBar()
 void Ide::onParse()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() && d_status == Idle);
-    compile();
+    compile(QApplication::keyboardModifiers() == Qt::ControlModifier);
 }
 
 void Ide::onCompile()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() &&  d_status == Idle);
-    compile(true);
+    compile(QApplication::keyboardModifiers() == Qt::ControlModifier,true);
 }
 
 void Ide::onRun()
@@ -903,7 +903,7 @@ void Ide::onNewPro()
 
     d_pro->createNew();
     d_tab->onCloseAll();
-    compile();
+    compile(true);
 
 
     d_pro->saveTo(fileName);
@@ -928,7 +928,7 @@ void Ide::onOpenPro()
     clear();
     d_pro->loadFrom(fileName);
 
-    compile();
+    compile(true);
 }
 
 void Ide::onSavePro()
@@ -1023,7 +1023,7 @@ void Ide::onExportIl()
     if (dirPath.isEmpty())
         return;
 
-    if( !compile(false) ) // otherwise allocated flag is already set after one generator run
+    if( !compile(false,false) ) // otherwise allocated flag is already set after one generator run
         return;
     if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging && d_ovflCheck, dirPath ) )
         QMessageBox::critical(this,tr("Save IL"),tr("There was an error when generating IL; "
@@ -1039,7 +1039,7 @@ void Ide::onExportC()
     if (dirPath.isEmpty())
         return;
 
-    if( !compile(false) ) // otherwise allocated flag is already set after one generator run
+    if( !compile(false,false) ) // otherwise allocated flag is already set after one generator run
         return;
     if( !CGen2::translateAll(d_pro, d_debugging, dirPath ) )
         QMessageBox::critical(this,tr("Save C"),tr("There was an error when generating C; "
@@ -1534,7 +1534,7 @@ void Ide::onAddFiles()
         if( !d_pro->addFile(f,path) )
             qWarning() << "cannot add module" << f;
     }
-    compile();
+    compile(true);
 }
 
 void Ide::onNewModule()
@@ -1596,7 +1596,7 @@ void Ide::onNewModule()
 
     if( !d_pro->addFile(filePath,path) )
         qWarning() << "cannot add module" << filePath;
-    compile();
+    compile(true);
 }
 
 void Ide::onAddDir()
@@ -1654,7 +1654,7 @@ void Ide::onRemoveFile()
     if( !d_pro->removeFile( m->d_file ) )
         qWarning() << "cannot remove module" << m->d_name;
     else
-        compile();
+        compile(true);
 }
 
 void Ide::onRemoveDir()
@@ -1740,6 +1740,10 @@ bool Ide::checkSaved(const QString& title)
 
 static bool preloadLib( Project* pro, const QByteArray& name )
 {
+    bool found;
+    pro->getFc()->getFile(name, &found);
+    if( found )
+        return true;
     QFile f( QString(":/oakwood/%1.Def" ).arg(name.constData() ) );
     if( !f.open(QIODevice::ReadOnly) )
     {
@@ -1750,7 +1754,7 @@ static bool preloadLib( Project* pro, const QByteArray& name )
     return true;
 }
 
-bool Ide::compile(bool doGenerate )
+bool Ide::compile(bool all, bool doGenerate )
 {
     for( int i = 0; i < d_tab->count(); i++ )
     {
@@ -1775,7 +1779,7 @@ bool Ide::compile(bool doGenerate )
     }
     const QTime start = QTime::currentTime();
     d_status = Compiling;
-    const bool res = d_pro->reparse();
+    const bool res = d_pro->parse(!all);
     d_status = Idle;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     if( res && doGenerate )
@@ -3492,7 +3496,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.98");
+    a.setApplicationVersion("0.9.99");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
