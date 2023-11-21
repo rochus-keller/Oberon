@@ -1784,7 +1784,7 @@ bool Ide::compile(bool all, bool doGenerate )
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     if( res && doGenerate )
     {
-       if( !generate() )
+       if( !generate(all) )
            QMessageBox::critical(this,tr("Compiler"),tr("There was an error when generating an assembly; "
                                                         "see Output window for more information"));
     }
@@ -1797,7 +1797,7 @@ bool Ide::compile(bool all, bool doGenerate )
     return true;
 }
 
-bool Ide::generate()
+bool Ide::generate(bool forceAll)
 {
     if( d_status != Idle )
         return false;
@@ -1830,7 +1830,7 @@ bool Ide::generate()
 
     const QTime start = QTime::currentTime();
     d_status = Generating;
-    const bool ok = CilGen::translateAll(d_pro, how, d_debugging && d_ovflCheck, buildPath );
+    const bool ok = CilGen::translateAll(d_pro, how, d_debugging && d_ovflCheck, buildPath, forceAll );
     qDebug() << "generated in" << start.msecsTo(QTime::currentTime()) << "[ms]";
 
     if( ok && how == CilGen::Fastasm )
@@ -3496,7 +3496,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.99");
+    a.setApplicationVersion("0.9.100");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

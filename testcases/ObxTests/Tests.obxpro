@@ -13,11 +13,15 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/ByteInt8Compat.obx
-1\RelPath=ByteInt8Compat.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Pcall2.obx
-2\RelPath=Pcall2.obx
-size=1
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic7.obx
+1\RelPath=Generic7.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic6.obx
+2\RelPath=Generic6.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest9.obx
+3\RelPath=GenericTest9.obx
+4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest9.obx
+4\RelPath=GenericTest9.obx
+size=3
 
 [Packages]
 1\Name=@ByteArray()

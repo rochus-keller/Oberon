@@ -89,11 +89,14 @@ struct Model::CrossReferencer : public AstVisitor
         d_mod->d_helper.append( e1 );
         d_mdl->d_xref[me].append( e1 );
 
-        if( !me->d_mod.isNull() )
+        Module* m = me->d_tmpl.data();
+        if( m == 0 )
+            m = me->d_mod.data();
+        if( m )
         {
-            IdentLeaf* e2 = new IdentLeaf( me->d_mod.data(), me->d_loc, d_mod, 0, ImportRole );
+            IdentLeaf* e2 = new IdentLeaf( m, me->d_loc, d_mod, 0, ImportRole );
             d_mod->d_helper.append( e2 );
-            d_mdl->d_xref[me->d_mod.data()].append( e2 );
+            d_mdl->d_xref[m].append( e2 );
         }
 
         foreach( const MetaActual& a, me->d_metaActuals )
@@ -584,7 +587,7 @@ bool Model::updateParse()
         newMod->d_fullName = oldMod->d_fullName;
         newMod->d_scope = oldMod->d_scope;
 
-        // Ref<Module> tmp(oldMod); // keep a refcount
+        Ref<Module> tmp(oldMod); // keep a refcount
         d_modules[newMod->d_fullName] = newMod; // replace existing
         d_insts.remove(oldMod);
         const int pos = d_depOrder.indexOf(oldMod);
@@ -596,6 +599,19 @@ bool Model::updateParse()
         Q_ASSERT( pos2 != -1 );
         d_packages[pack][pos2] = newMod.data();
 
+        for(int i = 0; i < oldMod->d_imports.size(); i++ )
+        {
+            Module* dep = oldMod->d_imports[i]->d_tmpl.data();
+            if( dep == 0 )
+                dep = oldMod->d_imports[i]->d_mod.data();
+            if( dep == 0 )
+                continue;
+            QList<Module*> usedBy;
+            for(int j = 0; j < dep->d_usedBy.size(); j++ )
+                if( dep->d_usedBy[j] != oldMod )
+                    usedBy += dep->d_usedBy[j];
+            dep->d_usedBy = usedBy;
+        }
         resolveImport(newMod.data());
 
         Validator::check(newMod.data(), bt, d_errs, this );
@@ -1313,7 +1329,10 @@ bool Model::resolveImport(Module* m)
                 }
             }
         }
-        if( !i->d_mod.isNull() )
+        if( !i->d_mod.isNull() &&
+                i->d_mod->d_metaActuals.isEmpty() &&
+                m->d_metaActuals.isEmpty() &&
+                !i->d_mod->d_usedBy.contains(m) ) // generic insts could produce doublettes
             i->d_mod->d_usedBy.append(m);
     }
     return hasErrors;

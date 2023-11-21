@@ -1,0 +1,31 @@
+module GenericTest9
+
+import 
+  L := Generic6(integer,eq1)
+  H := Generic7(L.List,eq2)
+
+type 
+  proc eq1(in lhs,rhs: integer):boolean
+  begin
+    return lhs = rhs
+  end eq1
+  
+  proc eq2(in lhs,rhs: L.List):boolean
+  begin
+    return false;
+  end eq2
+var
+  l: H.List
+  i: integer
+begin
+  println("Begin GenericTest9")
+  new(l)
+  //l.value := 33
+  new(l.next)
+  //l.next.value := 44
+  new(l.next.next)
+  //l.next.next.value := 55
+  //i := 44
+  //if l.contains(i) then println(i) end
+  println("End GenericTest9")
+end GenericTest9

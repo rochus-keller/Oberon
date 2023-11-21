@@ -89,7 +89,7 @@ namespace Obx
         void closeEvent(QCloseEvent* event);
         bool checkSaved( const QString& title );
         bool compile(bool all = true, bool doGenerate = false);
-        bool generate();
+        bool generate(bool forceAll);
         bool run();
         void fillMods();
         void showDocument( const QString& filePath );

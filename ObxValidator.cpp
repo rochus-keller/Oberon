@@ -3364,7 +3364,10 @@ struct ValidatorImp : public AstVisitor
                     qWarning() << "Validator::visit(Import): unexpected generic param type" << formal->getTagName();
             }
             if( me->d_mod )
+            {
+                me->d_tmpl = me->d_mod;
                 me->d_mod = insts->instantiate( me->d_mod.data(), me->d_metaActuals );
+            }
             if( me->d_mod.isNull() )
                 return; // already reported
             if( !me->d_mod->d_isValidated )

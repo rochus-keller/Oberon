@@ -457,6 +457,7 @@ namespace Obx
         VirtualPath d_path;
         Ob::RowCol d_aliasPos; // invalid if no alias present
         Ref<Module> d_mod;
+        Ref<Module> d_tmpl; // becomes d_mod before latter is instantiated
         MetaActuals d_metaActuals;
         int getTag() const { return T_Import; }
         void accept(AstVisitor* v) { v->visit(this); }
