@@ -726,7 +726,7 @@ void Ide::createModsMenu()
     pop->addCommand( "Set Oberon File System Root...", this, SLOT( onWorkingDir() ) );
     pop->addSeparator();
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
-    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+B"), false );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
@@ -740,7 +740,7 @@ void Ide::createModsMenu()
     new Gui::AutoShortcut( tr("CTRL+S"), this, this, SLOT(onSaveFile()) );
     new Gui::AutoShortcut( tr("CTRL+R"), this, this, SLOT(onRun()) );
     new Gui::AutoShortcut( tr("CTRL+T"), this, this, SLOT(onParse()) );
-    new Gui::AutoShortcut( tr("CTRL+SHIFT+T"), this, this, SLOT(onCompile()) );
+    new Gui::AutoShortcut( tr("CTRL+B"), this, this, SLOT(onCompile()) );
     new Gui::AutoShortcut( tr(OBN_GOBACK_SC), this, this, SLOT(handleGoBack()) );
     new Gui::AutoShortcut( tr(OBN_GOFWD_SC), this, this, SLOT(handleGoForward()) );
     new Gui::AutoShortcut( tr(OBN_TOGBP_SC), this, this, SLOT(onToggleBreakPt()) );
@@ -806,7 +806,7 @@ void Ide::createMenuBar()
 
     pop = new Gui::AutoMenu( tr("Build && Run"), this );
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
-    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+B"), false );
     pop->addCommand( "Suppress Warnings", this, SLOT(onNoWarnings()) );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
@@ -854,13 +854,13 @@ void Ide::createMenuBar()
 void Ide::onParse()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() && d_status == Idle);
-    compile(QApplication::keyboardModifiers() == Qt::ControlModifier);
+    compile(QApplication::keyboardModifiers() == Qt::ShiftModifier);
 }
 
 void Ide::onCompile()
 {
     ENABLED_IF( !d_pro->getFiles().isEmpty() &&  d_status == Idle);
-    compile(QApplication::keyboardModifiers() == Qt::ControlModifier,true);
+    compile(QApplication::keyboardModifiers() == Qt::ShiftModifier,true);
 }
 
 void Ide::onRun()
@@ -2073,7 +2073,7 @@ void Ide::createModsMenu(Ide::Editor* edit)
     Gui::AutoMenu* pop = new Gui::AutoMenu( edit, true );
     pop->addCommand( "Save", this, SLOT(onSaveFile()), tr("CTRL+S"), false );
     pop->addSeparator();
-    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+SHIFT+T"), false );
+    pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+B"), false );
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
     pop->addCommand( "Export C...", this, SLOT(onExportC()) );
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
@@ -3496,7 +3496,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.100");
+    a.setApplicationVersion("0.9.101");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

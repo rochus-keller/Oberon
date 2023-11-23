@@ -16,7 +16,7 @@ type
   end eq2
 var
   l: H.List
-  i: integer
+  i: L.List
 begin
   println("Begin GenericTest9")
   new(l)
@@ -25,7 +25,7 @@ begin
   //l.next.value := 44
   new(l.next.next)
   //l.next.next.value := 55
-  //i := 44
-  //if l.contains(i) then println(i) end
+  new(i)
+  if l.contains(i) then println(i) end
   println("End GenericTest9")
 end GenericTest9

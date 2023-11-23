@@ -557,6 +557,10 @@ bool Model::updateParse()
     Validator::BaseTypes bt;
     fillBt(bt);
 
+    d_insts.clear(); // otherwise references to oldMod might remain left in d_metaActuals
+    // TODO: maybe this can be done incrementally as well to avoid redundant parse and redundant copies of insts
+    // NOTE that there might be a circular dependency of module and inst in case inst has actual from module
+
     foreach( Module* oldMod, d_depOrder )
     {
         if( oldMod == d_systemModule.data() || !oldMod->d_metaActuals.isEmpty() )
@@ -566,7 +570,7 @@ bool Model::updateParse()
         const QDateTime oldTs = oldMod->d_when;
         const QDateTime newTs = getModified(filePath);
 
-        if( oldTs.isValid() && newTs <= oldTs )
+        if( !oldMod->d_hasErrors && oldTs.isValid() && newTs <= oldTs )
             continue;
 
         foreach( Module* mm, oldMod->d_usedBy )
@@ -589,7 +593,6 @@ bool Model::updateParse()
 
         Ref<Module> tmp(oldMod); // keep a refcount
         d_modules[newMod->d_fullName] = newMod; // replace existing
-        d_insts.remove(oldMod);
         const int pos = d_depOrder.indexOf(oldMod);
         Q_ASSERT( pos != -1 );
         d_depOrder[pos] = newMod.data();
