@@ -537,27 +537,33 @@ Token Lexer::number()
 
 void Lexer::parseComment( const QByteArray& str, int& pos, int& level )
 {
-    enum State { Idle, Lpar, Star } state = Idle;
+    enum State { Idle, Lb, Star } state = Idle;
     while( pos < str.size() )
     {
+        const char* tmp = str.constData() + pos;
         const char c = str[pos++];
         switch( state )
         {
         case Idle:
             if( c == '(')
-                state = Lpar;
+                state = Lb;
             else if( c == '*' )
                 state = Star;
             break;
-        case Lpar:
+        case Lb:
             if( c == '*' )
+            {
                 level++;
-            state = Idle;
+                state = Idle;
+            }else if( c != '(')
+                state = Idle;
             break;
         case Star:
             if( c == ')')
+            {
                 level--;
-            else if( c != '*' )
+                state = Idle;
+            }else if( c != '*' )
                 state = Idle;
             if( level <= 0 )
                 return;

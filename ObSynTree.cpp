@@ -51,15 +51,9 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_RecordType: return "RecordType";
 		case R_RepeatStatement: return "RepeatStatement";
 		case R_ReturnStatement: return "ReturnStatement";
-		case R_ReturnType: return "ReturnType";
 		case R_SimpleExpression: return "SimpleExpression";
 		case R_StatementSequence: return "StatementSequence";
-		case R_SysAttr: return "SysAttr";
-		case R_SystemAttrs: return "SystemAttrs";
-		case R_TypeActual: return "TypeActual";
-		case R_TypeActuals: return "TypeActuals";
 		case R_TypeDeclaration: return "TypeDeclaration";
-		case R_TypeParams: return "TypeParams";
 		case R_VariableDeclaration: return "VariableDeclaration";
 		case R_WhileStatement: return "WhileStatement";
 		case R_WithStatement: return "WithStatement";
@@ -70,7 +64,6 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_designator: return "designator";
 		case R_directive_: return "directive";
 		case R_element: return "element";
-		case R_enumeration: return "enumeration";
 		case R_expression: return "expression";
 		case R_factor: return "factor";
 		case R_hexstringdelim_: return "hexstringdelim";
@@ -80,6 +73,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_literal: return "literal";
 		case R_module: return "module";
 		case R_number: return "number";
+		case R_obnx_: return "obnx";
 		case R_qualident: return "qualident";
 		case R_relation: return "relation";
 		case R_selector: return "selector";

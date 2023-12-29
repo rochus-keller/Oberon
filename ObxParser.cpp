@@ -24,8 +24,9 @@
 using namespace Obx;
 using namespace Ob;
 
-#if !defined(OB_OBNX) || !defined(OB_OBN2)
-#error "OB_OBNX or OB_OBN2 must be defined for ObxParser"
+#if !defined(OB_OBN2)
+#error "OB_OBN2 must be defined for ObxParser"
+// OB_OBNX not necessary since keywords are also defined in OBN2
 #endif
 
 #define MATCH( tok, msg ) \

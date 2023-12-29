@@ -105,6 +105,7 @@ public:
             return false;
 
         d_hl->setEnableExt(isExt);
+#if 0
         if( Lexer::isV4File(&in) )
         {
             setPlainText( Lexer::readV4Text(&in) );
@@ -117,6 +118,10 @@ public:
             setPlainText( QString::fromLatin1(buf.readAll()) );
         }else
             setPlainText( QString::fromLatin1(in.readAll()) );
+#else
+        const QByteArray text = Lexer::extractText(&in);
+        setPlainText( QString::fromUtf8(text) );
+#endif
         return true;
     }
 

@@ -78,6 +78,7 @@ namespace Ob {
 			case Tok_UNSAFE: return "UNSAFE";
 			case Tok_UNTIL: return "UNTIL";
 			case Tok_VAR: return "VAR";
+			case Tok_WEAK: return "WEAK";
 			case Tok_WHILE: return "WHILE";
 			case Tok_WITH: return "WITH";
 			case Tok_ident: return "ident";
@@ -167,6 +168,7 @@ namespace Ob {
 			case Tok_UNSAFE: return "Tok_UNSAFE";
 			case Tok_UNTIL: return "Tok_UNTIL";
 			case Tok_VAR: return "Tok_VAR";
+			case Tok_WEAK: return "Tok_WEAK";
 			case Tok_WHILE: return "Tok_WHILE";
 			case Tok_WITH: return "Tok_WITH";
 			case Tok_ident: return "Tok_ident";
@@ -653,6 +655,13 @@ namespace Ob {
 			break;
 		case 'W':
 			switch( at(str,i+1) ){
+			case 'E':
+				if( at(str,i+2) == 'A' ){
+					if( at(str,i+3) == 'K' ){
+						res = Tok_WEAK; i += 4;
+					}
+				}
+				break;
 			case 'H':
 				if( at(str,i+2) == 'I' ){
 					if( at(str,i+3) == 'L' ){

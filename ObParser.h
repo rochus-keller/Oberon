@@ -93,18 +93,19 @@ private:
 		_T_UNSAFE=73,
 		_T_UNTIL=74,
 		_T_VAR=75,
-		_T_WHILE=76,
-		_T_WITH=77,
-		_T_Specials_=78,
-		_T_ident=79,
-		_T_integer=80,
-		_T_real=81,
-		_T_string=82,
-		_T_hexchar=83,
-		_T_hexstring=84,
-		_T_Comment=85,
-		_T_Eof=86,
-		_T_MaxToken_=87
+		_T_WEAK=76,
+		_T_WHILE=77,
+		_T_WITH=78,
+		_T_Specials_=79,
+		_T_ident=80,
+		_T_integer=81,
+		_T_real=82,
+		_T_string=83,
+		_T_hexchar=84,
+		_T_hexstring=85,
+		_T_Comment=86,
+		_T_Eof=87,
+		_T_MaxToken_=88
 	};
 	int maxT;
 
@@ -164,17 +165,12 @@ Ob::SynTree d_root;
 	void TypeDeclaration();
 	void type();
 	void NamedType();
-	void enumeration();
 	void ArrayType();
 	void RecordType();
 	void PointerType();
 	void ProcedureType();
-	void TypeParams();
-	void TypeActuals();
-	void TypeActual();
 	void LengthList();
 	void length();
-	void vlength();
 	void BaseType();
 	void FieldListSequence();
 	void FieldList();
@@ -220,13 +216,10 @@ Ob::SynTree d_root;
 	void ProcedureBody();
 	void DeclarationSequence();
 	void DeclarationSequence2();
-	void SystemAttrs();
 	void FPSection();
-	void ReturnType();
 	void FormalType();
 	void ImportList();
 	void import();
-	void SysAttr();
 
 	void Parse();
 

@@ -5,7 +5,6 @@
 
 #include <QByteArray>
 
-#define OB_OBNX
 #define OB_OBN2
 
 namespace Ob {
@@ -88,6 +87,7 @@ namespace Ob {
 		Tok_UNSAFE,
 		Tok_UNTIL,
 		Tok_VAR,
+		Tok_WEAK,
 		Tok_WHILE,
 		Tok_WITH,
 
