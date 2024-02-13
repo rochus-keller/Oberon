@@ -116,12 +116,6 @@ struct ValidatorImp : public AstVisitor
         }
         foreach( const Ref<Named>& n, me->d_order )
         {
-            if( n->getTag() == Thing::T_Procedure )
-                registerBoundProc( cast<Procedure*>(n.data()) );
-            // add bound proc to its record as soon as possible because generic imports could access it
-        }
-        foreach( const Ref<Named>& n, me->d_order )
-        {
             if( n->getTag() == Thing::T_NamedType && n->d_type && n->d_type->isStructured(true) )
             {
                 n->accept(this);
@@ -129,6 +123,13 @@ struct ValidatorImp : public AstVisitor
                 if( td && td->getTag() == Thing::T_Record )
                     recs.append(cast<Record*>(td));
             }
+        }
+        foreach( const Ref<Named>& n, me->d_order )
+        {
+            if( n->getTag() == Thing::T_Procedure )
+                registerBoundProc( cast<Procedure*>(n.data()) );
+            // add bound proc to its record as soon as possible because generic imports could access it
+            // must be after structured NamedTypes, otherwise bound to pointer to record not recognized
         }
         QSet<Record*> circular = Record::calcDependencyOrder(recs);
         if( !circular.isEmpty() )

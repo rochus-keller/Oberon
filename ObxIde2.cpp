@@ -3496,7 +3496,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.101");
+    a.setApplicationVersion("0.9.102");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

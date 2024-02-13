@@ -23,6 +23,7 @@ begin
 	end
 	println("inc dec:")
 	t := B
+	// t := I.blue gives an error as expected
 	inc(t)
 	println( t )
 	t := D

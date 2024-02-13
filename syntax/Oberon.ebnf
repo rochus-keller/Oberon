@@ -39,7 +39,7 @@
 // without any define it's Oberon-07 syntax; Oberon 90 syntax requires OBN2
 #define OBN2 // Oberon-2
 // combine OBN2 with either OBNX or BBOX
-// #define OBNX // Oberon+
+#define OBNX // Oberon+
 // #define BBOX // Component Pascal
 
 /// Top
@@ -236,7 +236,6 @@ designator ::= qualident {selector}
 selector ::= '.' ident | '[' ExpList ']' | '^'  
 	| '(' [ ExpList ] ')' // substitute for (qualident) and ActualParameters
 	// original: | '(' qualident ')'  // typeguard, nur unterscheidbar von ActualParams wenn qualident ein Type ist
-	// Man also Oberon in der Originalsyntax ohne Typeninformation nicht parsen!
 
 ExpList ::= expression {',' expression}
 
@@ -493,7 +492,7 @@ FormalParameters ::= '(' [ FPSection {
 #endif
 
 #ifdef OBNX
-ReturnType ::= type // too complicated: NamedType | ( POINTER TO | '^'|'*'| CPOINTER TO) NamedType
+ReturnType ::= type // actually: NamedType | ( POINTER TO | '^'|'*'| CPOINTER TO) NamedType
 #endif
 
 FPSection ::= [ VAR 

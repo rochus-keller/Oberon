@@ -13,14 +13,12 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic7.obx
-1\RelPath=Generic7.obx
-2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Generic6.obx
-2\RelPath=Generic6.obx
-3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest9.obx
-3\RelPath=GenericTest9.obx
-4\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/GenericTest9.obx
-4\RelPath=GenericTest9.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Enum1.obx
+1\RelPath=Enum1.obx
+2\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Enum2.obx
+2\RelPath=Enum2.obx
+3\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/Imported1b.obx
+3\RelPath=Imported1b.obx
 size=3
 
 [Packages]
