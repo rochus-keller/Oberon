@@ -177,6 +177,7 @@ namespace Obx
         void onSetInt16();
         void onNoWarnings();
         void onConvertAllToUtf8();
+        void onIncremental();
     private:
         class DocTab;
         DocTab* d_tab;
@@ -210,6 +211,7 @@ namespace Obx
         bool d_suspended; // we are in debugger but code is suspended
         bool d_breakOnExceptions;
         bool d_noWarnings;
+        bool d_incremental;
         quint32 d_curThread;
         enum Status { Idle, Compiling, Generating, Running };
         Status d_status;

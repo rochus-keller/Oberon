@@ -1266,11 +1266,11 @@ int Project::findPackage(const VirtualPath& path) const
     return pos;
 }
 
-bool Project::parse(bool reparse)
+bool Project::parse(bool incremental)
 {
     d_modules.clear();
     bool res = false;
-    if( reparse )
+    if( incremental )
     {
         res = d_mdl->updateParse();
     }else

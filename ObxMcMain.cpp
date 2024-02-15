@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Rochus Keller");
     a.setOrganizationDomain("https://github.com/rochus-keller/Oberon");
     a.setApplicationName("OBXMC");
-    a.setApplicationVersion("2023-10-14");
+    a.setApplicationVersion("2024-02-15");
 
     QTextStream out(stdout);
     QTextStream err(stderr);
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 
     QTime start = QTime::currentTime();
     pro.setOptions(options);
-    if( !pro.reparse() )
+    if( !pro.parse() )
         return -1;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     start = QTime::currentTime();

@@ -3076,7 +3076,7 @@ struct ObxCilGenImp : public AstVisitor
             if( pt->d_typeBound && !superCall )
                 line(me->d_loc).callvirt_(memberRef(func),pt->d_formals.size(),!pt->d_return.isNull()); // we dont support virtual funcs with varargs
             else
-                line(me->d_loc).call_(memberRef(func,varargs),pt->d_formals.size(),!pt->d_return.isNull());
+                line(me->d_loc).call_(memberRef(func,varargs),pt->d_formals.size(),!pt->d_return.isNull(), pt->d_typeBound);
         }else
         {
             QByteArray ret = formatType(pt->d_return.data(), pt->d_unsafe);

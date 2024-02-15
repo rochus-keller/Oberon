@@ -103,7 +103,7 @@ namespace Obx
         bool addPackagePath(const VirtualPath& path );
         bool removePackagePath( const VirtualPath& path );
 
-        bool parse(bool reparse = false);
+        bool parse(bool incremental = false);
 
         const FileHash& getFiles() const { return d_files; }
         const FileGroups& getFileGroups() const { return d_groups; }

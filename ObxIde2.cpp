@@ -380,7 +380,7 @@ Ide::Ide(QWidget *parent)
     : QMainWindow(parent),d_lock(false),d_filesDirty(false),d_pushBackLock(false),
       d_lock2(false),d_lock3(false),d_lock4(false),d_debugging(false),d_ovflCheck(true),d_mode(LineMode),
       d_suspended(false),d_curRow(0),d_curCol(0),d_curThread(0),d_status(Idle),
-      d_breakOnExceptions(false),d_noWarnings(false)
+      d_breakOnExceptions(false),d_noWarnings(false),d_incremental(false)
 {
     s_this = this;
 
@@ -808,6 +808,7 @@ void Ide::createMenuBar()
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+B"), false );
     pop->addCommand( "Suppress Warnings", this, SLOT(onNoWarnings()) );
+    pop->addCommand( "Incremental Build (alpha!)", this, SLOT(onIncremental()) );
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
@@ -1025,7 +1026,7 @@ void Ide::onExportIl()
 
     if( !compile(false,false) ) // otherwise allocated flag is already set after one generator run
         return;
-    if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging && d_ovflCheck, dirPath ) )
+    if( !CilGen::translateAll(d_pro, CilGen::Ilasm, d_debugging && d_ovflCheck, dirPath, true ) )
         QMessageBox::critical(this,tr("Save IL"),tr("There was an error when generating IL; "
                                                     "see Output window for more information"));
 }
@@ -1756,6 +1757,8 @@ static bool preloadLib( Project* pro, const QByteArray& name )
 
 bool Ide::compile(bool all, bool doGenerate )
 {
+    if( !d_incremental )
+        all = true;
     for( int i = 0; i < d_tab->count(); i++ )
     {
         Editor* e = static_cast<Editor*>( d_tab->widget(i) );
@@ -3490,13 +3493,19 @@ void Ide::onConvertAllToUtf8()
     }
 }
 
+void Ide::onIncremental()
+{
+    CHECKED_IF(true,d_incremental);
+    d_incremental = !d_incremental;
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.102");
+    a.setApplicationVersion("0.9.103");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
