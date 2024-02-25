@@ -1,10 +1,10 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
 DEFINITION XYplane;
 CONST draw = 1; erase = 0;
-VAR X-, Y-, W-, H-: INTEGER;
+VAR X-, Y-, W-, H-: INT32;
 PROCEDURE Open;
 PROCEDURE Clear;
-PROCEDURE Dot (x, y, mode: INTEGER);
-PROCEDURE IsDot (x, y: INTEGER): BOOLEAN;
+PROCEDURE Dot (x, y, mode: INT32);
+PROCEDURE IsDot (x, y: INT32): BOOLEAN;
 PROCEDURE Key (): CHAR;
 END XYplane.

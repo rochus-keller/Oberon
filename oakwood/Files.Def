@@ -1,44 +1,44 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
 (* replaced all SYSTEM.BYTE by BYTE, removed SYSTEM import; 
-   replaced LONGINT by INTEGER for position and status info; added Handle type; fixed typos *)
+   replaced INT64 by INT32 for position and status info; added Handle type; fixed typos *)
 DEFINITION Files;
 TYPE
 	Handle = RECORD END;
 	File = POINTER TO Handle;
 	Rider = RECORD
 		eof: BOOLEAN;
-		res: INTEGER;
+		res: INT32;
 	END;
 PROCEDURE Old (IN name: ARRAY OF CHAR): File;
 PROCEDURE New (IN name: ARRAY OF CHAR): File;
 PROCEDURE Register (f: File);
 PROCEDURE Close (f: File);
 PROCEDURE Purge (f: File);
-PROCEDURE Delete (IN name: ARRAY OF CHAR; VAR res: INTEGER);
-PROCEDURE Rename (IN old, new: ARRAY OF CHAR;VAR res: INTEGER);
-PROCEDURE Length (f: File): INTEGER;
-PROCEDURE GetDate (f: File; VAR t, d: INTEGER);
-PROCEDURE Set (VAR r: Rider; f: File; pos: INTEGER);
-PROCEDURE Pos (VAR r: Rider): INTEGER;
+PROCEDURE Delete (IN name: ARRAY OF CHAR; VAR res: INT32);
+PROCEDURE Rename (IN old, new: ARRAY OF CHAR;VAR res: INT32);
+PROCEDURE Length (f: File): INT32;
+PROCEDURE GetDate (f: File; VAR t, d: INT32);
+PROCEDURE Set (VAR r: Rider; f: File; pos: INT32);
+PROCEDURE Pos (VAR r: Rider): INT32;
 PROCEDURE Base (VAR r: Rider): File;
 PROCEDURE Read (VAR r: Rider; VAR x: BYTE);
-PROCEDURE ReadInt (VAR R: Rider; VAR x: INTEGER);
-PROCEDURE ReadLInt (VAR R: Rider; VAR x: LONGINT);
+PROCEDURE ReadInt (VAR R: Rider; VAR x: INT32);
+PROCEDURE ReadLInt (VAR R: Rider; VAR x: INT64);
 PROCEDURE ReadReal (VAR R: Rider; VAR x: REAL);
 PROCEDURE ReadLReal (VAR R: Rider; VAR x: LONGREAL);
-PROCEDURE ReadNum (VAR R: Rider; VAR x: INTEGER);
+PROCEDURE ReadNum (VAR R: Rider; VAR x: INT32);
 PROCEDURE ReadString (VAR R: Rider; VAR x: ARRAY OF CHAR);
 PROCEDURE ReadSet (VAR R: Rider; VAR x: SET);
 PROCEDURE ReadBool (VAR R: Rider; VAR x: BOOLEAN );
-PROCEDURE ReadBytes (VAR r: Rider; VAR x: ARRAY OF BYTE; n: INTEGER);
+PROCEDURE ReadBytes (VAR r: Rider; VAR x: ARRAY OF BYTE; n: INT32);
 PROCEDURE Write (VAR r: Rider; x: BYTE);
-PROCEDURE WriteInt (VAR R: Rider; x: INTEGER);
-PROCEDURE WriteLInt (VAR R: Rider; x: LONGINT);
+PROCEDURE WriteInt (VAR R: Rider; x: INT32);
+PROCEDURE WriteLInt (VAR R: Rider; x: INT64);
 PROCEDURE WriteReal (VAR R: Rider; x: REAL);
 PROCEDURE WriteLReal (VAR R: Rider; x: LONGREAL);
-PROCEDURE WriteNum (VAR R: Rider; x: INTEGER);
+PROCEDURE WriteNum (VAR R: Rider; x: INT32);
 PROCEDURE WriteString (VAR R: Rider; IN x: ARRAY OF CHAR);
 PROCEDURE WriteSet (VAR R: Rider; x: SET);
 PROCEDURE WriteBool (VAR R: Rider; x: BOOLEAN);
-PROCEDURE WriteBytes (VAR r: Rider; VAR x: ARRAY OF BYTE;n: INTEGER);
+PROCEDURE WriteBytes (VAR r: Rider; VAR x: ARRAY OF BYTE;n: INT32);
 END Files.

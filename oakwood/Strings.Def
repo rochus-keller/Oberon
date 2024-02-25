@@ -1,11 +1,11 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
 DEFINITION Strings;
-PROCEDURE Length (IN s: ARRAY OF CHAR): INTEGER;
-PROCEDURE Insert (IN source: ARRAY OF CHAR; pos: INTEGER; VAR dest: ARRAY OF CHAR);
+PROCEDURE Length (IN s: ARRAY OF CHAR): INT32;
+PROCEDURE Insert (IN source: ARRAY OF CHAR; pos: INT32; VAR dest: ARRAY OF CHAR);
 PROCEDURE Append (IN extra: ARRAY OF CHAR; VAR dest: ARRAY OF CHAR);
-PROCEDURE Delete (VAR s: ARRAY OF CHAR; pos, n: INTEGER);
-PROCEDURE Replace (IN source: ARRAY OF CHAR; pos: INTEGER; VAR dest: ARRAY OF CHAR);
-PROCEDURE Extract (IN source: ARRAY OF CHAR; pos, n: INTEGER; VAR dest: ARRAY OF CHAR);
-PROCEDURE Pos (IN pattern, s: ARRAY OF CHAR; pos: INTEGER): INTEGER;
+PROCEDURE Delete (VAR s: ARRAY OF CHAR; pos, n: INT32);
+PROCEDURE Replace (IN source: ARRAY OF CHAR; pos: INT32; VAR dest: ARRAY OF CHAR);
+PROCEDURE Extract (IN source: ARRAY OF CHAR; pos, n: INT32; VAR dest: ARRAY OF CHAR);
+PROCEDURE Pos (IN pattern, s: ARRAY OF CHAR; pos: INT32): INT32;
 PROCEDURE Cap (VAR s: ARRAY OF CHAR);
 END Strings.

@@ -1,10 +1,10 @@
 (* Source: The Oakwood Guidelines for Oberon-2 Compiler Developers, Revision: 1A First Issue, Oct. 1995 *)
-(* replaced all LONGINT by INTEGER, TimeUnit is CONST *)
+(* replaced all LONGINT by INT32, TimeUnit is CONST *)
 DEFINITION Input;
 	CONST TimeUnit = 1000000;
-	PROCEDURE Available (): INTEGER;
+	PROCEDURE Available (): INT32;
 	PROCEDURE Read (VAR ch: CHAR);
-	PROCEDURE Mouse (VAR keys: SET; VAR x, y: INTEGER);
-	PROCEDURE SetMouseLimits (w, h: INTEGER);
-	PROCEDURE Time (): INTEGER;
+	PROCEDURE Mouse (VAR keys: SET; VAR x, y: INT32);
+	PROCEDURE SetMouseLimits (w, h: INT32);
+	PROCEDURE Time (): INT32;
 END Input.
