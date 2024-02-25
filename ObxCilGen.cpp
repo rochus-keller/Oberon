@@ -2755,6 +2755,7 @@ struct ObxCilGenImp : public AstVisitor
         case BuiltIn::BITS:
             Q_ASSERT( ae->d_args.size() == 1 );
             ae->d_args.first()->accept(this);
+            convertTo(Type::SET, ae->d_args.last()->d_type.data(), ae->d_loc );
             break;
         case BuiltIn::CAST:
             {
@@ -3262,6 +3263,7 @@ struct ObxCilGenImp : public AstVisitor
     {
         if( toBaseType == fromBaseType )
             return;
+
         switch( toBaseType )
         {
         case Type::LONGREAL:

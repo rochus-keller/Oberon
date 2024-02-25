@@ -722,7 +722,6 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::WCHR:
         case BuiltIn::BITS:
         case BuiltIn::HALT:
-        case BuiltIn::ROR:
             return false; // these can be handled by ordinary arg checker
 
         case BuiltIn::PCALL:
@@ -788,6 +787,7 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::LSL:
         case BuiltIn::ASR:
         case BuiltIn::ASH:
+        case BuiltIn::ROR:
             if( args->d_args.size() == 2 )
             {
                 Type* td = derefed(args->d_args.first()->d_type.data());
@@ -1548,6 +1548,7 @@ struct ValidatorImp : public AstVisitor
         case BuiltIn::LSL:
         case BuiltIn::ASR:
         case BuiltIn::ASH:
+        case BuiltIn::ROR:
             if( !args.isEmpty() )
             {
                 Type* td = derefed(args.first()->d_type.data());
