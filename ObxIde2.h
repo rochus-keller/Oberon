@@ -148,6 +148,7 @@ namespace Obx
         void onEnableDebug();
         void onOvflChecks();
         void onBreak();
+        void onClearTerm();
         void handleGoBack();
         void handleGoForward();
         void onUpdateLocation(int line, int col );
