@@ -1332,8 +1332,8 @@ struct ObxCilGenImp : public AstVisitor
                 if( i != 0 )
                     res += ", ";
                 res += formatType( pt->d_nonLocals[i]->d_type.data() );
-                if( !isReferenceType(pt->d_nonLocals[i]->d_type.data()) )
-                    res += "&";
+                if( !isReferenceType(pt->d_nonLocals[i]->d_type.data()) && !pt->d_nonLocals[i]->d_receiver )
+                    res += "&"; // avoid that a pointer receiver is handeled as a var param
                 if( withName )
                     res += " " + escape(pt->d_nonLocals[i]->d_name);
             }
@@ -1442,8 +1442,8 @@ struct ObxCilGenImp : public AstVisitor
             for( int i = 0; i < pt->d_nonLocals.size(); i++ )
             {
                 QByteArray type = formatType(pt->d_nonLocals[i]->d_type.data());
-                if( !isReferenceType(pt->d_nonLocals[i]->d_type.data()) )
-                    type += "&";
+                if( !isReferenceType(pt->d_nonLocals[i]->d_type.data()) && !pt->d_nonLocals[i]->d_receiver )
+                    type += "&"; // avoid that a pointer receiver is handeled as a var param
                 emitter->addArgument(type,escape(pt->d_nonLocals[i]->d_name));
             }
         }
@@ -1758,7 +1758,9 @@ struct ObxCilGenImp : public AstVisitor
             {
                 Parameter* p = cast<Parameter*>(id);
                 emitVarToStack(id,me->d_loc);
-                if( requiresRefOp(p) ) // the value on the stack is a &, so we need to fetch the value first
+                if( requiresRefOp(p) && !p->d_receiver )
+                    // the value on the stack is a &, so we need to fetch the value first
+                    // avoid that a pointer receiver is handeled as a var param
                     emitValueFromAdrToStack(p->d_type.data(),false,me->d_loc);
             }else
             {
@@ -1767,7 +1769,8 @@ struct ObxCilGenImp : public AstVisitor
                 const int pos = pt->d_nonLocals.indexOf(id);
                 Q_ASSERT(pos >= 0);
                 line(me->d_loc).ldarg_(pt->d_formals.size()+pos);
-                emitValueFromAdrToStack(id->d_type.data(),false,me->d_loc);
+                if( !id->d_receiver ) // avoid that a pointer receiver is handeled as a var param
+                    emitValueFromAdrToStack(id->d_type.data(),false,me->d_loc);
             }
             return;
         case Thing::T_NamedType:
@@ -1961,8 +1964,9 @@ struct ObxCilGenImp : public AstVisitor
                 if( n->d_scope == scope )
                 {
                     Q_ASSERT( n->d_slotValid );
-                    if( requiresRefOp(cast<Parameter*>(n)) || isReferenceType(n->d_type.data()) )
+                    if( requiresRefOp(cast<Parameter*>(n)) || isReferenceType(n->d_type.data()) || n->d_receiver )
                         line(desig->d_loc).ldarg_(n->d_slot); // we already have the address of the value
+                        // avoid that a pointer receiver is handeled as a var param
                     else
                         line(desig->d_loc).ldarga_(n->d_slot);
                 }else
@@ -3004,7 +3008,16 @@ struct ObxCilGenImp : public AstVisitor
                     }
                 }
                 if( !( ftag == Thing::T_Record && tf->d_unsafe ) ) // check if we already have an address
-                    emitFetchDesigAddr(me->d_args[i].data());
+                {
+                    Named* n = me->d_args[i]->getIdent();
+                    if( ta->isPointer() && n && n->d_receiver )
+                    {
+                        err->error(Errors::Generator, Loc(me->d_args[i]->d_loc,thisMod->d_file),
+                                   "cannot pass the receiver pointer as a var parameter");
+                        line(me->d_args[i]->d_loc).ldnull_();
+                    }else
+                        emitFetchDesigAddr(me->d_args[i].data());
+                }
             }else
             {
                 // 1) a structured arg (record, array) passed by val (i.e. a reference)
@@ -3988,6 +4001,12 @@ struct ObxCilGenImp : public AstVisitor
             }
         }else
         {
+            Named* n = me->d_lhs->getIdent();
+            if( lhsT->isPointer() && n && n->d_receiver )
+            {
+                err->error(Errors::Generator, Loc(me->d_lhs->d_loc,thisMod->d_file), "cannot assign to the receiver pointer");
+                return;
+            }
             const bool unsafe = emitFetchDesigAddr(me->d_lhs.data());
             me->d_rhs->accept(this);
             prepareRhs(lhsT, me->d_rhs.data(), me->d_loc );

@@ -362,11 +362,12 @@ namespace Obx
         uint d_liveTo : 20;
         uint d_noBody : 1; // Procedure
         uint d_used : 1; // Procedure: called or assigned
+        uint d_receiver : 1;
 
         Named(const QByteArray& n = QByteArray(), Type* t = 0, Scope* s = 0):d_scope(s),d_type(t),d_name(n),
             d_visibility(Invalid),d_synthetic(false),d_liveFrom(0),d_liveTo(0),
             d_upvalSource(0),d_upvalIntermediate(0),d_upvalSink(0),
-            d_hasErrors(0),d_noBody(0),d_used(0) {}
+            d_hasErrors(0),d_noBody(0),d_used(0),d_receiver(0) {}
         virtual QByteArray getName() const { return d_name; }
         bool isNamed() const { return true; }
         virtual bool isVarParam() const { return false; }
@@ -402,8 +403,8 @@ namespace Obx
     {
         bool d_var;
         bool d_const;
-        bool d_receiver;
-        Parameter():d_var(false),d_const(false),d_receiver(false) {}
+        // bool d_receiver; moved to Named
+        Parameter():d_var(false),d_const(false) {}
         int getTag() const { return T_Parameter; }
         void accept(AstVisitor* v) { v->visit(this); }
         bool isVarParam() const { return ( d_var || d_const ); }

@@ -1219,6 +1219,11 @@ FileCache* Project::getFc() const
     return d_mdl->getFc();
 }
 
+quint32 Project::getSloc() const
+{
+    return d_mdl->getSloc();
+}
+
 QStringList Project::findFiles(const QDir& dir, bool recursive)
 {
     QStringList res;

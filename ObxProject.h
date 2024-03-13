@@ -121,6 +121,8 @@ namespace Obx
 
         Ob::Errors* getErrs() const;
         Ob::FileCache* getFc() const;
+        const ModuleHash& getMods() const { return d_modules; }
+        quint32 getSloc() const;
     signals:
         void sigModified(bool);
         void sigRenamed();

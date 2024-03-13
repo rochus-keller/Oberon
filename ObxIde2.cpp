@@ -1784,7 +1784,8 @@ bool Ide::compile(bool all, bool doGenerate )
     d_status = Compiling;
     const bool res = d_pro->parse(!all);
     d_status = Idle;
-    qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
+    qDebug() << "recompiled" << d_pro->getFiles().size() << "files with" << d_pro->getSloc() << "SLOC in"
+             << start.msecsTo(QTime::currentTime()) << "[ms]";
     if( res && doGenerate )
     {
        if( !generate(all) )
@@ -3505,7 +3506,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.105");
+    a.setApplicationVersion("0.9.106");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 
