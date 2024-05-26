@@ -39,8 +39,8 @@
 // without any define it's Oberon-07 syntax; Oberon 90 syntax requires OBN2
 #define OBN2 // Oberon-2
 // combine OBN2 with either OBNX or BBOX
-#define OBNX // Oberon+
-// #define BBOX // Component Pascal
+//#define OBNX // Oberon+
+//#define BBOX // Component Pascal
 
 /// Top
 Oberon ::=  module | definition // also in OBX we require one module or definition per file

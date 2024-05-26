@@ -440,7 +440,8 @@ bool CppGen::emitDesig(const CodeModel::Unit* ds, const SynTree* st, bool procCa
         switch( dopl[i].d_op )
         {
         case CodeModel::IdentOp:
-            Q_ASSERT( dopl[i].d_sym );
+            if( dopl[i].d_sym == 0 )
+                out << "/* ERROR: emitDesig: ident with no symbol: " << dopl[i].d_arg->d_tok.d_val << " */";
             if( i == 0 && dynamic_cast<const CodeModel::Module*>(dopl[i].d_sym) )
             {
                 out << escape(dopl[i].d_sym->d_name) + "::_inst()";
@@ -454,7 +455,7 @@ bool CppGen::emitDesig(const CodeModel::Unit* ds, const SynTree* st, bool procCa
                     if( emitPredefProc( ds, dopl, out, level ) )
                         return true;
                     else
-                        out << escape(dopl[i].d_sym->d_name);
+                        out << escape(e->d_name);
                 }else
                 {
                     if( i != 0 )
@@ -467,10 +468,14 @@ bool CppGen::emitDesig(const CodeModel::Unit* ds, const SynTree* st, bool procCa
                     }
 
                     if( i == 0 && dynamic_cast<const CodeModel::Module*>(ds) == 0  // wir sind also nicht im Constructor
-                         && dynamic_cast<const CodeModel::Module*>(dopl[i].d_sym->d_scope) != 0 // es ist also eine Modulvariable
+                         && dopl[i].d_sym &&
+                         dynamic_cast<const CodeModel::Module*>(dopl[i].d_sym->d_scope) != 0 // es ist also eine Modulvariable
                                           )
                         out << "_this->";
-                    out << escape(dopl[i].d_sym->d_name);
+                    if( dopl[i].d_sym )
+                        out << escape(dopl[i].d_sym->d_name);
+                    else
+                        out << "???";
                     if( e && e->d_kind == CodeModel::Element::Variable )
                     {
                         const CodeModel::Type* t = derefed(e->d_type);
@@ -808,8 +813,10 @@ void CppGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
             break;
         case SynTree::R_ReturnStatement:
             out << ws(level) << "return ";
-            Q_ASSERT( s->d_children.size() == 2 && s->d_children.last()->d_tok.d_type == SynTree::R_expression );
-            emitExpression(ds, s->d_children.last(), out, level );
+            if( s->d_children.size() == 2 && s->d_children.last()->d_tok.d_type == SynTree::R_expression )
+                emitExpression(ds, s->d_children.last(), out, level );
+            else
+                out << "/* ERROR: invalid return expression */";
             out << ";" << endl;
             break;
         default:
@@ -1240,7 +1247,13 @@ void CppGen::emitSet(const CodeModel::Unit* ds, const SynTree* st, QTextStream& 
 void CppGen::emitScopedName(const CodeModel::Unit* ds, const CodeModel::NamedThing* nt, QTextStream& out)
 {
     if( nt->d_scope != ds )
-        out << escape(nt->d_scope->d_name) << "::";
+    {
+        if( nt->d_scope )
+            out << escape(nt->d_scope->d_name);
+        else
+            out << "???";
+        out << "::";
+    }
     out << escape(nt->d_name);
 }
 
@@ -1281,8 +1294,11 @@ void CppGen::emitLabel(const CodeModel::Unit* ds, const SynTree* st, QTextStream
     case SynTree::R_qualident:
         out << quali(first);
         break;
+    case SynTree::R_expression:
+        emitExpression(ds, first, out, level );
+        break;
     default:
-        Q_ASSERT( false );
+        out << "/* ERROR unexpected token: " << SynTree::rToStr(first->d_tok.d_type) << " */";
         break;
     }
 }

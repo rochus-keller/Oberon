@@ -1,0 +1,25 @@
+module Test
+
+type T = record a*, b: integer; c: array 3 of char end
+
+proc x():T
+var t: T
+begin
+  return t
+end x
+
+proc y():^T
+begin
+  return nil
+end y
+
+var t: T
+
+begin
+
+  //t := x()
+  //x() := t
+  y().a := 33
+  y().c[2] := "a"
+
+end Test

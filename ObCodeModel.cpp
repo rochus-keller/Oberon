@@ -135,9 +135,9 @@ void CodeModel::clear()
     d_scope.d_elems.append( new Element( Element::ENTIER ) );
 #endif
 #ifdef OB_BBOX
-    d_scope.d_elems.append( new Element( Element::TRUE, d_scope.d_boolType ) );
-    d_scope.d_elems.append( new Element( Element::FALSE, d_scope.d_boolType ) );
-    d_scope.d_elems.append( new Element( Element::INF, d_scope.d_realType ) );
+    d_scope.d_elems.append( new Element( true, "TRUE", d_scope.d_boolType ) );
+    d_scope.d_elems.append( new Element( false, "FALSE", d_scope.d_boolType ) );
+    d_scope.d_elems.append( new Element( std::numeric_limits<double>::infinity(), "INF", d_scope.d_realType ) );
     d_scope.d_elems.append( new Element( Element::BITS ) );
 #endif
     foreach( Element* t, d_scope.d_elems )
