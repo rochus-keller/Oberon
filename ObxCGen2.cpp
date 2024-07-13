@@ -2574,14 +2574,14 @@ struct ObxCGenImp : public AstVisitor
         {
             // happens when strings are added
             if( addrOf )
-                b << "&(struct OBX$Array$1[1]){";
+                b << "&((struct OBX$Array$1[1]){";
             b << "OBX$CharToStr(" << int(lwide) << ",";
             if( !rwide )
                 b << "(uint8_t)";
             rhs->accept(this);
             b << ")";
             if( addrOf )
-                b << "}[0]";
+                b << "})[0]";
         }else if( atag == Thing::T_Array )
         {
             // NOTE: copy if not passByRef is done in procedure
@@ -2723,12 +2723,12 @@ struct ObxCGenImp : public AstVisitor
             // if rhs is a skalar or constant taking the address of it requires a temporary storage
             const bool isObject = isLvalue(rhs) || rhs->getUnOp() == UnExpr::IDX || rhs->getUnOp() == UnExpr::CAST;
             if( addrOf && !isObject )
-                b << "&(" << formatType(rhs->d_type.data()) << "[1]){";
+                b << "&((" << formatType(rhs->d_type.data()) << "[1]){";
             else if( addrOf )
                 b << "&";
             rhs->accept(this);
             if( addrOf && !isObject )
-                b << "}[0]";
+                b << "})[0]";
         }
     }
 
@@ -2885,7 +2885,7 @@ struct ObxCGenImp : public AstVisitor
                                              && cast<UnExpr*>(rhs)->d_sub->getUnOp() == UnExpr::CALL ) );
         if( tempStore )
         {
-            b << "&(";
+            b << "&((";
             Type* td = tf;
             if( ftag == Thing::T_Pointer )
                 td = derefed(cast<Pointer*>(td)->d_to.data());
@@ -2901,7 +2901,7 @@ struct ObxCGenImp : public AstVisitor
         }
         renderDesig( lhs, rhs, addrOf && !tempStore );
         if( tempStore )
-            b << "}[0]";
+            b << "})[0]";
 
 #if 0 // now in emit actuals
         if( !addrOf && tf && tf->d_unsafe && ftag == Thing::T_Pointer &&
@@ -3015,9 +3015,9 @@ struct ObxCGenImp : public AstVisitor
             }else
             {
                 const int deleg = buyTemp("struct OBX$Deleg*");
-                b << "($t" << deleg << " = &(struct OBX$Deleg[1]){";
+                b << "($t" << deleg << " = &((struct OBX$Deleg[1]){";
                 me->d_sub->accept(this); // use compound because d_sub could be function call resulting in lvalue error
-                b << "}[0],";
+                b << "})[0],";
                 b << "((" << formatReturn(pt,"") << "(*)"
                   << formatFormals(pt,false) << ")"; // cast to method
                 b << "$t" << deleg << "->func)";
@@ -3305,11 +3305,11 @@ struct ObxCGenImp : public AstVisitor
             else if( lhsT->isText(&lwide) && rhsT->isText(&rwide) && !lhsT->d_unsafe && !rhsT->d_unsafe )
             {
                 Type* td = derefed(me->d_type.data());
-                b << "(struct OBX$Array$1 [1]){OBX$StrJoin(";
+                b << "((struct OBX$Array$1 [1]){OBX$StrJoin(";
                 renderDesig2(td,me->d_lhs.data(),true);
                 b << "," << int(lwide) << ",";
                 renderDesig2(td,me->d_rhs.data(),true);
-                b << "," << int(rwide) << ")}[0]";
+                b << "," << int(rwide) << ")})[0]";
                 // NOTE: if we don't use the dirty compound array literal element zero trick nested OBX$StrJoin
                 // would issue an lvalue error
             }else
