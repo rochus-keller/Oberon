@@ -4025,6 +4025,7 @@ bool Obx::CGen2::translateAll(Obx::Project* pro, bool debug, const QString& wher
     bout << "if on Unix/Linux/macOS dynamic libraries should be loaded add -DOBX_USE_DYN_LOAD -ldl" << endl;
     bout << "full build command for GCC/MinGW or CLANG:" << endl;
     bout << "cc -O2 --std=c99 *.c -lm -DOBX_USE_BOEHM_GC -lgc -DOBX_USE_DYN_LOAD -ldl" << endl;
+    bout << "NOTE that starting from GCC 10, -fcommon has to be added to avoid \"multiple definition\" errors" << endl;
     bout.flush();
     fout.flush();
 
