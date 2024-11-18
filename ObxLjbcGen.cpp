@@ -2872,6 +2872,7 @@ struct ObxLjbcGenImp : public AstVisitor
                     emitSetTableByIndex(tmp2,curClass,i,r->d_loc);
                 }
                 ctx.back().sellSlots(tmp2);
+                // TODO: sell baseClass?
             }
             for( int i = 0; i < r->d_methods.size(); i++ )
                 r->d_methods[i]->accept(this); // generate code for curMethod and store it in curClass

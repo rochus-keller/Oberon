@@ -1968,7 +1968,9 @@ struct ObxCGenImp : public AstVisitor
             }
             break;
         case BuiltIn::PRINTLN:
+        case BuiltIn::PRINT:
             {
+                const bool ln = bi->d_func == BuiltIn::PRINTLN;
                 Q_ASSERT( ae->d_args.size() == 1 );
                 Type* td = derefed(ae->d_args.first()->d_type.data());
                 QByteArray format;
@@ -1981,56 +1983,56 @@ struct ObxCGenImp : public AstVisitor
                     if( td->isChar() )
                     {
                         if( wide )
-                            format = "\"%lc\\n\"";
+                            format = ln ? "\"%lc\\n\"" : "\"%lc\"";
                         else
-                            format = "\"%c\\n\"";
+                            format = ln ? "\"%c\\n\"" : "\"%c\"";
                     }else
                     {
                         if( wide )
-                            format = "\"%ls\\n\"";
+                            format = ln ? "\"%ls\\n\"" : "\"%ls\"";
                         else
-                            format = "\"%s\\n\"";
+                            format = ln ? "\"%s\\n\"" : "\"%s\"";
                         deref = true;
                         strcast = true;
                     }
                 }else if( td->isInteger() )
                 {
                     if( td->getBaseType() <= Type::INT32 )
-                        format = "\"%d\\n\"";
+                        format = ln ? "\"%d\\n\"" : "\"%d\"";
                     else
-                        format = "\"%lld\\n\"";
+                        format = ln ? "\"%lld\\n\"" : "\"%lld\"";
                 }else if( td->isReal() )
                 {
                     if( td->getBaseType() == Type::LONGREAL )
-                        format = "\"%1.16e\\n\"";
+                        format = ln ? "\"%1.16e\\n\"" : "\"%1.16e\"";
                     else
-                        format = "\"%1.7e\\n\"";
+                        format = ln ? "\"%1.7e\\n\"" : "\"%1.7e\"";
                 }else if( td->isSet() )
-                    format = "\"%x\\n\"";
+                    format = ln ? "\"%x\\n\"" : "\"%x\"";
                 else if( td->getBaseType() == Type::BOOLEAN )
-                    format = "\"%d\\n\"";
+                    format = ln ? "\"%d\\n\"" : "\"%d\"";
                 else
                 {
                     switch(td->getTag())
                     {
                     case Thing::T_Enumeration:
-                        format = "\"%u\\n\"";
+                        format = ln ? "\"%u\\n\"" : "\"%u\"";
                         break;
                     case Thing::T_Pointer:
                         if( cast<Pointer*>(td)->d_to->derefed()->getTag() == Thing::T_Array )
                             deref = true;
-                        format = "\"%p\\n\"";
+                        format = ln ? "\"%p\\n\"" : "\"%p\"";
                         break;
                     case Thing::T_Array:
                         deref = true;
-                        format = "\"%p\\n\"";
+                        format = ln ? "\"%p\\n\"" : "\"%p\"";
                         break;
                     case Thing::T_Record:
                         addr = true;
-                        format = "\"%p\\n\"";
+                        format = ln ? "\"%p\\n\"" : "\"%p\"";
                         break;
                     default:
-                        format = "\"%p\\n\"";
+                        format = ln ? "\"%p\\n\"" : "\"%p\"";
                         break;
                     }
                 }

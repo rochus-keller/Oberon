@@ -484,7 +484,7 @@ namespace Obx
                // Blackbox SYSTEM
                SYS_TYP,
                // Oberon+
-               CAST, STRLEN, WCHR, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
+               CAST, STRLEN, WCHR, PRINT, PRINTLN, DEFAULT, BITAND, BITNOT, BITOR, BITXOR,
                BITSHL, BITSHR, BITASR, BYTES, NUMBER,
                ADR, // obsolete
                PCALL, RAISE,

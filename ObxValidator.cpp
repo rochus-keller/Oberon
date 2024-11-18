@@ -1234,6 +1234,7 @@ struct ValidatorImp : public AstVisitor
             }else
                 error( args->d_loc, Validator::tr("expecting two arguments"));
             break;
+        case BuiltIn::PRINT:
         case BuiltIn::PRINTLN:
             if( args->d_args.size() == 1 )
             {

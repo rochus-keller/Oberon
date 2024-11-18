@@ -98,7 +98,7 @@ bool LjRuntime::compile(bool doGenerate)
     }
     const quint32 errCount = d_pro->getErrs()->getErrCount();
     const QTime start = QTime::currentTime();
-    if( !d_pro->reparse() )
+    if( !d_pro->parse() )
         return false;
     qDebug() << "recompiled in" << start.msecsTo(QTime::currentTime()) << "[ms]";
     if( doGenerate )

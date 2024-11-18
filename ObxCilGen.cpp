@@ -2136,7 +2136,9 @@ struct ObxCilGenImp : public AstVisitor
             }
             break;
         case BuiltIn::PRINTLN:
+        case BuiltIn::PRINT:
             {
+                const bool ln = bi->d_func == BuiltIn::PRINTLN;
                 Q_ASSERT( ae->d_args.size() == 1 );
                 ae->d_args.first()->accept(this);
                 Type* td = derefed(ae->d_args.first()->d_type.data());
@@ -2144,32 +2146,63 @@ struct ObxCilGenImp : public AstVisitor
                 if( td->isText(&wide) )
                 {
                     if( td->isChar() )
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(char)",1);
-                    else if( td->d_unsafe )
+                    {
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(char)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(char)",1);
+                    }else if( td->d_unsafe )
                     {
                         if( wide )
                             line(ae->d_loc).call_("string [mscorlib]System.Runtime.InteropServices.Marshal::PtrToStringUni(native int)",1,true);
                         else
                             line(ae->d_loc).call_("string [mscorlib]System.Runtime.InteropServices.Marshal::PtrToStringAnsi(native int)",1,true);
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
                     }else
                     {
                         line(ae->d_loc).call_("string [OBX.Runtime]OBX.Runtime::toString(char[])", 1, true );
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1); // WriteLine(char[]) doesn't seem to respect 0
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1); // WriteLine(char[]) doesn't seem to respect 0
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
                     }
                 }else if( td->isInteger() )
                 {
                     if( td->getBaseType() <= Type::INT32 )
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
-                    else
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int64)",1);
+                    {
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(int32)",1);
+                    }else
+                    {
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int64)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(int64)",1);
+                    }
                 }else if( td->isReal() )
-                    line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(float64)",1);
-                else if( td->isSet() )
-                    line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(uint32)",1);
-                else if( td->getBaseType() == Type::BOOLEAN )
-                    line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(bool)",1);
-                else if( td->isStructured(true) )
+                {
+                    if(ln)
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(float64)",1);
+                    else
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::Write(float64)",1);
+                }else if( td->isSet() )
+                {
+                    if(ln)
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(uint32)",1);
+                    else
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::Write(uint32)",1);
+                }else if( td->getBaseType() == Type::BOOLEAN )
+                {
+                    if(ln)
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(bool)",1);
+                    else
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::Write(bool)",1);
+                }else if( td->isStructured(true) )
                 {
                     if( td->d_unsafe )
                     {
@@ -2183,18 +2216,30 @@ struct ObxCilGenImp : public AstVisitor
                             line(ae->d_loc).conv_(IlEmitter::ToU4);
                             line(ae->d_loc).call_("string [OBX.Runtime]OBX.Runtime::toHex(uint32)",1,true);
                         }
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
-                    }else
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(string)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(string)",1);
+                    }else if(ln)
                         line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(object)",1);
+                    else
+                        line(ae->d_loc).call_("void [mscorlib]System.Console::Write(object)",1);
                 }else
                 {
                     switch(td->getTag())
                     {
                     case Thing::T_Enumeration:
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(int32)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(int32)",1);
                         break;
                     default:
-                        line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(object)",1);
+                        if(ln)
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::WriteLine(object)",1);
+                        else
+                            line(ae->d_loc).call_("void [mscorlib]System.Console::Write(object)",1);
+                        break;
                     }
                 }
             }

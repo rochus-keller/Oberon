@@ -11,7 +11,7 @@ module Hello
 		println(str)
 	end Str
 begin
-	println("Hello start")
+	print("Hello")print(" ")println("start")
 	println("Ölförderung für Äthiopien") 
 	Str("美丽的世界，你好!") // 这就是中国人
 	tmp := str1
