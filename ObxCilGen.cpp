@@ -21,8 +21,8 @@
 #include "ObxAst.h"
 #include "ObErrors.h"
 #include "ObxProject.h"
-#include "ObxIlEmitter.h"
-#include "ObxPelibGen.h"
+#include <PeLib/CilIlEmitter.h>
+#include <PeLib/CilPelibGen.h>
 #include "ObxValidator.h"
 #include <MonoTools/MonoMdbGen.h>
 #include <QtDebug>
@@ -32,6 +32,7 @@
 #include <limits>
 using namespace Obx;
 using namespace Ob;
+using namespace Cil;
 
 #ifndef OBX_AST_DECLARE_SET_METATYPE_IN_HEADER
 Q_DECLARE_METATYPE( Obx::Literal::SET )
@@ -4358,7 +4359,7 @@ struct ObxCilGenImp : public AstVisitor
         {
             if( !(loc == last) )
             {
-                emitter->line_(loc);
+                emitter->line_(loc.d_row, loc.d_col);
                 last = loc;
             }
         }

@@ -28,12 +28,15 @@ namespace Ob
 {
     class Errors;
 }
+namespace Cil
+{
+class IlEmitter;
+}
 namespace Obx
 {
     class Model;
     class Project;
     struct Module;
-    class IlEmitter;
 
     class CilGen
     {
@@ -41,10 +44,10 @@ namespace Obx
         enum How { Ilasm, Fastasm, IlOnly, Pelib };
         // all true on success, false on error
         static bool translateAll(Project*, How how, bool debug, const QString& where, bool forceGen = false );
-        static bool translate(Module*, IlEmitter* out, bool debug, Ob::Errors* = 0 );
-        static bool generateMain(IlEmitter* out, const QByteArray& thisMod,
+        static bool translate(Module*, Cil::IlEmitter* out, bool debug, Ob::Errors* = 0 );
+        static bool generateMain(Cil::IlEmitter* out, const QByteArray& thisMod,
                                  const QByteArray& callMod = QByteArray(), const QByteArray& callFunc = QByteArray());
-        static bool generateMain(IlEmitter* out, const QByteArray& thisMod, const QByteArrayList& callMods );
+        static bool generateMain(Cil::IlEmitter* out, const QByteArray& thisMod, const QByteArrayList& callMods );
     private:
         CilGen();
     };

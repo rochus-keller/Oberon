@@ -33,7 +33,6 @@ namespace Obx
     class Model;
     class Project;
     struct Module;
-    class IlEmitter;
 
     class CGen2
     {

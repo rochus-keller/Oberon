@@ -33,8 +33,6 @@ let compiler_files = [
 		./ObxEvaluator.cpp 
 		./ObxAst.cpp 
 		./ObTokenType.cpp
-	    ./ObxIlEmitter.cpp
-    	./ObxPelibGen.cpp
     	./ObxCilGen.cpp
     	../MonoTools/MonoMdbGen.cpp
     	./ObxCGen2.cpp
@@ -85,6 +83,8 @@ let pelib_files = [
     ../PeLib/Resource.cpp
     ../PeLib/PEMetaTables.cpp
     ../PeLib/Stream.cpp
+    ../PeLib/CilIlEmitter.cpp
+    ../PeLib/CilPelibGen.cpp
 ]
 
 let pelib_config : Config {
@@ -186,13 +186,10 @@ let pal * : Library {
 
 let compiler_and_ide * : Group {
 	.deps += [ compiler ide ]
-    if !((target_os == `linux) && (target_wordsize == `64)) {
-        .deps += [ pal ]
-    }
 }
 
 let all * : Group {
-	.deps += [ compiler ide pal ]
+    .deps += [ compiler ide pal ]
 }
 
 

@@ -33,8 +33,6 @@ SOURCES += ObxIde2.cpp \
     ObnHighlighter.cpp \
     ../GuiTools/DocSelector.cpp \
     ../GuiTools/DocTabWidget.cpp \
-    ObxIlEmitter.cpp \
-    ObxPelibGen.cpp \
     ObxCilGen.cpp \
     ../MonoTools/MonoEngine.cpp \
     ../MonoTools/MonoDebugger.cpp \
@@ -48,9 +46,7 @@ HEADERS  += ObxIde2.h \
     ObnHighlighter.h \
     ../GuiTools/DocSelector.h \
     ../GuiTools/DocTabWidget.h \
-    ObxIlEmitter.h \
-    ObxPelibGen.h \
-    ObxCilGen.h \
+     ObxCilGen.h \
     ../MonoTools/MonoEngine.h \
     ../MonoTools/MonoDebugger.h \
     ../MonoTools/MonoDebuggerPrivate.h \

@@ -26,7 +26,7 @@
 #include "ObxProject.h"
 #include "ObxModel.h"
 #include "ObxCilGen.h"
-#include "ObxPelibGen.h"
+#include <PeLib/CilIlEmitter.h>
 #include "ObxCGen2.h"
 #include <QtDebug>
 #include <QDockWidget>
