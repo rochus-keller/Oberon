@@ -677,7 +677,13 @@ static inline bool convertCharSet( QByteArray& str )
     {
         if( quint8(str[i]) > 127 )
             latin1 = true;
-        str[i] = convert(str[i]);
+        char ch = str[i];
+        if( iscntrl(ch) )
+        {
+            if( !(ch == 0x0a || ch == 0x0d) )
+                ch = ' ';
+        }
+        str[i] = convert(ch);
     }
     return latin1;
 }
@@ -1201,3 +1207,4 @@ bool Lexer::isValidIdent(const QByteArray& str)
         return false;
     return true;
 }
+
