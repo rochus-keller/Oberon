@@ -499,25 +499,43 @@ void Ast::Model::parseFile(QIODevice* in, const QString& path, ParseResultList& 
     qWarning() << "This AST does not support Oberon-2, Oberon 90, Oberon+ or Blackbox; crashes are likely";
 #endif
 
+    class Lex : public Ob::Scanner
+    {
+    public:
+        Ob::Lexer lex;
+        Token next()
+        {
+            return lex.nextToken();
+        }
+        Token peek(int offset)
+        {
+            return lex.peekToken(offset);
+        }
+    };
+
     const quint32 before = d_errs->getErrCount();
-    Ob::Lexer lex;
-    lex.setErrors(d_errs);
-    lex.setCache(d_fc);
-    lex.setIgnoreComments(false);
-    lex.setPackComments(true);
+    Lex lex;
+    lex.lex.setErrors(d_errs);
+    lex.lex.setCache(d_fc);
+    lex.lex.setIgnoreComments(false);
+    lex.lex.setPackComments(true);
     if( d_senseExt )
-        lex.setSensExt(d_senseExt);
+        lex.lex.setSensExt(d_senseExt);
     else
-        lex.setEnableExt(d_enableExt);
-    lex.setStream( in, path );
-    Ob::Parser p(&lex,d_errs);
+        lex.lex.setEnableExt(d_enableExt);
+    lex.lex.setStream( in, path );
+    Ob::Parser p(&lex);
     p.RunParser();
 
-    if( before != d_errs->getErrCount() )
+    if( !p.errors.isEmpty() )
+    {
+        foreach( const Ob::Parser::Error& err, p.errors )
+            d_errs->error(Errors::Syntax, err.path, err.row, err.col, err.msg );
         return;
+    }
 
     QList<SynTree*> toDelete;
-    foreach( SynTree* st, p.d_root.d_children )
+    foreach( SynTree* st, p.root.d_children )
     {
         if( st->d_tok.d_type == SynTree::R_module || st->d_tok.d_type == SynTree::R_definition )
         {
@@ -537,13 +555,13 @@ void Ast::Model::parseFile(QIODevice* in, const QString& path, ParseResultList& 
             }else
             {
                 pr.d_modName = id;
-                pr.d_isExt = lex.isEnabledExt();
+                pr.d_isExt = lex.lex.isEnabledExt();
                 pr.d_modRoot = st;
             }
         }else
             toDelete << st;
     }
-    p.d_root.d_children.clear();
+    p.root.d_children.clear();
     foreach( SynTree* st, toDelete )
         delete st;
 }

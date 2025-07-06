@@ -241,6 +241,31 @@ public static void String(char[] str)
 	str[i] = '\0';
 }
 
+// PROCEDURE Args():INTEGER;
+public static int Args()
+{
+    String[] args = Environment.GetCommandLineArgs();
+    return args.Length - 1;
+}
+
+// PROCEDURE Arg(n: INTEGER; VAR arg: ARRAY OF CHAR);
+public static void Arg(int n, char[] arg)
+{
+    String[] args = Environment.GetCommandLineArgs();
+    n++;
+    if( n >= args.Length )
+        return;
+    string str = args[n];
+    int len = str.Length;
+    if( len >=  arg.Length )
+        len = arg.Length;
+    len--;
+    int i;
+	for( i = 0; i < len; i++ )
+		arg[i] = str[i];
+	arg[i] = '\0';
+}
+
 //PROCEDURE Name (VAR name: ARRAY OF CHAR);
 public static void Name(char[] name)
 {

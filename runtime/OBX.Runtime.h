@@ -125,4 +125,7 @@ extern OBX$Cmd OBX$LoadProc(void* lib, const char* name); // load any procedure 
 extern void OBX$InitApp(int argc, char **argv);
 extern const char* OBX$AppPath();
 
+extern const char* OBX$AppArg(int n);
+extern int OBX$AppArgs();
+
 #endif

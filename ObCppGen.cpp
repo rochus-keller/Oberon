@@ -805,6 +805,9 @@ void CppGen::emitStatementSeq(const CodeModel::Unit* ds, const QList<SynTree*>& 
         case SynTree::R_WhileStatement:
             emitWhileStatement(ds,s,out,level);
             break;
+        case SynTree::R_LoopStatement:
+            emitLoopStatement(ds,s,out,level);
+            break;
         case SynTree::R_RepeatStatement:
             emitRepeatStatement(ds,s,out,level);
             break;
@@ -1041,6 +1044,23 @@ void CppGen::emitWhileStatement(const CodeModel::Unit* ds, const SynTree* st, QT
     if( CodeModel::findFirstChild( st, SynTree::R_ElsifStatement ) != 0 )
         warning(Errors::Generator, st, tr("ELSIF statement in WHILE statement not supported") );
 }
+
+void CppGen::emitLoopStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
+{
+    Q_ASSERT( st != 0 && st->d_tok.d_type == SynTree::R_LoopStatement && st->d_children.size() >= 2 &&
+            st->d_children[1]->d_tok.d_type == SynTree::R_StatementSequence );
+
+    out << ws(level) << "while(true)" << endl;
+    SynTree* stats = st->d_children[1];
+    if( stats->d_children.size() > 1 )
+        out << ws(level) << "{" << endl;
+    emitStatementSeq(ds, stats->d_children, out, level + 1);
+    out << ws(level);
+    if( stats->d_children.size() > 1 )
+        out << "}";
+    out << endl;
+}
+
 
 void CppGen::emitRepeatStatement(const CodeModel::Unit* ds, const SynTree* st, QTextStream& out, int level)
 {

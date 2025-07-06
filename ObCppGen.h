@@ -63,6 +63,7 @@ namespace Ob
         bool emitPredefProc( const CodeModel::Unit*, const CodeModel::DesigOpList&, QTextStream&, int level );
         void emitIfStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitWhileStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
+        void emitLoopStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitRepeatStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitForStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);
         void emitCaseStatement(const CodeModel::Unit* ds, const SynTree*,QTextStream& out, int level);

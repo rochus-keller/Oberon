@@ -829,5 +829,49 @@ void OberonViewer::onTranslate2()
     qDebug() << "finished";
 }
 
+int main(int argc, char *argv[])
+{
+    QApplication a(argc, argv);
+    a.setOrganizationName("me@rochus-keller.ch");
+    a.setOrganizationDomain("github.com/rochus-keller/Oberon");
+    a.setApplicationName("OberonViewer");
+    a.setApplicationVersion("0.8.10");
+    a.setStyle("Fusion");
+
+    QStringList dirOrFilePaths;
+    const QStringList args = QCoreApplication::arguments();
+    for( int i = 1; i < args.size(); i++ ) // arg 0 enthaelt Anwendungspfad
+    {
+        if( !args[ i ].startsWith( '-' ) )
+        {
+            dirOrFilePaths += args[ i ];
+        }else
+        {
+            qCritical() << "error: invalid command line option " << args[i] << endl;
+            return -1;
+        }
+    }
+
+    QStringList files;
+    foreach( const QString& path, dirOrFilePaths )
+    {
+        QFileInfo info(path);
+        if( info.isDir() )
+            files += Ob::OberonViewer::collectFiles( info.absoluteFilePath() );
+        else
+            // files << path;
+            files += Ob::OberonViewer::collectFiles( info.absoluteDir() );
+    }
+
+    if( !files.isEmpty() )
+        QDir::setCurrent(QFileInfo(files.first()).absolutePath());
+
+    Ob::OberonViewer w;
+    if( !files.isEmpty() )
+        w.showFiles(files);
+    w.showMaximized();
+
+    return a.exec();
+}
 
 

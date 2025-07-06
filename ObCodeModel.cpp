@@ -331,58 +331,77 @@ QList<Token> CodeModel::getComments(QString file) const
 
 quint32 CodeModel::parseFile(QIODevice* in, const QString& path)
 {
-    Ob::Lexer lex;
-    lex.setErrors(d_errs);
-    lex.setCache(d_fc);
-    lex.setIgnoreComments(false);
-    lex.setPackComments(true);
+    class Lex : public Ob::Scanner
+    {
+    public:
+        Ob::Lexer lex;
+        Token next()
+        {
+            return lex.nextToken();
+        }
+        Token peek(int offset)
+        {
+            return lex.peekToken(offset);
+        }
+    };
+
+    Lex lex;
+    lex.lex.setErrors(d_errs);
+    lex.lex.setCache(d_fc);
+    // TODO lex.lex.setIgnoreComments(false);
+    lex.lex.setPackComments(true);
     if( d_senseExt )
-        lex.setSensExt(d_senseExt);
+        lex.lex.setSensExt(d_senseExt);
     else
-        lex.setEnableExt(d_enableExt);
-    lex.setStream( in, path );
-    Ob::Parser p(&lex,d_errs);
+        lex.lex.setEnableExt(d_enableExt);
+    lex.lex.setStream( in, path );
+    Ob::Parser p(&lex);
     p.RunParser();
 
-    const quint32 sloc = lex.getSloc();
+    const quint32 sloc = lex.lex.getSloc();
 
-    if( d_senseExt && !d_enableExt && lex.isEnabledExt() )
+    if( d_senseExt && !d_enableExt && lex.lex.isEnabledExt() )
     {
         d_enableExt = true;
         addLowerCaseGlobals();
     }
 
     QList<SynTree*> toDelete;
-    foreach( SynTree* st, p.d_root.d_children )
-    {
-        if( st->d_tok.d_type == SynTree::R_module || st->d_tok.d_type == SynTree::R_definition )
+    SynTree* root = findFirstChild(&p.root,SynTree::R_Oberon);
+    if( root )
+        foreach( SynTree* st, root->d_children )
         {
-            SynTree* id = findFirstChild(st,Tok_ident);
-            if( id == 0 || !checkNameNotInScope(&d_scope,id) )
+            if( st->d_tok.d_type == SynTree::R_module || st->d_tok.d_type == SynTree::R_definition )
             {
-                toDelete << st;
+                SynTree* id = findFirstChild(st,Tok_ident);
+                if( id == 0 || !checkNameNotInScope(&d_scope,id) )
+                {
+                    toDelete << st;
+                }else
+                {
+                    const QByteArray name = id->d_tok.d_val;
+                    Module* m = new Module();
+                    m->d_outer = &d_scope;
+                    m->d_name = name;
+                    m->d_def = st;
+                    m->d_id = id;
+                    m->d_isExt = lex.lex.isEnabledExt();
+                    m->d_isDef = st->d_tok.d_type == SynTree::R_definition;
+                    d_scope.d_mods.append( m );
+                    d_scope.addToScope( m );
+                    index(id,m);
+                }
             }else
-            {
-                const QByteArray name = id->d_tok.d_val;
-                Module* m = new Module();
-                m->d_outer = &d_scope;
-                m->d_name = name;
-                m->d_def = st;
-                m->d_id = id;
-                m->d_isExt = lex.isEnabledExt();
-                m->d_isDef = st->d_tok.d_type == SynTree::R_definition;
-                d_scope.d_mods.append( m );
-                d_scope.addToScope( m );
-                index(id,m);
-            }
-        }else
-            toDelete << st;
-    }
-    p.d_root.d_children.clear();
+                toDelete << st;
+        }
+    p.root.d_children.clear();
     foreach( SynTree* st, toDelete )
         delete st;
+#if 0
+    // TODO: not yet supported for Ebnf generated parser
     foreach( const Token& t, p.d_comments )
         d_comments[t.d_sourcePath].append(t);
+#endif
     return sloc;
 }
 

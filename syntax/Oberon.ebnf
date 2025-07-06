@@ -39,7 +39,7 @@
 // without any define it's Oberon-07 syntax; Oberon 90 syntax requires OBN2
 #define OBN2 // Oberon-2
 // combine OBN2 with either OBNX or BBOX
-#define OBNX // Oberon+
+//#define OBNX // Oberon+
 //#define BBOX // Component Pascal
 
 /// Top
@@ -433,15 +433,12 @@ DeclarationSequence ::=
 	| VAR { VariableDeclaration [';'] } 
 	| ProcedureDeclaration [';'] }
 #else
-#ifdef BBOX
+    // we support more than one CONST, TYPE and VAR section in arbitrary order even for
+    // Oberon-2 (not only Blackbox), because this seems to be possible with the 2001 OP2 
+    // compiler used for OberonSystem 3
 	{ CONST { ConstDeclaration ';' } 
 	| TYPE { TypeDeclaration ';' }
 	| VAR { VariableDeclaration ';' } }
-#else
-	[ CONST { ConstDeclaration ';' } ]
-	[ TYPE { TypeDeclaration ';' } ]
-	[ VAR { VariableDeclaration ';' } ]
-#endif
 	{ ProcedureDeclaration ';' }
 #endif
 

@@ -27,7 +27,6 @@ TEMPLATE = app
 INCLUDEPATH +=  ..
 
 SOURCES += \ 
-    ObnViewerMain.cpp \
     OberonViewer.cpp \
     ObnHighlighter.cpp \
     NamedThingsMdl.cpp \

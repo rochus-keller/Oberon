@@ -32,6 +32,8 @@
 
 #define OBX_MAX_PATH 300
 static char s_appPath[OBX_MAX_PATH] = {0};
+static const char** s_argv = 0;
+static int s_argc = 0;
 
 struct OBX$Anyrec$Class$ OBX$Anyrec$class$ = { 
     0,
@@ -834,6 +836,8 @@ void OBX$InitApp(int argc, char **argv)
 		fetchAppPath(argv[0]);
 	else
 		fetchAppPath(0);
+    s_argv = argv;
+    s_argc = argc;
 	// TEST printf("app path: %s\n", s_appPath);
 }
 
@@ -903,3 +907,15 @@ void OBX$PopJump()
 	}
 }
 
+const char* OBX$AppArg(int n)
+{
+    if( n < s_argc - 1 )
+        return s_argv[n+1];
+    else
+        return "";
+}
+
+int OBX$AppArgs()
+{
+    return s_argc - 1;
+}
