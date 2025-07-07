@@ -42,6 +42,10 @@ extern void In$LongReal(double* x);
 extern void In$String(struct OBX$Array$1 str);
 //PROCEDURE Name (VAR name: ARRAY OF CHAR);
 extern void In$Name(struct OBX$Array$1 name);
+//PROCEDURE Arg(n: INTEGER; VAR arg: ARRAY OF CHAR);
+extern void In$Arg(int n, struct OBX$Array$1 arg);
+//PROCEDURE Args():INTEGER;
+extern int In$Args();
 
 extern void In$init$();
 extern OBX$Cmd In$cmd$(const char*);

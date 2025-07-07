@@ -53,6 +53,7 @@ const char* SynTree::rToStr( quint16 r ) {
 		case R_ReturnStatement: return "ReturnStatement";
 		case R_SimpleExpression: return "SimpleExpression";
 		case R_StatementSequence: return "StatementSequence";
+		case R_SysFlag: return "SysFlag";
 		case R_TypeDeclaration: return "TypeDeclaration";
 		case R_VariableDeclaration: return "VariableDeclaration";
 		case R_WhileStatement: return "WhileStatement";

@@ -37,6 +37,7 @@ namespace Ob {
 		void ArrayType(SynTree*);
 		void LengthList(SynTree*);
 		void length(SynTree*);
+		void SysFlag(SynTree*);
 		void RecordType(SynTree*);
 		void BaseType(SynTree*);
 		void FieldListSequence(SynTree*);

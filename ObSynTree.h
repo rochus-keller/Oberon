@@ -54,6 +54,7 @@ namespace Ob {
 			R_ReturnStatement,
 			R_SimpleExpression,
 			R_StatementSequence,
+			R_SysFlag,
 			R_TypeDeclaration,
 			R_VariableDeclaration,
 			R_WhileStatement,

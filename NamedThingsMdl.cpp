@@ -219,7 +219,7 @@ void NamedThingsMdl::fillSection( Slot* super, const Sorter& sorter, quint8 kind
         {
             if( r->d_kind == CodeModel::Type::Pointer )
                 r = r->d_type;
-            if( r->d_kind != CodeModel::Type::Record )
+            if( r == 0 || r->d_kind != CodeModel::Type::Record )
                 continue;
             Sorter s2;
             CodeModel::Type::Vals::const_iterator i;

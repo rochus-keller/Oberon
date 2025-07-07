@@ -358,6 +358,9 @@ quint32 CodeModel::parseFile(QIODevice* in, const QString& path)
     Ob::Parser p(&lex);
     p.RunParser();
 
+    foreach( const Ob::Parser::Error& e, p.errors )
+        d_errs->error(Errors::Syntax, path, e.row, e.col, e.msg );
+
     const quint32 sloc = lex.lex.getSloc();
 
     if( d_senseExt && !d_enableExt && lex.lex.isEnabledExt() )
@@ -1233,6 +1236,17 @@ void CodeModel::checkGuard(CodeModel::Unit* ds, SynTree* guard, SynTree* stats)
 
 CodeModel::Type*CodeModel::parseType(CodeModel::Unit* ds, SynTree* t)
 {
+    if( t->d_tok.d_type != SynTree::R_type )
+    {
+        qDebug() << "expected type, found" << SynTree::rToStr(t->d_tok.d_type);
+        return 0;
+    }
+    if( t->d_children.isEmpty() )
+    {
+        qDebug() << "invalid type";
+        return 0;
+    }
+
     Q_ASSERT( t->d_tok.d_type == SynTree::R_type && !t->d_children.isEmpty() );
     switch( t->d_children.first()->d_tok.d_type )
     {

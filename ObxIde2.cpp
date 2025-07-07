@@ -727,8 +727,12 @@ void Ide::createModsMenu()
     pop->addSeparator();
     pop->addCommand( "Check Syntax", this, SLOT(onParse()), tr("CTRL+T"), false );
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+B"), false );
+    pop->addSeparator();
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
+    pop->addCommand( "Set Application Arguments...", this, SLOT(onSetAppArgs()) );
+    pop->addCommand( "Set Environment Variables...", this, SLOT(onSetEnvVars()) );
+    pop->addSeparator();
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
     addDebugMenu(pop);
     addTopCommands(pop);
@@ -809,10 +813,15 @@ void Ide::createMenuBar()
     pop->addCommand( "Compile", this, SLOT(onCompile()), tr("CTRL+B"), false );
     pop->addCommand( "Suppress Warnings", this, SLOT(onNoWarnings()) );
     pop->addCommand( "Incremental Build (alpha!)", this, SLOT(onIncremental()) );
+    pop->addSeparator();
     pop->addCommand( "Set Command...", this, SLOT(onSetRunCommand()) );
     pop->addCommand( "Set Input File...", this, SLOT(onSetInputFile()) );
+    pop->addCommand( "Set Application Arguments...", this, SLOT(onSetAppArgs()) );
+    pop->addCommand( "Set Environment Variables...", this, SLOT(onSetEnvVars()) );
+    pop->addSeparator();
     pop->addCommand( "Export IL...", this, SLOT(onExportIl()) );
     pop->addCommand( "Export C...", this, SLOT(onExportC()) );
+    pop->addSeparator();
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
 
     pop = new Gui::AutoMenu( tr("Debug"), this );
@@ -1879,8 +1888,16 @@ bool Ide::run()
     logMessage("\nStarting application...\n\n",SysInfo,false);
     d_eng->init( d_debugging ? d_dbg->open() : 0 );
     d_eng->setAssemblySearchPaths( QStringList() << d_pro->getBuildDir(true), true );
+    QStringList vars = d_pro->getEnvVars();
+    foreach( const QString& var, vars )
+    {
+        QStringList kv = var.split('=');
+        if( kv.size() != 2 )
+            continue;
+        d_eng->setEnv(kv.first(), kv.last() );
+    }
     d_eng->setEnv( "OBERON_FILE_SYSTEM_ROOT", d_pro->getWorkingDir(true) );
-    d_eng->run( buildDir.absoluteFilePath("Main#.exe"));
+    d_eng->run( buildDir.absoluteFilePath("Main#.exe"), QStringList() << d_pro->getAppArgs());
     d_status = Running;
     return true;
 }
@@ -3411,6 +3428,48 @@ void Ide::onSetInputFile()
     d_eng->setInputFile(path);
 }
 
+void Ide::onSetAppArgs()
+{
+    ENABLED_IF(d_status==Idle);
+
+    bool ok;
+    const QString args = QInputDialog::getText(this, tr("Set Application Arguments"), "Argument string:", QLineEdit::Normal, d_pro->getAppArgs(), &ok );
+    if( ok )
+        d_pro->setAppArgs(args);
+}
+
+void Ide::onSetEnvVars()
+{
+    ENABLED_IF(d_status==Idle);
+
+    bool ok;
+    const QString vars = QInputDialog::getMultiLineText(this,tr("Set Environment Variables"),
+                                                           tr("Use the syntax <key>=<value>, one per line:"),
+                                                           d_pro->getEnvVars().join('\n'), &ok );
+    if( !ok )
+        return;
+    QStringList res = vars.split('\n');
+    QStringList res2;
+    for( int i = 0; i < res.size(); i++ )
+    {
+        QStringList line = res[i].split('=');
+        if( line.size() > 2 )
+        {
+            QStringList tmp;
+            tmp << line[0];
+            tmp << line[1];
+            line = tmp;
+        }else if( line.size() == 1 )
+            line << "1";
+        else if( line.isEmpty() )
+            continue;
+        line[0] = line[0].simplified();
+        line[1] = line[1].simplified();
+        res2 << line.join('=');
+    }
+    d_pro->setEnvVars(res2);
+}
+
 void Ide::onSetOptions()
 {
     ENABLED_IF(true);
@@ -3506,7 +3565,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("Dr. Rochus Keller");
     a.setOrganizationDomain("oberon.rochus-keller.ch");
     a.setApplicationName("Oberon+ IDE (Mono)");
-    a.setApplicationVersion("0.9.109");
+    a.setApplicationVersion("0.9.110");
     a.setStyle("Fusion");    
     QFontDatabase::addApplicationFont(":/font/DejaVuSansMono.ttf"); // "DejaVu Sans Mono"
 

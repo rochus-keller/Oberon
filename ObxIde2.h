@@ -173,6 +173,8 @@ namespace Obx
         void onBreakOnExceptions();
         void onRowColMode();
         void onSetInputFile();
+        void onSetAppArgs();
+        void onSetEnvVars();
         void onSetOptions();
         void onSetInt16();
         void onNoWarnings();

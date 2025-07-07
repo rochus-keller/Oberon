@@ -1103,6 +1103,18 @@ void Project::setOptions(const QByteArrayList& o)
     touch();
 }
 
+void Project::setAppArgs(const QString & str)
+{
+    d_appArgs = str;
+    touch();
+}
+
+void Project::setEnvVars(const QStringList & vars)
+{
+    d_envVars = vars;
+    touch();
+}
+
 bool Project::getInt16() const
 {
     return d_mdl->getInt16();
@@ -1381,6 +1393,8 @@ bool Project::save()
     out.setValue("WorkingDir", d_workingDir );
     out.setValue("BuildDir", d_buildDir );
     out.setValue("Options", d_options.join(' ') );
+    out.setValue("AppArgs", d_appArgs );
+    out.setValue("EnvVars", d_envVars );
     out.setValue("IntegerIsInt16", d_mdl->getInt16() );
 
     FileGroup root = getRootFileGroup();
@@ -1442,6 +1456,8 @@ bool Project::loadFrom(const QString& filePath)
     d_workingDir = in.value("WorkingDir").toString();
     d_buildDir = in.value("BuildDir").toString();
     d_options = in.value("Options").toByteArray().split(' ');
+    d_appArgs = in.value("AppArgs").toString();
+    d_envVars = in.value("EnvVars").toStringList();
     d_mdl->setInt16( in.value("IntegerIsInt16").toBool() );
 
     int count = in.beginReadArray("Modules");

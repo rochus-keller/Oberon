@@ -155,8 +155,9 @@ vlength* ::= expression // allow VLA for local vars where length is dependent on
 
 length* ::= ConstExpression 
 
+SysFlag ::=  '[' ConstExpression ']' // also used by Mac Oberon S3
+
 #ifdef BBOX
-SysFlag ::=  '[' ConstExpression ']' 
 SysString ::= string
 #endif
 
@@ -172,9 +173,7 @@ RecordType ::=
 	| CUNION
 #endif
 	)
-#ifdef BBOX
-	[ SysFlag ]
-#endif
+	[ SysFlag ] // used by Bbox and MacOberon S3 1999
 	['(' BaseType ')'] [FieldListSequence]  END 
 
 BaseType ::= NamedType
@@ -196,6 +195,8 @@ PointerType ::= (
 	POINTER 
 #ifdef BBOX
 		[ SysFlag ]
+#else
+        ['-'] // seen in MacOberon for "untagged pointer"
 #endif
 		TO
 #ifdef OBNX

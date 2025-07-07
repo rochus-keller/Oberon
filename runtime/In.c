@@ -167,6 +167,23 @@ void In$Name(struct OBX$Array$1 arr)
 	In$Done = count > 0;
 }
 
+void In$Arg(int n, struct OBX$Array$1 arg)
+{
+	char* to = (char*)arg.$a;
+	const char* from = OBX$AppArg(n);
+	int len = strlen(from);
+	if( len > arg.$1 )
+	    len = arg.$1;
+	for( int i = 0; i < len; i++ )
+	    to[i] = from[i];
+	to[len] = 0;
+}
+
+int In$Args()
+{
+    return OBX$AppArgs();
+}
+
 void In$init$()
 {
 }

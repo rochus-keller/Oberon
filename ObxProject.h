@@ -95,6 +95,10 @@ namespace Obx
         void setBuildDir( const QString& );
         QByteArrayList getOptions() const { return d_options; }
         void setOptions( const QByteArrayList& );
+        QString getAppArgs() const { return d_appArgs; }
+        void setAppArgs(const QString&);
+        QStringList getEnvVars() const { return d_envVars; }
+        void setEnvVars( const QStringList& );
         bool getInt16() const;
         void setInt16(bool);
 
@@ -141,6 +145,8 @@ namespace Obx
         QString d_filePath; // path where the project file was loaded from or saved to
         QStringList d_suffixes;
         QByteArrayList d_options;
+        QStringList d_envVars;
+        QString d_appArgs;
         QString d_workingDir, d_buildDir;
         ModProc d_main;
         bool d_dirty;
