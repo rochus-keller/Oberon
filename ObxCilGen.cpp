@@ -1535,10 +1535,9 @@ struct ObxCilGenImp : public AstVisitor
             line(loc).ldc_i4(val.toInt());
             break;
         case Type::REAL:
-            //emitOpcode2("ldc.r8",1,loc); // NOTE: before r4, but this causes round-off errors when e.g. 365.24 is later converted to r8
-                                         // CLR anyway has F on the stack, even when pushing r4
+            //emitOpcode2("ldc.r8",1,loc);
             //out << " " << QByteArray::number(val.toDouble(),'e',9) << endl;
-            line(loc).ldc_r8(val.toDouble());
+            line(loc).ldc_r4(val.toDouble());
             break;
         case Type::LONGREAL:
             //emitOpcode2("ldc.r8",1,loc);
@@ -3494,7 +3493,7 @@ struct ObxCilGenImp : public AstVisitor
         case BinExpr::IN:
             if( lhsT->isInteger() && rhsT->getBaseType() == Type::SET )
             {
-                line(me->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::IN(int32, int32)", 2, true );
+                line(me->d_loc).call_("bool [OBX.Runtime]OBX.Runtime::IN(int32, uint32)", 2, true );
             }else
                 Q_ASSERT(false);
             break;

@@ -257,9 +257,9 @@ namespace OBX
 				set_ = addElemToSet(set_,i);
 			return set_;
 		}
-		public static bool IN(int elem, int set_)
+		public static bool IN(int elem, uint set_)
 		{
-			return ( ( 1 << elem ) & set_ ) != 0;
+			return ( ( 1u << elem ) & set_ ) != 0;
 		}
 		public static bool ODD(int n)
 		{

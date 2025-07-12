@@ -3282,7 +3282,7 @@ struct ObxCGenImp : public AstVisitor
         case BinExpr::IN:
             if( lhsT->isInteger() && rhsT->getBaseType() == Type::SET )
             {
-                b << "((1<<";
+                b << "((1u<<";
                 me->d_lhs->accept(this);
                 b << ")&";
                 me->d_rhs->accept(this);

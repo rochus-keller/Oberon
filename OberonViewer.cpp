@@ -80,7 +80,7 @@ public:
         QFont f;
         f.setStyleHint( QFont::TypeWriter );
         f.setFamily("Mono");
-        f.setPointSize(9);
+        f.setPointSizeF(10.5);
         setFont(f);
     }
     OberonViewer* that() { return d_that; }
@@ -835,7 +835,7 @@ int main(int argc, char *argv[])
     a.setOrganizationName("me@rochus-keller.ch");
     a.setOrganizationDomain("github.com/rochus-keller/Oberon");
     a.setApplicationName("OberonViewer");
-    a.setApplicationVersion("0.8.11");
+    a.setApplicationVersion("0.8.12");
     a.setStyle("Fusion");
 
     QStringList dirOrFilePaths;

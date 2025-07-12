@@ -381,14 +381,24 @@ static inline bool checkDecNumber( QByteArray str, bool oneOff = false )
     return true;
 }
 
+static inline int trueFractionalLength( const QByteArray& str )
+{
+    int len = str.size();
+    for( int i = str.size() - 1; i >= 0; i-- )
+    {
+        if( str[i] == '0' )
+            len--;
+        else
+            break;
+    }
+    return len;
+}
+
 Token Lexer::number()
 {
     // integer      ::=  digit {digit} ['I' | 'L'] | digit {hexDigit} 'H' ['I' | 'L']
     // real         ::=  digit {digit} '.' {digit} [ScaleFactor]
     // ScaleFactor  ::=  ('E'|'D'|'S') ['+' | '-'] digit {digit}
-    const int startLine = d_lineNr;
-    const int startCol = d_colNr;
-    int lhsPlaces = 0, rhsPlaces = 0, expPlaces = 0;
     int off = 1;
     while( true )
     {
@@ -398,7 +408,6 @@ Token Lexer::number()
         else
             off++;
     }
-    lhsPlaces = off;
     bool isHex = false;
     bool is64bit = false;
     bool is32bit = false;
@@ -449,7 +458,6 @@ Token Lexer::number()
                 break;
             else
                 off++;
-            rhsPlaces++;
         }
         const char de = lookAhead(off);
         if( de == 'E' || de == 'D' || de == 'S' || de == 'e' || de == 'd' || de == 's' )
@@ -474,7 +482,6 @@ Token Lexer::number()
                     break;
                 else
                     off++;
-                expPlaces++;
             }
         }
     }
@@ -498,35 +505,23 @@ Token Lexer::number()
     else if( isReal)
     {
         Token tok = token( Tok_real, off, str );
-#if 0
-        int i = 0;
-        while( lhsPlaces > 0 && i < str.size()  )
-        {
-            if(str[i++] == '0')
-                lhsPlaces--;
-            else
-                break;
-        }
-        if( (lhsPlaces+rhsPlaces) > 7 || expPlaces > 2 || is64bit ) // double has 52 bit mantissa, i.e. ~15 decimal digits
-            tok.d_double = true;
-#else
-        QByteArray mantissa = ePos != -1 ? str.left(ePos) : str;
-        QByteArray lhs = mantissa;
+        QByteArray fractionalPart = ePos != -1 ? str.left(ePos).trimmed() : str.trimmed();
+        QByteArray integerPart = fractionalPart;
         if( commaPos != -1 )
         {
-            lhs = lhs.left(commaPos);
-            mantissa.remove(commaPos,1);
+            integerPart = integerPart.left(commaPos);
+            fractionalPart.remove(commaPos,1);
         }
         bool mOk, lOk;
-        const quint64 l = lhs.toULongLong(&lOk);
-        const quint64 m = mantissa.toULongLong(&mOk); // !ok if mantissa is too large
+        const quint64 ip = integerPart.toULongLong(&lOk);
+        const quint64 fp = fractionalPart.toULongLong(&mOk); // !ok if mantissa is too large
+        const int precisionDigigs = trueFractionalLength(fractionalPart) + (ip ? QByteArray::number(ip).size() : 0 );
         const int e = ePos != -1 ? str.mid(ePos+1).toInt() : 0;
-        tok.d_double = !is32bit && ( !mOk || is64bit || e > 127 || e < -126 || m > 8388607 );
-        if( is32bit && ( !lOk || e > 127 || e < -126 || l > 8388607 ) )
+        tok.d_double = !is32bit && ( !mOk || is64bit || e > 127 || e < -126 || fp > 8388607 || precisionDigigs > 7 );
+        if( is32bit && ( !lOk || e > 127 || e < -126 || ip > 8388607 ) )
             return token( Tok_Invalid, off, "literal too large for REAL" );
-        if( tok.d_double && ( e > 1023 || e < -1022 || l > 9007199254740991L ) )
+        if( tok.d_double && ( e > 1023 || e < -1022 || ip > 9007199254740991L ) )
             return token( Tok_Invalid, off, "literal too large for LONGREAL" );
-#endif
         return tok;
     }else if( !isHex && !checkDecNumber(str, is32bit || is64bit) )
         return token( Tok_Invalid, off, "invalid decimal integer" );

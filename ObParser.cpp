@@ -1195,7 +1195,7 @@ void Parser::ProcedureDeclaration(SynTree* st) {
 		if( la.d_type == Tok_Hat ) {
 			if( expect(Tok_Hat, false, "ProcedureDeclaration") ) addTerminal(st);
 		} else if( la.d_type == Tok_Minus ) {
-			if( expect(Tok_Minus, false, "ProcedureDeclaration") ) addTerminal(st);
+            if( expect(Tok_Minus, false, "ProcedureDeclaration") ) addTerminal(st);
 		} else
 			invalid("ProcedureDeclaration");
 		if( FIRST_Receiver(la.d_type) ) {
