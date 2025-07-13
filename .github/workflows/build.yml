@@ -5,7 +5,7 @@ on:
     branches: [ master, main ]
   pull_request:
     branches: [ master, main ]
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
             arch: x64
             cc: gcc
             output_suffix: linux_x64
-             
+            
           # Windows builds
           - os: windows-latest
             arch: x64
@@ -38,21 +38,23 @@ jobs:
     runs-on: ${{ matrix.os }}
     
     steps:
+    - name: Create root build directory
+      run: |
+        mkdir -p ../build
+        cd ../build
+        echo "BUILD_ROOT=$(pwd)" >> $GITHUB_ENV
+      shell: bash
+      
     - name: Checkout Oberon repository
       uses: actions/checkout@v4
-      
+      with:
+        path: ../build/Oberon
+        
     - name: Setup build environment (Linux)
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential libxcb1-dev libx11-dev
-        if [ "${{ matrix.cross_compile }}" = "true" ]; then
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          elif [ "${{ matrix.arch }}" = "armv7" ]; then
-            sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
-          fi
-        fi
         if [ "${{ matrix.arch }}" = "x86" ]; then
           sudo apt-get install -y gcc-multilib g++-multilib
         fi
@@ -64,14 +66,11 @@ jobs:
     - name: Setup build environment (macOS)
       if: runner.os == 'macOS'
       run: |
-        # macOS comes with clang by default
         echo "macOS build environment ready"
         
     - name: Download and build BUSY
       run: |
-        # Create build directory
-        mkdir -p build
-        cd build
+        cd $BUILD_ROOT
         
         # Download BUSY
         if [ "${{ runner.os }}" = "Windows" ]; then
@@ -89,22 +88,17 @@ jobs:
         if [ "${{ runner.os }}" = "Windows" ]; then
           cl /O2 /MD /Fe:lua.exe *.c
         else
-          if [ "${{ matrix.cross_compile }}" = "true" ]; then
-            # For cross-compilation, build BUSY with host compiler
-            cc *.c -O2 -lm -o lua
+          if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ]; then
+            gcc -m32 *.c -O2 -lm -o lua
           else
-            if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ]; then
-              gcc -m32 *.c -O2 -lm -o lua
-            else
-              cc *.c -O2 -lm -o lua
-            fi
+            cc *.c -O2 -lm -o lua
           fi
         fi
       shell: bash
       
     - name: Download required dependencies
       run: |
-        cd build
+        cd $BUILD_ROOT
         
         # Download PeLib
         if [ "${{ runner.os }}" = "Windows" ]; then
@@ -153,54 +147,41 @@ jobs:
       
     - name: Build ObxIDE
       run: |
-        cd build/BUSY
+        cd $BUILD_ROOT/BUSY
         
-        # Set up cross-compilation environment if needed
-        if [ "${{ matrix.cross_compile }}" = "true" ]; then
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-            CROSS_ARGS="-P target_toolchain_prefix=\"aarch64-linux-gnu-\""
-          elif [ "${{ matrix.arch }}" = "armv7" ]; then
-            export CC=arm-linux-gnueabihf-gcc
-            export CXX=arm-linux-gnueabihf-g++
-            CROSS_ARGS="-P target_toolchain_prefix=\"arm-linux-gnueabihf-\""
-          fi
-        fi
-        
-        # Build the IDE
+        # Build the IDE - now pointing to the Oberon directory at the same level
         if [ "${{ runner.os }}" = "Windows" ]; then
           ./lua.exe build.lua ../Oberon -T ide
         else
-          if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ] && [ "${{ matrix.cross_compile }}" != "true" ]; then
+          if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ]; then
             ./lua build.lua ../Oberon -T ide -P target_arch=x86
           else
-            ./lua build.lua ../Oberon -T ide $CROSS_ARGS
+            ./lua build.lua ../Oberon -T ide
           fi
         fi
       shell: bash
       
     - name: Package artifacts
       run: |
-        cd build/BUSY/output
+        cd $BUILD_ROOT/BUSY/output
         
-        # Create package directory
-        mkdir -p ../../../artifacts
+        # Create package directory in the original workspace
+        mkdir -p $GITHUB_WORKSPACE/artifacts
         
         # Copy built executable
         if [ "${{ runner.os }}" = "Windows" ]; then
           if [ -f ObxIDE.exe ]; then
-            cp ObxIDE.exe ../../../artifacts/ObxIDE_${{ matrix.output_suffix }}.exe
+            cp ObxIDE.exe $GITHUB_WORKSPACE/artifacts/ObxIDE_${{ matrix.output_suffix }}.exe
           fi
         else
           if [ -f ObxIDE ]; then
-            cp ObxIDE ../../../artifacts/ObxIDE_${{ matrix.output_suffix }}
+            cp ObxIDE $GITHUB_WORKSPACE/artifacts/ObxIDE_${{ matrix.output_suffix }}
           fi
         fi
         
         # Copy any additional required files
         if [ -d mono ]; then
-          cp -r mono ../../../artifacts/
+          cp -r mono $GITHUB_WORKSPACE/artifacts/
         fi
       shell: bash
       
