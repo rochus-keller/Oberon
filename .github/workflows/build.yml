@@ -163,11 +163,11 @@ jobs:
         if [ "${{ runner.os }}" = "Windows" ]; then
           curl -L https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.zip -o leanqt.zip
           unzip leanqt.zip
-          mv LeanQt-master LeanQt
+          mv LeanQt-main LeanQt
         else
           wget https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.tar.gz -O leanqt.tar.gz
           tar -xzf leanqt.tar.gz
-          mv LeanQt-master LeanQt
+          mv LeanQt-main LeanQt
         fi
       shell: bash
       
