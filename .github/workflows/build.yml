@@ -18,11 +18,7 @@ jobs:
             arch: x64
             cc: gcc
             output_suffix: linux_x64
-          - os: ubuntu-latest
-            arch: x86
-            cc: gcc
-            output_suffix: linux_x86
-            
+             
           # Windows builds
           - os: windows-latest
             arch: x64
@@ -38,22 +34,6 @@ jobs:
             arch: x64
             cc: clang
             output_suffix: macos_x64
-          - os: macos-13
-            arch: x64
-            cc: clang
-            output_suffix: macos_x64_intel
-            
-          # Raspberry Pi (cross-compile on Ubuntu)
-          - os: ubuntu-latest
-            arch: arm64
-            cc: aarch64-linux-gnu-gcc
-            output_suffix: rpi_arm64
-            cross_compile: true
-          - os: ubuntu-latest
-            arch: armv7
-            cc: arm-linux-gnueabihf-gcc
-            output_suffix: rpi_armv7
-            cross_compile: true
 
     runs-on: ${{ matrix.os }}
     
@@ -190,12 +170,12 @@ jobs:
         
         # Build the IDE
         if [ "${{ runner.os }}" = "Windows" ]; then
-          ./lua.exe build.lua ../../ -T ide
+          ./lua.exe build.lua ../Oberon -T ide
         else
           if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ] && [ "${{ matrix.cross_compile }}" != "true" ]; then
-            ./lua build.lua ../../ -T ide -P target_arch=x86
+            ./lua build.lua ../Oberon -T ide -P target_arch=x86
           else
-            ./lua build.lua ../../ -T ide $CROSS_ARGS
+            ./lua build.lua ../Oberon -T ide $CROSS_ARGS
           fi
         fi
       shell: bash
