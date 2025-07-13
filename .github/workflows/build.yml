@@ -1,0 +1,233 @@
+name: Build ObxIDE
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds
+          - os: ubuntu-latest
+            arch: x64
+            cc: gcc
+            output_suffix: linux_x64
+          - os: ubuntu-latest
+            arch: x86
+            cc: gcc
+            output_suffix: linux_x86
+            
+          # Windows builds
+          - os: windows-latest
+            arch: x64
+            cc: cl
+            output_suffix: win64
+          - os: windows-latest
+            arch: x86
+            cc: cl
+            output_suffix: win32
+            
+          # macOS builds
+          - os: macos-latest
+            arch: x64
+            cc: clang
+            output_suffix: macos_x64
+          - os: macos-13
+            arch: x64
+            cc: clang
+            output_suffix: macos_x64_intel
+            
+          # Raspberry Pi (cross-compile on Ubuntu)
+          - os: ubuntu-latest
+            arch: arm64
+            cc: aarch64-linux-gnu-gcc
+            output_suffix: rpi_arm64
+            cross_compile: true
+          - os: ubuntu-latest
+            arch: armv7
+            cc: arm-linux-gnueabihf-gcc
+            output_suffix: rpi_armv7
+            cross_compile: true
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout Oberon repository
+      uses: actions/checkout@v4
+      
+    - name: Setup build environment (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libxcb1-dev libx11-dev
+        if [ "${{ matrix.cross_compile }}" = "true" ]; then
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+          fi
+        fi
+        if [ "${{ matrix.arch }}" = "x86" ]; then
+          sudo apt-get install -y gcc-multilib g++-multilib
+        fi
+        
+    - name: Setup build environment (Windows)
+      if: runner.os == 'Windows'
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup build environment (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        # macOS comes with clang by default
+        echo "macOS build environment ready"
+        
+    - name: Download and build BUSY
+      run: |
+        # Create build directory
+        mkdir -p build
+        cd build
+        
+        # Download BUSY
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          curl -L https://github.com/rochus-keller/BUSY/archive/refs/heads/master.zip -o busy.zip
+          unzip busy.zip
+          mv BUSY-master BUSY
+        else
+          wget https://github.com/rochus-keller/BUSY/archive/refs/heads/master.tar.gz -O busy.tar.gz
+          tar -xzf busy.tar.gz
+          mv BUSY-master BUSY
+        fi
+        
+        # Build BUSY
+        cd BUSY
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cl /O2 /MD /Fe:lua.exe *.c
+        else
+          if [ "${{ matrix.cross_compile }}" = "true" ]; then
+            # For cross-compilation, build BUSY with host compiler
+            cc *.c -O2 -lm -o lua
+          else
+            if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ]; then
+              gcc -m32 *.c -O2 -lm -o lua
+            else
+              cc *.c -O2 -lm -o lua
+            fi
+          fi
+        fi
+      shell: bash
+      
+    - name: Download required dependencies
+      run: |
+        cd build
+        
+        # Download PeLib
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          curl -L https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip -o pelib.zip
+          unzip pelib.zip
+          mv PeLib-OBX PeLib
+        else
+          wget https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.tar.gz -O pelib.tar.gz
+          tar -xzf pelib.tar.gz
+          mv PeLib-OBX PeLib
+        fi
+        
+        # Download MonoTools
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          curl -L https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip -o monotools.zip
+          unzip monotools.zip
+          mv MonoTools-master MonoTools
+        else
+          wget https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.tar.gz -O monotools.tar.gz
+          tar -xzf monotools.tar.gz
+          mv MonoTools-master MonoTools
+        fi
+        
+        # Download GuiTools
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          curl -L https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip -o guitools.zip
+          unzip guitools.zip
+          mv GuiTools-master GuiTools
+        else
+          wget https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.tar.gz -O guitools.tar.gz
+          tar -xzf guitools.tar.gz
+          mv GuiTools-master GuiTools
+        fi
+        
+        # Download LeanQt
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          curl -L https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.zip -o leanqt.zip
+          unzip leanqt.zip
+          mv LeanQt-master LeanQt
+        else
+          wget https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.tar.gz -O leanqt.tar.gz
+          tar -xzf leanqt.tar.gz
+          mv LeanQt-master LeanQt
+        fi
+      shell: bash
+      
+    - name: Build ObxIDE
+      run: |
+        cd build/BUSY
+        
+        # Set up cross-compilation environment if needed
+        if [ "${{ matrix.cross_compile }}" = "true" ]; then
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+            CROSS_ARGS="-P target_toolchain_prefix=\"aarch64-linux-gnu-\""
+          elif [ "${{ matrix.arch }}" = "armv7" ]; then
+            export CC=arm-linux-gnueabihf-gcc
+            export CXX=arm-linux-gnueabihf-g++
+            CROSS_ARGS="-P target_toolchain_prefix=\"arm-linux-gnueabihf-\""
+          fi
+        fi
+        
+        # Build the IDE
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          ./lua.exe build.lua ../../ -T ide
+        else
+          if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ] && [ "${{ matrix.cross_compile }}" != "true" ]; then
+            ./lua build.lua ../../ -T ide -P target_arch=x86
+          else
+            ./lua build.lua ../../ -T ide $CROSS_ARGS
+          fi
+        fi
+      shell: bash
+      
+    - name: Package artifacts
+      run: |
+        cd build/BUSY/output
+        
+        # Create package directory
+        mkdir -p ../../../artifacts
+        
+        # Copy built executable
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          if [ -f ObxIDE.exe ]; then
+            cp ObxIDE.exe ../../../artifacts/ObxIDE_${{ matrix.output_suffix }}.exe
+          fi
+        else
+          if [ -f ObxIDE ]; then
+            cp ObxIDE ../../../artifacts/ObxIDE_${{ matrix.output_suffix }}
+          fi
+        fi
+        
+        # Copy any additional required files
+        if [ -d mono ]; then
+          cp -r mono ../../../artifacts/
+        fi
+      shell: bash
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ObxIDE_${{ matrix.output_suffix }}
+        path: artifacts/
+        retention-days: 30
+
