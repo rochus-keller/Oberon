@@ -18,30 +18,12 @@ jobs:
             arch: x64
             cc: gcc
             output_suffix: linux_x64
-          - os: ubuntu-latest
-            arch: x86
-            cc: gcc
-            output_suffix: linux_x86
-            
-          # Windows builds
-          - os: windows-latest
-            arch: x64
-            cc: cl
-            output_suffix: win64
-          - os: windows-latest
-            arch: x86
-            cc: cl
-            output_suffix: win32
             
           # macOS builds
           - os: macos-latest
             arch: x64
             cc: clang
             output_suffix: macos_x64
-          - os: macos-13
-            arch: x64
-            cc: clang
-            output_suffix: macos_x64_intel
 
     runs-on: ${{ matrix.os }}
     
@@ -150,11 +132,7 @@ jobs:
         if [ "${{ runner.os }}" = "Windows" ]; then
           ./lua.exe build.lua ../Oberon -T ide
         else
-          if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ]; then
-            ./lua build.lua ../Oberon -T ide -P target_arch=x86
-          else
-            ./lua build.lua ../Oberon -T ide
-          fi
+          ./lua build.lua ../Oberon -T ide
         fi
       shell: bash
       
