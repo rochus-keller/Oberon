@@ -97,11 +97,11 @@ jobs:
         if [ "${{ runner.os }}" = "Windows" ]; then
           curl -L https://github.com/rochus-keller/BUSY/archive/refs/heads/master.zip -o busy.zip
           unzip busy.zip
-          mv BUSY-master BUSY
+          mv BUSY-main BUSY
         else
           wget https://github.com/rochus-keller/BUSY/archive/refs/heads/master.tar.gz -O busy.tar.gz
           tar -xzf busy.tar.gz
-          mv BUSY-master BUSY
+          mv BUSY-main BUSY
         fi
         
         # Build BUSY
