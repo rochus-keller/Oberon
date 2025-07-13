@@ -1,0 +1,155 @@
+MODULE SetTest;
+
+IMPORT Out;  (* Assuming a basic output module for printing results *)
+
+CONST
+  MaxSetElement = 31;  (* Assuming 32-bit SETs *)
+
+PROCEDURE TestSetConstruction;
+  VAR
+    s1, s2: SET;
+BEGIN
+  s1 := {1, 3, 5};  (* Literal set *)
+  ASSERT(1 IN s1);
+  ASSERT(~(2 IN s1));
+  ASSERT(3 IN s1);
+
+  s2 := {0..5};  (* Range *)
+  ASSERT(0 IN s2);
+  ASSERT(5 IN s2);
+  ASSERT(~(6 IN s2));
+
+  (* Edge: Empty set *)
+  s1 := {};
+  ASSERT(~(0 IN s1));
+
+  (* Edge: Full set *)
+  s1 := {0..MaxSetElement};
+  ASSERT(MaxSetElement IN s1);
+
+  (* Invalid range: Should compile but may raise runtime error if not handled *)
+  (* s1 := {-1..1};  *)  (* Uncomment to test negative range handling *)
+END TestSetConstruction;
+
+PROCEDURE TestMembership;
+  VAR
+    s: SET;
+BEGIN
+  s := {1, 10, 20, 30};
+  ASSERT(1 IN s);
+  ASSERT(10 IN s);
+  ASSERT(20 IN s);
+  ASSERT(30 IN s);
+  ASSERT(~(0 IN s));
+  ASSERT(~(31 IN s));  (* Boundary *)
+
+  (* Edge: Negative element *)
+  (* ASSERT(-1 NOT IN s);  *)  (* Should be false; test if compiler handles negatives *)
+
+  (* Edge: Out-of-range (beyond 31) *)
+  (* ASSERT(32 NOT IN s);  *)  (* Should be false; may need runtime check *)
+END TestMembership;
+
+PROCEDURE TestArithmeticOperations;
+  VAR
+    s1, s2, result: SET;
+BEGIN
+  s1 := {1, 2, 3};
+  s2 := {3, 4, 5};
+
+  (* Union: {1,2,3,4,5} *)
+  result := s1 + s2;
+  ASSERT(1 IN result);
+  ASSERT(3 IN result);
+  ASSERT(5 IN result);
+  ASSERT(~(6 IN result));
+
+  (* Intersection: {3} *)
+  result := s1 * s2;
+  ASSERT(3 IN result);
+  ASSERT(~(1 IN result));
+  ASSERT(~(4 IN result));
+
+  (* Difference: {1,2} *)
+  result := s1 - s2;
+  ASSERT(1 IN result);
+  ASSERT(2 IN result);
+  ASSERT(~(3 IN result));
+
+  (* Symmetric Difference: {1,2,4,5} *)
+  result := s1 / s2;
+  ASSERT(1 IN result);
+  ASSERT(4 IN result);
+  ASSERT(~(3 IN result));
+
+  (* Edge: Operations with empty set *)
+  result := s1 + {};
+  ASSERT(result = s1);
+  result := s1 * {};
+  ASSERT(result = {});
+
+  (* Edge: Operations with full set *)
+  result := s1 + {0..MaxSetElement};
+  ASSERT(result = {0..MaxSetElement});
+END TestArithmeticOperations;
+
+PROCEDURE TestInclusionExclusion;
+  VAR
+    s: SET;
+BEGIN
+  s := {1, 3};
+
+  INCL(s, 2);
+  ASSERT(2 IN s);
+
+  INCL(s, 31);  (* Boundary *)
+  ASSERT(31 IN s);
+
+  (* Edge: Include out-of-range *)
+  (* INCL(s, 32);  *)  (* Should raise error or be ignored *)
+
+  EXCL(s, 3);
+  ASSERT(~(3 IN s));
+
+  EXCL(s, 0);  (* Not in set *)
+  ASSERT(~(0 IN s));  (* No change *)
+
+  (* Edge: Exclude negative *)
+  (* EXCL(s, -1);  *)  (* Should be no-op or error *)
+END TestInclusionExclusion;
+
+PROCEDURE TestAssignmentAndComparison;
+  VAR
+    s1, s2: SET;
+BEGIN
+  s1 := {1, 2};
+  s2 := s1;
+  ASSERT(s1 = s2);
+
+  s2 := {1, 3};
+  ASSERT(s1 # s2);
+
+  (* Edge: Assign empty *)
+  s1 := {};
+  ASSERT(s1 = {});
+
+  (* Edge: Assign full *)
+  s1 := {0..MaxSetElement};
+  ASSERT(s1 = {0..MaxSetElement});
+END TestAssignmentAndComparison;
+
+PROCEDURE RunAllTests;
+BEGIN
+  TestSetConstruction;
+  TestMembership;
+  TestArithmeticOperations;
+  TestInclusionExclusion;
+  TestAssignmentAndComparison;
+
+  Out.String("All SET tests passed!"); Out.Ln;
+END RunAllTests;
+
+BEGIN
+  RunAllTests;
+END SetTest.
+

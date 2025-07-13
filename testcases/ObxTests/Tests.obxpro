@@ -1,7 +1,9 @@
 [General]
+AppArgs=
 BuildDir=/home/me/Entwicklung/Modules/build-ObxIde2-Qt_5_4_2-Debug/build
 BuiltInOakwood=true
 BuiltInObSysInner=false
+EnvVars=@Invalid()
 IntegerIsInt16=false
 MainModule=@ByteArray()
 MainProc=@ByteArray()
@@ -13,8 +15,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/RecReturnTest.obx
-1\RelPath=RecReturnTest.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/SetTest.obx
+1\RelPath=SetTest.obx
 size=1
 
 [Packages]

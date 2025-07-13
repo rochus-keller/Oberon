@@ -335,7 +335,7 @@ struct EvalVisitor : public AstVisitor
                     error(me,Evaluator::tr("operand types incompatible with range operator") );
 
                 const qint64 l = lhs.d_value.toLongLong();
-                const qint64 r = lhs.d_value.toLongLong();
+                const qint64 r = rhs.d_value.toLongLong();
                 if( l < 0 || l >= Literal::SET_BIT_LEN || r < 0 || r >= Literal::SET_BIT_LEN )
                     error(me,Evaluator::tr("lhs or rhs is out of range MIN(SET)..MAX(SET)") );
                 if( l <= r )

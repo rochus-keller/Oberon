@@ -1431,7 +1431,7 @@ struct ObxCGenImp : public AstVisitor
             }
             break;
         case Thing::T_NamedType:
-            // NOP
+            b << formatType(id->d_type.data());
             break;
         case Thing::T_Procedure:
             b << dottedName(id);
