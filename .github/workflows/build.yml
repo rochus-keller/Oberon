@@ -18,6 +18,10 @@ jobs:
             arch: x64
             cc: gcc
             output_suffix: linux_x64
+          - os: ubuntu-latest
+            arch: x86
+            cc: gcc
+            output_suffix: linux_x86
             
           # Windows builds
           - os: windows-latest
@@ -34,21 +38,18 @@ jobs:
             arch: x64
             cc: clang
             output_suffix: macos_x64
+          - os: macos-13
+            arch: x64
+            cc: clang
+            output_suffix: macos_x64_intel
 
     runs-on: ${{ matrix.os }}
     
     steps:
-    - name: Create root build directory
-      run: |
-        mkdir -p ../build
-        cd ../build
-        echo "BUILD_ROOT=$(pwd)" >> $GITHUB_ENV
-      shell: bash
-      
     - name: Checkout Oberon repository
       uses: actions/checkout@v4
       with:
-        path: ../build/Oberon
+        path: Oberon
         
     - name: Setup build environment (Linux)
       if: runner.os == 'Linux'
@@ -70,15 +71,13 @@ jobs:
         
     - name: Download and build BUSY
       run: |
-        cd $BUILD_ROOT
-        
         # Download BUSY
         if [ "${{ runner.os }}" = "Windows" ]; then
-          curl -L https://github.com/rochus-keller/BUSY/archive/refs/heads/master.zip -o busy.zip
+          curl -L https://github.com/rochus-keller/BUSY/archive/refs/heads/main.zip -o busy.zip
           unzip busy.zip
           mv BUSY-main BUSY
         else
-          wget https://github.com/rochus-keller/BUSY/archive/refs/heads/master.tar.gz -O busy.tar.gz
+          wget https://github.com/rochus-keller/BUSY/archive/refs/heads/main.tar.gz -O busy.tar.gz
           tar -xzf busy.tar.gz
           mv BUSY-main BUSY
         fi
@@ -98,8 +97,6 @@ jobs:
       
     - name: Download required dependencies
       run: |
-        cd $BUILD_ROOT
-        
         # Download PeLib
         if [ "${{ runner.os }}" = "Windows" ]; then
           curl -L https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip -o pelib.zip
@@ -135,11 +132,11 @@ jobs:
         
         # Download LeanQt
         if [ "${{ runner.os }}" = "Windows" ]; then
-          curl -L https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.zip -o leanqt.zip
+          curl -L https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.zip -o leanqt.zip
           unzip leanqt.zip
           mv LeanQt-main LeanQt
         else
-          wget https://github.com/rochus-keller/LeanQt/archive/refs/heads/master.tar.gz -O leanqt.tar.gz
+          wget https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.tar.gz -O leanqt.tar.gz
           tar -xzf leanqt.tar.gz
           mv LeanQt-main LeanQt
         fi
@@ -147,9 +144,9 @@ jobs:
       
     - name: Build ObxIDE
       run: |
-        cd $BUILD_ROOT/BUSY
+        cd BUSY
         
-        # Build the IDE - now pointing to the Oberon directory at the same level
+        # Build the IDE - pointing to the Oberon directory
         if [ "${{ runner.os }}" = "Windows" ]; then
           ./lua.exe build.lua ../Oberon -T ide
         else
@@ -163,25 +160,25 @@ jobs:
       
     - name: Package artifacts
       run: |
-        cd $BUILD_ROOT/BUSY/output
+        cd BUSY/output
         
-        # Create package directory in the original workspace
-        mkdir -p $GITHUB_WORKSPACE/artifacts
+        # Create package directory
+        mkdir -p ../../artifacts
         
         # Copy built executable
         if [ "${{ runner.os }}" = "Windows" ]; then
           if [ -f ObxIDE.exe ]; then
-            cp ObxIDE.exe $GITHUB_WORKSPACE/artifacts/ObxIDE_${{ matrix.output_suffix }}.exe
+            cp ObxIDE.exe ../../artifacts/ObxIDE_${{ matrix.output_suffix }}.exe
           fi
         else
           if [ -f ObxIDE ]; then
-            cp ObxIDE $GITHUB_WORKSPACE/artifacts/ObxIDE_${{ matrix.output_suffix }}
+            cp ObxIDE ../../artifacts/ObxIDE_${{ matrix.output_suffix }}
           fi
         fi
         
         # Copy any additional required files
         if [ -d mono ]; then
-          cp -r mono $GITHUB_WORKSPACE/artifacts/
+          cp -r mono ../../artifacts/
         fi
       shell: bash
       
