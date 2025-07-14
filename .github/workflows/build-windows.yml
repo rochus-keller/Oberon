@@ -16,6 +16,9 @@ jobs:
           - os: windows-2022
             arch: x64
             output_suffix: win64
+          - os: windows-2022
+            arch: x86
+            output_suffix: win32
 
     runs-on: ${{ matrix.os }}
     
@@ -25,103 +28,101 @@ jobs:
       with:
         arch: ${{ matrix.arch == 'x86' && 'x86' || 'x64' }}
         
+    - name: Create build directory structure
+      run: |
+        # Create the root build directory
+        New-Item -ItemType Directory -Path "build" -Force
+        Write-Host "Created build directory structure"
+      shell: powershell
+        
     - name: Checkout Oberon repository
       uses: actions/checkout@v4
-        
-    - name: Clean workspace
-      run: |
-        $directories = @("BUSY", "PeLib", "MonoTools", "GuiTools", "LeanQt")
-        foreach ($dir in $directories) {
-          if (Test-Path $dir) {
-            Remove-Item $dir -Recurse -Force
-          }
-        }
-      shell: powershell
+      with:
+        path: build/Oberon
         
     - name: Download and build BUSY
       run: |
+        Set-Location build
+        
+        # Download BUSY to the build directory (same level as Oberon)
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/BUSY/archive/refs/heads/main.zip" -OutFile "busy.zip"
         Expand-Archive -Path "busy.zip" -DestinationPath "."
+        if (Test-Path "BUSY") { Remove-Item "BUSY" -Recurse -Force }
         Move-Item -Path "BUSY-main" -Destination "BUSY" -Force
         
+        # Build BUSY
         Set-Location BUSY
         cl /O2 /MD /Fe:lua.exe *.c
+        
+        Write-Host "=== Current directory structure ==="
+        Set-Location ..
+        Get-ChildItem | Format-Table Name, Length, LastWriteTime
       shell: powershell
       
     - name: Download required dependencies
       run: |
-        # Download PeLib
+        Set-Location build
+        
+        # Download PeLib to build directory (same level as Oberon)
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip" -OutFile "pelib.zip"
         Expand-Archive -Path "pelib.zip" -DestinationPath "."
         if (Test-Path "PeLib") { Remove-Item "PeLib" -Recurse -Force }
         Move-Item -Path "PeLib-OBX" -Destination "PeLib" -Force
         
-        # Download MonoTools
+        # Download MonoTools to build directory (same level as Oberon)
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip" -OutFile "monotools.zip"
         Expand-Archive -Path "monotools.zip" -DestinationPath "."
         if (Test-Path "MonoTools") { Remove-Item "MonoTools" -Recurse -Force }
         Move-Item -Path "MonoTools-master" -Destination "MonoTools" -Force
         
-        # Download GuiTools
+        # Download GuiTools to build directory (same level as Oberon)
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip" -OutFile "guitools.zip"
         Expand-Archive -Path "guitools.zip" -DestinationPath "."
         if (Test-Path "GuiTools") { Remove-Item "GuiTools" -Recurse -Force }
         Move-Item -Path "GuiTools-master" -Destination "GuiTools" -Force
         
-        # Download LeanQt
+        # Download LeanQt to build directory (same level as Oberon)
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.zip" -OutFile "leanqt.zip"
         Expand-Archive -Path "leanqt.zip" -DestinationPath "."
         if (Test-Path "LeanQt") { Remove-Item "LeanQt" -Recurse -Force }
         Move-Item -Path "LeanQt-main" -Destination "LeanQt" -Force
-      shell: powershell
-      
-    - name: Debug directory structure
-      run: |
-        Write-Host "=== Current directory structure ==="
-        Get-ChildItem -Name
-        Write-Host ""
-        Write-Host "=== Contents of current directory ==="
+        
+        Write-Host "=== Final directory structure ==="
         Get-ChildItem | Format-Table Name, Length, LastWriteTime
-        Write-Host ""
-        Write-Host "=== Looking for BUSY file in root ==="
-        if (Test-Path "BUSY") {
-          Write-Host "Found BUSY file/directory in root"
-          Get-Item "BUSY"
-        } else {
-          Write-Host "No BUSY file found in root"
-        }
-        Write-Host ""
-        Write-Host "=== Current working directory ==="
-        Get-Location
       shell: powershell
       
     - name: Build ObxIDE
       run: |
-        Set-Location BUSY
+        Set-Location build\BUSY
+        
         Write-Host "=== Building from BUSY directory ==="
         Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Parent directory contents:"
+        Write-Host "Contents of parent directory:"
         Get-ChildItem .. | Format-Table Name, Length, LastWriteTime
         
-        # Use absolute path to avoid any path conversion issues
-        $oberonPath = Resolve-Path ".."
-        Write-Host "Resolved Oberon path: $oberonPath"
-        
-        .\lua.exe build.lua "$oberonPath" -T ide
+        # Now BUSY can run with ../Oberon since they're at the same level
+        .\lua.exe build.lua ..\Oberon -T ide
       shell: powershell
       
     - name: Package artifacts
       run: |
-        Set-Location BUSY\output
-        New-Item -ItemType Directory -Path "..\..\artifacts" -Force
+        Set-Location build\BUSY\output
+        
+        # Create artifacts directory in the original workspace
+        New-Item -ItemType Directory -Path "..\..\..\artifacts" -Force
         
         if (Test-Path "ObxIDE.exe") {
-          Copy-Item "ObxIDE.exe" "..\..\artifacts\ObxIDE_${{ matrix.output_suffix }}.exe"
+          Copy-Item "ObxIDE.exe" "..\..\..\artifacts\ObxIDE_${{ matrix.output_suffix }}.exe"
         }
         
         if (Test-Path "mono") {
-          Copy-Item "mono" "..\..\artifacts\" -Recurse
+          Copy-Item "mono" "..\..\..\artifacts\" -Recurse
         }
+        
+        # Add build information
+        "Build: ${{ github.sha }}" | Out-File "..\..\..\artifacts\build_info.txt"
+        "Date: $(Get-Date)" | Out-File "..\..\..\artifacts\build_info.txt" -Append
+        "Platform: ${{ matrix.output_suffix }}" | Out-File "..\..\..\artifacts\build_info.txt" -Append
       shell: powershell
       
     - name: Upload artifacts
