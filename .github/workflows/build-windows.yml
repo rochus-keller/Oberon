@@ -1,4 +1,4 @@
-name: Build ObxIDE (Windows x64 Only)
+name: Build ObxIDE Windows x64
 
 on:
   push:
@@ -8,224 +8,89 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows-x64:
+  build:
     runs-on: windows-2022
     
     steps:
-    - name: Setup Visual Studio environment
+    - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
         
-    - name: Create build directory structure
-      run: |
-        New-Item -ItemType Directory -Path "build" -Force
-        Write-Host "Created build directory structure"
-      shell: powershell
-        
+    - name: Create build directory
+      run: mkdir build
+      shell: cmd
+      
     - name: Checkout Oberon repository
       uses: actions/checkout@v4
       with:
-        path: build/Oberon
+        path: build/Obx
         
-    - name: Investigate Oberon repository contents
+    - name: Download BUSY
       run: |
-        Set-Location build\Oberon
-        
-        Write-Host "=== Oberon Repository Investigation ==="
-        Write-Host "Current directory: $(Get-Location)"
-        Write-Host ""
-        
-        Write-Host "=== All files and directories ==="
-        Get-ChildItem | Format-Table Name, Length, LastWriteTime, Attributes
-        Write-Host ""
-        
-        Write-Host "=== Looking for BUSY-related files ==="
-        $busyFiles = Get-ChildItem -Name "*BUSY*" -File -ErrorAction SilentlyContinue
-        if ($busyFiles) {
-          Write-Host "Found BUSY-related files:"
-          foreach ($file in $busyFiles) {
-            $item = Get-Item $file
-            Write-Host "  File: $($item.Name)"
-            Write-Host "    Full path: $($item.FullName)"
-            Write-Host "    Size: $($item.Length) bytes"
-            Write-Host "    Attributes: $($item.Attributes)"
-            Write-Host ""
-          }
-        } else {
-          Write-Host "No BUSY-related files found"
-        }
-        
-        Write-Host "=== Checking for BUSY file specifically ==="
-        if (Test-Path "BUSY" -PathType Leaf) {
-          Write-Host "✓ BUSY file found as expected"
-          $busyFile = Get-Item "BUSY"
-          Write-Host "  Name: $($busyFile.Name)"
-          Write-Host "  Size: $($busyFile.Length) bytes"
-          Write-Host "  Last modified: $($busyFile.LastWriteTime)"
-          Write-Host ""
-          Write-Host "First 10 lines of BUSY file:"
-          Get-Content "BUSY" -TotalCount 10
-        } else {
-          Write-Host "✗ BUSY file not found at expected location"
-          
-          $variations = @("busy", "BUSY.txt", "BUSY.busy", "Busy")
-          foreach ($variation in $variations) {
-            if (Test-Path $variation -PathType Leaf) {
-              Write-Host "Found variation: $variation"
-              $item = Get-Item $variation
-              Write-Host "  Size: $($item.Length) bytes"
-            }
-          }
-        }
-      shell: powershell
-        
-    - name: Download and build BUSY
-      run: |
-        Set-Location build
-        
-        Write-Host "=== Downloading BUSY build system ==="
-        Invoke-WebRequest -Uri "https://github.com/rochus-keller/BUSY/archive/refs/heads/main.zip" -OutFile "busy.zip"
-        Expand-Archive -Path "busy.zip" -DestinationPath "."
-        if (Test-Path "BUSY") { Remove-Item "BUSY" -Recurse -Force }
-        Move-Item -Path "BUSY-main" -Destination "BUSY" -Force
-        
-        Write-Host "=== Building BUSY executable ==="
-        Set-Location BUSY
-        cl /O2 /MD /Fe:lua.exe *.c
-        
-        if (Test-Path "lua.exe") {
-          Write-Host "✓ BUSY executable built successfully"
-        } else {
-          Write-Host "✗ BUSY executable build failed"
-          exit 1
-        }
-      shell: powershell
+        cd build
+        curl -L https://github.com/rochus-keller/BUSY/archive/refs/heads/main.zip -o busy.zip
+        tar -xf busy.zip
+        move BUSY-main BUSY
+      shell: cmd
       
-    - name: Download required dependencies
+    - name: Build BUSY
       run: |
-        Set-Location build
-        
-        Write-Host "=== Downloading dependencies ==="
-        
-        Invoke-WebRequest -Uri "https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip" -OutFile "pelib.zip"
-        Expand-Archive -Path "pelib.zip" -DestinationPath "."
-        if (Test-Path "PeLib") { Remove-Item "PeLib" -Recurse -Force }
-        Move-Item -Path "PeLib-OBX" -Destination "PeLib" -Force
-        
-        Invoke-WebRequest -Uri "https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip" -OutFile "monotools.zip"
-        Expand-Archive -Path "monotools.zip" -DestinationPath "."
-        if (Test-Path "MonoTools") { Remove-Item "MonoTools" -Recurse -Force }
-        Move-Item -Path "MonoTools-master" -Destination "MonoTools" -Force
-        
-        Invoke-WebRequest -Uri "https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip" -OutFile "guitools.zip"
-        Expand-Archive -Path "guitools.zip" -DestinationPath "."
-        if (Test-Path "GuiTools") { Remove-Item "GuiTools" -Recurse -Force }
-        Move-Item -Path "GuiTools-master" -Destination "GuiTools" -Force
-        
-        Invoke-WebRequest -Uri "https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.zip" -OutFile "leanqt.zip"
-        Expand-Archive -Path "leanqt.zip" -DestinationPath "."
-        if (Test-Path "LeanQt") { Remove-Item "LeanQt" -Recurse -Force }
-        Move-Item -Path "LeanQt-main" -Destination "LeanQt" -Force
-        
-        Write-Host "=== Final build directory structure ==="
-        Get-ChildItem | Format-Table Name, Length, LastWriteTime
-      shell: powershell
+        cd build/BUSY
+        cl -O2 -MD -Fe:lua.exe *.c
+      shell: cmd
       
-    - name: Fix BUSY configuration file if needed
+    - name: Download dependencies
       run: |
-        Set-Location build\Oberon
+        cd build
+        curl -L https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip -o pelib.zip
+        tar -xf pelib.zip
+        move PeLib-OBX PeLib
         
-        Write-Host "=== Fixing BUSY configuration file ==="
+        curl -L https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip -o monotools.zip
+        tar -xf monotools.zip
+        move MonoTools-master MonoTools
         
-        if (Test-Path "BUSY" -PathType Leaf) {
-          Write-Host "✓ BUSY configuration file exists and is ready"
-        } elseif (Test-Path "BUSY.txt") {
-          Write-Host "Found BUSY.txt - renaming to BUSY"
-          Move-Item "BUSY.txt" "BUSY" -Force
-        } elseif (Test-Path "busy") {
-          Write-Host "Found 'busy' (lowercase) - renaming to BUSY"
-          Move-Item "busy" "BUSY" -Force
-        } else {
-          Write-Host "✗ No BUSY configuration file found"
-          Write-Host "Available files:"
-          Get-ChildItem | Where-Object { $_.Name -like "*busy*" -or $_.Name -like "*BUSY*" } | Format-Table Name, Length, LastWriteTime
-          exit 1
-        }
+        curl -L https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip -o guitools.zip
+        tar -xf guitools.zip
+        move GuiTools-master GuiTools
         
-        if (Test-Path "BUSY" -PathType Leaf) {
-          Write-Host "✓ BUSY configuration file is ready for build"
-          Write-Host "File size: $((Get-Item 'BUSY').Length) bytes"
-        } else {
-          Write-Host "✗ BUSY configuration file preparation failed"
-          exit 1
-        }
-      shell: powershell
+        curl -L https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.zip -o leanqt.zip
+        tar -xf leanqt.zip
+        move LeanQt-main LeanQt
+      shell: cmd
+      
+    - name: Verify structure
+      run: |
+        cd build
+        echo "Build directory contents:"
+        dir
+        echo "Checking for BUSY config file:"
+        if exist "Obx\BUSY" (
+          echo "✓ BUSY config file found"
+        ) else (
+          echo "✗ BUSY config file missing"
+        )
+      shell: cmd
       
     - name: Build ObxIDE
       run: |
-        Set-Location build\BUSY
-        
-        Write-Host "=== Building ObxIDE ==="
-        Write-Host "Current directory: $(Get-Location)"
-        
-        Write-Host "Checking build prerequisites:"
-        if (Test-Path "lua.exe") {
-          Write-Host "✓ BUSY executable found"
-        } else {
-          Write-Host "✗ BUSY executable missing"
-          exit 1
-        }
-        
-        if (Test-Path "..\Oberon\BUSY") {
-          Write-Host "✓ BUSY configuration file found"
-        } else {
-          Write-Host "✗ BUSY configuration file missing"
-          Write-Host "Contents of Oberon directory:"
-          Get-ChildItem "..\Oberon" | Where-Object { $_.Name -like "*BUSY*" } | Format-Table Name, Length, LastWriteTime
-          exit 1
-        }
-        
-        Write-Host "Directory structure:"
-        Get-ChildItem .. | Format-Table Name, Length, LastWriteTime
-        Write-Host ""
-        
-        Write-Host "Starting BUSY build process..."
-        .\lua.exe build.lua ..\Oberon -T ide
-      shell: powershell
+        cd build/BUSY
+        lua.exe build.lua ../Obx -T ide
+      shell: cmd
       
-- name: Package artifacts
-  run: |
-    Set-Location build\BUSY\output
-    
-    Write-Host "=== Packaging artifacts ==="
-    Write-Host "Contents of output directory:"
-    Get-ChildItem | Format-Table Name, Length, LastWriteTime
-    
-    New-Item -ItemType Directory -Path "..\..\..\artifacts" -Force
-    
-    if (Test-Path "ObxIDE.exe") {
-      Write-Host "✓ ObxIDE.exe found - copying to artifacts"
-      Copy-Item "ObxIDE.exe" "..\..\..\artifacts\ObxIDE_win64.exe"
-    } else {
-      Write-Host "✗ ObxIDE.exe not found in output directory"
-      Write-Host "Available files:"
-      Get-ChildItem | Format-Table Name, Length, LastWriteTime
-    }
-    
-    if (Test-Path "mono") {
-      Write-Host "✓ Mono runtime found - copying to artifacts"
-      Copy-Item "mono" "..\..\..\artifacts\" -Recurse
-    }
-    
-    # Create build info using single-line approach
-    "Build: ${{ github.sha }}" | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
-    "Date: $(Get-Date)" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
-    "Platform: Windows x64" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
-    "Repository: ${{ github.repository }}" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
-    "Workflow: ${{ github.workflow }}" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
-    
-    Write-Host "=== Final artifacts ==="
-    Get-ChildItem "..\..\..\artifacts" | Format-Table Name, Length, LastWriteTime
-  shell: powershell
+    - name: Package artifacts
+      run: |
+        cd build/BUSY/output
+        mkdir ..\..\..\artifacts
+        if exist "ObxIDE.exe" copy ObxIDE.exe ..\..\..\artifacts\ObxIDE_win64.exe
+        if exist "mono" xcopy mono ..\..\..\artifacts\mono\ /E /I
+      shell: cmd
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ObxIDE_win64
+        path: artifacts/
+        retention-days: 30
 
