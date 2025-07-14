@@ -67,7 +67,7 @@ jobs:
         # Build BUSY
         cd BUSY
         if [ "${{ runner.os }}" = "Windows" ]; then
-          cl /O2 /MD /Fe:lua.exe *.c
+          cl -O2 -MD -Fe:lua.exe *.c
         else
           if [ "${{ matrix.arch }}" = "x86" ] && [ "${{ runner.os }}" = "Linux" ]; then
             gcc -m32 *.c -O2 -lm -o lua
