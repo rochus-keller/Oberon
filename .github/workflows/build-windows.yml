@@ -1,4 +1,4 @@
-name: Build ObxIDE (Windows)
+name: Build ObxIDE (Windows x64 Only)
 
 on:
   push:
@@ -8,29 +8,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-2022
-            arch: x64
-            output_suffix: win64
-          - os: windows-2022
-            arch: x86
-            output_suffix: win32
-
-    runs-on: ${{ matrix.os }}
+  build-windows-x64:
+    runs-on: windows-2022
     
     steps:
     - name: Setup Visual Studio environment
       uses: ilammy/msvc-dev-cmd@v1
       with:
-        arch: ${{ matrix.arch == 'x86' && 'x86' || 'x64' }}
+        arch: x64
         
     - name: Create build directory structure
       run: |
-        # Create the root build directory
         New-Item -ItemType Directory -Path "build" -Force
         Write-Host "Created build directory structure"
       shell: powershell
@@ -40,67 +28,177 @@ jobs:
       with:
         path: build/Oberon
         
+    - name: Investigate Oberon repository contents
+      run: |
+        Set-Location build\Oberon
+        
+        Write-Host "=== Oberon Repository Investigation ==="
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host ""
+        
+        Write-Host "=== All files and directories ==="
+        Get-ChildItem | Format-Table Name, Length, LastWriteTime, Attributes
+        Write-Host ""
+        
+        Write-Host "=== Looking for BUSY-related files ==="
+        $busyFiles = Get-ChildItem -Name "*BUSY*" -File -ErrorAction SilentlyContinue
+        if ($busyFiles) {
+          Write-Host "Found BUSY-related files:"
+          foreach ($file in $busyFiles) {
+            $item = Get-Item $file
+            Write-Host "  File: $($item.Name)"
+            Write-Host "    Full path: $($item.FullName)"
+            Write-Host "    Size: $($item.Length) bytes"
+            Write-Host "    Attributes: $($item.Attributes)"
+            Write-Host ""
+          }
+        } else {
+          Write-Host "No BUSY-related files found"
+        }
+        
+        Write-Host "=== Checking for BUSY file specifically ==="
+        if (Test-Path "BUSY" -PathType Leaf) {
+          Write-Host "✓ BUSY file found as expected"
+          $busyFile = Get-Item "BUSY"
+          Write-Host "  Name: $($busyFile.Name)"
+          Write-Host "  Size: $($busyFile.Length) bytes"
+          Write-Host "  Last modified: $($busyFile.LastWriteTime)"
+          Write-Host ""
+          Write-Host "First 10 lines of BUSY file:"
+          Get-Content "BUSY" -TotalCount 10
+        } else {
+          Write-Host "✗ BUSY file not found at expected location"
+          
+          # Check for common variations
+          $variations = @("busy", "BUSY.txt", "BUSY.busy", "Busy")
+          foreach ($variation in $variations) {
+            if (Test-Path $variation -PathType Leaf) {
+              Write-Host "Found variation: $variation"
+              $item = Get-Item $variation
+              Write-Host "  Size: $($item.Length) bytes"
+            }
+          }
+        }
+      shell: powershell
+        
     - name: Download and build BUSY
       run: |
         Set-Location build
         
-        # Download BUSY to the build directory (same level as Oberon)
+        Write-Host "=== Downloading BUSY build system ==="
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/BUSY/archive/refs/heads/main.zip" -OutFile "busy.zip"
         Expand-Archive -Path "busy.zip" -DestinationPath "."
         if (Test-Path "BUSY") { Remove-Item "BUSY" -Recurse -Force }
         Move-Item -Path "BUSY-main" -Destination "BUSY" -Force
         
-        # Build BUSY
+        Write-Host "=== Building BUSY executable ==="
         Set-Location BUSY
         cl /O2 /MD /Fe:lua.exe *.c
         
-        Write-Host "=== Current directory structure ==="
-        Set-Location ..
-        Get-ChildItem | Format-Table Name, Length, LastWriteTime
+        if (Test-Path "lua.exe") {
+          Write-Host "✓ BUSY executable built successfully"
+        } else {
+          Write-Host "✗ BUSY executable build failed"
+          exit 1
+        }
       shell: powershell
       
     - name: Download required dependencies
       run: |
         Set-Location build
         
-        # Download PeLib to build directory (same level as Oberon)
+        Write-Host "=== Downloading dependencies ==="
+        
+        # Download PeLib
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip" -OutFile "pelib.zip"
         Expand-Archive -Path "pelib.zip" -DestinationPath "."
         if (Test-Path "PeLib") { Remove-Item "PeLib" -Recurse -Force }
         Move-Item -Path "PeLib-OBX" -Destination "PeLib" -Force
         
-        # Download MonoTools to build directory (same level as Oberon)
+        # Download MonoTools
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip" -OutFile "monotools.zip"
         Expand-Archive -Path "monotools.zip" -DestinationPath "."
         if (Test-Path "MonoTools") { Remove-Item "MonoTools" -Recurse -Force }
         Move-Item -Path "MonoTools-master" -Destination "MonoTools" -Force
         
-        # Download GuiTools to build directory (same level as Oberon)
+        # Download GuiTools
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip" -OutFile "guitools.zip"
         Expand-Archive -Path "guitools.zip" -DestinationPath "."
         if (Test-Path "GuiTools") { Remove-Item "GuiTools" -Recurse -Force }
         Move-Item -Path "GuiTools-master" -Destination "GuiTools" -Force
         
-        # Download LeanQt to build directory (same level as Oberon)
+        # Download LeanQt
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.zip" -OutFile "leanqt.zip"
         Expand-Archive -Path "leanqt.zip" -DestinationPath "."
         if (Test-Path "LeanQt") { Remove-Item "LeanQt" -Recurse -Force }
         Move-Item -Path "LeanQt-main" -Destination "LeanQt" -Force
         
-        Write-Host "=== Final directory structure ==="
+        Write-Host "=== Final build directory structure ==="
         Get-ChildItem | Format-Table Name, Length, LastWriteTime
+      shell: powershell
+      
+    - name: Fix BUSY configuration file if needed
+      run: |
+        Set-Location build\Oberon
+        
+        Write-Host "=== Fixing BUSY configuration file ==="
+        
+        if (Test-Path "BUSY" -PathType Leaf) {
+          Write-Host "✓ BUSY configuration file exists and is ready"
+        } elseif (Test-Path "BUSY.txt") {
+          Write-Host "Found BUSY.txt - renaming to BUSY"
+          Move-Item "BUSY.txt" "BUSY" -Force
+        } elseif (Test-Path "busy") {
+          Write-Host "Found 'busy' (lowercase) - renaming to BUSY"
+          Move-Item "busy" "BUSY" -Force
+        } else {
+          Write-Host "✗ No BUSY configuration file found"
+          Write-Host "Available files:"
+          Get-ChildItem | Where-Object { $_.Name -like "*busy*" -or $_.Name -like "*BUSY*" } | Format-Table Name, Length, LastWriteTime
+          exit 1
+        }
+        
+        # Final verification
+        if (Test-Path "BUSY" -PathType Leaf) {
+          Write-Host "✓ BUSY configuration file is ready for build"
+          Write-Host "File size: $((Get-Item 'BUSY').Length) bytes"
+        } else {
+          Write-Host "✗ BUSY configuration file preparation failed"
+          exit 1
+        }
       shell: powershell
       
     - name: Build ObxIDE
       run: |
         Set-Location build\BUSY
         
-        Write-Host "=== Building from BUSY directory ==="
+        Write-Host "=== Building ObxIDE ==="
         Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Contents of parent directory:"
-        Get-ChildItem .. | Format-Table Name, Length, LastWriteTime
         
-        # Now BUSY can run with ../Oberon since they're at the same level
+        # Verify everything is in place
+        Write-Host "Checking build prerequisites:"
+        if (Test-Path "lua.exe") {
+          Write-Host "✓ BUSY executable found"
+        } else {
+          Write-Host "✗ BUSY executable missing"
+          exit 1
+        }
+        
+        if (Test-Path "..\Oberon\BUSY") {
+          Write-Host "✓ BUSY configuration file found"
+        } else {
+          Write-Host "✗ BUSY configuration file missing"
+          Write-Host "Contents of Oberon directory:"
+          Get-ChildItem "..\Oberon" | Where-Object { $_.Name -like "*BUSY*" } | Format-Table Name, Length, LastWriteTime
+          exit 1
+        }
+        
+        Write-Host "Directory structure:"
+        Get-ChildItem .. | Format-Table Name, Length, LastWriteTime
+        Write-Host ""
+        
+        # Run the build
+        Write-Host "Starting BUSY build process..."
         .\lua.exe build.lua ..\Oberon -T ide
       shell: powershell
       
@@ -108,27 +206,44 @@ jobs:
       run: |
         Set-Location build\BUSY\output
         
+        Write-Host "=== Packaging artifacts ==="
+        Write-Host "Contents of output directory:"
+        Get-ChildItem | Format-Table Name, Length, LastWriteTime
+        
         # Create artifacts directory in the original workspace
         New-Item -ItemType Directory -Path "..\..\..\artifacts" -Force
         
         if (Test-Path "ObxIDE.exe") {
-          Copy-Item "ObxIDE.exe" "..\..\..\artifacts\ObxIDE_${{ matrix.output_suffix }}.exe"
+          Write-Host "✓ ObxIDE.exe found - copying to artifacts"
+          Copy-Item "ObxIDE.exe" "..\..\..\artifacts\ObxIDE_win64.exe"
+        } else {
+          Write-Host "✗ ObxIDE.exe not found in output directory"
+          Write-Host "Available files:"
+          Get-ChildItem | Format-Table Name, Length, LastWriteTime
         }
         
         if (Test-Path "mono") {
+          Write-Host "✓ Mono runtime found - copying to artifacts"
           Copy-Item "mono" "..\..\..\artifacts\" -Recurse
         }
         
         # Add build information
-        "Build: ${{ github.sha }}" | Out-File "..\..\..\artifacts\build_info.txt"
-        "Date: $(Get-Date)" | Out-File "..\..\..\artifacts\build_info.txt" -Append
-        "Platform: ${{ matrix.output_suffix }}" | Out-File "..\..\..\artifacts\build_info.txt" -Append
+        @"
+Build: ${{ github.sha }}
+Date: $(Get-Date)
+Platform: Windows x64
+Repository: ${{ github.repository }}
+Workflow: ${{ github.workflow }}
+"@ | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
+        
+        Write-Host "=== Final artifacts ==="
+        Get-ChildItem "..\..\..\artifacts" | Format-Table Name, Length, LastWriteTime
       shell: powershell
       
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ObxIDE_${{ matrix.output_suffix }}
+        name: ObxIDE_win64
         path: artifacts/
         retention-days: 30
 
