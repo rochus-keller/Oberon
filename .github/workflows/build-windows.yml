@@ -69,7 +69,6 @@ jobs:
         } else {
           Write-Host "✗ BUSY file not found at expected location"
           
-          # Check for common variations
           $variations = @("busy", "BUSY.txt", "BUSY.busy", "Busy")
           foreach ($variation in $variations) {
             if (Test-Path $variation -PathType Leaf) {
@@ -109,25 +108,21 @@ jobs:
         
         Write-Host "=== Downloading dependencies ==="
         
-        # Download PeLib
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/PeLib/archive/refs/heads/OBX.zip" -OutFile "pelib.zip"
         Expand-Archive -Path "pelib.zip" -DestinationPath "."
         if (Test-Path "PeLib") { Remove-Item "PeLib" -Recurse -Force }
         Move-Item -Path "PeLib-OBX" -Destination "PeLib" -Force
         
-        # Download MonoTools
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/MonoTools/archive/refs/heads/master.zip" -OutFile "monotools.zip"
         Expand-Archive -Path "monotools.zip" -DestinationPath "."
         if (Test-Path "MonoTools") { Remove-Item "MonoTools" -Recurse -Force }
         Move-Item -Path "MonoTools-master" -Destination "MonoTools" -Force
         
-        # Download GuiTools
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/GuiTools/archive/refs/heads/master.zip" -OutFile "guitools.zip"
         Expand-Archive -Path "guitools.zip" -DestinationPath "."
         if (Test-Path "GuiTools") { Remove-Item "GuiTools" -Recurse -Force }
         Move-Item -Path "GuiTools-master" -Destination "GuiTools" -Force
         
-        # Download LeanQt
         Invoke-WebRequest -Uri "https://github.com/rochus-keller/LeanQt/archive/refs/heads/main.zip" -OutFile "leanqt.zip"
         Expand-Archive -Path "leanqt.zip" -DestinationPath "."
         if (Test-Path "LeanQt") { Remove-Item "LeanQt" -Recurse -Force }
@@ -158,7 +153,6 @@ jobs:
           exit 1
         }
         
-        # Final verification
         if (Test-Path "BUSY" -PathType Leaf) {
           Write-Host "✓ BUSY configuration file is ready for build"
           Write-Host "File size: $((Get-Item 'BUSY').Length) bytes"
@@ -175,7 +169,6 @@ jobs:
         Write-Host "=== Building ObxIDE ==="
         Write-Host "Current directory: $(Get-Location)"
         
-        # Verify everything is in place
         Write-Host "Checking build prerequisites:"
         if (Test-Path "lua.exe") {
           Write-Host "✓ BUSY executable found"
@@ -197,7 +190,6 @@ jobs:
         Get-ChildItem .. | Format-Table Name, Length, LastWriteTime
         Write-Host ""
         
-        # Run the build
         Write-Host "Starting BUSY build process..."
         .\lua.exe build.lua ..\Oberon -T ide
       shell: powershell
@@ -210,7 +202,6 @@ jobs:
         Write-Host "Contents of output directory:"
         Get-ChildItem | Format-Table Name, Length, LastWriteTime
         
-        # Create artifacts directory in the original workspace
         New-Item -ItemType Directory -Path "..\..\..\artifacts" -Force
         
         if (Test-Path "ObxIDE.exe") {
@@ -227,14 +218,14 @@ jobs:
           Copy-Item "mono" "..\..\..\artifacts\" -Recurse
         }
         
-        # Add build information
-        @"
+        $buildInfo = @"
 Build: ${{ github.sha }}
 Date: $(Get-Date)
 Platform: Windows x64
 Repository: ${{ github.repository }}
 Workflow: ${{ github.workflow }}
-        "@ | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
+"@
+        $buildInfo | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
         
         Write-Host "=== Final artifacts ==="
         Get-ChildItem "..\..\..\artifacts" | Format-Table Name, Length, LastWriteTime
