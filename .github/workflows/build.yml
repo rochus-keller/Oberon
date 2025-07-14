@@ -40,10 +40,12 @@ jobs:
           sudo apt-get install -y gcc-multilib g++-multilib
         fi
         
-    - name: Setup build environment (Windows)
+    - name: Setup Visual Studio environment (Windows)
       if: runner.os == 'Windows'
-      uses: microsoft/setup-msbuild@v2
-      
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ matrix.arch == 'x86' && 'x86' || 'x64' }}
+        
     - name: Setup build environment (macOS)
       if: runner.os == 'macOS'
       run: |
