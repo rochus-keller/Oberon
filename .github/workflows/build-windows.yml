@@ -234,7 +234,7 @@ Date: $(Get-Date)
 Platform: Windows x64
 Repository: ${{ github.repository }}
 Workflow: ${{ github.workflow }}
-"@ | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
+        "@ | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
         
         Write-Host "=== Final artifacts ==="
         Get-ChildItem "..\..\..\artifacts" | Format-Table Name, Length, LastWriteTime
