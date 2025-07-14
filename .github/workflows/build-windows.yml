@@ -194,47 +194,38 @@ jobs:
         .\lua.exe build.lua ..\Oberon -T ide
       shell: powershell
       
-    - name: Package artifacts
-      run: |
-        Set-Location build\BUSY\output
-        
-        Write-Host "=== Packaging artifacts ==="
-        Write-Host "Contents of output directory:"
-        Get-ChildItem | Format-Table Name, Length, LastWriteTime
-        
-        New-Item -ItemType Directory -Path "..\..\..\artifacts" -Force
-        
-        if (Test-Path "ObxIDE.exe") {
-          Write-Host "✓ ObxIDE.exe found - copying to artifacts"
-          Copy-Item "ObxIDE.exe" "..\..\..\artifacts\ObxIDE_win64.exe"
-        } else {
-          Write-Host "✗ ObxIDE.exe not found in output directory"
-          Write-Host "Available files:"
-          Get-ChildItem | Format-Table Name, Length, LastWriteTime
-        }
-        
-        if (Test-Path "mono") {
-          Write-Host "✓ Mono runtime found - copying to artifacts"
-          Copy-Item "mono" "..\..\..\artifacts\" -Recurse
-        }
-        
-        $buildInfo = @"
-Build: ${{ github.sha }}
-Date: $(Get-Date)
-Platform: Windows x64
-Repository: ${{ github.repository }}
-Workflow: ${{ github.workflow }}
-"@
-        $buildInfo | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
-        
-        Write-Host "=== Final artifacts ==="
-        Get-ChildItem "..\..\..\artifacts" | Format-Table Name, Length, LastWriteTime
-      shell: powershell
-      
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ObxIDE_win64
-        path: artifacts/
-        retention-days: 30
+- name: Package artifacts
+  run: |
+    Set-Location build\BUSY\output
+    
+    Write-Host "=== Packaging artifacts ==="
+    Write-Host "Contents of output directory:"
+    Get-ChildItem | Format-Table Name, Length, LastWriteTime
+    
+    New-Item -ItemType Directory -Path "..\..\..\artifacts" -Force
+    
+    if (Test-Path "ObxIDE.exe") {
+      Write-Host "✓ ObxIDE.exe found - copying to artifacts"
+      Copy-Item "ObxIDE.exe" "..\..\..\artifacts\ObxIDE_win64.exe"
+    } else {
+      Write-Host "✗ ObxIDE.exe not found in output directory"
+      Write-Host "Available files:"
+      Get-ChildItem | Format-Table Name, Length, LastWriteTime
+    }
+    
+    if (Test-Path "mono") {
+      Write-Host "✓ Mono runtime found - copying to artifacts"
+      Copy-Item "mono" "..\..\..\artifacts\" -Recurse
+    }
+    
+    # Create build info using single-line approach
+    "Build: ${{ github.sha }}" | Out-File "..\..\..\artifacts\build_info.txt" -Encoding UTF8
+    "Date: $(Get-Date)" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
+    "Platform: Windows x64" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
+    "Repository: ${{ github.repository }}" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
+    "Workflow: ${{ github.workflow }}" | Out-File "..\..\..\artifacts\build_info.txt" -Append -Encoding UTF8
+    
+    Write-Host "=== Final artifacts ==="
+    Get-ChildItem "..\..\..\artifacts" | Format-Table Name, Length, LastWriteTime
+  shell: powershell
 
