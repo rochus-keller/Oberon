@@ -823,7 +823,9 @@ void Ide::createMenuBar()
     pop->addCommand( "Export C...", this, SLOT(onExportC()) );
     pop->addSeparator();
     pop->addCommand( "Run", this, SLOT(onRun()), tr("CTRL+R"), false );
-
+    pop->addSeparator();
+    pop->addCommand( "Clear Output", this, SLOT(onClearTerm()), tr("CTRL+SHIFT+C"), false );
+    
     pop = new Gui::AutoMenu( tr("Debug"), this );
     pop->addCommand( "Enable debugging", this, SLOT(onEnableDebug()),tr(OBN_ENDBG_SC), false );
     pop->addCommand( "Generate overflow checks", this, SLOT(onOvflChecks()) );
@@ -1704,6 +1706,12 @@ void Ide::onBreak()
     // we cannot support break yet because Mono might stop at a place where a step command leads to a VM crash.
     //d_suspended = true;
     //d_dbg->suspend();
+}
+
+void Ide::onClearTerm()
+{
+    ENABLED_IF(true);
+    d_term->clear();
 }
 
 bool Ide::checkSaved(const QString& title)
