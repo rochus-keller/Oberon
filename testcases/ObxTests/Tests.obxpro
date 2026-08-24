@@ -15,8 +15,8 @@ WorkingDir=
 size=0
 
 [Modules]
-1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/SetTest.obx
-1\RelPath=SetTest.obx
+1\AbsPath=/home/me/Entwicklung/Modules/Oberon/testcases/ObxTests/RecReturnTest.obx
+1\RelPath=RecReturnTest.obx
 size=1
 
 [Packages]

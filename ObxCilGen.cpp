@@ -3378,7 +3378,11 @@ struct ObxCilGenImp : public AstVisitor
         const int r = widenType(result);
         const int o = widenType(operand);
         if( r == o )
+        {
+            if( o == Type::REAL )
+                line(loc).conv_(IlEmitter::ToR8); // float32 must be widened, the stack is always r8
             return;
+        }
         convertTo( r, o, loc, debug );
     }
 

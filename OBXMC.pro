@@ -33,15 +33,11 @@ INCLUDEPATH += ..
 
 SOURCES += \
     ObxMcMain.cpp \
-    ObxIlEmitter.cpp \
-    ObxPelibGen.cpp \
     ObxCilGen.cpp \
     ../MonoTools/MonoMdbGen.cpp \
     ObxCGen2.cpp
 
 HEADERS += \
-    ObxIlEmitter.h \
-    ObxPelibGen.h \
     ObxCilGen.h \
     ../MonoTools/MonoMdbGen.h \
     ObxCGen2.h
